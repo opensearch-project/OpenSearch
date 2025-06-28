@@ -102,6 +102,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
+    private static final int APPROX_QUERY_NUMERIC_DIMS = 1;
+
     private static NumberFieldMapper toType(FieldMapper in) {
         return (NumberFieldMapper) in;
     }
@@ -386,7 +388,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             field,
                             NumberType.HALF_FLOAT.encodePoint(l),
                             NumberType.HALF_FLOAT.encodePoint(u),
-                            1,
+                            APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.HALF_FLOAT_FORMAT
                         )
                     );
@@ -530,37 +532,52 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         u = FloatPoint.nextDown(u);
                     }
                 }
+
+                Query dvQuery = hasDocValues
+                    ? SortedNumericDocValuesField.newSlowRangeQuery(
+                        field,
+                        NumericUtils.floatToSortableInt(l),
+                        NumericUtils.floatToSortableInt(u)
+                    )
+                    : null;
+
                 if (isSearchable) {
-                    Query query = FloatPoint.newRangeQuery(field, l, u);
-
-                    if (hasDocValues) {
-                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
-                            field,
-                            NumericUtils.floatToSortableInt(l),
-                            NumericUtils.floatToSortableInt(u)
-                        );
-                        query = new IndexOrDocValuesQuery(query, dvQuery);
+                    Query pointRangeQuery = FloatPoint.newRangeQuery(field, l, u);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                        if (context.indexSortedOnField(field)) {
+                            query = new IndexSortSortedNumericDocValuesRangeQuery(
+                                field,
+                                NumericUtils.floatToSortableInt(l),
+                                NumericUtils.floatToSortableInt(u),
+                                query
+                            );
+                        }
+                    } else {
+                        query = pointRangeQuery;
                     }
-
                     return new ApproximateScoreQuery(
                         query,
                         new ApproximatePointRangeQuery(
                             field,
                             FloatPoint.pack(new float[] { l }).bytes,
                             FloatPoint.pack(new float[] { u }).bytes,
-                            1,
+                            APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.FLOAT_FORMAT
                         )
                     );
                 }
-                if (hasDocValues) {
-                    return SortedNumericDocValuesField.newSlowRangeQuery(
+
+                if (context.indexSortedOnField(field)) {
+                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(
                         field,
                         NumericUtils.floatToSortableInt(l),
-                        NumericUtils.floatToSortableInt(u)
+                        NumericUtils.floatToSortableInt(u),
+                        dvQuery
                     );
                 }
-                return FloatPoint.newRangeQuery(field, l, u);
+                return dvQuery;
             }
 
             @Override
@@ -698,7 +715,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                                 field,
                                 DoublePoint.pack(new double[] { l }).bytes,
                                 DoublePoint.pack(new double[] { u }).bytes,
-                                1,
+                                APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.DOUBLE_FORMAT
                             )
                         );
@@ -1073,7 +1090,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             field,
                             IntPoint.pack(new int[] { l }).bytes,
                             IntPoint.pack(new int[] { u }).bytes,
-                            1,
+                            APPROX_QUERY_NUMERIC_DIMS,
                             ApproximatePointRangeQuery.INT_FORMAT
                         )
                     );
@@ -1213,7 +1230,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                                 field,
                                 LongPoint.pack(new long[] { l }).bytes,
                                 LongPoint.pack(new long[] { u }).bytes,
-                                1,
+                                APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.LONG_FORMAT
                             )
                         );
@@ -1345,7 +1362,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                                 field,
                                 NumberType.UNSIGNED_LONG.encodePoint(l),
                                 NumberType.UNSIGNED_LONG.encodePoint(u),
-                                1,
+                                APPROX_QUERY_NUMERIC_DIMS,
                                 ApproximatePointRangeQuery.UNSIGNED_LONG_FORMAT
                             )
                         );

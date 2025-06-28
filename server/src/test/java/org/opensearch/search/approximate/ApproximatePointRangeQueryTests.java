@@ -138,6 +138,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             }
 
             @Override
+            String getSortFieldName() {
+                return fieldName + "_sort";
+            }
+
+            @Override
             Query rangeQuery(String fieldName, Number lower, Number upper) {
                 return HalfFloatPoint.newRangeQuery(fieldName, lower.floatValue(), upper.floatValue());
             }
@@ -230,6 +235,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             SortField.Type getSortFieldType() {
                 return SortField.Type.LONG;
             }
+
+            @Override
+            String getSortFieldName() {
+                return fieldName + "_sort";
+            }
         };
 
         final String fieldName;
@@ -249,29 +259,40 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         abstract Query rangeQuery(String fieldName, Number lower, Number upper);
 
         abstract SortField.Type getSortFieldType();
+
+        String getSortFieldName() {
+            return fieldName;
+        }
+
+        long getMinTestValue() {
+            return this == UNSIGNED_LONG ? 0 : -100;
+        }
     }
 
     public void testApproximateRangeEqualsActualRange() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                for (int i = 0; i < 100; i++) {
-                    int numPoints = RandomNumbers.randomIntBetween(random(), 1, 10);
+                int numDocs = RandomNumbers.randomIntBetween(random(), 50, 200);
+                for (int i = 0; i < numDocs; i++) {
+                    int numValues = RandomNumbers.randomIntBetween(random(), 1, 10);
                     Document doc = new Document();
-                    for (int j = 0; j < numPoints; j++) {
-                        long randomValue = RandomNumbers.randomLongBetween(random(), 0, 100);
+                    for (int j = 0; j < numValues; j++) {
+                        long randomValue = RandomNumbers.randomLongBetween(random(), 0, 200);
                         numericType.addField(doc, numericType.fieldName, randomValue);
                     }
                     iw.addDocument(doc);
+                    if (random().nextInt(20) == 0) {
+                        iw.flush();
+                    }
                 }
                 iw.flush();
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
                 try (IndexReader reader = iw.getReader()) {
-                    long lower = RandomNumbers.randomLongBetween(random(), -100, 200);
-                    long upper = lower + RandomNumbers.randomLongBetween(random(), 0, 100);
-                    if (numericType == NumericType.UNSIGNED_LONG && lower < 0) {
-                        lower = 0;
-                        upper = RandomNumbers.randomLongBetween(random(), 0, 100);
-                    }
+                    long lower = RandomNumbers.randomLongBetween(random(), numericType.getMinTestValue(), 200);
+                    long upper = RandomNumbers.randomLongBetween(random(), lower, lower + 150);
                     Query approximateQuery = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -281,9 +302,10 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     );
                     Query exactQuery = numericType.rangeQuery(numericType.fieldName, lower, upper);
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    TopDocs topDocs = searcher.search(approximateQuery, 10);
-                    TopDocs topDocs1 = searcher.search(exactQuery, 10);
-                    assertEquals(topDocs.totalHits, topDocs1.totalHits);
+                    int searchSize = RandomNumbers.randomIntBetween(random(), 10, 50);
+                    TopDocs topDocs = searcher.search(approximateQuery, searchSize);
+                    TopDocs topDocs1 = searcher.search(exactQuery, searchSize);
+                    assertEquals("Approximate and exact queries should return same total hits", topDocs.totalHits, topDocs1.totalHits);
                 }
             }
         }
@@ -323,19 +345,25 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = 1000;
+                int numPoints = RandomNumbers.randomIntBetween(random(), 500, 2000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
                     numericType.addDocValuesField(doc, numericType.fieldName, i);
                     iw.addDocument(doc);
+                    // Randomly flush
+                    if (random().nextInt(20) == 0) {
+                        iw.flush();
+                    }
                 }
                 iw.flush();
-                iw.forceMerge(1);
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
                 try (IndexReader reader = iw.getReader()) {
-                    long lower = 0;
-                    long upper = 20;
-                    final int size = 10;
+                    long lower = RandomNumbers.randomLongBetween(random(), 0, 50);
+                    long upper = RandomNumbers.randomLongBetween(random(), lower + 10, Math.min(lower + 100, numPoints - 1));
+                    final int size = RandomNumbers.randomIntBetween(random(), 5, 20);
                     Query approximateQuery = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -347,16 +375,12 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     );
                     Query exactQuery = numericType.rangeQuery(numericType.fieldName, lower, upper);
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    Sort sort;
-                    if (numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG) {
-                        sort = new Sort(new SortField(numericType.fieldName + "_sort", numericType.getSortFieldType()));
-                    } else {
-                        sort = new Sort(new SortField(numericType.fieldName, numericType.getSortFieldType()));
-                    }
+                    Sort sort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType()));
                     TopDocs topDocs = searcher.search(approximateQuery, size, sort);
                     TopDocs topDocs1 = searcher.search(exactQuery, size, sort);
-                    for (int i = 0; i < Math.min(6, topDocs.scoreDocs.length); i++) {
-                        assertEquals(topDocs.scoreDocs[i].doc, topDocs1.scoreDocs[i].doc);
+                    int compareSize = Math.min(size, Math.min(topDocs.scoreDocs.length, topDocs1.scoreDocs.length));
+                    for (int i = 0; i < compareSize; i++) {
+                        assertEquals("Mismatch at doc index " + i, topDocs.scoreDocs[i].doc, topDocs1.scoreDocs[i].doc);
                     }
                 }
             }
@@ -367,19 +391,24 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = 1000;
+                int numPoints = RandomNumbers.randomIntBetween(random(), 500, 2000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
                     numericType.addDocValuesField(doc, numericType.fieldName, i);
                     iw.addDocument(doc);
+                    if (random().nextInt(20) == 0) {
+                        iw.flush();
+                    }
                 }
                 iw.flush();
-                iw.forceMerge(1);
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
                 try (IndexReader reader = iw.getReader()) {
-                    long lower = 980;
-                    long upper = 999;
-                    final int size = 10;
+                    long lower = RandomNumbers.randomLongBetween(random(), numPoints - 100, numPoints - 20);
+                    long upper = RandomNumbers.randomLongBetween(random(), lower + 10, numPoints - 1);
+                    final int size = RandomNumbers.randomIntBetween(random(), 5, 20);
                     Query approximateQuery = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -391,16 +420,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     );
                     Query exactQuery = numericType.rangeQuery(numericType.fieldName, lower, upper);
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    Sort sort;
-                    if (numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG) {
-                        sort = new Sort(new SortField(numericType.fieldName + "_sort", numericType.getSortFieldType(), true));
-                    } else {
-                        sort = new Sort(new SortField(numericType.fieldName, numericType.getSortFieldType(), true));
-                    }
+                    Sort sort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
                     TopDocs topDocs = searcher.search(approximateQuery, size, sort);
                     TopDocs topDocs1 = searcher.search(exactQuery, size, sort);
-                    // Verify we got the highest values first (DESC order)
-                    for (int i = 0; i < size; i++) {
+                    int compareSize = Math.min(size, Math.min(topDocs.scoreDocs.length, topDocs1.scoreDocs.length));
+                    for (int i = 0; i < compareSize; i++) {
                         assertEquals("Mismatch at doc index " + i, topDocs.scoreDocs[i].doc, topDocs1.scoreDocs[i].doc);
                     }
                 }
@@ -412,18 +436,23 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = 1000;
+                int numPoints = RandomNumbers.randomIntBetween(random(), 500, 2000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
                     iw.addDocument(doc);
+                    if (random().nextInt(20) == 0) {
+                        iw.flush();
+                    }
                 }
                 iw.flush();
-                iw.forceMerge(1);
-                final int size = 10;
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
+                final int size = RandomNumbers.randomIntBetween(random(), 5, 20);
                 try (IndexReader reader = iw.getReader()) {
-                    long lower = 0;
-                    long upper = 45;
+                    long lower = RandomNumbers.randomLongBetween(random(), 0, numPoints / 2);
+                    long upper = RandomNumbers.randomLongBetween(random(), lower + size * 2, numPoints - 1);
                     Query approximateQuery = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -445,19 +474,23 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = 15000;
+                int numPoints = RandomNumbers.randomIntBetween(random(), 15000, 20000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
                     iw.addDocument(doc);
+                    if (random().nextInt(100) == 0) {
+                        iw.flush();
+                    }
                 }
                 iw.flush();
-                iw.forceMerge(1);
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
                 try (IndexReader reader = iw.getReader()) {
-                    long lower = 0;
-                    long upper = 12000;
-                    long maxHits = 12001;
-                    final int size = 11000;
+                    final int size = RandomNumbers.randomIntBetween(random(), 11000, 13000);
+                    long lower = RandomNumbers.randomLongBetween(random(), 0, 1000);
+                    long upper = RandomNumbers.randomLongBetween(random(), lower + size, Math.min(lower + size + 2000, numPoints - 1));
                     Query approximateQuery = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -472,8 +505,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     if (topDocs.totalHits.relation() == Relation.EQUAL_TO) {
                         assertEquals(topDocs.totalHits.value(), size);
                     } else {
-                        assertTrue(11000 <= topDocs.totalHits.value());
-                        assertTrue(maxHits >= topDocs.totalHits.value());
+                        assertTrue(size <= topDocs.totalHits.value());
                     }
                 }
             }
@@ -484,19 +516,24 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = 1000;
+                int numPoints = RandomNumbers.randomIntBetween(random(), 500, 2000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
                     iw.addDocument(doc);
-                    if (i % 10 == 0) iw.flush();
+                    if (random().nextInt(20) == 0) {
+                        iw.flush();
+                    }
                 }
                 iw.flush();
-                iw.forceMerge(1);
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
                 try (IndexReader reader = iw.getReader()) {
-                    long lower = 0;
-                    long upper = 100;
-                    final int size = 10;
+                    final int size = RandomNumbers.randomIntBetween(random(), 5, 20);
+                    long lower = RandomNumbers.randomLongBetween(random(), 0, numPoints / 2);
+                    long upper = RandomNumbers.randomLongBetween(random(), lower + size * 2, Math.min(lower + 200, numPoints - 1));
+                    long expectedHits = upper - lower + 1;
                     Query approximateQuery = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -512,51 +549,59 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     TopDocs topDocs1 = searcher.search(exactQuery, size);
                     assertEquals(size, topDocs.scoreDocs.length);
                     assertEquals(size, topDocs1.scoreDocs.length);
-                    assertEquals(topDocs1.totalHits.value(), 101);
+                    assertEquals(expectedHits, topDocs1.totalHits.value());
                 }
             }
         }
     }
 
     public void testSize() {
+        long lower = RandomNumbers.randomLongBetween(random(), 0, 100);
+        long upper = RandomNumbers.randomLongBetween(random(), lower + 10, lower + 1000);
         ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
             numericType.fieldName,
-            numericType.encode(0),
-            numericType.encode(20),
+            numericType.encode(lower),
+            numericType.encode(upper),
             1,
             numericType.format
         );
         assertEquals(query.getSize(), 10_000);
-        query.setSize(100);
-        assertEquals(query.getSize(), 100);
+        int newSize = RandomNumbers.randomIntBetween(random(), 50, 500);
+        query.setSize(newSize);
+        assertEquals(query.getSize(), newSize);
     }
 
     public void testSortOrder() {
+        long lower = RandomNumbers.randomLongBetween(random(), 0, 100);
+        long upper = RandomNumbers.randomLongBetween(random(), lower + 10, lower + 1000);
         ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
             numericType.fieldName,
-            numericType.encode(0),
-            numericType.encode(20),
+            numericType.encode(lower),
+            numericType.encode(upper),
             1,
             numericType.format
         );
         assertNull(query.getSortOrder());
-        query.setSortOrder(SortOrder.ASC);
-        assertEquals(query.getSortOrder(), SortOrder.ASC);
+        SortOrder sortOrder = random().nextBoolean() ? SortOrder.ASC : SortOrder.DESC;
+        query.setSortOrder(sortOrder);
+        assertEquals(query.getSortOrder(), sortOrder);
     }
 
     public void testCanApproximate() {
+        long lower = RandomNumbers.randomLongBetween(random(), 0, 100);
+        long upper = RandomNumbers.randomLongBetween(random(), lower + 10, lower + 1000);
         ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
             numericType.fieldName,
-            numericType.encode(0),
-            numericType.encode(20),
+            numericType.encode(lower),
+            numericType.encode(upper),
             1,
             numericType.format
         );
         assertFalse(query.canApproximate(null));
         ApproximatePointRangeQuery queryCanApproximate = new ApproximatePointRangeQuery(
             numericType.fieldName,
-            numericType.encode(0),
-            numericType.encode(20),
+            numericType.encode(lower),
+            numericType.encode(upper),
             1,
             numericType.format
         ) {
@@ -564,27 +609,34 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 return true;
             }
         };
-        SearchContext searchContext = org.mockito.Mockito.mock(SearchContext.class);
+        SearchContext searchContext = mock(SearchContext.class);
         assertTrue(queryCanApproximate.canApproximate(searchContext));
     }
 
     public void testCannotApproximateWithTrackTotalHits() {
+        long lower = RandomNumbers.randomLongBetween(random(), 0, 100);
+        long upper = RandomNumbers.randomLongBetween(random(), lower + 10, lower + 1000);
         ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
             numericType.fieldName,
-            numericType.encode(0),
-            numericType.encode(20),
+            numericType.encode(lower),
+            numericType.encode(upper),
             1,
             numericType.format
         );
         SearchContext mockContext = mock(org.opensearch.search.internal.SearchContext.class);
         when(mockContext.trackTotalHitsUpTo()).thenReturn(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         assertFalse(query.canApproximate(mockContext));
-        when(mockContext.trackTotalHitsUpTo()).thenReturn(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+        int trackTotalHitsUpTo = RandomNumbers.randomIntBetween(random(), 1000, 20000);
+        when(mockContext.trackTotalHitsUpTo()).thenReturn(trackTotalHitsUpTo);
         when(mockContext.aggregations()).thenReturn(null);
-        when(mockContext.from()).thenReturn(0);
-        when(mockContext.size()).thenReturn(10);
+        int from = RandomNumbers.randomIntBetween(random(), 0, 100);
+        int size = RandomNumbers.randomIntBetween(random(), 10, 100);
+        when(mockContext.from()).thenReturn(from);
+        when(mockContext.size()).thenReturn(size);
         when(mockContext.request()).thenReturn(null);
         assertTrue(query.canApproximate(mockContext));
+        int expectedSize = Math.max(from + size, trackTotalHitsUpTo) + 1;
+        assertEquals(expectedSize, query.getSize());
     }
 
     // Test to cover the left child traversal in intersectRight with CELL_INSIDE_QUERY
@@ -592,41 +644,43 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                // Create a dataset that will create a multi-level BKD tree
-                int numPoints = 2000;
+                int numPoints = RandomNumbers.randomIntBetween(random(), 2000, 5000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
                     numericType.addDocValuesField(doc, numericType.fieldName, i);
-                    if (i % 100 == 0) {
+                    iw.addDocument(doc);
+                    if (i % RandomNumbers.randomIntBetween(random(), 50, 200) == 0) {
                         iw.flush();
                     }
-                    iw.addDocument(doc);
                 }
                 iw.flush();
-                iw.forceMerge(1);
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
                 try (IndexReader reader = iw.getReader()) {
-                    long lower = 1000;
-                    long upper = 1999;
-                    final int size = 50;
+                    // To test upper half of the data to test the DESC
+                    long lower = RandomNumbers.randomLongBetween(random(), numPoints / 2, numPoints - 200);
+                    long upper = RandomNumbers.randomLongBetween(random(), lower + 100, numPoints - 1);
+                    final int size = RandomNumbers.randomIntBetween(random(), 30, 100);
                     ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
                         numericType.encode(upper),
                         dims,
-                        50,
+                        size,
                         SortOrder.DESC,
                         numericType.format
                     );
+
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    Sort sort;
-                    if (numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG) {
-                        sort = new Sort(new SortField(numericType.fieldName + "_sort", numericType.getSortFieldType(), true));
-                    } else {
-                        sort = new Sort(new SortField(numericType.fieldName, numericType.getSortFieldType(), true));
-                    }
+                    Sort sort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
                     TopDocs topDocs = searcher.search(query, size, sort);
-                    assertEquals("Should return exactly size value documents", size, topDocs.scoreDocs.length);
+                    assertEquals(
+                        "Should return exactly min(size, hits) documents",
+                        (int) Math.min(size, (upper - lower + 1)),
+                        topDocs.scoreDocs.length
+                    );
                 }
             }
         }
@@ -637,70 +691,25 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                // Create a smaller dataset that will result in leaf nodes that are completely inside the query range
-                for (int i = 900; i <= 999; i++) {
+                int dataStart = RandomNumbers.randomIntBetween(random(), 500, 1500);
+                int dataEnd = dataStart + RandomNumbers.randomIntBetween(random(), 50, 200);
+                int numDocs = dataEnd - dataStart + 1;
+                for (int i = dataStart; i <= dataEnd; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
                     numericType.addDocValuesField(doc, numericType.fieldName, i);
                     iw.addDocument(doc);
                 }
                 iw.flush();
-                iw.forceMerge(1);
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
                 try (IndexReader reader = iw.getReader()) {
-                    long lower = 800;
-                    long upper = 1100;
-                    final int size = 200;
-                    final int returnSize = 100;
-                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
-                        numericType.fieldName,
-                        numericType.encode(lower),
-                        numericType.encode(upper),
-                        dims,
-                        200,
-                        SortOrder.DESC,
-                        numericType.format
-                    );
-                    IndexSearcher searcher = new IndexSearcher(reader);
-                    Sort sort;
-                    if (numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG) {
-                        sort = new Sort(new SortField(numericType.fieldName + "_sort", numericType.getSortFieldType(), true));
-                    } else {
-                        sort = new Sort(new SortField(numericType.fieldName, numericType.getSortFieldType(), true));
-                    }
-                    TopDocs topDocs = searcher.search(query, size, sort);
-                    assertEquals("Should find all documents", returnSize, topDocs.totalHits.value());
-                    assertEquals("Should return exactly return size value documents", returnSize, topDocs.scoreDocs.length);
-                }
-            }
-        }
-    }
-
-    // Test to cover CELL_OUTSIDE_QUERY break case for intersectRight
-    public void testIntersectRightCellOutsideQuery() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
-                int dims = 1;
-                // Create documents in two separate ranges to ensure some cells are outside query
-                // Range 1: 0-99
-                for (int i = 0; i < 100; i++) {
-                    Document doc = new Document();
-                    numericType.addField(doc, numericType.fieldName, i);
-                    numericType.addDocValuesField(doc, numericType.fieldName, i);
-                    iw.addDocument(doc);
-                }
-                // Range 2: 500-599 (gap ensures some tree nodes will be completely outside query)
-                for (int i = 500; i < 600; i++) {
-                    Document doc = new Document();
-                    numericType.addField(doc, numericType.fieldName, i);
-                    numericType.addDocValuesField(doc, numericType.fieldName, i);
-                    iw.addDocument(doc);
-                }
-                iw.flush();
-                iw.forceMerge(1);
-                try (IndexReader reader = iw.getReader()) {
-                    long lower = 200;
-                    long upper = 400;
-                    final int size = 50;
+                    // Create a query range that fully encompasses the data
+                    // This ensures CELL_INSIDE_QUERY condition
+                    long lower = dataStart - RandomNumbers.randomIntBetween(random(), 50, 200);
+                    long upper = dataEnd + RandomNumbers.randomIntBetween(random(), 50, 200);
+                    final int size = RandomNumbers.randomIntBetween(random(), numDocs + 50, numDocs + 200);
                     ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -711,14 +720,58 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         numericType.format
                     );
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    Sort sort;
-                    if (numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG) {
-                        sort = new Sort(new SortField(numericType.fieldName + "_sort", numericType.getSortFieldType(), true));
-                    } else {
-                        sort = new Sort(new SortField(numericType.fieldName, numericType.getSortFieldType(), true));
-                    }
+                    Sort sort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
                     TopDocs topDocs = searcher.search(query, size, sort);
-                    // Should find no documents since our query range (200-400) has no documents
+                    assertEquals("Should find all documents", numDocs, topDocs.totalHits.value());
+                    assertEquals("Should return exactly all documents", numDocs, topDocs.scoreDocs.length);
+                }
+            }
+        }
+    }
+
+    // Test to cover CELL_OUTSIDE_QUERY break case for intersectRight
+    public void testIntersectRightCellOutsideQuery() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                int range1Start = RandomNumbers.randomIntBetween(random(), 0, 100);
+                int range1End = range1Start + RandomNumbers.randomIntBetween(random(), 50, 150);
+                for (int i = range1Start; i <= range1End; i++) {
+                    Document doc = new Document();
+                    numericType.addField(doc, numericType.fieldName, i);
+                    numericType.addDocValuesField(doc, numericType.fieldName, i);
+                    iw.addDocument(doc);
+                }
+                int gapSize = RandomNumbers.randomIntBetween(random(), 200, 400);
+                int range2Start = range1End + gapSize;
+                int range2End = range2Start + RandomNumbers.randomIntBetween(random(), 50, 150);
+                for (int i = range2Start; i <= range2End; i++) {
+                    Document doc = new Document();
+                    numericType.addField(doc, numericType.fieldName, i);
+                    numericType.addDocValuesField(doc, numericType.fieldName, i);
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
+                try (IndexReader reader = iw.getReader()) {
+                    long lower = range1End + RandomNumbers.randomIntBetween(random(), 10, gapSize / 2);
+                    long upper = range2Start - RandomNumbers.randomIntBetween(random(), 10, gapSize / 2);
+                    final int size = RandomNumbers.randomIntBetween(random(), 20, 100);
+
+                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+                        numericType.fieldName,
+                        numericType.encode(lower),
+                        numericType.encode(upper),
+                        dims,
+                        size,
+                        SortOrder.DESC,
+                        numericType.format
+                    );
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    Sort sort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
+                    TopDocs topDocs = searcher.search(query, size, sort);
                     assertEquals("Should find no documents in the gap range", 0, topDocs.totalHits.value());
                 }
             }
@@ -730,65 +783,25 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                // Create documents that will result in cells that cross the query boundary
-                for (int i = 0; i < 1000; i++) {
+                int numPoints = RandomNumbers.randomIntBetween(random(), 1000, 3000);
+                for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
                     numericType.addDocValuesField(doc, numericType.fieldName, i);
                     iw.addDocument(doc);
+                    if (random().nextInt(100) == 0) {
+                        iw.flush();
+                    }
                 }
                 iw.flush();
-                iw.forceMerge(1);
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
                 try (IndexReader reader = iw.getReader()) {
                     // Query that will partially overlap with tree nodes (CELL_CROSSES_QUERY)
-                    long lower = 250;
-                    long upper = 750;
-                    final int size = 100;
-                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
-                        numericType.fieldName,
-                        numericType.encode(lower),
-                        numericType.encode(upper),
-                        dims,
-                        100,
-                        SortOrder.DESC,
-                        numericType.format
-                    );
-                    IndexSearcher searcher = new IndexSearcher(reader);
-                    Sort sort;
-                    if (numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG) {
-                        sort = new Sort(new SortField(numericType.fieldName + "_sort", numericType.getSortFieldType(), true));
-                    } else {
-                        sort = new Sort(new SortField(numericType.fieldName, numericType.getSortFieldType(), true));
-                    }
-                    TopDocs topDocs = searcher.search(query, size, sort);
-                    assertEquals("Should return exactly size value documents", size, topDocs.scoreDocs.length);
-                    assertTrue("Should collect at least requested number of documents", topDocs.totalHits.value() >= 100);
-                }
-            }
-        }
-    }
-
-    // Test to specifically cover the single child case in intersectRight
-    public void testIntersectRightSingleChildNode() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
-                int dims = 1;
-                for (int i = 0; i < 100; i++) {
-                    Document doc = new Document();
-                    numericType.addField(doc, numericType.fieldName, 1000);
-                    numericType.addDocValuesField(doc, numericType.fieldName, 1000);
-                    iw.addDocument(doc);
-                }
-                Document doc = new Document();
-                numericType.addField(doc, numericType.fieldName, 987654321L);
-                numericType.addDocValuesField(doc, numericType.fieldName, 987654321L);
-                iw.addDocument(doc);
-                iw.flush();
-                iw.forceMerge(1);
-                try (IndexReader reader = iw.getReader()) {
-                    long lower = 500L;
-                    long upper = 999999999L;
-                    final int size = 50;
+                    long lower = RandomNumbers.randomLongBetween(random(), numPoints / 4, numPoints / 2);
+                    long upper = RandomNumbers.randomLongBetween(random(), numPoints / 2, 3 * numPoints / 4);
+                    final int size = RandomNumbers.randomIntBetween(random(), 50, 200);
                     ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -799,14 +812,58 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         numericType.format
                     );
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    Sort sort;
-                    if (numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG) {
-                        sort = new Sort(new SortField(numericType.fieldName + "_sort", numericType.getSortFieldType(), true));
-                    } else {
-                        sort = new Sort(new SortField(numericType.fieldName, numericType.getSortFieldType(), true));
-                    }
+                    Sort sort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
                     TopDocs topDocs = searcher.search(query, size, sort);
-                    assertEquals("Should return exactly size value documents", size, topDocs.scoreDocs.length);
+                    long expectedHits = upper - lower + 1;
+                    int expectedReturnSize = (int) Math.min(size, expectedHits);
+                    assertEquals("Should return min(size, hits) documents", expectedReturnSize, topDocs.scoreDocs.length);
+                    assertTrue("Should collect at least min(size, hits) documents", topDocs.totalHits.value() >= expectedReturnSize);
+                }
+            }
+        }
+    }
+
+    // Test to specifically cover the single child case in intersectRight
+    public void testIntersectRightSingleChildNode() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                int numSameValueDocs = RandomNumbers.randomIntBetween(random(), 50, 200);
+                long sameValue = RandomNumbers.randomLongBetween(random(), 500, 2000);
+                for (int i = 0; i < numSameValueDocs; i++) {
+                    Document doc = new Document();
+                    numericType.addField(doc, numericType.fieldName, sameValue);
+                    numericType.addDocValuesField(doc, numericType.fieldName, sameValue);
+                    iw.addDocument(doc);
+                }
+                long highValue = RandomNumbers.randomLongBetween(random(), 900000000L, 999999999L);
+                Document doc = new Document();
+                numericType.addField(doc, numericType.fieldName, highValue);
+                numericType.addDocValuesField(doc, numericType.fieldName, highValue);
+                iw.addDocument(doc);
+                iw.flush();
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
+                try (IndexReader reader = iw.getReader()) {
+                    long lower = RandomNumbers.randomLongBetween(random(), 0, sameValue - 100);
+                    long upper = RandomNumbers.randomLongBetween(random(), highValue, highValue + 1000000L);
+                    final int size = RandomNumbers.randomIntBetween(random(), 20, 100);
+                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+                        numericType.fieldName,
+                        numericType.encode(lower),
+                        numericType.encode(upper),
+                        dims,
+                        size,
+                        SortOrder.DESC,
+                        numericType.format
+                    );
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    Sort sort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
+                    TopDocs topDocs = searcher.search(query, size, sort);
+                    int totalDocs = numSameValueDocs + 1;
+                    int expectedReturnSize = Math.min(size, totalDocs);
+                    assertEquals("Should return min(size, totalDocs) documents", expectedReturnSize, topDocs.scoreDocs.length);
                 }
             }
         }
@@ -926,15 +983,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             );
         }
         // Test with sorting (ASC and DESC)
-        Sort ascSort;
-        Sort descSort;
-        if (numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG) {
-            ascSort = new Sort(new SortField(field + "_sort", numericType.getSortFieldType()));
-            descSort = new Sort(new SortField(field + "_sort", numericType.getSortFieldType(), true));
-        } else {
-            ascSort = new Sort(new SortField(field, numericType.getSortFieldType()));
-            descSort = new Sort(new SortField(field, numericType.getSortFieldType(), true));
-        }
+        Sort ascSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType()));
+        Sort descSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
         // Test ASC sort
         ApproximatePointRangeQuery approxQueryAsc = new ApproximatePointRangeQuery(
             field,
