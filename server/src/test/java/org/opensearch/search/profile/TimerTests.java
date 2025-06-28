@@ -41,7 +41,7 @@ public class TimerTests extends OpenSearchTestCase {
 
     public void testTimingInterval() {
         final AtomicLong nanoTimeCallCounter = new AtomicLong();
-        Timer t = new Timer() {
+        Timer t = new Timer("test") {
             long time = 50;
 
             @Override
@@ -64,7 +64,7 @@ public class TimerTests extends OpenSearchTestCase {
     }
 
     public void testExtrapolate() {
-        Timer t = new Timer() {
+        Timer t = new Timer("test") {
             long time = 50;
 
             @Override
@@ -93,8 +93,8 @@ public class TimerTests extends OpenSearchTestCase {
         assertEquals(map.get("test_count").longValue(), 2L);
         assertEquals(map.get("test_start_time").longValue(), 12345L);
 
-        Timer t1 = new Timer(123L, 2L, 1234L, 0L, 12345L);
-        assertEquals(t1.getName(), "");
+        Timer t1 = new Timer(123L, 2L, 1234L, 0L, 12345L, "test1");
+        assertEquals(t1.getName(), "test1");
     }
 
 }

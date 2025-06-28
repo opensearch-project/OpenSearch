@@ -36,8 +36,9 @@ import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.Timer;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.function.Supplier;
 
 /**
  * A record of timings for the various operations that may happen during query execution.
@@ -48,7 +49,7 @@ import java.util.Map;
  */
 public final class QueryProfileBreakdown extends ContextualProfileBreakdown {
 
-    public QueryProfileBreakdown(Map<String, Class<? extends ProfileMetric>> metrics) {
+    public QueryProfileBreakdown(Collection<Supplier<ProfileMetric>> metrics) {
         super(metrics);
     }
 
@@ -57,10 +58,10 @@ public final class QueryProfileBreakdown extends ContextualProfileBreakdown {
         return this;
     }
 
-    public static Map<String, Class<? extends ProfileMetric>> getQueryTimers() {
-        Map<String, Class<? extends ProfileMetric>> metrics = new HashMap<>();
+    public static Collection<Supplier<ProfileMetric>> getQueryTimers() {
+        Collection<Supplier<ProfileMetric>> metrics = new ArrayList<>();
         for (QueryTimingType type : QueryTimingType.values()) {
-            metrics.put(type.toString(), Timer.class);
+            metrics.add(() -> new Timer(type.toString()));
         }
         return metrics;
     }

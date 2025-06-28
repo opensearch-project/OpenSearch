@@ -32,8 +32,11 @@ import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_START_TIME_SUFFIX;
@@ -50,9 +53,9 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
     @Before
     public void setup() {
         testQueryProfileBreakdown = new ConcurrentQueryProfileBreakdown(QueryProfileBreakdown.getQueryTimers());
-        Map<String, Class<? extends ProfileMetric>> combinedMap = QueryProfileBreakdown.getQueryTimers();
-        combinedMap.putAll(ProfileMetricTests.getNonTimingMetric());
-        testQueryProfileBreakdownCombined = new ConcurrentQueryProfileBreakdown(combinedMap);
+        Collection<Supplier<ProfileMetric>> combinedMetrics = QueryProfileBreakdown.getQueryTimers();
+        combinedMetrics.addAll(ProfileMetricTests.getNonTimingMetric());
+        testQueryProfileBreakdownCombined = new ConcurrentQueryProfileBreakdown(combinedMetrics);
         createWeightTimer = testQueryProfileBreakdown.getTimer(QueryTimingType.CREATE_WEIGHT);
         try {
             createWeightTimer.start();
@@ -469,7 +472,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         private Map<String, Long> breakdownMap;
 
         public TestQueryProfileBreakdown(Map<String, Long> breakdownMap) {
-            super(Map.of());
+            super(List.of());
             this.breakdownMap = breakdownMap;
         }
 

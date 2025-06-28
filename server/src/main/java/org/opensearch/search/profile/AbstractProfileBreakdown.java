@@ -32,9 +32,13 @@
 
 package org.opensearch.search.profile;
 
-import java.util.HashMap;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -47,21 +51,11 @@ import static java.util.Collections.emptyMap;
  */
 public abstract class AbstractProfileBreakdown {
 
-    public static final String NODE_TIME_RAW = "time_in_nanos";
-
     private final Map<String, ProfileMetric> metrics;
 
     /** Sole constructor. */
-    public AbstractProfileBreakdown(Map<String, Class<? extends ProfileMetric>> metricClasses) {
-        Map<String, ProfileMetric> map = new HashMap<>();
-        for (Map.Entry<String, Class<? extends ProfileMetric>> entry : metricClasses.entrySet()) {
-            try {
-                map.put(entry.getKey(), entry.getValue().getConstructor(String.class).newInstance(entry.getKey()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-        this.metrics = map;
+    public AbstractProfileBreakdown(Collection<Supplier<ProfileMetric>> metricSuppliers) {
+        this.metrics = metricSuppliers.stream().map(Supplier::get).collect(Collectors.toMap(ProfileMetric::getName, metric -> metric));
     }
 
     public Timer getTimer(Enum<?> type) {
@@ -72,6 +66,26 @@ public abstract class AbstractProfileBreakdown {
 
     public ProfileMetric getMetric(String name) {
         return metrics.get(name);
+    }
+
+    public Set<String> getTimingMetrics() {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
+            if (entry.getValue() instanceof Timer) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    public Set<String> getNonTimingMetrics() {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
+            if (!(entry.getValue() instanceof Timer)) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
     }
 
     /**
@@ -88,8 +102,8 @@ public abstract class AbstractProfileBreakdown {
     public long toNodeTime() {
         long total = 0;
         for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
-            if (entry.getValue() instanceof Timer) {
-                total += ((Timer) entry.getValue()).getApproximateTiming();
+            if (entry.getValue() instanceof Timer t) {
+                total += t.getApproximateTiming();
             }
         }
         return total;

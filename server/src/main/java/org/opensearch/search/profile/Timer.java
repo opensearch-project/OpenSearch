@@ -58,19 +58,6 @@ public class Timer extends ProfileMetric {
     private boolean doTiming;
     private long timing, count, lastCount, start, earliestTimerStartTime;
 
-    public Timer() {
-        this(0, 0, 0, 0, 0);
-    }
-
-    public Timer(long timing, long count, long lastCount, long start, long earliestTimerStartTime) {
-        super("");
-        this.timing = timing;
-        this.count = count;
-        this.lastCount = lastCount;
-        this.start = start;
-        this.earliestTimerStartTime = earliestTimerStartTime;
-    }
-
     public Timer(String name) {
         super(name);
     }

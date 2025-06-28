@@ -10,7 +10,10 @@ package org.opensearch.search.profile;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class ProfileMetricTests extends OpenSearchTestCase {
 
@@ -40,7 +43,7 @@ public class ProfileMetricTests extends OpenSearchTestCase {
         assertEquals(map.get("test_metric").longValue(), 1234L);
     }
 
-    public static Map<String, Class<? extends ProfileMetric>> getNonTimingMetric() {
-        return Map.of("test_metric", TestMetric.class);
+    public static Collection<Supplier<ProfileMetric>> getNonTimingMetric() {
+        return List.of(() -> new TestMetric("test_metric"));
     }
 }

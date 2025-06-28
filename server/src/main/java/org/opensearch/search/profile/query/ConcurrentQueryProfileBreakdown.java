@@ -14,17 +14,17 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
-import org.opensearch.search.profile.Timer;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_START_TIME_SUFFIX;
@@ -48,16 +48,16 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     private long avgSliceNodeTime = 0L;
 
     // keep track of all breakdown timings per segment. package-private for testing
-    private final Map<Object, ContextualProfileBreakdown> contexts = new ConcurrentHashMap<>();
+    private final Map<Object, AbstractProfileBreakdown> contexts = new ConcurrentHashMap<>();
 
     // represents slice to leaves mapping as for each slice a unique collector instance is created
     private final Map<Collector, List<LeafReaderContext>> sliceCollectorsToLeaves = new ConcurrentHashMap<>();
 
-    private final Map<String, Class<? extends ProfileMetric>> metrics;
+    private final Collection<Supplier<ProfileMetric>> metrics;
     private final Set<String> timingMetrics;
     private final Set<String> nonTimingMetrics;
 
-    public ConcurrentQueryProfileBreakdown(Map<String, Class<? extends ProfileMetric>> metrics) {
+    public ConcurrentQueryProfileBreakdown(Collection<Supplier<ProfileMetric>> metrics) {
         super(metrics);
         this.metrics = metrics;
         this.timingMetrics = getTimingMetrics();
@@ -65,9 +65,9 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     }
 
     @Override
-    public ContextualProfileBreakdown context(Object context) {
+    public AbstractProfileBreakdown context(Object context) {
         // See please https://bugs.openjdk.java.net/browse/JDK-8161372
-        final ContextualProfileBreakdown profile = contexts.get(context);
+        final AbstractProfileBreakdown profile = contexts.get(context);
 
         if (profile != null) {
             return profile;
@@ -422,26 +422,6 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
         queryBreakdownMap.compute(avgKey, (key, value) -> (value == null) ? sliceValue : (value + sliceValue));
     }
 
-    private Set<String> getTimingMetrics() {
-        Set<String> timingMetrics = new HashSet<>();
-        for (Map.Entry<String, Class<? extends ProfileMetric>> entry : metrics.entrySet()) {
-            if (entry.getValue().equals(Timer.class)) {
-                timingMetrics.add(entry.getKey());
-            }
-        }
-        return timingMetrics;
-    }
-
-    private Set<String> getNonTimingMetrics() {
-        Set<String> nonTimingMetrics = new HashSet<>();
-        for (Map.Entry<String, Class<? extends ProfileMetric>> entry : metrics.entrySet()) {
-            if (!entry.getValue().equals(Timer.class)) {
-                nonTimingMetrics.add(entry.getKey());
-            }
-        }
-        return nonTimingMetrics;
-    }
-
     @Override
     public long toNodeTime() {
         return queryNodeTime;
@@ -463,7 +443,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     }
 
     // used by tests
-    Map<Object, ContextualProfileBreakdown> getContexts() {
+    Map<Object, AbstractProfileBreakdown> getContexts() {
         return contexts;
     }
 

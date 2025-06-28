@@ -11,8 +11,10 @@ package org.opensearch.search.profile;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Provide contextual profile breakdowns which are associated with freestyle context. Used when concurrent
@@ -22,7 +24,7 @@ import java.util.Map;
  */
 public abstract class ContextualProfileBreakdown extends AbstractProfileBreakdown {
 
-    public ContextualProfileBreakdown(Map<String, Class<? extends ProfileMetric>> metrics) {
+    public ContextualProfileBreakdown(Collection<Supplier<ProfileMetric>> metrics) {
         super(metrics);
     }
 
@@ -31,7 +33,7 @@ public abstract class ContextualProfileBreakdown extends AbstractProfileBreakdow
      * @param context freestyle context
      * @return contextual profile breakdown instance
      */
-    public abstract ContextualProfileBreakdown context(Object context);
+    public abstract AbstractProfileBreakdown context(Object context);
 
     public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {}
 

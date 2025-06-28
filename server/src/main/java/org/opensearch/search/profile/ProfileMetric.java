@@ -8,20 +8,19 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.util.Map;
 
 /**
  * A metric for profiling.
  */
-@PublicApi(since = "1.0.0")
+@ExperimentalApi
 public abstract class ProfileMetric {
 
     private final String name;
 
     public ProfileMetric(String name) {
-        // TODO: add extension name to it
         this.name = name;
     }
 

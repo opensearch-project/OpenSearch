@@ -12,6 +12,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -30,7 +31,7 @@ public class AbstractProfileBreakdownTests extends OpenSearchTestCase {
         Map<String, Long> stats;
 
         TestProfileBreakdown() {
-            super(Map.of());
+            super(List.of());
             stats = new HashMap<String, Long>();
             long counter = 123;
             for (TestType type : TestType.values()) {
