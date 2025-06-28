@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
@@ -92,6 +93,7 @@ class FlightTransport extends TcpTransport {
     private final ThreadPool threadPool;
     private BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final FlightStatsCollector statsCollector;
 
     final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of(
         "flight-server-header-middleware"
@@ -109,13 +111,15 @@ class FlightTransport extends TcpTransport {
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
         Tracer tracer,
-        SslContextProvider sslContextProvider
+        SslContextProvider sslContextProvider,
+        FlightStatsCollector statsCollector
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
         this.portRange = SETTING_FLIGHT_PORTS.get(settings);
         this.bindHosts = SETTING_FLIGHT_BIND_HOST.get(settings).toArray(new String[0]);
         this.publishHosts = SETTING_FLIGHT_PUBLISH_HOST.get(settings).toArray(new String[0]);
         this.sslContextProvider = sslContextProvider;
+        this.statsCollector = statsCollector;
         this.bossEventLoopGroup = createEventLoopGroup("os-grpc-boss-ELG", 1);
         this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors() * 2);
         this.serverExecutor = threadPool.executor(ThreadPool.Names.GENERIC);
@@ -128,7 +132,12 @@ class FlightTransport extends TcpTransport {
         boolean success = false;
         try {
             allocator = AccessController.doPrivileged((PrivilegedAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
-            flightProducer = new ArrowFlightProducer(this, allocator, SERVER_HEADER_KEY);
+            if (statsCollector != null) {
+                statsCollector.setBufferAllocator(allocator);
+                statsCollector.setThreadPool(threadPool);
+                statsCollector.setEventLoopGroups(bossEventLoopGroup, workerEventLoopGroup);
+            }
+            flightProducer = new ArrowFlightProducer(this, allocator, SERVER_HEADER_KEY, statsCollector);
             bindServer();
             success = true;
         } finally {
@@ -230,6 +239,9 @@ class FlightTransport extends TcpTransport {
             }
             for (ClientHolder holder : flightClients.values()) {
                 holder.flightClient().close();
+                if (statsCollector != null) {
+                    statsCollector.decrementChannelsActive();
+                }
             }
             flightClients.clear();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
@@ -274,7 +286,7 @@ class FlightTransport extends TcpTransport {
             return new ClientHolder(location, client, context);
         });
 
-        return new FlightClientChannel(
+        FlightClientChannel channel = new FlightClientChannel(
             boundAddress,
             holder.flightClient(),
             node,
@@ -284,8 +296,15 @@ class FlightTransport extends TcpTransport {
             getResponseHandlers(),
             threadPool,
             this.inboundHandler.getMessageListener(),
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            statsCollector
         );
+
+        if (statsCollector != null) {
+            statsCollector.incrementChannelsActive();
+        }
+
+        return channel;
     }
 
     @Override
@@ -330,7 +349,8 @@ class FlightTransport extends TcpTransport {
             keepAlive,
             requestHandlers,
             responseHandlers,
-            tracer
+            tracer,
+            statsCollector
         );
     }
 

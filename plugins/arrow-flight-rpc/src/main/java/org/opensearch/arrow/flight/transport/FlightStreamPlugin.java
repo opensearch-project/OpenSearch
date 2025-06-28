@@ -17,6 +17,10 @@ import org.opensearch.arrow.flight.bootstrap.ServerComponents;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
+import org.opensearch.arrow.flight.stats.FlightStatsAction;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
+import org.opensearch.arrow.flight.stats.FlightStatsRestHandler;
+import org.opensearch.arrow.flight.stats.TransportFlightStatsAction;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -77,6 +81,7 @@ public class FlightStreamPlugin extends Plugin
     private final FlightService flightService;
     private final boolean isArrowStreamsEnabled;
     private final boolean isStreamTransportEnabled;
+    private FlightStatsCollector statsCollector;
 
     /**
      * Constructor for FlightStreamPluginImpl.
@@ -124,13 +129,21 @@ public class FlightStreamPlugin extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        if (!isArrowStreamsEnabled) {
+        if (!isArrowStreamsEnabled && !isStreamTransportEnabled) {
             return Collections.emptyList();
         }
-        flightService.setClusterService(clusterService);
-        flightService.setThreadPool(threadPool);
-        flightService.setClient(client);
-        return Collections.emptyList();
+
+        List<Object> components = new ArrayList<>();
+
+        if (isArrowStreamsEnabled) {
+            flightService.setClusterService(clusterService);
+            flightService.setThreadPool(threadPool);
+            flightService.setClient(client);
+        }
+        statsCollector = new FlightStatsCollector();
+
+        components.add(statsCollector);
+        return components;
     }
 
     /**
@@ -174,7 +187,8 @@ public class FlightStreamPlugin extends Plugin
                     namedWriteableRegistry,
                     networkService,
                     tracer,
-                    sslContextProvider
+                    sslContextProvider,
+                    statsCollector
                 )
             );
         }
@@ -214,7 +228,8 @@ public class FlightStreamPlugin extends Plugin
                     namedWriteableRegistry,
                     networkService,
                     tracer,
-                    null
+                    null,
+                    statsCollector
                 )
             );
         }
@@ -268,10 +283,17 @@ public class FlightStreamPlugin extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        if (!isArrowStreamsEnabled) {
-            return Collections.emptyList();
+        List<RestHandler> handlers = new ArrayList<>();
+
+        if (isArrowStreamsEnabled) {
+            handlers.add(new FlightServerInfoAction());
         }
-        return List.of(new FlightServerInfoAction());
+
+        if (isArrowStreamsEnabled || isStreamTransportEnabled) {
+            handlers.add(new FlightStatsRestHandler());
+        }
+
+        return handlers;
     }
 
     /**
@@ -280,10 +302,17 @@ public class FlightStreamPlugin extends Plugin
      */
     @Override
     public List<ActionHandler<?, ?>> getActions() {
-        if (!isArrowStreamsEnabled) {
-            return Collections.emptyList();
+        List<ActionHandler<?, ?>> actions = new ArrayList<>();
+
+        if (isArrowStreamsEnabled) {
+            actions.add(new ActionHandler<>(NodesFlightInfoAction.INSTANCE, TransportNodesFlightInfoAction.class));
         }
-        return List.of(new ActionHandler<>(NodesFlightInfoAction.INSTANCE, TransportNodesFlightInfoAction.class));
+
+        if (isArrowStreamsEnabled || isStreamTransportEnabled) {
+            actions.add(new ActionHandler<>(FlightStatsAction.INSTANCE, TransportFlightStatsAction.class));
+        }
+
+        return actions;
     }
 
     /**

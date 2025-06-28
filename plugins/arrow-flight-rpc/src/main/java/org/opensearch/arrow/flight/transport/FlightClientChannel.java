@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -63,6 +64,7 @@ class FlightClientChannel implements TcpChannel {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final HeaderContext headerContext;
     private volatile boolean isClosed;
+    private final FlightStatsCollector statsCollector;
 
     /**
      * Constructs a new FlightClientChannel for handling Arrow Flight streams.
@@ -87,7 +89,8 @@ class FlightClientChannel implements TcpChannel {
         Transport.ResponseHandlers responseHandlers,
         ThreadPool threadPool,
         TransportMessageListener messageListener,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        FlightStatsCollector statsCollector
     ) {
         this.boundAddress = boundTransportAddress;
         this.client = client;
@@ -99,6 +102,7 @@ class FlightClientChannel implements TcpChannel {
         this.threadPool = threadPool;
         this.messageListener = messageListener;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.statsCollector = statsCollector;
         this.connectFuture = new CompletableFuture<>();
         this.closeFuture = new CompletableFuture<>();
         this.connectListeners = new CopyOnWriteArrayList<>();
@@ -132,6 +136,9 @@ class FlightClientChannel implements TcpChannel {
             closeFuture.complete(null);
             notifyListeners(closeListeners, closeFuture);
         } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementConnectionErrors();
+            }
             closeFuture.completeExceptionally(e);
             notifyListeners(closeListeners, closeFuture);
         }
@@ -197,9 +204,17 @@ class FlightClientChannel implements TcpChannel {
             // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
             FlightTransportResponse<?> streamResponse = createStreamResponse(ticket);
+            if (statsCollector != null) {
+                statsCollector.incrementClientRequestsSent();
+                statsCollector.addBytesReceived(reference.length());
+                statsCollector.incrementClientRequestsCurrent();
+            }
             processStreamResponseAsync(streamResponse);
             listener.onResponse(null);
         } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementConnectionErrors();
+            }
             listener.onFailure(new TransportException("Failed to send message", e));
         }
     }
@@ -219,7 +234,8 @@ class FlightClientChannel implements TcpChannel {
                 client,
                 headerContext,
                 ticket,
-                namedWriteableRegistry
+                namedWriteableRegistry,
+                statsCollector
             );
         } catch (Exception e) {
             logger.error("Failed to create stream for ticket at [{}]: {}", location, e.getMessage());
@@ -285,6 +301,10 @@ class FlightClientChannel implements TcpChannel {
                 } finally {
                     try {
                         streamResponse.close();
+                        if (statsCollector != null) {
+                            statsCollector.decrementClientRequestsCurrent();
+                            statsCollector.incrementClientResponsesReceived();
+                        }
                     } catch (IOException e) {
                         // Log the exception instead of throwing it
                         logger.error("Failed to close streamResponse", e);
@@ -297,6 +317,10 @@ class FlightClientChannel implements TcpChannel {
                     } finally {
                         try {
                             streamResponse.close();
+                            if (statsCollector != null) {
+                                statsCollector.decrementClientRequestsCurrent();
+                                statsCollector.incrementClientResponsesReceived();
+                            }
                         } catch (IOException e) {
                             // Log the exception instead of throwing it
                             logger.error("Failed to close streamResponse", e);
@@ -329,8 +353,20 @@ class FlightClientChannel implements TcpChannel {
             } else {
                 logger.error("Failed to handle stream, no header available", e);
             }
+
+            // Track different types of errors
+            if (statsCollector != null) {
+                if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                    statsCollector.incrementTimeoutErrors();
+                } else {
+                    statsCollector.incrementConnectionErrors();
+                }
+            }
         } finally {
             streamResponse.close();
+            if (statsCollector != null) {
+                statsCollector.decrementClientRequestsCurrent();
+            }
             logSlowOperation(startTime);
         }
     }

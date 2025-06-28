@@ -9,6 +9,7 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -26,6 +27,8 @@ import java.util.Map;
 
 class FlightInboundHandler extends InboundHandler {
 
+    private final FlightStatsCollector statsCollector;
+
     public FlightInboundHandler(
         String nodeName,
         Version version,
@@ -39,7 +42,8 @@ class FlightInboundHandler extends InboundHandler {
         TransportKeepAlive keepAlive,
         Transport.RequestHandlers requestHandlers,
         Transport.ResponseHandlers responseHandlers,
-        Tracer tracer
+        Tracer tracer,
+        FlightStatsCollector statsCollector
     ) {
         super(
             nodeName,
@@ -56,6 +60,7 @@ class FlightInboundHandler extends InboundHandler {
             responseHandlers,
             tracer
         );
+        this.statsCollector = statsCollector;
     }
 
     @Override
@@ -89,7 +94,8 @@ class FlightInboundHandler extends InboundHandler {
                 requestHandlers,
                 responseHandlers,
                 tracer,
-                keepAlive
+                keepAlive,
+                statsCollector
             )
         );
     }

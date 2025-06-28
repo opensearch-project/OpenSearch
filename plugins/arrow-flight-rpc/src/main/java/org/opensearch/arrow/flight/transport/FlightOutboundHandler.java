@@ -17,6 +17,7 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.action.ActionListener;
@@ -48,13 +49,22 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
     private final String[] features;
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
+    private final FlightStatsCollector statsCollector;
 
-    public FlightOutboundHandler(String nodeName, Version version, String[] features, StatsTracker statsTracker, ThreadPool threadPool) {
+    public FlightOutboundHandler(
+        String nodeName,
+        Version version,
+        String[] features,
+        StatsTracker statsTracker,
+        ThreadPool threadPool,
+        FlightStatsCollector statsCollector
+    ) {
         this.nodeName = nodeName;
         this.version = version;
         this.features = features;
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
+        this.statsCollector = statsCollector;
     }
 
     @Override
@@ -126,8 +136,16 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                 response.writeTo(out);
                 flightChannel.sendBatch(headerBuffer, out, listener);
                 messageListener.onResponseSent(requestId, action, response);
+
+                // Track server outbound response
+                if (statsCollector != null) {
+                    statsCollector.incrementServerBatchesSent();
+                }
             }
         } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementSerializationErrors();
+            }
             listener.onFailure(new TransportException("Failed to send response batch for action [" + action + "]", e));
             messageListener.onResponseSent(requestId, action, e);
         }
