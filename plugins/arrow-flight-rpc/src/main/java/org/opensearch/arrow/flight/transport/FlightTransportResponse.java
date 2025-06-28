@@ -16,6 +16,7 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.Header;
@@ -40,6 +41,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private Throwable pendingException;
     private VectorSchemaRoot pendingRoot;  // Holds the current batch's root for reuse
     private final long reqId;
+    private final FlightStatsCollector statsCollector;
 
     /**
      * Constructs a new streaming response. The flight stream is initialized asynchronously
@@ -56,9 +58,11 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         FlightClient flightClient,
         HeaderContext headerContext,
         Ticket ticket,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        FlightStatsCollector statsCollector
     ) {
         this.reqId = reqId;
+        this.statsCollector = statsCollector;
         FlightCallHeaders callHeaders = new FlightCallHeaders();
         callHeaders.insert("req-id", String.valueOf(reqId));
         HeaderCallOption callOptions = new HeaderCallOption(callHeaders);
@@ -104,6 +108,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             throw new TransportException("Failed to fetch batch", e);
         }
 
+        long batchStartTime = System.nanoTime();
         VectorSchemaRoot rootToUse;
         if (pendingRoot != null) {
             rootToUse = pendingRoot;
@@ -121,7 +126,14 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         }
 
         try {
-            return deserializeResponse(rootToUse);
+            T response = deserializeResponse(rootToUse);
+            if (statsCollector != null) {
+                statsCollector.incrementClientBatchesReceived();
+                // Track full client batch time (fetch + deserialization)
+                long batchTime = (System.nanoTime() - batchStartTime) / 1_000_000;
+                statsCollector.addClientBatchTime(batchTime);
+            }
+            return response;
         } finally {
             rootToUse.close();
         }
@@ -167,6 +179,9 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         try {
             flightStream.close();
         } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementChannelErrors();
+            }
             throw new TransportException("Failed to close flight stream", e);
         } finally {
             isClosed = true;
