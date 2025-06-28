@@ -34,6 +34,7 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
@@ -62,6 +63,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
@@ -223,9 +225,9 @@ public class ReadOnlyEngine extends Engine {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         DirectoryReader reader;
         if (isExtendedCompatibility()) {
-            reader = DirectoryReader.open(commit, this.minimumSupportedVersion.luceneVersion.major, null);
+            reader = DirectoryReader.open(commit, this.minimumSupportedVersion.luceneVersion.major, engineConfig.getLeafSorter());
         } else {
-            reader = DirectoryReader.open(commit);
+            reader = DirectoryReader.open(commit.getDirectory(), engineConfig.getLeafSorter());
         }
         return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
     }
@@ -515,6 +517,17 @@ public class ReadOnlyEngine extends Engine {
     protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
         assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
         final DirectoryReader reader = DirectoryReader.open(directory);
+        if (wrapSoftDeletes) {
+            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+        } else {
+            return reader;
+        }
+    }
+
+    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes, Comparator<LeafReader> leafSorter)
+        throws IOException {
+        assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
+        final DirectoryReader reader = DirectoryReader.open(directory, leafSorter);
         if (wrapSoftDeletes) {
             return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         } else {
