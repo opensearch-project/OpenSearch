@@ -247,6 +247,7 @@ public final class ServerComponents implements AutoCloseable {
         serverExecutor = threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void close() {
         try {

@@ -14,6 +14,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.common.SetOnce;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -45,12 +46,21 @@ class FlightServerChannel implements TcpChannel {
     private final List<ActionListener<Void>> closeListeners = Collections.synchronizedList(new ArrayList<>());
     private final ServerHeaderMiddleware middleware;
     private final SetOnce<VectorSchemaRoot> root = new SetOnce<>();
+    private final FlightStatsCollector statsCollector;
+    private volatile long requestStartTime;
 
-    public FlightServerChannel(ServerStreamListener serverStreamListener, BufferAllocator allocator, ServerHeaderMiddleware middleware) {
+    public FlightServerChannel(
+        ServerStreamListener serverStreamListener,
+        BufferAllocator allocator,
+        ServerHeaderMiddleware middleware,
+        FlightStatsCollector statsCollector
+    ) {
         this.serverStreamListener = serverStreamListener;
         this.serverStreamListener.setUseZeroCopy(true);
         this.allocator = allocator;
         this.middleware = middleware;
+        this.statsCollector = statsCollector;
+        this.requestStartTime = System.nanoTime();
         this.localAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
         this.remoteAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
     }
@@ -69,6 +79,7 @@ class FlightServerChannel implements TcpChannel {
         if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }
+        long batchStartTime = System.nanoTime();
         try {
             // Only set for the first batch
             if (root.get() == null) {
@@ -82,8 +93,20 @@ class FlightServerChannel implements TcpChannel {
             // we do not want to close the root right after putNext() call as we do not know the status of it whether
             // its transmitted at transport; we close them all at complete stream. TODO: optimize this behaviour
             serverStreamListener.putNext();
+            if (statsCollector != null) {
+                statsCollector.incrementServerBatchesSent();
+                // Track VectorSchemaRoot size - sum of all vector sizes
+                long rootSize = calculateVectorSchemaRootSize(root.get());
+                statsCollector.addBytesSent(rootSize);
+                // Track batch processing time
+                long batchTime = (System.nanoTime() - batchStartTime) / 1_000_000;
+                statsCollector.addServerBatchTime(batchTime);
+            }
             completionListener.onResponse(null);
         } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementTransportErrors();
+            }
             completionListener.onFailure(new TransportException("Failed to send batch", e));
         }
     }
@@ -99,8 +122,18 @@ class FlightServerChannel implements TcpChannel {
         }
         try {
             serverStreamListener.completed();
+            if (statsCollector != null) {
+                statsCollector.incrementStreamsCompleted();
+                statsCollector.decrementServerRequestsCurrent();
+                // Track total request time from start to completion
+                long requestTime = (System.nanoTime() - requestStartTime) / 1_000_000;
+                statsCollector.addServerRequestTime(requestTime);
+            }
             completionListener.onResponse(null);
         } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementTransportErrors();
+            }
             completionListener.onFailure(new TransportException("Failed to complete stream", e));
         }
     }
@@ -124,8 +157,19 @@ class FlightServerChannel implements TcpChannel {
             );
             // TODO - move to debug log
             logger.error(error);
+            if (statsCollector != null) {
+                statsCollector.incrementFlightServerErrors();
+                statsCollector.incrementStreamsFailed();
+                statsCollector.decrementServerRequestsCurrent();
+                // Track request time even for failed requests
+                long requestTime = (System.nanoTime() - requestStartTime) / 1_000_000;
+                statsCollector.addServerRequestTime(requestTime);
+            }
             completionListener.onFailure(error);
         } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementChannelErrors();
+            }
             completionListener.onFailure(new IOException("Failed to send error", e));
         } finally {
             if (root.get() != null) {
@@ -202,5 +246,20 @@ class FlightServerChannel implements TcpChannel {
             listener.onResponse(null);
         }
         closeListeners.clear();
+    }
+
+    private long calculateVectorSchemaRootSize(VectorSchemaRoot root) {
+        if (root == null) {
+            return 0;
+        }
+        long totalSize = 0;
+        // Sum up the buffer sizes of all vectors in the schema root
+        for (int i = 0; i < root.getFieldVectors().size(); i++) {
+            var vector = root.getVector(i);
+            if (vector != null) {
+                totalSize += vector.getBufferSize();
+            }
+        }
+        return totalSize;
     }
 }
