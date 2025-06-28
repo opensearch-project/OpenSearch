@@ -11,6 +11,8 @@ package org.opensearch.arrow.flight.transport;
 import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
 import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
+import org.opensearch.arrow.flight.stats.FlightStatsAction;
+import org.opensearch.arrow.flight.stats.FlightStatsRestHandler;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -86,10 +88,13 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
                 .get(ARROW_FLIGHT_TRANSPORT_SETTING_KEY)
                 .get() instanceof FlightService
         );
-        assertEquals(1, plugin.getRestHandlers(null, null, null, null, null, null, null).size());
+        assertEquals(2, plugin.getRestHandlers(null, null, null, null, null, null, null).size());
         assertTrue(plugin.getRestHandlers(null, null, null, null, null, null, null).get(0) instanceof FlightServerInfoAction);
-        assertEquals(1, plugin.getActions().size());
+        assertTrue(plugin.getRestHandlers(null, null, null, null, null, null, null).get(1) instanceof FlightStatsRestHandler);
+
+        assertEquals(2, plugin.getActions().size());
         assertEquals(NodesFlightInfoAction.INSTANCE.name(), plugin.getActions().get(0).getAction().name());
+        assertEquals(FlightStatsAction.INSTANCE.name(), plugin.getActions().get(1).getAction().name());
 
         plugin.close();
     }
