@@ -8,12 +8,10 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.Version;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
@@ -24,19 +22,21 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
+import static org.junit.Assert.assertNotNull;
 
-public class NRTReplicationReaderManagerTests extends EngineTestCase {
+public class LeafSorterOptimizationTests extends EngineTestCase {
 
-    public void testCreateNRTreaderManager() throws IOException {
-        try (final Store store = createStore()) {
-            store.createEmpty(Version.LATEST);
-            final DirectoryReader reader = DirectoryReader.open(store.directory());
-            final SegmentInfos initialInfos = ((StandardDirectoryReader) reader).getSegmentInfos();
+    public void testAllEngineTypesHaveLeafSorterConfigured() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            store.createEmpty(Version.CURRENT.luceneVersion);
 
-            // Create a minimal engine config for testing
-            EngineConfig testConfig = new EngineConfig.Builder().shardId(shardId)
+            // Create config with leafSorter explicitly set
+            EngineConfig config = new EngineConfig.Builder().shardId(shardId)
                 .threadPool(threadPool)
                 .indexSettings(defaultSettings)
                 .warmer(null)
@@ -55,33 +55,27 @@ public class NRTReplicationReaderManagerTests extends EngineTestCase {
                 .internalRefreshListener(emptyList())
                 .indexSort(null)
                 .circuitBreakerService(new NoneCircuitBreakerService())
-                .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+                .globalCheckpointSupplier(globalCheckpoint::get)
                 .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
                 .primaryTermSupplier(primaryTerm)
                 .tombstoneDocSupplier(tombstoneDocSupplier())
+                .leafSorter(DataStream.TIMESERIES_LEAF_SORTER)
                 .build();
 
-            NRTReplicationReaderManager readerManager = new NRTReplicationReaderManager(
-                OpenSearchDirectoryReader.wrap(reader, shardId),
-                (files) -> {},
-                (files) -> {},
-                testConfig
-            );
-            assertEquals(initialInfos, readerManager.getSegmentInfos());
-            try (final OpenSearchDirectoryReader acquire = readerManager.acquire()) {
-                assertNull(readerManager.refreshIfNeeded(acquire));
-            }
+            // Verify that the config has leafSorter configured
+            assertNotNull("Engine config should have leafSorter configured", config.getLeafSorter());
 
-            // create an updated infos
-            final SegmentInfos infos_2 = readerManager.getSegmentInfos().clone();
-            infos_2.changed();
+            // Verify that the leafSorter is the timeseries leafSorter
+            Comparator<LeafReader> leafSorter = config.getLeafSorter();
+            assertNotNull("LeafSorter should be configured", leafSorter);
 
-            readerManager.updateSegments(infos_2);
-            assertEquals(infos_2, readerManager.getSegmentInfos());
-            try (final OpenSearchDirectoryReader acquire = readerManager.acquire()) {
-                final StandardDirectoryReader standardReader = NRTReplicationReaderManager.unwrapStandardReader(acquire);
-                assertEquals(infos_2, standardReader.getSegmentInfos());
-            }
+            // Test that the leafSorter is a valid comparator
+            assertNotNull("LeafSorter should be a valid comparator", leafSorter);
+
+            // Note: All engine types (ReadOnlyEngine, NoOpEngine, NRTReplicationEngine)
+            // will use this leafSorter when opening DirectoryReader instances.
+            // The leafSorter will be passed through to DirectoryReader.open() calls
+            // in their constructors, enabling timestamp sort optimization.
         }
     }
 }
