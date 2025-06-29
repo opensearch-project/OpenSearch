@@ -89,7 +89,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         );
     }
 
-    public void sendResponseBatch(
+    public synchronized void sendResponseBatch(
         final Version nodeVersion,
         final Set<String> features,
         final TcpChannel channel,

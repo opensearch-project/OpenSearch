@@ -9,7 +9,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.StreamActionListener;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
@@ -23,7 +23,7 @@ import java.io.IOException;
 @ExperimentalApi
 public class StreamChannelActionListener<Response extends TransportResponse, Request extends TransportRequest>
     implements
-        ActionListener<Response> {
+        StreamActionListener<Response> {
 
     private final TransportChannel channel;
     private final Request request;
@@ -36,14 +36,16 @@ public class StreamChannelActionListener<Response extends TransportResponse, Req
     }
 
     @Override
-    public void onResponse(Response response) {
-        try {
-            // placeholder for batching
-            channel.sendResponseBatch(response);
-        } finally {
-            // this can be removed once batching is supported
-            channel.completeStream();
-        }
+    public void onStreamResponse(Response response) {
+        assert response != null;
+        channel.sendResponseBatch(response);
+    }
+
+    @Override
+    public void onCompleteResponse(Response response) {
+        assert response != null;
+        channel.sendResponseBatch(response);
+        channel.completeStream();
     }
 
     @Override

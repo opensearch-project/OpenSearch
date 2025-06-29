@@ -81,4 +81,5 @@ public abstract class BucketCollector implements Collector {
      */
     public abstract void postCollection() throws IOException;
 
+    public void reset() {}
 }

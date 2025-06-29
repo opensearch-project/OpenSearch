@@ -72,7 +72,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     private final BigArrays bigArrays;
     private final IntConsumer multiBucketConsumer;
-    private LongArray docCounts;
+    protected LongArray docCounts;
     protected final DocCountProvider docCountProvider;
 
     public BucketsAggregator(
@@ -104,14 +104,14 @@ public abstract class BucketsAggregator extends AggregatorBase {
     /**
      * Ensure there are at least <code>maxBucketOrd</code> buckets available.
      */
-    public final void grow(long maxBucketOrd) {
+    public void grow(long maxBucketOrd) {
         docCounts = bigArrays.grow(docCounts, maxBucketOrd);
     }
 
     /**
      * Utility method to collect the given doc in the given bucket (identified by the bucket ordinal)
      */
-    public final void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+    public void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         grow(bucketOrd + 1);
         collectExistingBucket(subCollector, doc, bucketOrd);
     }
@@ -119,7 +119,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     /**
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
-    public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+    public void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         long docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We calculate the final number of buckets only during the reduce phase. But we still need to
@@ -204,7 +204,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     /**
      * Utility method to return the number of documents that fell in the given bucket (identified by the bucket ordinal)
      */
-    public final long bucketDocCount(long bucketOrd) {
+    public long bucketDocCount(long bucketOrd) {
         if (bucketOrd >= docCounts.size()) {
             // This may happen eg. if no document in the highest buckets is accepted by a sub aggregator.
             // For example, if there is a long terms agg on 3 terms 1,2,3 with a sub filter aggregator and if no document with 3 as a value
@@ -521,4 +521,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         return false;
     }
 
+    public void doReset() {
+        docCounts.fill(0, docCounts.size(), 0);
+    }
 }

@@ -31,18 +31,27 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.query.QueryPhaseExecutionException;
+import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +67,8 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public abstract class AggregatorBase extends Aggregator {
+
+    private final Logger logger = LogManager.getLogger(AggregatorBase.class);
 
     /** The default "weight" that a bucket takes when performing an aggregation */
     public static final int DEFAULT_WEIGHT = 1024 * 5; // 5kb
@@ -297,6 +308,42 @@ public abstract class AggregatorBase extends Aggregator {
         // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
         doPostCollection();
         collectableSubAggregators.postCollection();
+    }
+
+    @Override
+    public void reset() {
+        doReset();
+        collectableSubAggregators.reset();
+    }
+
+    protected void doReset() {}
+
+    @Override
+    public void sendBatch(InternalAggregation batch) {
+        InternalAggregations batchAggResult = new InternalAggregations(List.of(batch));
+
+        final QuerySearchResult queryResult = context.queryResult();
+        // clone the query result to avoid issue in concurrent scenario
+        final QuerySearchResult cloneResult = new QuerySearchResult(
+            queryResult.getContextId(),
+            queryResult.getSearchShardTarget(),
+            queryResult.getShardSearchRequest()
+        );
+        cloneResult.aggregations(batchAggResult);
+        logger.debug("Thread [{}]: set batchAggResult [{}]", Thread.currentThread(), batchAggResult.asMap());
+        // set a dummy topdocs
+        cloneResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+        // set a dummy fetch
+        final FetchSearchResult fetchResult = context.fetchResult();
+        fetchResult.hits(SearchHits.empty());
+        final QueryFetchSearchResult result = new QueryFetchSearchResult(cloneResult, fetchResult);
+        // flush back
+        // logger.info("Thread [{}]: send agg result before [{}]", Thread.currentThread(),
+        // result.queryResult().aggregations().expand().asMap());
+        context.getListener().onStreamResponse(result);
+        // logger.info("Thread [{}]: send agg result after [{}]", Thread.currentThread(),
+        // result.queryResult().aggregations().expand().asMap());
+        // logger.info("Thread [{}]: send total hits after [{}]", Thread.currentThread(), result.queryResult().topDocs().topDocs.totalHits);
     }
 
     /** Called upon release of the aggregator. */

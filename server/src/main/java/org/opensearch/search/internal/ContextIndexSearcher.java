@@ -294,6 +294,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
+        logger.debug("searching for {} partitions", partitions.length);
         searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
         try {
             // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
@@ -387,6 +388,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     return;
                 }
             }
+        }
+
+        if (searchContext.isStreamSearch()) {
+            logger.debug(
+                "Stream intermediate aggregation for segment [{}], shard [{}]",
+                ctx.ord,
+                searchContext.shardTarget().getShardId().id()
+            );
+            searchContext.bucketCollectorProcessor().buildAggBatchAndSend(collector);
         }
 
         // Note: this is called if collection ran successfully, including the above special cases of
