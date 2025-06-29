@@ -59,6 +59,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.opensearch.action.search.SearchPhaseController.reduceAggs;
+
 /**
  * A {@link ArraySearchPhaseResults} implementation that incrementally reduces aggregation results
  * as shard results are consumed.
@@ -86,6 +88,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
+
+    private boolean isStream;
+    private PendingMerges pendingMergesStream;
 
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
@@ -117,11 +122,19 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
+
+        this.isStream = request.isStreamSearch();
+        if (isStream) {
+            this.pendingMergesStream = new PendingMerges(batchReduceSize, 0);
+        }
     }
 
     @Override
     public void close() {
         Releasables.close(pendingMerges);
+        if (isStream) {
+            Releasables.close(pendingMergesStream);
+        }
     }
 
     @Override
@@ -130,6 +143,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         QuerySearchResult querySearchResult = result.queryResult();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex());
         pendingMerges.consume(querySearchResult, next);
+    }
+
+    @Override
+    void consumeStreamResult(SearchPhaseResult result, Runnable next) {
+        QuerySearchResult querySearchResult = result.queryResult();
+        pendingMergesStream.consume(querySearchResult, next);
     }
 
     @Override
@@ -166,6 +185,36 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingMerges.addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         }
+
+        if (isStream) {
+            if (pendingMergesStream.hasPendingMerges()) {
+                throw new AssertionError("partial reduce in-flight");
+            } else if (pendingMergesStream.hasFailure()) {
+                throw pendingMergesStream.getFailure();
+            }
+            pendingMergesStream.sortBuffer();
+            final List<InternalAggregations> streamAggsList = pendingMergesStream.consumeAggs();
+            long streamBreakerSize = pendingMergesStream.circuitBreakerBytes;
+            if (hasAggs) {
+                // Add an estimate of the final reduce size
+                streamBreakerSize = pendingMergesStream.addEstimateAndMaybeBreak(
+                    pendingMergesStream.estimateRamBytesUsedForReduce(streamBreakerSize)
+                );
+            }
+            InternalAggregations reducedAggs = reduceAggs(aggReduceContextBuilder, performFinalReduce, streamAggsList);
+            if (hasAggs) {
+                // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
+                long finalSize = reducedAggs.getSerializedSize() - streamBreakerSize;
+                pendingMergesStream.addWithoutBreaking(finalSize);
+                logger.info(
+                    "aggs final reduction [{}] max [{}]",
+                    pendingMergesStream.aggsCurrentBufferSize,
+                    pendingMergesStream.maxAggsCurrentBufferSize
+                );
+            }
+            reducePhase.aggregations = reducedAggs;
+        }
+
         progressListener.notifyFinalReduce(
             SearchProgressListener.buildSearchShards(results.asList()),
             reducePhase.totalHits,

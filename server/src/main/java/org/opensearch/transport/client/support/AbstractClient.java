@@ -639,7 +639,7 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public SearchRequestBuilder prepareStreamSearch(String... indices) {
-        return new SearchRequestBuilder(this, StreamSearchAction.INSTANCE).setIndices(indices);
+        return new SearchRequestBuilder(this, StreamSearchAction.INSTANCE).setIndices(indices).setStream(true);
     }
 
     @Override

@@ -104,11 +104,18 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             throw new IllegalStateException("Expected FlightServerChannel, got " + channel.getClass().getName());
         }
         try {
-            try (VectorStreamOutput out = new VectorStreamOutput(flightChannel.getAllocator(), flightChannel.getRoot())) {
+            // NativeOutboundHandler sendResponse, MessageSerializer get, NativeOutboundMessage writeMessage
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
                 response.writeTo(out);
-                flightChannel.sendBatch(getHeaderBuffer(requestId, nodeVersion, features), out);
+                flightChannel.sendBatch(getHeaderBuffer(requestId, nodeVersion, features), out.bytes());
                 messageListener.onResponseSent(requestId, action, response);
             }
+
+            // try (VectorStreamOutput out = new VectorStreamOutput(flightChannel.getAllocator(), flightChannel.getRoot())) {
+            // response.writeTo(out);
+            // flightChannel.sendBatch(getHeaderBuffer(requestId, nodeVersion, features), out);
+            // messageListener.onResponseSent(requestId, action, response);
+            // }
         } catch (StreamException e) {
             messageListener.onResponseSent(requestId, action, e);
             // Let StreamException propagate as is - it will be converted to FlightRuntimeException at a higher level

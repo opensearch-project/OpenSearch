@@ -460,6 +460,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ActionListener<SearchResponse> listener;
             try {
                 searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, indexNameExpressionResolver);
+                // TODO fix: have to manually set because stream search is not correctly pass down
+                searchRequest.setStreamSearch(originalSearchRequest.isStreamSearch());
                 listener = searchRequest.transformResponseListener(updatedListener);
             } catch (Exception e) {
                 updatedListener.onFailure(e);

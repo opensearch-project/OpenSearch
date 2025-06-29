@@ -206,6 +206,15 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         return internalAggregation.get();
     }
 
+    public final void buildTopLevelAndSendBatch() throws IOException {
+        assert parent() == null;
+        InternalAggregation batch = buildAggregations(new long[] { 0 })[0];
+        sendBatch(batch);
+        reset();
+    }
+
+    public void sendBatch(InternalAggregation batch) {};
+
     /**
      * Build an empty aggregation.
      */

@@ -12,6 +12,7 @@ import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -117,6 +118,41 @@ class FlightServerChannel implements TcpChannel {
         }
     }
 
+    // synchronized is needed for concurrent search
+    public synchronized void sendBatch(ByteBuffer header, BytesReference response) {
+        if (cancelled) {
+            throw StreamException.cancelled("Cannot flush more batches. Stream cancelled by the client");
+        }
+        if (!open.get()) {
+            throw new IllegalStateException("FlightServerChannel already closed.");
+        }
+        long batchStartTime = System.nanoTime();
+        // Only set for the first batch
+        if (root.isEmpty()) {
+            middleware.setHeader(header);
+            VarBinaryVector v = new VarBinaryVector("payload", allocator);
+            VectorSchemaRoot payloadRoot = new VectorSchemaRoot(Collections.singletonList(v));
+            root = Optional.of(payloadRoot);
+            serverStreamListener.start(root.get());
+        }
+
+        // TODO bowen directly copy into vector
+        byte[] b = BytesReference.toBytes(response);
+        VarBinaryVector v = (VarBinaryVector) root.get().getVector("payload");
+        v.setSafe(0, b, 0, b.length);
+        root.get().setRowCount(1);
+
+        // we do not want to close the root right after putNext() call as we do not know the status of it whether
+        // its transmitted at transport; we close them all at complete stream. TODO: optimize this behaviour
+        serverStreamListener.putNext();
+
+        root.get().clear();
+        if (callTracker != null) {
+            long rootSize = FlightUtils.calculateVectorSchemaRootSize(root.get());
+            callTracker.recordBatchSent(rootSize, System.nanoTime() - batchStartTime);
+        }
+    }
+
     /**
      * Completes the streaming response and closes all pending roots.
      *
@@ -135,6 +171,8 @@ class FlightServerChannel implements TcpChannel {
      * @param error the error to send
      */
     public void sendError(ByteBuffer header, Exception error) {
+        // TODO - move to debug log
+        logger.error(error, error);
         if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }

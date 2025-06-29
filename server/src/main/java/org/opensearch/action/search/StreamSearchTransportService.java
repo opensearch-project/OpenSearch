@@ -8,6 +8,8 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.StreamChannelActionListener;
 import org.opensearch.core.action.ActionListener;
@@ -38,6 +40,8 @@ import java.util.function.BiFunction;
  * Search transport service for streaming search
  */
 public class StreamSearchTransportService extends SearchTransportService {
+    private final Logger logger = LogManager.getLogger(StreamSearchTransportService.class);
+
     private final StreamTransportService transportService;
 
     public StreamSearchTransportService(
@@ -57,7 +61,7 @@ public class StreamSearchTransportService extends SearchTransportService {
             AdmissionControlActionType.SEARCH,
             ShardSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(
+                searchService.executeQueryPhaseStream(
                     request,
                     false,
                     (SearchShardTask) task,
@@ -123,21 +127,44 @@ public class StreamSearchTransportService extends SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
-        final SearchActionListener<SearchPhaseResult> listener
+        SearchActionListener<SearchPhaseResult> listener
     ) {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
+        final SearchStreamActionListener streamListener = (SearchStreamActionListener) listener;
         StreamTransportResponseHandler<SearchPhaseResult> transportHandler = new StreamTransportResponseHandler<SearchPhaseResult>() {
             @Override
+            // TODO bowen: can we not use StreamTransportResponse, but a better abstraction
             public void handleStreamResponse(StreamTransportResponse<SearchPhaseResult> response) {
                 try {
-                    SearchPhaseResult result = response.nextResponse();
-                    listener.onResponse(result);
+                    // only send previous result if we have a current result
+                    // if current result is null, that means the previous result is the last result
+                    // and we should invoke onCompleteResponse
+                    SearchPhaseResult currentResult;
+                    SearchPhaseResult lastResult = null;
+
+                    // Keep reading results until we reach the end
+                    while ((currentResult = response.nextResponse()) != null) {
+                        if (lastResult != null) {
+                            streamListener.onStreamResponse(lastResult);
+                        }
+                        lastResult = currentResult;
+                    }
+
+                    // Send the final result as complete response, or null if no results
+                    if (lastResult != null) {
+                        streamListener.onCompleteResponse(lastResult);
+                        logger.debug("Processed final stream response");
+                    } else {
+                        // Empty stream case
+                        logger.error("Empty stream");
+                    }
                     response.close();
                 } catch (Exception e) {
                     response.cancel("Client error during search phase", e);
-                    listener.onFailure(e);
+                    logger.error("Failed to handle stream response in the stream callback", e);
+                    streamListener.onFailure(e);
                 }
             }
 

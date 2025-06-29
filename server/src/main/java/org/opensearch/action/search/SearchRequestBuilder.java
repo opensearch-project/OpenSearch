@@ -655,4 +655,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         this.request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
         return this;
     }
+
+    public SearchRequestBuilder setStream(boolean stream) {
+        this.request.setStreamSearch(stream);
+        return this;
+    }
 }
