@@ -85,6 +85,32 @@ public class BucketCollectorProcessor {
         }
     }
 
+    public void buildAggBatchAndSend(Collector collectorTree) throws IOException {
+        final Queue<Collector> collectors = new LinkedList<>();
+        collectors.offer(collectorTree);
+        while (!collectors.isEmpty()) {
+            Collector currentCollector = collectors.poll();
+            if (currentCollector instanceof InternalProfileCollector) {
+                collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector) {
+                collectors.offer(((MinimumScoreCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MultiCollector) {
+                for (Collector innerCollector : ((MultiCollector) currentCollector).getCollectors()) {
+                    collectors.offer(innerCollector);
+                }
+            } else if (currentCollector instanceof BucketCollector) {
+                // Perform build aggregation during post collection
+                if (currentCollector instanceof Aggregator) {
+                    ((Aggregator) currentCollector).buildTopLevelAndSendBatch();
+                } else if (currentCollector instanceof MultiBucketCollector) {
+                    for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
+                        collectors.offer(innerCollector);
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Unwraps the input collection of {@link Collector} to get the list of the {@link Aggregator} used by different slice threads. The
      * input is expected to contain the collectors related to Aggregations only as that is passed to {@link AggregationCollectorManager}
