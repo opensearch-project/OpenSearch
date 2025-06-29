@@ -517,6 +517,7 @@ public final class SearchPhaseController {
                 profileResults.put(key, result.consumeProfileResult());
             }
         }
+        // reduce suggest
         final Suggest reducedSuggest;
         final List<CompletionSuggestion> reducedCompletionSuggestions;
         if (groupedSuggestions.isEmpty()) {
@@ -526,8 +527,12 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
+        // reduce profile
+        final SearchProfileShardResults shardProfileResults = profileResults.isEmpty()
+            ? null
+            : new SearchProfileShardResults(profileResults);
+
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
@@ -538,7 +543,7 @@ public final class SearchPhaseController {
             topDocsStats.terminatedEarly,
             reducedSuggest,
             aggregations,
-            shardResults,
+            shardProfileResults,
             sortedTopDocs,
             firstResult.sortValueFormats(),
             numReducePhases,
@@ -760,6 +765,29 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure
     ) {
         return new QueryPhaseResultConsumer(
+            request,
+            executor,
+            circuitBreaker,
+            this,
+            listener,
+            namedWriteableRegistry,
+            numShards,
+            onPartialMergeFailure
+        );
+    }
+
+    /**
+     * Returns a new {@link StreamQueryPhaseResultConsumer} instance that reduces search responses incrementally.
+     */
+    StreamQueryPhaseResultConsumer newStreamSearchPhaseResults(
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchProgressListener listener,
+        SearchRequest request,
+        int numShards,
+        Consumer<Exception> onPartialMergeFailure
+    ) {
+        return new StreamQueryPhaseResultConsumer(
             request,
             executor,
             circuitBreaker,

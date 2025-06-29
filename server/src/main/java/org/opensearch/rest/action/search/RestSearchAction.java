@@ -37,8 +37,10 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
@@ -134,6 +136,15 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
+        if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
+            boolean stream = request.paramAsBoolean("stream", false);
+            if (stream) {
+                return channel -> {
+                    RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                    cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                };
+            }
+        }
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
@@ -234,6 +245,12 @@ public class RestSearchAction extends BaseRestHandler {
         QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
+        }
+
+        if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
+            if (request.hasParam("stream")) {
+                searchSourceBuilder.stream(request.paramAsBoolean("stream", false));
+            }
         }
 
         if (request.hasParam("from")) {

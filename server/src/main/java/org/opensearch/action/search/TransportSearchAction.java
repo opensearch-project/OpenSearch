@@ -164,19 +164,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.NodeScope
     );
 
-    private final NodeClient client;
+    final NodeClient client;
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
-    private final SearchTransportService searchTransportService;
+    final ClusterService clusterService;
+    final SearchTransportService searchTransportService;
     private final RemoteClusterService remoteClusterService;
-    private final SearchPhaseController searchPhaseController;
+    final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final CircuitBreaker circuitBreaker;
+    final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
     private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
-    private final Tracer tracer;
+    final Tracer tracer;
 
     private final MetricsRegistry metricsRegistry;
 
@@ -418,7 +418,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }, listener);
     }
 
-    private void executeRequest(
+    void executeRequest(
         Task task,
         SearchRequest originalSearchRequest,
         SearchAsyncActionProvider searchAsyncActionProvider,
@@ -1208,7 +1208,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
-    private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
+    AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
         SearchTask task,
         SearchRequest searchRequest,
         Executor executor,
@@ -1325,7 +1325,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private void cancelTask(SearchTask task, Exception exc) {
+    void cancelTask(SearchTask task, Exception exc) {
         String errorMsg = exc.getMessage() != null ? exc.getMessage() : "";
         CancelTasksRequest req = new CancelTasksRequest().setTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
             .setReason("Fatal failure during search: " + errorMsg);

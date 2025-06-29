@@ -69,6 +69,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.StreamActionListener;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -729,6 +730,97 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 listener.onFailure(exc);
             }
         });
+    }
+
+    public void executeQueryPhaseStream(
+        ShardSearchRequest request,
+        boolean keepStatesInContext,
+        SearchShardTask task,
+        StreamActionListener<SearchPhaseResult> listener,
+        String executorName
+    ) {
+        assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
+            : "empty responses require more than one shard";
+        final IndexShard shard = getShard(request);
+        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
+            @Override
+            public void onResponse(ShardSearchRequest orig) {
+                // check if we can shortcut the query phase entirely.
+                if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                    assert orig.scroll() == null;
+                    final CanMatchResponse canMatchResp;
+                    try {
+                        ShardSearchRequest clone = new ShardSearchRequest(orig);
+                        canMatchResp = canMatch(clone, false);
+                    } catch (Exception exc) {
+                        listener.onFailure(exc);
+                        return;
+                    }
+                    if (canMatchResp.canMatch == false) {
+                        listener.onResponse(QuerySearchResult.nullInstance());
+                        return;
+                    }
+                }
+                // fork the execution in the search thread pool
+                runAsync(
+                    getExecutor(executorName, shard),
+                    () -> executeQueryPhaseStream(orig, task, keepStatesInContext, listener),
+                    listener
+                );
+            }
+
+            @Override
+            public void onFailure(Exception exc) {
+                listener.onFailure(exc);
+            }
+        });
+    }
+
+    private SearchPhaseResult executeQueryPhaseStream(
+        ShardSearchRequest request,
+        SearchShardTask task,
+        boolean keepStatesInContext,
+        ActionListener<SearchPhaseResult> listener
+    ) throws Exception {
+        final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        try (
+            Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
+            SearchContext context = createContext(readerContext, request, task, true)
+        ) {
+            assert listener instanceof StreamActionListener;
+            context.setListener((StreamActionListener) listener);
+            final long afterQueryTime;
+            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                loadOrExecuteQueryPhase(request, context);
+                if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                    freeReaderContext(readerContext.id());
+                }
+                afterQueryTime = executor.success();
+            }
+            if (request.numberOfShards() == 1) {
+                return executeFetchPhase(readerContext, context, afterQueryTime);
+            } else {
+                // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
+                // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
+                final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
+                context.queryResult().setRescoreDocIds(rescoreDocIds);
+                readerContext.setRescoreDocIds(rescoreDocIds);
+                return context.queryResult();
+            }
+        } catch (Exception e) {
+            // execution exception can happen while loading the cache, strip it
+            Exception exception = e;
+            if (exception instanceof ExecutionException) {
+                exception = (exception.getCause() == null || exception.getCause() instanceof Exception)
+                    ? (Exception) exception.getCause()
+                    : new OpenSearchException(exception.getCause());
+            }
+            logger.trace("Query phase failed", exception);
+            processFailure(readerContext, exception);
+            throw exception;
+        } finally {
+            taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
+        }
     }
 
     private IndexShard getShard(ShardSearchRequest request) {
@@ -1850,13 +1942,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * builder retains a reference to the provided {@link SearchSourceBuilder}.
      */
     public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchSourceBuilder searchSourceBuilder) {
+
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
                 return InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays,
                     scriptService,
-                    () -> requestToPipelineTree(searchSourceBuilder)
+                    () -> requestToPipelineTree(searchSourceBuilder),
+                    searchSourceBuilder.stream()
                 );
             }
 
@@ -1867,7 +1961,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     bigArrays,
                     scriptService,
                     multiBucketConsumerService.create(),
-                    pipelineTree
+                    pipelineTree,
+                    searchSourceBuilder.stream()
                 );
             }
         };

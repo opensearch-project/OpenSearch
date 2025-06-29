@@ -437,39 +437,38 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
                 ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
 
-                if (factories == AggregatorFactories.EMPTY
-                    && includeExclude == null
-                    && cardinality == CardinalityUpperBound.ONE
-                    && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
-                    &&
-                // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
-                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
-                    /*
-                     * We can use the low cardinality execution mode iff this aggregator:
-                     *  - has no sub-aggregator AND
-                     *  - collects from a single bucket AND
-                     *  - has a values source that can map from segment to global ordinals
-                     *  - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
-                     *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
-                     *  which directly linked to maxOrd, so we need to limit).
-                     */
-                    return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
-                        name,
-                        factories,
-                        a -> a.new StandardTermsResults(),
-                        ordinalsValuesSource,
-                        order,
-                        format,
-                        bucketCountThresholds,
-                        context,
-                        parent,
-                        false,
-                        subAggCollectMode,
-                        showTermDocCountError,
-                        metadata
-                    );
-
-                }
+                // if (factories == AggregatorFactories.EMPTY
+                // && includeExclude == null
+                // && cardinality == CardinalityUpperBound.ONE
+                // && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
+                // &&
+                // // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
+                // (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
+                // /*
+                // * We can use the low cardinality execution mode iff this aggregator:
+                // * - has no sub-aggregator AND
+                // * - collects from a single bucket AND
+                // * - has a values source that can map from segment to global ordinals
+                // * - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
+                // * - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
+                // * which directly linked to maxOrd, so we need to limit).
+                // */
+                // return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
+                // name,
+                // factories,
+                // a -> a.new StandardTermsResults(),
+                // ordinalsValuesSource,
+                // order,
+                // format,
+                // bucketCountThresholds,
+                // context,
+                // parent,
+                // false,
+                // subAggCollectMode,
+                // showTermDocCountError,
+                // metadata
+                // );
+                // }
                 int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null
                     ? null
