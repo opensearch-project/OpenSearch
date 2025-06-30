@@ -769,7 +769,16 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean shardFanOut,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(expectedCount, createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, shardFanOut, fieldTypes);
+        return searchAndReduceCounting(
+            expectedCount,
+            createIndexSettings(),
+            searcher,
+            query,
+            builder,
+            DEFAULT_MAX_BUCKETS,
+            shardFanOut,
+            fieldTypes
+        );
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
@@ -779,7 +788,16 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregationBuilder builder,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(expectedCount, createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+        return searchAndReduceCounting(
+            expectedCount,
+            createIndexSettings(),
+            searcher,
+            query,
+            builder,
+            DEFAULT_MAX_BUCKETS,
+            randomBoolean(),
+            fieldTypes
+        );
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
@@ -790,7 +808,16 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregationBuilder builder,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(expectedCount, indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+        return searchAndReduceCounting(
+            expectedCount,
+            indexSettings,
+            searcher,
+            query,
+            builder,
+            DEFAULT_MAX_BUCKETS,
+            randomBoolean(),
+            fieldTypes
+        );
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
@@ -801,7 +828,16 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         int maxBucket,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(expectedCount, createIndexSettings(), searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
+        return searchAndReduceCounting(
+            expectedCount,
+            createIndexSettings(),
+            searcher,
+            query,
+            builder,
+            maxBucket,
+            randomBoolean(),
+            fieldTypes
+        );
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
