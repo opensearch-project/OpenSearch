@@ -68,6 +68,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -91,6 +92,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     private static FeatureType featureType;
     private static RulePersistenceService rulePersistenceService;
     private static RuleRoutingService ruleRoutingService;
+    private WorkloadManagementSettings workloadManagementSettings;
     private AutoTaggingActionFilter autoTaggingActionFilter;
 
     /**
@@ -112,6 +114,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        workloadManagementSettings = new WorkloadManagementSettings(environment.settings(), clusterService.getClusterSettings());
         featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService));
         RuleEntityParser parser = new XContentRuleParser(featureType);
         AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
@@ -141,7 +144,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         );
 
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
-        return List.of(refreshMechanism);
+        return List.of(refreshMechanism, workloadManagementSettings);
     }
 
     @Override
@@ -181,10 +184,10 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(
-            new RestCreateWorkloadGroupAction(),
+            new RestCreateWorkloadGroupAction(workloadManagementSettings),
             new RestGetWorkloadGroupAction(),
-            new RestDeleteWorkloadGroupAction(),
-            new RestUpdateWorkloadGroupAction()
+            new RestDeleteWorkloadGroupAction(workloadManagementSettings),
+            new RestUpdateWorkloadGroupAction(workloadManagementSettings)
         );
     }
 
