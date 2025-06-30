@@ -13,8 +13,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.ResourceType;
 
 import java.util.EnumMap;
+import java.util.function.BooleanSupplier;
 
 public class NodeDuressTrackersTests extends OpenSearchTestCase {
+
+    final BooleanSupplier resourceCacheExpiryChecker = () -> true;
 
     public void testNodeNotInDuress() {
         EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
@@ -24,7 +27,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
             }
         };
 
-        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map);
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map, resourceCacheExpiryChecker);
 
         assertFalse(nodeDuressTrackers.isNodeInDuress());
         assertFalse(nodeDuressTrackers.isNodeInDuress());
@@ -39,7 +42,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
             }
         };
 
-        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map);
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map, resourceCacheExpiryChecker);
 
         assertFalse(nodeDuressTrackers.isNodeInDuress());
         assertFalse(nodeDuressTrackers.isNodeInDuress());
@@ -56,7 +59,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
             }
         };
 
-        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map);
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map, resourceCacheExpiryChecker);
 
         assertFalse(nodeDuressTrackers.isNodeInDuress());
         assertFalse(nodeDuressTrackers.isNodeInDuress());
@@ -73,7 +76,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
             }
         };
 
-        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map);
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map, resourceCacheExpiryChecker);
 
         assertFalse(nodeDuressTrackers.isNodeInDuress());
         assertFalse(nodeDuressTrackers.isNodeInDuress());
