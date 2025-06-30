@@ -113,8 +113,8 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
-            Aggregations aggs = querySearchResult.consumeAggs().expand();
-            Aggregations deserializedAggs = deserialized.consumeAggs().expand();
+            Aggregations aggs = querySearchResult.consumeAggs();
+            Aggregations deserializedAggs = deserialized.consumeAggs();
             assertEquals(aggs.asList(), deserializedAggs.asList());
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
