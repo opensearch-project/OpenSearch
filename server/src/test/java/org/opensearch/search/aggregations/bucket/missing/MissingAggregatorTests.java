@@ -33,7 +33,9 @@
 package org.opensearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -94,15 +96,36 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(fieldType.name());
+        final boolean isIndexed = randomBoolean();
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        CheckedConsumer<RandomIndexWriter, IOException> writeIndex = (writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(fieldType.name(), randomLong())));
+                if (isIndexed) {
+                    final long randomLong = randomLong();
+                    writer.addDocument(
+                        Set.of(
+                            new SortedNumericDocValuesField(fieldType.name(), randomLong),
+                            new StringField(fieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                } else {
+                    writer.addDocument(singleton(new SortedNumericDocValuesField(fieldType.name(), randomLong())));
+                }
             }
-        }, internalMissing -> {
-            assertEquals(0, internalMissing.getDocCount());
-            assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
-        }, singleton(fieldType));
+        });
+
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(0, internalMissing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(fieldType), 0);
+        } else {
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(0, internalMissing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(fieldType), numDocs);
+        }
     }
 
     public void testMatchAllDocs() throws IOException {
@@ -113,14 +136,37 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name());
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        final boolean isIndexed = false;
+
+        CheckedConsumer<RandomIndexWriter, IOException> writeIndex = (writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                if (isIndexed) {
+                    final long randomLong = randomLong();
+                    writer.addDocument(
+                        Set.of(
+                            new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                            new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                } else {
+                    writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                }
             }
-        }, internalMissing -> {
-            assertEquals(numDocs, internalMissing.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, List.of(aggFieldType, anotherFieldType));
+        });
+
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        } else {
+            // We can use precomputation because we are counting a field that has never been added.
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        }
     }
 
     public void testMatchSparse() throws IOException {
@@ -132,20 +178,52 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final int numDocs = randomIntBetween(100, 200);
         int docsMissingAggField = 0;
         final List<Set<IndexableField>> docs = new ArrayList<>();
+        // Determines whether the fields we add to the documents are indexed.
+        final boolean isIndexed = randomBoolean();
+
         for (int i = 0; i < numDocs; i++) {
-            if (randomBoolean()) {
-                docs.add(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+            if (isIndexed) {
+                if (randomBoolean()) {
+                    final long randomLong = randomLong();
+                    docs.add(
+                        Set.of(
+                            new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                            new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                } else {
+                    final long randomLong = randomLong();
+                    docs.add(
+                        Set.of(
+                            new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                            new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                    docsMissingAggField++;
+                }
             } else {
-                docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
-                docsMissingAggField++;
+                if (randomBoolean()) {
+                    docs.add(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                } else {
+                    docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                    docsMissingAggField++;
+                }
             }
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, List.of(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), numDocs);
+        }
     }
 
     public void testMatchSparseRangeField() throws IOException {
@@ -162,20 +240,49 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final int numDocs = randomIntBetween(100, 200);
         int docsMissingAggField = 0;
         final List<Set<IndexableField>> docs = new ArrayList<>();
+
+        // Determines whether the fields we add to the documents are indexed.
+        final boolean isIndexed = randomBoolean();
+
         for (int i = 0; i < numDocs; i++) {
-            if (randomBoolean()) {
-                docs.add(singleton(encodedRangeField));
+            if (isIndexed) {
+                if (randomBoolean()) {
+                    docs.add(singleton(encodedRangeField));
+                } else {
+                    final long randomLong = randomLong();
+                    docs.add(
+                        Set.of(
+                            new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                            new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                    docsMissingAggField++;
+                }
             } else {
-                docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
-                docsMissingAggField++;
+                if (randomBoolean()) {
+                    docs.add(singleton(encodedRangeField));
+                } else {
+                    docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                    docsMissingAggField++;
+                }
             }
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, Arrays.asList(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute does not work because only the other field was actually indexed. Therefore, the
+            // precomputation could not declare whether the field was simply not indexed or if there were
+            // actually no values in that field.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, Arrays.asList(aggFieldType, anotherFieldType), numDocs);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, Arrays.asList(aggFieldType, anotherFieldType), numDocs);
+        }
     }
 
     public void testUnmappedWithoutMissingParam() throws IOException {
@@ -184,14 +291,37 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field("unknown_field");
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        // Determines whether the fields we add to the documents are indexed.
+        final boolean isIndexed = randomBoolean();
+
+        CheckedConsumer<RandomIndexWriter, IOException> writeIndex = (writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                if (isIndexed) {
+                    final long randomLong = randomLong();
+                    writer.addDocument(
+                        Set.of(
+                            new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                            new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                } else {
+                    writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                }
             }
-        }, internalMissing -> {
-            assertEquals(numDocs, internalMissing.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, singleton(aggFieldType));
+        });
+
+        if (isIndexed) {
+            // Unfortunately, the values source is not provided, therefore, we cannot use the precomputation.
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(aggFieldType), numDocs);
+        } else {
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(aggFieldType), numDocs);
+        }
     }
 
     public void testUnmappedWithMissingParam() throws IOException {
@@ -200,14 +330,28 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field("unknown_field").missing(randomLong());
 
+        // Determines whether the fields we add to the documents are indexed.
+        final boolean isIndexed = randomBoolean();
+
+        // Having the missing parameter will make the missing aggregator not responsible for any documents, so it will short circuit
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                if (isIndexed) {
+                    final long randomLong = randomLong();
+                    writer.addDocument(
+                        Set.of(
+                            new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                            new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                } else {
+                    writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                }
             }
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
             assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
-        }, singleton(aggFieldType));
+        }, singleton(aggFieldType), 0);
     }
 
     public void testMissingParam() throws IOException {
@@ -218,14 +362,28 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name()).missing(randomLong());
 
+        // Determines whether the fields we add to the documents are indexed.
+        final boolean isIndexed = randomBoolean();
+
+        // Having the missing parameter will make the missing aggregator not responsible for any documents, so it will short-circuit
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                if (isIndexed) {
+                    final long randomLong = randomLong();
+                    writer.addDocument(
+                        Set.of(
+                            new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                            new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                } else {
+                    writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                }
             }
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
             assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
-        }, List.of(aggFieldType, anotherFieldType));
+        }, List.of(aggFieldType, anotherFieldType), 0);
     }
 
     public void testMultiValuedField() throws IOException {
@@ -237,26 +395,62 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final int numDocs = randomIntBetween(100, 200);
         int docsMissingAggField = 0;
         final List<Set<IndexableField>> docs = new ArrayList<>();
+
+        // Determines whether the fields we add to the documents are indexed.
+        final boolean isIndexed = randomBoolean();
+
         for (int i = 0; i < numDocs; i++) {
-            if (randomBoolean()) {
-                final long randomLong = randomLong();
-                docs.add(
-                    Set.of(
-                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
-                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong + 1)
-                    )
-                );
+            if (isIndexed) {
+                if (randomBoolean()) {
+                    final long randomLong = randomLong();
+                    docs.add(
+                        Set.of(
+                            new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                            new SortedNumericDocValuesField(aggFieldType.name(), randomLong + 1),
+                            new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO),
+                            new StringField(aggFieldType.name(), String.valueOf(randomLong + 1), Store.NO)
+
+                        )
+                    );
+                } else {
+                    final long randomLong = randomLong();
+                    docs.add(
+                        Set.of(
+                            new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                            new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                    docsMissingAggField++;
+                }
             } else {
-                docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
-                docsMissingAggField++;
+                if (randomBoolean()) {
+                    final long randomLong = randomLong();
+                    docs.add(
+                        Set.of(
+                            new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                            new SortedNumericDocValuesField(aggFieldType.name(), randomLong + 1)
+                        )
+                    );
+                } else {
+                    docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                    docsMissingAggField++;
+                }
             }
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, List.of(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), numDocs);
+        }
     }
 
     public void testSingleValuedFieldWithValueScript() throws IOException {
@@ -276,20 +470,52 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final int numDocs = randomIntBetween(100, 200);
         int docsMissingAggField = 0;
         final List<Set<IndexableField>> docs = new ArrayList<>();
+
+        // Determines whether the fields we add to the documents are indexed.
+        final boolean isIndexed = randomBoolean();
+
         for (int i = 0; i < numDocs; i++) {
-            if (randomBoolean()) {
-                docs.add(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+            if (isIndexed) {
+                final long randomLong = randomLong();
+                if (randomBoolean()) {
+                    docs.add(
+                        Set.of(
+                            new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                            new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                } else {
+                    docs.add(
+                        Set.of(
+                            new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                            new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                        )
+                    );
+                    docsMissingAggField++;
+                }
             } else {
-                docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
-                docsMissingAggField++;
+                if (randomBoolean()) {
+                    docs.add(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                } else {
+                    docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                    docsMissingAggField++;
+                }
             }
         }
         final int finalDocsMissingField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            assertEquals(finalDocsMissingField, internalMissing.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, List.of(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), numDocs);
+        }
     }
 
     public void testMultiValuedFieldWithFieldScriptWithParams() throws IOException {
@@ -313,25 +539,52 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final int numDocs = randomIntBetween(100, 200);
         int docsBelowThreshold = 0;
         final List<Set<IndexableField>> docs = new ArrayList<>();
+
+        // Determines whether the fields we add to the documents are indexed.
+        final boolean isIndexed = randomBoolean();
         for (int i = 0; i < numDocs; i++) {
-            final long firstValue = randomLongBetween(0, 100);
-            final long secondValue = firstValue + 1;
-            if (firstValue < threshold && secondValue < threshold) {
-                docsBelowThreshold++;
+            if (isIndexed) {
+                final long firstValue = randomLongBetween(0, 100);
+                final long secondValue = firstValue + 1;
+                if (firstValue < threshold && secondValue < threshold) {
+                    docsBelowThreshold++;
+                }
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
+                        new StringField(aggFieldType.name(), String.valueOf(firstValue), Store.NO),
+                        new SortedNumericDocValuesField(aggFieldType.name(), secondValue),
+                        new StringField(aggFieldType.name(), String.valueOf(secondValue), Store.NO)
+                    )
+                );
+            } else {
+                final long firstValue = randomLongBetween(0, 100);
+                final long secondValue = firstValue + 1;
+                if (firstValue < threshold && secondValue < threshold) {
+                    docsBelowThreshold++;
+                }
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
+                        new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
+                    )
+                );
             }
-            docs.add(
-                Set.of(
-                    new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
-                    new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
-                )
-            );
         }
         final int finalDocsBelowThreshold = docsBelowThreshold;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, singleton(aggFieldType));
+        if (isIndexed) {
+            // The precompute optimization did not kick in because the values source did not have an indexed name.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(aggFieldType), numDocs);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(aggFieldType), numDocs);
+        }
     }
 
     private void testCase(
@@ -339,7 +592,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         MissingAggregationBuilder builder,
         CheckedConsumer<RandomIndexWriter, IOException> writeIndex,
         Consumer<InternalMissing> verify,
-        Collection<MappedFieldType> fieldTypes
+        Collection<MappedFieldType> fieldTypes,
+        int expectedCount
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -349,7 +603,10 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final InternalMissing missing = searchAndReduce(indexSearcher, query, builder, fieldTypesArray);
+                // When counting the number of collects, we want to record how many collects actually happened. The new composite type
+                // ends up keeping track of the number of counts that happened, allowing us to verify whether the precomputation was used
+                // or not.
+                final InternalMissing missing = searchAndReduceCounting(expectedCount, indexSearcher, query, builder, fieldTypesArray);
                 verify.accept(missing);
             }
         }
