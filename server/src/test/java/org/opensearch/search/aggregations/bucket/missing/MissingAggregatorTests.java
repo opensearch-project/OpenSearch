@@ -98,7 +98,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(fieldType.name());
         final boolean isIndexed = randomBoolean();
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        CheckedConsumer<RandomIndexWriter, IOException> writeIndex = (writer -> {
             for (int i = 0; i < numDocs; i++) {
                 if (isIndexed) {
                     final long randomLong = randomLong();
@@ -112,16 +112,20 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(fieldType.name(), randomLong())));
                 }
             }
-        }, internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(0, internalMissingAgg.getDocCount());
-            assertFalse(AggregationInspectionHelper.hasValue(internalMissingAgg));
-            if (isIndexed) {
-                assertEquals(0, internalMissing.getCount());
-            } else {
-                assertEquals(numDocs, internalMissing.getCount());
-            }
-        }, singleton(fieldType));
+        });
+
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(0, internalMissing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(fieldType), 0);
+        } else {
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(0, internalMissing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(fieldType), numDocs);
+        }
     }
 
     public void testMatchAllDocs() throws IOException {
@@ -134,7 +138,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final boolean isIndexed = false;
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        CheckedConsumer<RandomIndexWriter, IOException> writeIndex = (writer -> {
             for (int i = 0; i < numDocs; i++) {
                 if (isIndexed) {
                     final long randomLong = randomLong();
@@ -148,18 +152,21 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
                 }
             }
-        }, internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(numDocs, internalMissingAgg.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissingAgg));
+        });
 
-            if (isIndexed) {
-                assertEquals(0, internalMissing.getCount());
-            } else {
-                // We can use precomputation because we are counting a field that has never been added.
-                assertEquals(0, internalMissing.getCount());
-            }
-        }, List.of(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        } else {
+            // We can use precomputation because we are counting a field that has never been added.
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        }
     }
 
     public void testMatchSparse() throws IOException {
@@ -205,17 +212,18 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(finalDocsMissingAggField, internalMissingAgg.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissingAgg));
-
-            if (isIndexed) {
-                assertEquals(0, internalMissing.getCount());
-            } else {
-                assertEquals(numDocs, internalMissing.getCount());
-            }
-        }, List.of(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), numDocs);
+        }
     }
 
     public void testMatchSparseRangeField() throws IOException {
@@ -261,17 +269,20 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(finalDocsMissingAggField, internalMissingAgg.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissingAgg));
-
-            if (isIndexed) {
-                assertEquals(numDocs, internalMissing.getCount());
-            } else {
-                assertEquals(numDocs, internalMissing.getCount());
-            }
-        }, Arrays.asList(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute does not work because only the other field was actually indexed. Therefore, the 
+            // precomputation could not declare whether the field was simply not indexed or if there were 
+            // actually no values in that field.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, Arrays.asList(aggFieldType, anotherFieldType), numDocs);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, Arrays.asList(aggFieldType, anotherFieldType), numDocs);
+        }
     }
 
     public void testUnmappedWithoutMissingParam() throws IOException {
@@ -283,7 +294,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         // Determines whether the fields we add to the documents are indexed.
         final boolean isIndexed = randomBoolean();
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        CheckedConsumer<RandomIndexWriter, IOException> writeIndex = (writer -> {
             for (int i = 0; i < numDocs; i++) {
                 if (isIndexed) {
                     final long randomLong = randomLong();
@@ -297,17 +308,20 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
                 }
             }
-        }, internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(numDocs, internalMissingAgg.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissingAgg));
-            if (isIndexed) {
-                // Unfortunately, the values source is not provided, therefore, we cannot use the precomputation.
-                assertEquals(numDocs, internalMissing.getCount());
-            } else {
-                assertEquals(numDocs, internalMissing.getCount());
-            }
-        }, singleton(aggFieldType));
+        });
+
+        if (isIndexed) {
+            // Unfortunately, the values source is not provided, therefore, we cannot use the precomputation.
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(aggFieldType), numDocs);
+        } else {
+            testCase(newMatchAllQuery(), builder, writeIndex, internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(aggFieldType), numDocs);
+        }
     }
 
     public void testUnmappedWithMissingParam() throws IOException {
@@ -319,6 +333,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         // Determines whether the fields we add to the documents are indexed.
         final boolean isIndexed = randomBoolean();
 
+        // Having the missing parameter will make the missing aggregator not responsible for any documents, so it will short circuit
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 if (isIndexed) {
@@ -334,12 +349,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 }
             }
         }, internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(0, internalMissingAgg.getDocCount());
-            assertFalse(AggregationInspectionHelper.hasValue(internalMissingAgg));
-            // Having the missing parameter will make the missing aggregator not responsible for any documents, so it will short circuit
-            assertEquals(0, internalMissing.getCount());
-        }, singleton(aggFieldType));
+            assertEquals(0, internalMissing.getDocCount());
+            assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+        }, singleton(aggFieldType), 0);
     }
 
     public void testMissingParam() throws IOException {
@@ -352,7 +364,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         // Determines whether the fields we add to the documents are indexed.
         final boolean isIndexed = randomBoolean();
-
+        
+        // Having the missing parameter will make the missing aggregator not responsible for any documents, so it will short-circuit
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 if (isIndexed) {
@@ -368,13 +381,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 }
             }
         }, internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(0, internalMissingAgg.getDocCount());
-            assertFalse(AggregationInspectionHelper.hasValue(internalMissingAgg));
-
-            // Having the missing parameter will make the missing aggregator not responsible for any documents, so it will short-circuit
-            assertEquals(0, internalMissing.getCount());
-        }, List.of(aggFieldType, anotherFieldType));
+            assertEquals(0, internalMissing.getDocCount());
+            assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+        }, List.of(aggFieldType, anotherFieldType), 0);
     }
 
     public void testMultiValuedField() throws IOException {
@@ -430,17 +439,18 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(finalDocsMissingAggField, internalMissingAgg.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissingAgg));
-
-            if (isIndexed) {
-                assertEquals(0, internalMissing.getCount());
-            } else {
-                assertEquals(numDocs, internalMissing.getCount());
-            }
-        }, List.of(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), numDocs);
+        }
     }
 
     public void testSingleValuedFieldWithValueScript() throws IOException {
@@ -494,16 +504,18 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsMissingField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(finalDocsMissingField, internalMissingAgg.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissingAgg));
-            if (isIndexed) {
-                assertEquals(numDocs, internalMissing.getCount());
-            } else {
-                assertEquals(numDocs, internalMissing.getCount());
-            }
-        }, List.of(aggFieldType, anotherFieldType));
+        if (isIndexed) {
+            // The precompute optimization kicked in, so no docs were traversed.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), 0);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsMissingField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, List.of(aggFieldType, anotherFieldType), numDocs);
+        }
     }
 
     public void testMultiValuedFieldWithFieldScriptWithParams() throws IOException {
@@ -561,25 +573,27 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsBelowThreshold = docsBelowThreshold;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-            InternalMissing internalMissingAgg = (InternalMissing) internalMissing.getAgg();
-            assertEquals(finalDocsBelowThreshold, internalMissingAgg.getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(internalMissingAgg));
-            if (isIndexed) {
-                // The field name was not accessible from a script.
-                assertEquals(numDocs, internalMissing.getCount());
-            } else {
-                assertEquals(numDocs, internalMissing.getCount());
-            }
-        }, singleton(aggFieldType));
+        if (isIndexed) {
+            // The precompute optimization did not kick in because the values source did not have an indexed name.
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(aggFieldType), numDocs);
+        } else {
+            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+                assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+            }, singleton(aggFieldType), numDocs);
+        }
     }
 
     private void testCase(
         Query query,
         MissingAggregationBuilder builder,
         CheckedConsumer<RandomIndexWriter, IOException> writeIndex,
-        Consumer<CompositeAggregationAndCount> verify,
-        Collection<MappedFieldType> fieldTypes
+        Consumer<InternalMissing> verify,
+        Collection<MappedFieldType> fieldTypes,
+        int expectedCount
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -592,7 +606,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 // When counting the number of collects, we want to record how many collects actually happened. The new composite type
                 // ends up keeping track of the number of counts that happened, allowing us to verify whether the precomputation was used
                 // or not.
-                final CompositeAggregationAndCount missing = searchAndReduceCounting(indexSearcher, query, builder, fieldTypesArray);
+                final InternalMissing missing = searchAndReduceCounting(expectedCount, indexSearcher, query, builder, fieldTypesArray);
                 verify.accept(missing);
             }
         }

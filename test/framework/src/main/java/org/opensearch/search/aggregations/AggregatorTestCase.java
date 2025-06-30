@@ -761,46 +761,51 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return internalAgg;
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
+        int expectedCount,
         IndexSearcher searcher,
         Query query,
         AggregationBuilder builder,
         boolean shardFanOut,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, shardFanOut, fieldTypes);
+        return searchAndReduceCounting(expectedCount, createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, shardFanOut, fieldTypes);
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
+        int expectedCount,
         IndexSearcher searcher,
         Query query,
         AggregationBuilder builder,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+        return searchAndReduceCounting(expectedCount, createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
+        int expectedCount,
         IndexSettings indexSettings,
         IndexSearcher searcher,
         Query query,
         AggregationBuilder builder,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+        return searchAndReduceCounting(expectedCount, indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
+        int expectedCount,
         IndexSearcher searcher,
         Query query,
         AggregationBuilder builder,
         int maxBucket,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(createIndexSettings(), searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
+        return searchAndReduceCounting(expectedCount, createIndexSettings(), searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
+        int expectedCount,
         IndexSettings indexSettings,
         IndexSearcher searcher,
         Query query,
@@ -809,7 +814,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean shardFanOut,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduceCounting(indexSettings, searcher, query, builder, maxBucket, false, shardFanOut, fieldTypes);
+        return searchAndReduceCounting(expectedCount, indexSettings, searcher, query, builder, maxBucket, false, shardFanOut, fieldTypes);
     }
 
     /**
@@ -822,7 +827,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * A count of the number of collect operations will be returned as well as the
      * agg.
      */
-    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
+        int expectedCount,
         IndexSettings indexSettings,
         IndexSearcher searcher,
         Query query,
@@ -881,6 +887,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             totalCollectCount = rootCount.getCollectCount().get();
         }
 
+        assertEquals(expectedCount, totalCollectCount);
+
         if (randomBoolean() && aggs.size() > 1) {
             // sometimes do an incremental reduce
             int toReduceSize = aggs.size();
@@ -920,7 +928,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
         }
         doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
-        return new CompositeAggregationAndCount(internalAgg, totalCollectCount);
+        return internalAgg;
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceStarTree(
@@ -1609,24 +1617,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
         public void setWeight(Weight weight) {
             this.delegate.setWeight(weight);
-        }
-    }
-
-    protected static class CompositeAggregationAndCount {
-        private final InternalAggregation agg;
-        private final int count;
-
-        public CompositeAggregationAndCount(InternalAggregation agg, int count) {
-            this.agg = agg;
-            this.count = count;
-        }
-
-        public InternalAggregation getAgg() {
-            return agg;
-        }
-
-        public int getCount() {
-            return count;
         }
     }
 
