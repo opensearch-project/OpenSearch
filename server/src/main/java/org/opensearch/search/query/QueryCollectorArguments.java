@@ -8,6 +8,9 @@
 
 package org.opensearch.search.query;
 
+/**
+ * Arguments for {@link QueryCollectorContextSpecRegistry}
+ */
 public class QueryCollectorArguments {
     private final boolean hasFilterCollector;
 
@@ -15,18 +18,34 @@ public class QueryCollectorArguments {
         this.hasFilterCollector = hasFilterCollector;
     }
 
+    /**
+     * Whether the query has a filter collector.
+     * @return true if the query has a filter collector, false otherwise
+     */
     public boolean hasFilterCollector() {
         return hasFilterCollector;
     }
 
+    /**
+     * Builder for {@link QueryCollectorArguments}
+     */
     public static class Builder {
         private boolean hasFilterCollector;
 
+        /**
+         * Set the flag for query has a filter collector.
+         * @param hasFilterCollector true if the query has a filter collector, false otherwise
+         * @return Builder instance
+         */
         public Builder hasFilterCollector(boolean hasFilterCollector) {
             this.hasFilterCollector = hasFilterCollector;
             return this;
         }
 
+        /**
+         * Build the arguments for the query collector context spec registry.
+         * @return QueryCollectorArguments instance
+         */
         public QueryCollectorArguments build() {
             return new QueryCollectorArguments(hasFilterCollector);
         }

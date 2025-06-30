@@ -22,6 +22,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class QueryCollectorContextSpecRegistry {
     private static final List<QueryCollectorContextSpecFactory> registry = new CopyOnWriteArrayList<>();
 
+    /**
+     * Get all collector context spec factories
+     * @return list of collector context spec factories
+     */
     public static List<QueryCollectorContextSpecFactory> getCollectorContextSpecFactories() {
         return registry;
     }
@@ -34,6 +38,13 @@ public class QueryCollectorContextSpecRegistry {
         registry.add(factory);
     }
 
+    /**
+     * Get collector context spec
+     * @param searchContext search context
+     * @param queryCollectorArguments query collector arguments
+     * @return collector context spec
+     * @throws IOException
+     */
     public static QueryCollectorContextSpec getQueryCollectorContextSpec(
         final SearchContext searchContext,
         final QueryCollectorArguments queryCollectorArguments
