@@ -684,7 +684,14 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    // Executes the tests while indexing the values for the field names.
+    /**
+     * This executes the aggregation against the dataset with the option to index the keyword values
+     * @param query the query to filter the dataset before aggregating it
+     * @param dataset the set of data to add into the index, each corresponding to a document
+     * @param aggregationBuilder the builder for the aggregation
+     * @param shouldIndex whether the field data should be indexed
+     * @param expectedCount expected number of documents visited as part of collect() invocation
+     */
     private <A extends InternalAggregation> A executeTestCaseIndexString(
         Query query,
         List<Long> dataset,
