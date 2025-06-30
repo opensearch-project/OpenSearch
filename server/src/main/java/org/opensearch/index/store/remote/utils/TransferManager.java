@@ -74,17 +74,13 @@ public class TransferManager {
 
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<IndexInput>) () -> {
-                CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
-                    if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
-                        logger.trace("Transfer Manager - IndexInput closed or not in cache");
-                        // Doesn't exist or is closed, either way create a new one
-                        return new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest);
-                    } else {
-                        logger.trace("Transfer Manager - Already in cache");
-                        // already in the cache and ready to be used (open)
-                        return cachedIndexInput;
-                    }
-                });
+                CachedIndexInput cacheEntry = fileCache.get(key);
+                if (cacheEntry == null || cacheEntry.isClosed()) {
+                    cacheEntry = fileCache.compute(
+                        key,
+                        (path, cachedIndexInput) -> new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest)
+                    );
+                }
 
                 // Cache entry was either retrieved from the cache or newly added, either
                 // way the reference count has been incremented by one. We can only
