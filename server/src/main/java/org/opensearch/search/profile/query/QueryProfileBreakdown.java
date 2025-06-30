@@ -32,11 +32,10 @@
 
 package org.opensearch.search.profile.query;
 
+import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
-import org.opensearch.search.profile.Timer;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.function.Supplier;
 
@@ -54,15 +53,8 @@ public final class QueryProfileBreakdown extends ContextualProfileBreakdown {
     }
 
     @Override
-    public ContextualProfileBreakdown context(Object context) {
+    public AbstractProfileBreakdown context(Object context) {
         return this;
     }
 
-    public static Collection<Supplier<ProfileMetric>> getQueryTimers() {
-        Collection<Supplier<ProfileMetric>> metrics = new ArrayList<>();
-        for (QueryTimingType type : QueryTimingType.values()) {
-            metrics.add(() -> new Timer(type.toString()));
-        }
-        return metrics;
-    }
 }

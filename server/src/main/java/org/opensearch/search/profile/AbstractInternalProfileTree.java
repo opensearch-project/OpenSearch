@@ -128,12 +128,12 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // Save our query for lookup later
         elements.add(element);
 
-        PB breakdown = createProfileBreakdown(element);
+        PB breakdown = createProfileBreakdown();
         breakdowns.add(token, breakdown);
         return breakdown;
     }
 
-    protected abstract PB createProfileBreakdown(E element);
+    protected abstract PB createProfileBreakdown();
 
     /**
      * Removes the last (e.g. most recent) value on the stack

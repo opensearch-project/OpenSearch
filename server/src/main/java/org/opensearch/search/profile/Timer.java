@@ -141,9 +141,9 @@ public class Timer extends ProfileMetric {
     @Override
     public Map<String, Long> toBreakdownMap() {
         Map<String, Long> map = new HashMap<>();
-        map.put(super.getName(), getApproximateTiming());
-        map.put(super.getName() + TIMING_TYPE_COUNT_SUFFIX, getCount());
-        map.put(super.getName() + TIMING_TYPE_START_TIME_SUFFIX, getEarliestTimerStartTime());
+        map.put(getName(), getApproximateTiming());
+        map.put(getName() + TIMING_TYPE_COUNT_SUFFIX, getCount());
+        map.put(getName() + TIMING_TYPE_START_TIME_SUFFIX, getEarliestTimerStartTime());
         return map;
     }
 }

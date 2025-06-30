@@ -14,11 +14,13 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
+import org.opensearch.search.profile.Timer;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,13 +55,13 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     // represents slice to leaves mapping as for each slice a unique collector instance is created
     private final Map<Collector, List<LeafReaderContext>> sliceCollectorsToLeaves = new ConcurrentHashMap<>();
 
-    private final Collection<Supplier<ProfileMetric>> metrics;
+    private final Collection<Supplier<ProfileMetric>> metricSuppliers;
     private final Set<String> timingMetrics;
     private final Set<String> nonTimingMetrics;
 
-    public ConcurrentQueryProfileBreakdown(Collection<Supplier<ProfileMetric>> metrics) {
-        super(metrics);
-        this.metrics = metrics;
+    public ConcurrentQueryProfileBreakdown(Collection<Supplier<ProfileMetric>> metricSuppliers) {
+        super(metricSuppliers);
+        this.metricSuppliers = metricSuppliers;
         this.timingMetrics = getTimingMetrics();
         this.nonTimingMetrics = getNonTimingMetrics();
     }
@@ -73,7 +75,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             return profile;
         }
 
-        return contexts.computeIfAbsent(context, ctx -> new QueryProfileBreakdown(metrics));
+        return contexts.computeIfAbsent(context, ctx -> new QueryProfileBreakdown(metricSuppliers));
     }
 
     @Override
@@ -179,7 +181,6 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
                 // for each timing type compute maxSliceEndTime and minSliceStartTime. Also add the counts of timing type to
                 // compute total count at slice level
-                final String timingTypeTimeKey = timingType;
                 final String timingTypeCountKey = timingType + TIMING_TYPE_COUNT_SUFFIX;
                 final String timingTypeStartKey = timingType + TIMING_TYPE_START_TIME_SUFFIX;
                 final String timingTypeSliceStartTimeKey = timingType + SLICE_START_TIME_SUFFIX;
@@ -226,9 +227,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                     );
 
                     // compute the sliceEndTime for timingType using max of endTime across slice leaves
-                    final long sliceLeafTimingTypeEndTime = sliceLeafTimingTypeStartTime + currentSliceLeafBreakdownMap.get(
-                        timingTypeTimeKey
-                    );
+                    final long sliceLeafTimingTypeEndTime = sliceLeafTimingTypeStartTime + currentSliceLeafBreakdownMap.get(timingType);
                     currentSliceBreakdown.compute(
                         timingTypeSliceEndTimeKey,
                         (key, value) -> (value == null) ? sliceLeafTimingTypeEndTime : Math.max(value, sliceLeafTimingTypeEndTime)
@@ -251,7 +250,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 sliceMinStartTime = Math.min(sliceMinStartTime, currentSliceStartTime);
                 // compute total time for each timing type at slice level using sliceEndTime and sliceStartTime
                 currentSliceBreakdown.put(
-                    timingTypeTimeKey,
+                    timingType,
                     currentSliceBreakdown.getOrDefault(timingTypeSliceEndTimeKey, 0L) - currentSliceBreakdown.getOrDefault(
                         timingTypeSliceStartTimeKey,
                         0L
@@ -329,7 +328,6 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 continue;
             }
 
-            final String timingTypeTimeKey = metric;
             final String timingTypeCountKey = metric + TIMING_TYPE_COUNT_SUFFIX;
             final String sliceEndTimeForTimingType = metric + SLICE_END_TIME_SUFFIX;
             final String sliceStartTimeForTimingType = metric + SLICE_START_TIME_SUFFIX;
@@ -347,7 +345,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
             // for all other timing types, we will compute min/max/avg/total across slices
             for (Map.Entry<Collector, Map<String, Long>> sliceBreakdown : sliceLevelBreakdowns.entrySet()) {
-                long sliceBreakdownTypeTime = sliceBreakdown.getValue().getOrDefault(timingTypeTimeKey, 0L);
+                long sliceBreakdownTypeTime = sliceBreakdown.getValue().getOrDefault(metric, 0L);
                 long sliceBreakdownTypeCount = sliceBreakdown.getValue().getOrDefault(timingTypeCountKey, 0L);
                 // compute max/min/avg TimingType time across slices
                 addStatsToMap(queryBreakdownMap, maxBreakdownTypeTime, minBreakdownTypeTime, avgBreakdownTypeTime, sliceBreakdownTypeTime);
@@ -382,7 +380,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                         + "] computed across slices for profile results"
                 );
             }
-            queryBreakdownMap.put(timingTypeTimeKey, (queryTimingTypeCount > 0L) ? queryTimingTypeEndTime - queryTimingTypeStartTime : 0L);
+            queryBreakdownMap.put(metric, (queryTimingTypeCount > 0L) ? queryTimingTypeEndTime - queryTimingTypeStartTime : 0L);
             queryBreakdownMap.put(timingTypeCountKey, queryTimingTypeCount);
             queryBreakdownMap.compute(avgBreakdownTypeTime, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
             queryBreakdownMap.compute(avgBreakdownTypeCount, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
@@ -420,6 +418,26 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
         queryBreakdownMap.compute(maxKey, (key, value) -> (value == null) ? sliceValue : Math.max(sliceValue, value));
         queryBreakdownMap.compute(minKey, (key, value) -> (value == null) ? sliceValue : Math.min(sliceValue, value));
         queryBreakdownMap.compute(avgKey, (key, value) -> (value == null) ? sliceValue : (value + sliceValue));
+    }
+
+    private Set<String> getTimingMetrics() {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
+            if (entry.getValue() instanceof org.opensearch.search.profile.Timer) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    private Set<String> getNonTimingMetrics() {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
+            if (!(entry.getValue() instanceof Timer)) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
     }
 
     @Override

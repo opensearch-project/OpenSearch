@@ -10,8 +10,8 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.util.List;
@@ -25,8 +25,8 @@ import java.util.Map;
 public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
     @Override
-    protected ContextualProfileBreakdown createProfileBreakdown(Query query) {
-        return new ConcurrentQueryProfileBreakdown(QueryProfileBreakdown.getQueryTimers());
+    protected ContextualProfileBreakdown createProfileBreakdown() {
+        return new ConcurrentQueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
     }
 
     @Override

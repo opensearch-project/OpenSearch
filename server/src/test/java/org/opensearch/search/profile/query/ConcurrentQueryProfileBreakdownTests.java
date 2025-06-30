@@ -28,6 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.ProfileMetricTests;
+import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -52,8 +53,8 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        testQueryProfileBreakdown = new ConcurrentQueryProfileBreakdown(QueryProfileBreakdown.getQueryTimers());
-        Collection<Supplier<ProfileMetric>> combinedMetrics = QueryProfileBreakdown.getQueryTimers();
+        testQueryProfileBreakdown = new ConcurrentQueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        Collection<Supplier<ProfileMetric>> combinedMetrics = ProfileMetricUtil.getDefaultQueryProfileMetrics();
         combinedMetrics.addAll(ProfileMetricTests.getNonTimingMetric());
         testQueryProfileBreakdownCombined = new ConcurrentQueryProfileBreakdown(combinedMetrics);
         createWeightTimer = testQueryProfileBreakdown.getTimer(QueryTimingType.CREATE_WEIGHT);

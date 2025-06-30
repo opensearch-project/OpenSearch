@@ -65,5 +65,5 @@ public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTr
         return rewriteTime;
     }
 
-    protected abstract ContextualProfileBreakdown createProfileBreakdown(Query query);
+    protected abstract ContextualProfileBreakdown createProfileBreakdown();
 }

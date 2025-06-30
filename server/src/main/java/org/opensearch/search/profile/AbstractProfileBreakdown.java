@@ -33,9 +33,7 @@
 package org.opensearch.search.profile;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -51,7 +49,7 @@ import static java.util.Collections.emptyMap;
  */
 public abstract class AbstractProfileBreakdown {
 
-    private final Map<String, ProfileMetric> metrics;
+    protected final Map<String, ProfileMetric> metrics;
 
     /** Sole constructor. */
     public AbstractProfileBreakdown(Collection<Supplier<ProfileMetric>> metricSuppliers) {
@@ -66,26 +64,6 @@ public abstract class AbstractProfileBreakdown {
 
     public ProfileMetric getMetric(String name) {
         return metrics.get(name);
-    }
-
-    public Set<String> getTimingMetrics() {
-        Set<String> result = new HashSet<>();
-        for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
-            if (entry.getValue() instanceof Timer) {
-                result.add(entry.getKey());
-            }
-        }
-        return result;
-    }
-
-    public Set<String> getNonTimingMetrics() {
-        Set<String> result = new HashSet<>();
-        for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
-            if (!(entry.getValue() instanceof Timer)) {
-                result.add(entry.getKey());
-            }
-        }
-        return result;
     }
 
     /**
