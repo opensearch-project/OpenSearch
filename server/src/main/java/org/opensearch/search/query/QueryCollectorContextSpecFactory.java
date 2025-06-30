@@ -8,6 +8,7 @@
 
 package org.opensearch.search.query;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.util.Optional;
 /**
  *  interface of QueryCollectorContext spec factory
  */
+@ExperimentalApi
 public interface QueryCollectorContextSpecFactory {
     /**
      * @param searchContext context needed to create collector context spec

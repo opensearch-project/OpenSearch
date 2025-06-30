@@ -19,8 +19,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * Registry class to load all collector context spec factories during cluster bootstrapping
  */
-public class QueryCollectorContextSpecRegistry {
+public final class QueryCollectorContextSpecRegistry {
     private static final List<QueryCollectorContextSpecFactory> registry = new CopyOnWriteArrayList<>();
+
+    private QueryCollectorContextSpecRegistry() {}
 
     /**
      * Get all collector context spec factories

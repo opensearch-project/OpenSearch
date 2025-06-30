@@ -8,9 +8,12 @@
 
 package org.opensearch.search.query;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Arguments for {@link QueryCollectorContextSpecRegistry}
  */
+@ExperimentalApi
 public class QueryCollectorArguments {
     private final boolean hasFilterCollector;
 
