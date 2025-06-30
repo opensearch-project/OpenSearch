@@ -163,11 +163,9 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         FeatureType featureType;
         try {
             featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-            System.out.println("Already globally registered: " + featureType.getName());
         } catch (ResourceNotFoundException e) {
             featureType = TestWorkloadManagementPlugin.featureType;
             AutoTaggingRegistry.registerFeatureType(featureType);
-            System.out.println("Registered globally: " + featureType.getName());
         }
 
         for (String node : internalCluster().getNodeNames()) {
@@ -176,9 +174,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
             try {
                 routingRegistry.getRuleRoutingService(featureType);
-                System.out.println("Already registered on node: " + node);
             } catch (IllegalArgumentException ex) {
-                System.out.println("Registering workload_group on node: " + node);
                 persistenceRegistry.register(featureType, TestWorkloadManagementPlugin.rulePersistenceService);
                 routingRegistry.register(featureType, TestWorkloadManagementPlugin.ruleRoutingService);
             }
@@ -201,18 +197,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             Instant.now().getMillis()
         );
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
-        for (String node : internalCluster().getNodeNames()) {
-            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node);
-            ClusterState state = clusterService.state();
-            WorkloadGroupMetadata metadata = (WorkloadGroupMetadata) state.metadata().custom(WorkloadGroupMetadata.TYPE);
-
-            if (metadata == null) {
-                System.out.println("Node " + node + ": metadata is null");
-            } else {
-                Set<String> groupIds = metadata.workloadGroups().keySet();
-                System.out.println("Node " + node + ": workload group IDs = " + groupIds);
-            }
-        }
 
         FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
         Map<Attribute, Set<String>> attributes = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*"));
