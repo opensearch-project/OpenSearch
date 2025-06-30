@@ -771,6 +771,15 @@ public class RestIndicesAction extends AbstractListAction {
 
         table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
 
+        table.addCell(
+            "last_index_request_timestamp",
+            "alias:last_index_ts,lastIndexRequestTimestamp;default:false;text-align:right;desc:timestamp of the last processed index request (epoch millis)"
+        );
+        table.addCell(
+            "last_index_request_timestamp_string",
+            "alias:last_index_ts_string,lastIndexRequestTimestampString;default:false;text-align:right;desc:timestamp of the last processed index request (ISO8601 string)"
+        );
+
         table.endHeaders();
         return table;
     }
@@ -1058,8 +1067,13 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(searchThrottled);
 
-            table.endRow();
+            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getMaxLastIndexRequestTimestamp());
+            Long ts = totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getMaxLastIndexRequestTimestamp();
+            table.addCell(
+                ts == null || ts == 0 ? null : STRICT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(ts).atZone(ZoneOffset.UTC))
+            );
 
+            table.endRow();
         }
 
         return table;

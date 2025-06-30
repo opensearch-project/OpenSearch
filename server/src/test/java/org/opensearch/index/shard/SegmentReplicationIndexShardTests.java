@@ -95,6 +95,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.opensearch.common.util.FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -150,6 +151,59 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertFalse(replicaShard.getReplicationEngine().isEmpty());
             replicaShard.close("test", false, false);
             assertTrue(replicaShard.getReplicationEngine().isEmpty());
+        }
+    }
+
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    public void testMergedSegmentReplication() throws Exception {
+        // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 1 replica shard.
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // index and replicate segments to replica.
+            int numDocs = randomIntBetween(10, 20);
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+            replicateSegments(primaryShard, List.of(replicaShard));
+            shards.assertAllEqual(2 * numDocs);
+
+            primaryShard.forceMerge(new ForceMergeRequest("test").maxNumSegments(1));
+            replicateMergedSegments(primaryShard, List.of(replicaShard));
+            primaryShard.refresh("test");
+            assertEquals(1, primaryShard.segments(false).size());
+            // After the pre-copy merged segment is completed, the merged segment is not visible in the replica, and the number of segments
+            // in the replica shard is still 2.
+            assertEquals(2, replicaShard.segments(false).size());
+        }
+    }
+
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
+        // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 0 replica shard.
+        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+
+            int numDocs = randomIntBetween(10, 20);
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+            shards.assertAllEqual(2 * numDocs);
+
+            primaryShard.forceMerge(new ForceMergeRequest("test").maxNumSegments(1));
+            primaryShard.refresh("test");
+            assertEquals(1, primaryShard.segments(false).size());
         }
     }
 

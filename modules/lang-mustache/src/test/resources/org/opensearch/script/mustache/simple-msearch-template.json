@@ -1,6 +1,6 @@
 {"index":["test0", "test1"], "request_cache": true}
-{"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" } }
+{"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" }, "search_pipeline": "my_pipeline" }
 {"index" : "test2,test3", "preference": "_local"}
-{"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" } }
+{"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" }, "search_pipeline": "my_pipeline1" }
 {"index" : ["test4", "test1"], "routing": "123"}
-{"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" } }
+{"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" }, "search_pipeline": "my_pipeline2" }
