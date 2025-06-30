@@ -217,10 +217,10 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         assertEquals(0, replicationStats.maxBytesBehind);
     }
 
-    public void testGetSegmentReplicationStats_WhileOnGoingReplicationAndPrimaryRefreshedToNewCheckPoint() {
+    public void testGetSegmentReplicationStats_WhileOnGoingReplicationAndPrimaryRefreshedToNewCheckPoint() throws InterruptedException {
         ShardId shardId = new ShardId("index", "uuid", 0);
         ReplicationCheckpoint firstReplicationCheckpoint = ReplicationCheckpoint.empty(shardId);
-
+        long baseTime = DateUtils.toLong(Instant.now());
         StoreFileMetadata storeFileMetadata1 = new StoreFileMetadata("test-1", 500, "1", Version.LATEST, new BytesRef(500));
         StoreFileMetadata storeFileMetadata2 = new StoreFileMetadata("test-2", 500, "1", Version.LATEST, new BytesRef(500));
         Map<String, StoreFileMetadata> stringStoreFileMetadataMapOne = new HashMap<>();
@@ -234,7 +234,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             1000,
             "",
             stringStoreFileMetadataMapOne,
-            DateUtils.toLong(Instant.now())
+            baseTime - 5_000_000
         );
 
         IndexShard replicaShard = mock(IndexShard.class);
@@ -262,7 +262,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             200,
             "",
             stringStoreFileMetadataMapTwo,
-            DateUtils.toLong(Instant.now())
+            baseTime - 1_000_000
         );
 
         segmentReplicator.updateReplicationCheckpointStats(thirdReplicationCheckpoint, replicaShard);
