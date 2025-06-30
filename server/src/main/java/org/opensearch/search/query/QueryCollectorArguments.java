@@ -14,7 +14,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * Arguments for {@link QueryCollectorContextSpecRegistry}
  */
 @ExperimentalApi
-public class QueryCollectorArguments {
+public final class QueryCollectorArguments {
     private final boolean hasFilterCollector;
 
     private QueryCollectorArguments(final boolean hasFilterCollector) {

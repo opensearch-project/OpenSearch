@@ -55,7 +55,7 @@ public final class QueryCollectorContextSpecRegistry {
         while (iterator.hasNext()) {
             QueryCollectorContextSpecFactory factory = iterator.next();
             Optional<QueryCollectorContextSpec> spec = factory.createQueryCollectorContextSpec(searchContext, queryCollectorArguments);
-            if (spec != null && spec.isPresent()) {
+            if (spec.isEmpty() == false) {
                 return spec.get();
             }
         }
