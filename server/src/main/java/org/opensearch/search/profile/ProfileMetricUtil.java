@@ -31,7 +31,7 @@ public class ProfileMetricUtil {
     public static Collection<Supplier<ProfileMetric>> getAggregationProfileMetrics() {
         Collection<Supplier<ProfileMetric>> metrics = new ArrayList<>();
         for (AggregationTimingType type : AggregationTimingType.values()) {
-            metrics.add(() -> new Timer(type.name()));
+            metrics.add(() -> new Timer(type.toString()));
         }
         return metrics;
     }
