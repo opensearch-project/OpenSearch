@@ -14,6 +14,8 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WlmMode;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,10 +29,15 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
  */
 public class RestDeleteWorkloadGroupAction extends BaseRestHandler {
 
+    private final WorkloadManagementSettings workloadManagementSettings;
+
     /**
      * Constructor for RestDeleteWorkloadGroupAction
+     * @param workloadManagementSettings the WorkloadManagementSettings instance to access the current WLM mode
      */
-    public RestDeleteWorkloadGroupAction() {}
+    public RestDeleteWorkloadGroupAction(WorkloadManagementSettings workloadManagementSettings) {
+        this.workloadManagementSettings = workloadManagementSettings;
+    }
 
     @Override
     public String getName() {
@@ -47,6 +54,10 @@ public class RestDeleteWorkloadGroupAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (workloadManagementSettings.getWlmMode() == WlmMode.DISABLED) {
+            throw new IllegalStateException("Workload management mode is DISABLED. Cannot delete workload group.");
+        }
+
         DeleteWorkloadGroupRequest deleteWorkloadGroupRequest = new DeleteWorkloadGroupRequest(request.param("name"));
         deleteWorkloadGroupRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", deleteWorkloadGroupRequest.clusterManagerNodeTimeout())
