@@ -40,6 +40,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -84,7 +85,7 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         Query query = new MatchAllDocsQuery();
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
-        QueryProfileBreakdown profile = new QueryProfileBreakdown();
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
         ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
         profileScorer.setMinCompetitiveScore(0.42f);
         assertEquals(0.42f, fakeScorer.minCompetitiveScore, 0f);
@@ -94,7 +95,7 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         Query query = new MatchAllDocsQuery();
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
-        QueryProfileBreakdown profile = new QueryProfileBreakdown();
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
         ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
         profileScorer.setMinCompetitiveScore(0.42f);
         fakeScorer.maxScore = 42f;
