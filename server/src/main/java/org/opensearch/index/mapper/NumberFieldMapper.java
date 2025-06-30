@@ -970,9 +970,19 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
                 int v = parse(value, true);
                 if (isSearchable && hasDocValues) {
-                    Query query = IntPoint.newExactQuery(field, v);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
-                    return new IndexOrDocValuesQuery(query, dvQuery);
+                    // Query query = IntPoint.newExactQuery(field, v);
+                    // Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                    // return new IndexOrDocValuesQuery(query, dvQuery);
+                    return new ApproximateScoreQuery(
+                        IntPoint.newExactQuery(field, v),
+                        new ApproximatePointRangeQuery(
+                            field,
+                            IntPoint.pack(new int[] { v }).bytes,
+                            IntPoint.pack(new int[] { v }).bytes,
+                            new int[] { v }.length,
+                            ApproximatePointRangeQuery.INT_FORMAT
+                        )
+                    );
                 }
                 if (hasDocValues) {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
