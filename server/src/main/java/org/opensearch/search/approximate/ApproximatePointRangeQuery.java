@@ -8,6 +8,7 @@
 
 package org.opensearch.search.approximate;
 
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -40,6 +41,7 @@ import java.util.function.Function;
  */
 public class ApproximatePointRangeQuery extends ApproximateQuery {
     public static final Function<byte[], String> LONG_FORMAT = bytes -> Long.toString(LongPoint.decodeDimension(bytes, 0));
+    public static final Function<byte[], String> INT_FORMAT = bytes -> Integer.toString(IntPoint.decodeDimension(bytes, 0));
 
     private int size;
 
