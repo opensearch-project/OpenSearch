@@ -22,6 +22,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
@@ -52,6 +53,7 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 public class IndexStoredRulePersistenceService implements RulePersistenceService {
+    public static final int MAX_ALLOWED_RULE_COUNT = 10000;
     /**
      * The system index name used for storing rules
      */
@@ -101,10 +103,32 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                 logger.error("Index {} does not exist", indexName);
                 listener.onFailure(new IllegalStateException("Index" + indexName + " does not exist"));
             } else {
+                performCardinalityCheck(listener);
                 Rule rule = request.getRule();
                 validateNoDuplicateRule(rule, ActionListener.wrap(unused -> persistRule(rule, listener), listener::onFailure));
             }
         }
+    }
+
+    private void performCardinalityCheck(ActionListener<CreateRuleResponse> listener) {
+        client.prepareSearch(indexName).setQuery(queryBuilder.getCardinalityQuery())
+            .execute(new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    if (searchResponse.getHits().getTotalHits().value() >= MAX_ALLOWED_RULE_COUNT) {
+                        listener.onFailure(
+                            new OpenSearchRejectedExecutionException("This create operation will violate" +
+                                " the cardinality limit of " + MAX_ALLOWED_RULE_COUNT +
+                                ". Please delete some stale or redundant rules first")
+                        );
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     /**
