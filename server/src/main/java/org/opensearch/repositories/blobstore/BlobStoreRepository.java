@@ -4800,12 +4800,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Set<String> allKeys = Stream.concat(newSettings.keySet().stream(), currentSettings.keySet().stream())
                 .filter(key -> !RELOADABLE_SETTINGS.contains(key))
                 .collect(Collectors.toSet());
-            return allKeys.stream().allMatch(key -> areSettingsEqual(newSettings, currentSettings, key));
+            return allKeys.stream().allMatch(key -> isSettingEqual(newSettings, currentSettings, key));
         }
     }
 
-    private boolean areSettingsEqual(Settings s1, Settings s2, String key) {
-        return s1.hasValue(key) == s2.hasValue(key) && (s1.hasValue(key) ? Objects.equals(s1.get(key), s2.get(key)) : true);
+    private boolean isSettingEqual(Settings s1, Settings s2, String key) {
+        return Objects.equals(s1.get(key), s2.get(key));
     }
 
     /**
