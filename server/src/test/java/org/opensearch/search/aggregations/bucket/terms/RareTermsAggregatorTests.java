@@ -170,8 +170,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
             assertThat(bucket.getKeyAsString(), equalTo("1"));
             assertThat(bucket.getDocCount(), equalTo(1L));
-        }, 
-        true, 0);
+        }, true, 0);
     }
 
     public void testManyDocsOneRare() throws IOException {
@@ -296,8 +295,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
             assertThat(((Max) (children.asList().get(0))).getValue(), equalTo(1.0));
-        },
-        true, dataset.size());
+        }, true, dataset.size());
     }
 
     public void testEmpty() throws IOException {

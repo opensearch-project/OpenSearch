@@ -176,7 +176,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         // Custom scripts cannot be supported because when the aggregation is returned, parts of the custom
         // script are not included. See test 'org.opensearch.painless.\
         // LangPainlessClientYamlTestSuiteIT.test {yaml=painless/100_terms_agg/String Value Script with doc notation}'
-        // for more details on why it cannot be supported. 
+        // for more details on why it cannot be supported.
         if (config != null && config.script() != null) {
             return false;
         }
