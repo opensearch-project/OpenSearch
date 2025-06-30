@@ -270,8 +270,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final int finalDocsMissingAggField = docsMissingAggField;
 
         if (isIndexed) {
-            // The precompute does not work because only the other field was actually indexed. Therefore, the 
-            // precomputation could not declare whether the field was simply not indexed or if there were 
+            // The precompute does not work because only the other field was actually indexed. Therefore, the
+            // precomputation could not declare whether the field was simply not indexed or if there were
             // actually no values in that field.
             testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
                 assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
@@ -364,7 +364,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         // Determines whether the fields we add to the documents are indexed.
         final boolean isIndexed = randomBoolean();
-        
+
         // Having the missing parameter will make the missing aggregator not responsible for any documents, so it will short-circuit
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {

@@ -632,7 +632,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    // Executes the tests while indexing the values for the field names. 
+    // Executes the tests while indexing the values for the field names.
     private <A extends InternalAggregation> A executeTestCaseIndexString(
         Query query,
         List<Long> dataset,

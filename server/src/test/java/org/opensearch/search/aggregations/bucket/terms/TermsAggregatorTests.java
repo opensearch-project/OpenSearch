@@ -328,16 +328,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         boolean includeDeletedDocumentsInSegment = randomBoolean();
         boolean includeDocCountField = randomBoolean();
         boolean collectSegmentOrds = randomBoolean();
-        testSimple(
-            ADD_SORTED_SET_FIELD_INDEXED,
-            false,
-            false,
-            collectSegmentOrds,
-            TermsAggregatorFactory.ExecutionMode.MAP,
-            0
-        );
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, false, collectSegmentOrds, TermsAggregatorFactory.ExecutionMode.MAP, 0);
         if (includeDeletedDocumentsInSegment == false && includeDocCountField == false) {
-            return ;
+            return;
         } else {
             testSimple(
                 ADD_SORTED_SET_FIELD_INDEXED,
