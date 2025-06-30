@@ -15,6 +15,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.function.Supplier;
 
+/**
+ * Utility class to provide profile metrics to breakdowns.
+ */
 public class ProfileMetricUtil {
 
     public static Collection<Supplier<ProfileMetric>> getDefaultQueryProfileMetrics() {
