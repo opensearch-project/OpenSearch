@@ -447,31 +447,39 @@ public class QueryPhase {
         ) throws IOException {
             // create the top docs collector last when the other collectors are known
             QueryCollectorContext queryCollectorContext;
-            QueryCollectorContextSpecFactory queryCollectorContextSpecFactory = QueryCollectorContextSpecRegistry.getFactory(query);
-            if (queryCollectorContextSpecFactory == null) {
+            List<QueryCollectorContextSpecFactory> queryCollectorContextSpecFactories = QueryCollectorContextSpecRegistry
+                .getCollectorContextSpecFactories();
+            // No factories found
+            if (queryCollectorContextSpecFactories.isEmpty()) {
                 queryCollectorContext = createTopDocsCollectorContext(searchContext, hasFilterCollector);
             } else {
-                QueryCollectorContextSpec queryCollectorContextSpec = queryCollectorContextSpecFactory.createQueryCollectorContextSpec(
+                QueryCollectorContextSpec queryCollectorContextSpec = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
                     searchContext,
-                    hasFilterCollector
+                    new QueryCollectorArguments.Builder().hasFilterCollector(hasFilterCollector).build()
                 );
-                queryCollectorContext = new QueryCollectorContext(queryCollectorContextSpec.getProfileName()) {
-                    @Override
-                    Collector create(Collector in) throws IOException {
-                        return queryCollectorContextSpec.create(in);
-                    }
 
-                    @Override
-                    CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in)
-                        throws IOException {
-                        return queryCollectorContextSpec.createManager(in);
-                    }
+                if (queryCollectorContextSpec == null) {
+                    // Case when factories is present but not collectorContextSpec found then use default topDocsCollector
+                    queryCollectorContext = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+                } else {
+                    queryCollectorContext = new QueryCollectorContext(queryCollectorContextSpec.getContextName()) {
+                        @Override
+                        Collector create(Collector in) throws IOException {
+                            return queryCollectorContextSpec.create(in);
+                        }
 
-                    @Override
-                    void postProcess(QuerySearchResult result) throws IOException {
-                        queryCollectorContextSpec.postProcess(result);
-                    }
-                };
+                        @Override
+                        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in)
+                            throws IOException {
+                            return queryCollectorContextSpec.createManager(in);
+                        }
+
+                        @Override
+                        void postProcess(QuerySearchResult result) throws IOException {
+                            queryCollectorContextSpec.postProcess(result);
+                        }
+                    };
+                }
             }
 
             return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);

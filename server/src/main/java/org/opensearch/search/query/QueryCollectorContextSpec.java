@@ -17,7 +17,7 @@ import java.io.IOException;
  * interface of QueryCollectorContextSpec
  */
 public interface QueryCollectorContextSpec {
-    String getProfileName();
+    String getContextName();
 
     Collector create(Collector in) throws IOException;
 

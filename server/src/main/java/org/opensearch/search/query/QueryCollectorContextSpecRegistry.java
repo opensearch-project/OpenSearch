@@ -8,21 +8,22 @@
 
 package org.opensearch.search.query;
 
-import org.apache.lucene.search.Query;
+import org.opensearch.search.internal.SearchContext;
 
+import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Registry class to load all collector context spec factories during cluster bootstrapping
  */
 public class QueryCollectorContextSpecRegistry {
-
     private static final List<QueryCollectorContextSpecFactory> registry = new CopyOnWriteArrayList<>();
 
-    static QueryCollectorContextSpecFactory getFactory(Query query) {
-
-        return registry.stream().filter(entry -> entry.supports(query)).findFirst().orElse(null);
+    public static List<QueryCollectorContextSpecFactory> getCollectorContextSpecFactories() {
+        return registry;
     }
 
     /**
@@ -31,5 +32,20 @@ public class QueryCollectorContextSpecRegistry {
      */
     public static void registerFactory(QueryCollectorContextSpecFactory factory) {
         registry.add(factory);
+    }
+
+    public static QueryCollectorContextSpec getQueryCollectorContextSpec(
+        final SearchContext searchContext,
+        final QueryCollectorArguments queryCollectorArguments
+    ) throws IOException {
+        Iterator<QueryCollectorContextSpecFactory> iterator = registry.iterator();
+        while (iterator.hasNext()) {
+            QueryCollectorContextSpecFactory factory = iterator.next();
+            Optional<QueryCollectorContextSpec> spec = factory.createQueryCollectorContextSpec(searchContext, queryCollectorArguments);
+            if (spec != null && spec.isPresent()) {
+                return spec.get();
+            }
+        }
+        return null;
     }
 }
