@@ -35,6 +35,9 @@ function parse_args() {
         p)
             INDEXER_PLUGINS_BRANCH=$OPTARG
             ;;
+        r)
+            INDEXER_REPORTING_BRANCH=$OPTARG
+            ;;
         R)
             REVISION=$OPTARG
             ;;
@@ -64,6 +67,7 @@ function parse_args() {
 
     ## Set defaults:
     [ -z "$INDEXER_PLUGINS_BRANCH" ] && INDEXER_PLUGINS_BRANCH="main"
+    [ -z "$INDEXER_REPORTING_BRANCH" ] && INDEXER_REPORTING_BRANCH="main"
     [ -z "$REVISION" ] && REVISION="0"
     [ -z "$IS_STAGE" ] && IS_STAGE="false"
     [ -z "$DISTRIBUTION" ] && DISTRIBUTION="rpm"
@@ -79,6 +83,7 @@ function usage() {
     echo ""
     echo "Arguments:"
     echo -e "-p INDEXER_PLUGINS_BRANCH\t[Optional] wazuh-indexer-plugins repo branch, default is 'main'."
+    echo -e "-r INDEXER_REPORTING_BRANCH\t[Optional] wazuh-indexer-reporting repo branch, default is 'main'."
     echo -e "-R REVISION\t[Optional] Package revision, default is '0'."
     echo -e "-s STAGE\t[Optional] Staging build, default is 'false'."
     echo -e "-d DISTRIBUTION\t[Optional] Distribution, default is 'rpm'."
@@ -99,6 +104,7 @@ function main() {
     export REPO_PATH
     export VERSION
     export INDEXER_PLUGINS_BRANCH
+    export INDEXER_REPORTING_BRANCH
     export REVISION
     export IS_STAGE
     export DISTRIBUTION

@@ -57,6 +57,10 @@ on:
         description: "Branch, commit or tag for the wazuh-indexer-plugins repository."
         type: string
         default: "main"
+      reporting_plugin_ref:
+        description: "Branch, commit or tag for the wazuh-indexer-reporting repository."
+        type: string
+        default: "main"
   workflow_call:
     inputs:
       revision:
@@ -82,6 +86,9 @@ on:
         type: string
         required: false
       wazuh_plugins_ref:
+        type: string
+        default: "main"
+      reporting_plugin_ref:
         type: string
         default: "main"
     secrets:
@@ -143,24 +150,43 @@ jobs:
       - name: Read versions from wazuh-indexer-plugins
         id: plugins_version
         run: |
-          ls scripts/
           echo "version=$(bash ./scripts/product_version.sh)" >> "$GITHUB_OUTPUT"
 
           # Extracts the Opensearch version
-          opensearch_version=$(bash scripts/opensearch_version.sh "setup") >> "$GITHUB_OUTPUT"
+          opensearch_version=$(bash scripts/opensearch_version.sh "setup")
           echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+        
+  get-versions-wazuh-indexer-reporting:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.reporting_version.outputs.version }}
+      opensearch_version: ${{ steps.reporting_version.outputs.opensearch_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: wazuh/wazuh-indexer-reporting
+          ref: ${{ inputs.reporting_plugin_ref }}
+
+      - name: Read versions from wazuh-indexer-reporting
+        id: reporting_version
+        run: |
+           echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
+
+            # Extracts the Opensearch version
+            opensearch_version=$(bash tools/opensearch_version.sh)
+            echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
 
   compatibility-check:
     runs-on: ubuntu-24.04
-    needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins]
+    needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins,  get-versions-wazuh-indexer-reporting]
     steps:
       - name: Check version compatibility
         run: |
-          if [[ "${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}" ]]; then
-            echo "The Wazuh Indexer version is not compatible with the plugins version."
+          if [[ ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.version }}") ]]; then
+            echo "The Wazuh Indexer version is not compatible with the plugins or reporting version."
             exit 1
-          elif [[ "${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}" ]]; then
-            echo "The Wazuh Indexer Opensearch version is not compatible with the plugins Opensearch version."
+          elif [[ ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}") && ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.opensearch_version }}") ]]; then
+            echo "The Wazuh Indexer Opensearch version is not compatible with the plugins or reporting Opensearch version."
             exit 1
           else
             echo "The Wazuh Indexer version and the plugins version are compatible."
@@ -243,8 +269,50 @@ jobs:
           path: "./plugins/${{ matrix.plugins }}/build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip"
           if-no-files-found: error
 
+  build-reporting-plugin:
+    needs: [compatibility-check]
+    if: ${{ inputs.reporting_plugin_ref != '' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      hash: ${{ steps.save-hash.outputs.hash }}
+    env:
+      plugin_name: wazuh-indexer-reports-scheduler
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: wazuh/wazuh-indexer-reporting
+          ref: ${{ inputs.reporting_plugin_ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle # Used for caching
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Get version
+        id: version
+        run: echo "version=$(jq .version -r VERSION.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Build with Gradle
+        run: ./gradlew build -Dversion=${{ steps.version.outputs.version }} -Drevision=${{ inputs.revision }}
+
+      - run: ls -lR build/distributions
+
+      - name: Save commit hash
+        id: save-hash
+        run: echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          path: build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          if-no-files-found: error
+  
   build:
-    needs: [setup, build-wazuh-plugins]
+    needs: [setup, build-wazuh-plugins, build-reporting-plugin]
     runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
@@ -257,13 +325,13 @@ jobs:
       # Download plugins
       - name: Download plugins
         uses: actions/download-artifact@v4
-        if: ${{ inputs.wazuh_plugins_ref != '' }}
+        if: ${{ inputs.wazuh_plugins_ref != '' || inputs.reporting_plugin_ref != '' }}
         with:
           path: ./artifacts/plugins
           merge-multiple: true
 
       - name: Display structure of downloaded files
-        if: ${{ inputs.wazuh_plugins_ref != '' }}
+        if: ${{ inputs.wazuh_plugins_ref != '' || inputs.reporting_plugin_ref != '' }}
         run: ls -lR ./artifacts/plugins
 
       - uses: actions/setup-java@v4
@@ -286,6 +354,7 @@ jobs:
             -d ${{ matrix.distribution }}  \
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
+            -e ${{ needs.build-reporting-plugin.outputs.hash }} \
             ${{ inputs.is_stage && '-x' || '' }} \
           )
           echo "name=$name" >> $GITHUB_OUTPUT
@@ -298,6 +367,7 @@ jobs:
             -d ${{ matrix.distribution }}  \
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
+            -e ${{ needs.build-reporting-plugin.outputs.hash }} \
             ${{ inputs.is_stage && '-x' || '' }} \
           )
           echo "name=$name" >> $GITHUB_OUTPUT
@@ -317,6 +387,7 @@ jobs:
             -d ${{ matrix.distribution }} \
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
+            -e ${{ needs.build-reporting-plugin.outputs.hash }}
 
       - name: Test RPM package installation
         if: ${{ matrix.distribution == 'rpm' }}

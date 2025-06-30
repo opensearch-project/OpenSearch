@@ -26,6 +26,11 @@ on:
         type: string
         default: "main"
         required: false
+      reporting_plugin_ref:
+        description: "Branch, commit or tag for the wazuh-indexer-reporting repository."
+        type: string
+        default: "main"
+        required: false
   workflow_call:
     inputs:
       revision:
@@ -43,6 +48,11 @@ on:
         required: false
       wazuh_plugins_ref:
         description: "Branch, commit or tag for the wazuh-indexer-plugins repository."
+        type: string
+        default: "main"
+        required: false
+      reporting_plugin_ref:
+        description: "Branch, commit or tag for the wazuh-indexer-reporting repository."
         type: string
         default: "main"
         required: false
@@ -81,6 +91,7 @@ jobs:
       architecture: '[ "x64" ]'
       id: ${{ inputs.id }}
       wazuh_plugins_ref: ${{ inputs.wazuh_plugins_ref }}
+      reporting_plugin_ref: ${{ inputs.reporting_plugin_ref }}
     secrets: inherit
 
   build-and-push-docker-image:

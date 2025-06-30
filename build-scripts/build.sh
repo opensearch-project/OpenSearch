@@ -32,7 +32,7 @@ function usage() {
 # ====
 function parse_args() {
 
-    while getopts ":h:q:s:o:p:a:d:r:b:n:" arg; do
+    while getopts ":hq:s:o:p:a:d:r:b:n:" arg; do
         case $arg in
         h)
             usage

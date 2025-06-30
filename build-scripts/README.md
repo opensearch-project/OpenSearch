@@ -41,6 +41,7 @@ Usage: ./builder.sh [args]
 
 Arguments:
 -p INDEXER_PLUGINS_BRANCH     [Optional] wazuh-indexer-plugins repo branch, default is 'main'.
+-r INDEXER_REPORTING_BRANCH   [Optional] wazuh-indexer-reporting repo branch, default is 'main'
 -R REVISION                   [Optional] Package revision, default is '0'.
 -s STAGE                      [Optional] Staging build, default is 'false'.
 -d DISTRIBUTION               [Optional] Distribution, default is 'rpm'.
@@ -58,7 +59,7 @@ bash builder.sh -d deb -a x64 -R 1 -s true
 
 The resulting package will be stored at `wazuh-indexer/artifacts/dist`.
 
-> The `STAGE` option defines the naming of the package. When set to `false`, the package will be unequivocally named with the commits' SHA of the `wazuh-indexer` and `wazuh-indexer-plugins`repositories, in that order. For example: `wazuh-indexer_<version>-<revision>_x86_64_aff30960363-846f143.rpm`.
+> The `STAGE` option defines the naming of the package. When set to `false`, the package will be unequivocally named with the commits' SHA of the `wazuh-indexer`, `wazuh-indexer-plugins` and `wazuh-indexer-reporting` repositories, in that order. For example: `wazuh-indexer_<version>-<revision>_x86_64_aff30960363-846f143-494d125.rpm`.
 
 ## Building wazuh-indexer Docker images
 

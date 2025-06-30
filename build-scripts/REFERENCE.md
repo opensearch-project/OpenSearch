@@ -49,6 +49,7 @@ scripts:
       distribution: [tar, deb, rpm]
       revision: revision number. 0 by default.
       plugins_hash: Commit hash of the `wazuh-indexer-plugins` repository.
+      reporting_hash: Commit hash of the `wazuh-indexer-reporting` repository.
       is_release: if set, uses release naming convention.
       is_min: if set, the package name will start by `wazuh-indexer-min`. Used on the build stage.
     outputs:
