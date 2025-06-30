@@ -31,7 +31,9 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.Weight;
@@ -41,6 +43,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BytesRefHash;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -49,6 +52,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -58,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * An aggregator that finds "rare" string values (e.g. terms agg that orders ascending)
@@ -70,6 +75,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
     private Weight weight;
     private final BytesKeyedBucketOrds bucketOrds;
     protected final String fieldName;
+    private final ValuesSourceConfig config;
 
     StringRareTermsAggregator(
         String name,
@@ -82,13 +88,15 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Map<String, Object> metadata,
         long maxDocCount,
         double precision,
-        CardinalityUpperBound cardinality
+        CardinalityUpperBound cardinality,
+        ValuesSourceConfig config
     ) throws IOException {
         super(name, factories, context, parent, metadata, maxDocCount, precision, format);
         this.valuesSource = valuesSource;
         this.filter = filter;
         this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
         this.fieldName = valuesSource.getIndexFieldName();
+        this.config = config;
     }
 
     public void setWeight(Weight weight) {
@@ -140,6 +148,14 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
             return false;
         }
 
+        // If the missing property is specified in the builder, and there are documents with the
+        // field missing, we might not be able to use the index unless there is some way we can
+        // calculate which ordinal value that missing field is (something I am not sure how to
+        // do yet).
+        if (config != null && config.missing() != null && ((weight.count(ctx) == ctx.reader().getDocCount(fieldName)) == false)) {
+            return false;
+        }
+
         // The optimization could only be used if there are no deleted documents and the top-level
         // query matches all documents in the segment.
         if (weight == null) {
@@ -155,6 +171,12 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Terms stringTerms = ctx.reader().terms(fieldName);
         if (stringTerms == null) {
             // Field is not indexed.
+            return false;
+        }
+
+        NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
+        if (docCountValues.nextDoc() != NO_MORE_DOCS) {
+            // This segment has at least one document with the _doc_count field.
             return false;
         }
 

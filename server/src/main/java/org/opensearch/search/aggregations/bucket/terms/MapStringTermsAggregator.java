@@ -105,33 +105,6 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata,
-        String fieldName,
-        ValuesSourceConfig config
-    ) throws IOException {
-        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
-        this.collectorSource = collectorSource;
-        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
-        this.includeExclude = includeExclude;
-        bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
-        this.fieldName = fieldName;
-        this.config = config;
-    }
-
-    public MapStringTermsAggregator(
-        String name,
-        AggregatorFactories factories,
-        CollectorSource collectorSource,
-        Function<MapStringTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
-        BucketOrder order,
-        DocValueFormat format,
-        BucketCountThresholds bucketCountThresholds,
-        IncludeExclude.StringFilter includeExclude,
-        SearchContext context,
-        Aggregator parent,
-        SubAggCollectionMode collectionMode,
-        boolean showTermDocCountError,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata,
         ValuesSourceConfig config
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
@@ -197,6 +170,14 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         // calculate which ordinal value that missing field is (something I am not sure how to
         // do yet).
         if (config != null && config.missing() != null && ((weight.count(ctx) == ctx.reader().getDocCount(fieldName)) == false)) {
+            return false;
+        }
+
+        // Custom scripts cannot be supported because when the aggregation is returned, parts of the custom
+        // script are not included. See test 'org.opensearch.painless.\
+        // LangPainlessClientYamlTestSuiteIT.test {yaml=painless/100_terms_agg/String Value Script with doc notation}'
+        // for more details on why it cannot be supported. 
+        if (config != null && config.script() != null) {
             return false;
         }
 
