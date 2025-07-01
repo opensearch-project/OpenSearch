@@ -9,6 +9,7 @@
 # Directories
 TMP_DIR="/tmp/wazuh-indexer/certs"
 CERTS_DIR="/etc/wazuh-indexer/certs"
+CERTS_NAME="indexer"
 
 # Create directories
 mkdir -p "$TMP_DIR"
@@ -24,9 +25,9 @@ openssl req -new -key "$TMP_DIR/admin-key.pem" -subj "/C=US/L=California/O=Wazuh
 openssl x509 -req -in "$TMP_DIR/admin.csr" -CA "$TMP_DIR/root-ca.pem" -CAkey "$TMP_DIR/root-ca-key-temp.pem" -CAcreateserial -sha256 -out "$TMP_DIR/admin.pem" -days 3650
 
 # Node cert
-openssl genrsa -out "$TMP_DIR/indexer-1-key-temp.pem" 2048
-openssl pkcs8 -inform PEM -outform PEM -in "$TMP_DIR/indexer-1-key-temp.pem" -topk8 -nocrypt -v1 PBE-SHA1-3DES -out "$TMP_DIR/indexer-1-key.pem"
-openssl req -new -key "$TMP_DIR/indexer-1-key.pem" -subj "/C=US/L=California/O=Wazuh/OU=Wazuh/CN=node-0.wazuh.indexer" -out "$TMP_DIR/indexer.csr"
+openssl genrsa -out "$TMP_DIR/$CERTS_NAME-key-temp.pem" 2048
+openssl pkcs8 -inform PEM -outform PEM -in "$TMP_DIR/$CERTS_NAME-key-temp.pem" -topk8 -nocrypt -v1 PBE-SHA1-3DES -out "$TMP_DIR/$CERTS_NAME-key.pem"
+openssl req -new -key "$TMP_DIR/$CERTS_NAME-key.pem" -subj "/C=US/L=California/O=Wazuh/OU=Wazuh/CN=node-0.wazuh.indexer" -out "$TMP_DIR/indexer.csr"
 cat <<'INDEXER_EXT' >$TMP_DIR/indexer.ext
 subjectAltName = @alt_names
 [alt_names]
@@ -37,7 +38,7 @@ IP.1 = 127.0.0.1
 IP.2 =  0:0:0:0:0:0:0:1
 INDEXER_EXT
 
-openssl x509 -req -in "$TMP_DIR/indexer.csr" -CA "$TMP_DIR/root-ca.pem" -CAkey "$TMP_DIR/root-ca-key-temp.pem" -CAcreateserial -sha256 -out "$TMP_DIR/indexer-1.pem" -days 3650 -extfile "$TMP_DIR/indexer.ext"
+openssl x509 -req -in "$TMP_DIR/indexer.csr" -CA "$TMP_DIR/root-ca.pem" -CAkey "$TMP_DIR/root-ca-key-temp.pem" -CAcreateserial -sha256 -out "$TMP_DIR/$CERTS_NAME.pem" -days 3650 -extfile "$TMP_DIR/indexer.ext"
 
 # Cleanup temporary files
 rm "$TMP_DIR/"*.csr "$TMP_DIR"/*.ext "$TMP_DIR"/*.srl "$TMP_DIR"/*-temp.pem

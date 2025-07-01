@@ -59,6 +59,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix package upload to bucket subfolder 5.x [(#846)](https://github.com/wazuh/wazuh-indexer/pull/846)
 - Fix seccomp error on `wazuh-indexer.service` [(#912)](https://github.com/wazuh/wazuh-indexer/pull/912)
 - Fix CodeQL workflow [(#963)](https://github.com/wazuh/wazuh-indexer/pull/963)
+- Fix auto-generated demo certificates naming [(#1010)](https://github.com/wazuh/wazuh-indexer/pull/1010)
 
 ### Security
 - Reduce risk of GITHUB_TOKEN exposure [(#960)](https://github.com/wazuh/wazuh-indexer/pull/960)
