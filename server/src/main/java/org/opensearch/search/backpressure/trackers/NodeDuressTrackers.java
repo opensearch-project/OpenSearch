@@ -53,6 +53,7 @@ public class NodeDuressTrackers {
      * @return true if node is in duress because of either system resource
      */
     public boolean isNodeInDuress() {
+        updateCache();
         for (ResourceType resourceType : ResourceType.values()) {
             if (isResourceInDuress(resourceType)) {
                 return true;

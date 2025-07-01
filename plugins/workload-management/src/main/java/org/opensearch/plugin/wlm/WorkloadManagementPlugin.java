@@ -68,7 +68,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -92,7 +91,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     private static FeatureType featureType;
     private static RulePersistenceService rulePersistenceService;
     private static RuleRoutingService ruleRoutingService;
-    private WorkloadManagementSettings workloadManagementSettings;
+    private NonPluginSettingValuesProvider nonPluginSettingValuesProvider;
     private AutoTaggingActionFilter autoTaggingActionFilter;
 
     /**
@@ -114,7 +113,10 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        workloadManagementSettings = new WorkloadManagementSettings(environment.settings(), clusterService.getClusterSettings());
+        nonPluginSettingValuesProvider = new NonPluginSettingValuesProvider(
+            clusterService.getSettings(),
+            clusterService.getClusterSettings()
+        );
         featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService));
         RuleEntityParser parser = new XContentRuleParser(featureType);
         AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
@@ -135,16 +137,14 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         RefreshBasedSyncMechanism refreshMechanism = new RefreshBasedSyncMechanism(
             threadPool,
             clusterService.getSettings(),
-            clusterService.getClusterSettings(),
-            parser,
-            ruleProcessingService,
             featureType,
             rulePersistenceService,
-            new RuleEventClassifier(Collections.emptySet(), ruleProcessingService)
+            new RuleEventClassifier(Collections.emptySet(), ruleProcessingService),
+            nonPluginSettingValuesProvider
         );
 
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
-        return List.of(refreshMechanism, workloadManagementSettings);
+        return List.of(refreshMechanism);
     }
 
     @Override
@@ -184,10 +184,10 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(
-            new RestCreateWorkloadGroupAction(workloadManagementSettings),
+            new RestCreateWorkloadGroupAction(nonPluginSettingValuesProvider),
             new RestGetWorkloadGroupAction(),
-            new RestDeleteWorkloadGroupAction(workloadManagementSettings),
-            new RestUpdateWorkloadGroupAction(workloadManagementSettings)
+            new RestDeleteWorkloadGroupAction(nonPluginSettingValuesProvider),
+            new RestUpdateWorkloadGroupAction(nonPluginSettingValuesProvider)
         );
     }
 

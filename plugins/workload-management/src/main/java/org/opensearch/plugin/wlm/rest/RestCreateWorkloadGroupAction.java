@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm.rest;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.plugin.wlm.NonPluginSettingValuesProvider;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
@@ -21,8 +22,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.wlm.WlmMode;
-import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,14 +36,14 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  */
 public class RestCreateWorkloadGroupAction extends BaseRestHandler {
 
-    private final WorkloadManagementSettings workloadManagementSettings;
+    private final NonPluginSettingValuesProvider nonPluginSettingValuesProvider;
 
     /**
      * Constructor for RestCreateWorkloadGroupAction
-     * @param workloadManagementSettings the WorkloadManagementSettings instance to access the current WLM mode
+     * @param nonPluginSettingValuesProvider the settings provider to access the current WLM mode
      */
-    public RestCreateWorkloadGroupAction(WorkloadManagementSettings workloadManagementSettings) {
-        this.workloadManagementSettings = workloadManagementSettings;
+    public RestCreateWorkloadGroupAction(NonPluginSettingValuesProvider nonPluginSettingValuesProvider) {
+        this.nonPluginSettingValuesProvider = nonPluginSettingValuesProvider;
     }
 
     @Override
@@ -62,9 +61,7 @@ public class RestCreateWorkloadGroupAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (workloadManagementSettings.getWlmMode() == WlmMode.DISABLED) {
-            throw new IllegalStateException("Workload management mode is DISABLED. Cannot create workload group.");
-        }
+        nonPluginSettingValuesProvider.ensureWlmEnabled("create workload group");
         try (XContentParser parser = request.contentParser()) {
             CreateWorkloadGroupRequest createWorkloadGroupRequest = CreateWorkloadGroupRequest.fromXContent(parser);
             return channel -> client.execute(
