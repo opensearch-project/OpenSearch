@@ -47,7 +47,7 @@ public final class QueryCollectorContextSpecRegistry {
      * @return collector context spec
      * @throws IOException
      */
-    public static QueryCollectorContextSpec getQueryCollectorContextSpec(
+    public static Optional<QueryCollectorContextSpec> getQueryCollectorContextSpec(
         final SearchContext searchContext,
         final QueryCollectorArguments queryCollectorArguments
     ) throws IOException {
@@ -56,9 +56,9 @@ public final class QueryCollectorContextSpecRegistry {
             QueryCollectorContextSpecFactory factory = iterator.next();
             Optional<QueryCollectorContextSpec> spec = factory.createQueryCollectorContextSpec(searchContext, queryCollectorArguments);
             if (spec.isEmpty() == false) {
-                return spec.get();
+                return spec;
             }
         }
-        return null;
+        return Optional.empty();
     }
 }

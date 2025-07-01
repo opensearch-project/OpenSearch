@@ -29,6 +29,28 @@ public final class QueryCollectorArguments {
         return hasFilterCollector;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        QueryCollectorArguments queryCollectorArguments = (QueryCollectorArguments) o;
+        return hasFilterCollector == queryCollectorArguments.hasFilterCollector;
+    }
+
+    @Override
+    public int hashCode() {
+        return Boolean.hashCode(hasFilterCollector);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return "QueryCollectorArguments{" + "hasFilterCollector=" + hasFilterCollector + '}';
+    }
+
     /**
      * Builder for {@link QueryCollectorArguments}
      */

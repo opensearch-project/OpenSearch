@@ -76,6 +76,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
@@ -446,43 +447,48 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             // create the top docs collector last when the other collectors are known
-            QueryCollectorContext queryCollectorContext;
-            List<QueryCollectorContextSpecFactory> queryCollectorContextSpecFactories = QueryCollectorContextSpecRegistry
-                .getCollectorContextSpecFactories();
-            // No factories found
-            if (queryCollectorContextSpecFactories.isEmpty()) {
-                queryCollectorContext = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-            } else {
-                QueryCollectorContextSpec queryCollectorContextSpec = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
-                    searchContext,
-                    new QueryCollectorArguments.Builder().hasFilterCollector(hasFilterCollector).build()
-                );
-
-                if (queryCollectorContextSpec == null) {
-                    // Case when factories is present but not collectorContextSpec found then use default topDocsCollector
-                    queryCollectorContext = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-                } else {
-                    queryCollectorContext = new QueryCollectorContext(queryCollectorContextSpec.getContextName()) {
-                        @Override
-                        Collector create(Collector in) throws IOException {
-                            return queryCollectorContextSpec.create(in);
-                        }
-
-                        @Override
-                        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in)
-                            throws IOException {
-                            return queryCollectorContextSpec.createManager(in);
-                        }
-
-                        @Override
-                        void postProcess(QuerySearchResult result) throws IOException {
-                            queryCollectorContextSpec.postProcess(result);
-                        }
-                    };
+            final Optional<QueryCollectorContext> queryCollectorContextOpt = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
+                searchContext,
+                new QueryCollectorArguments.Builder().hasFilterCollector(hasFilterCollector).build()
+            ).map(queryCollectorContextSpec -> new QueryCollectorContext(queryCollectorContextSpec.getContextName()) {
+                @Override
+                Collector create(Collector in) throws IOException {
+                    return queryCollectorContextSpec.create(in);
                 }
-            }
 
-            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
+                @Override
+                CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in)
+                    throws IOException {
+                    return queryCollectorContextSpec.createManager(in);
+                }
+
+                @Override
+                void postProcess(QuerySearchResult result) throws IOException {
+                    queryCollectorContextSpec.postProcess(result);
+                }
+            });
+
+            if (queryCollectorContextOpt.isPresent()) {
+                return searchWithCollector(
+                    searchContext,
+                    searcher,
+                    query,
+                    collectors,
+                    queryCollectorContextOpt.get(),
+                    hasFilterCollector,
+                    hasTimeout
+                );
+            } else {
+                return searchWithCollector(
+                    searchContext,
+                    searcher,
+                    query,
+                    collectors,
+                    createTopDocsCollectorContext(searchContext, hasFilterCollector),
+                    hasFilterCollector,
+                    hasTimeout
+                );
+            }
         }
 
         protected boolean searchWithCollector(
