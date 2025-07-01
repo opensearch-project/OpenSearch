@@ -21,6 +21,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.util.function.Function;
+
 /**
  * A local implementation of {@link ShardStateAction} that applies shard state changes directly to the
  * local cluster state. This is used in clusterless mode, where there is no cluster manager.
@@ -45,28 +47,32 @@ public class LocalShardStateAction extends ShardStateAction {
         ActionListener<Void> listener,
         ClusterState currentState
     ) {
-        // We're running in clusterless mode. Apply the state change directly to the local cluster state.
-        ClusterState clusterState = clusterService.state();
-        RoutingTable routingTable = clusterState.getRoutingTable();
-        IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
+        Function<ClusterState, ClusterState> clusterStateUpdater = clusterState -> {
+            // We're running in clusterless mode. Apply the state change directly to the local cluster state.
+            RoutingTable routingTable = clusterState.getRoutingTable();
+            IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
 
-        ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterState);
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(routingTable);
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(shardRouting.index());
-        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-            if (indexShardRoutingTable.shardId().equals(shardRouting.shardId())) {
-                IndexShardRoutingTable.Builder indexShardRoutingTableBuilder = new IndexShardRoutingTable.Builder(indexShardRoutingTable);
-                indexShardRoutingTableBuilder.removeShard(shardRouting);
-                indexShardRoutingTableBuilder.addShard(shardRouting.moveToStarted());
-                indexRoutingTableBuilder.addIndexShard(indexShardRoutingTableBuilder.build());
-            } else {
-                indexRoutingTableBuilder.addIndexShard(indexShardRoutingTable);
+            ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterState);
+            RoutingTable.Builder routingTableBuilder = RoutingTable.builder(routingTable);
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(shardRouting.index());
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                if (indexShardRoutingTable.shardId().equals(shardRouting.shardId())) {
+                    IndexShardRoutingTable.Builder indexShardRoutingTableBuilder = new IndexShardRoutingTable.Builder(
+                        indexShardRoutingTable
+                    );
+                    indexShardRoutingTableBuilder.removeShard(shardRouting);
+                    indexShardRoutingTableBuilder.addShard(shardRouting.moveToStarted());
+                    indexRoutingTableBuilder.addIndexShard(indexShardRoutingTableBuilder.build());
+                } else {
+                    indexRoutingTableBuilder.addIndexShard(indexShardRoutingTable);
+                }
             }
-        }
-        routingTableBuilder.add(indexRoutingTableBuilder);
-        clusterStateBuilder.routingTable(routingTableBuilder.build());
+            routingTableBuilder.add(indexRoutingTableBuilder);
+            clusterStateBuilder.routingTable(routingTableBuilder.build());
+            return clusterStateBuilder.build();
+        };
         clusterService.getClusterApplierService()
-            .onNewClusterState("shard-started " + shardRouting.shardId(), clusterStateBuilder::build, (s, e) -> {});
+            .updateClusterState("shard-started " + shardRouting.shardId(), clusterStateUpdater, (s, e) -> {});
     }
 
     @Override

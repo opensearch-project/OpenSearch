@@ -42,7 +42,6 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
-import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
@@ -374,12 +373,5 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskExecutor<T> executor
     ) {
         clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
-    }
-
-    /**
-     * @return the class to use to handle shard state actions. Subclasses may provide a different implementation.
-     */
-    public Class<?> getShardStateActionClass() {
-        return ShardStateAction.class;
     }
 }
