@@ -68,6 +68,8 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.action.shard.LocalShardStateAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
@@ -769,7 +771,8 @@ public class Node implements Closeable {
                 clusterInfoService,
                 snapshotsInfoService,
                 threadPool.getThreadContext(),
-                clusterManagerMetrics
+                clusterManagerMetrics,
+                FeatureFlags.isEnabled(CLUSTERLESS_FLAG) ? LocalShardStateAction.class : ShardStateAction.class
             );
             modules.add(clusterModule);
             final List<MapperPlugin> mapperPlugins = pluginsService.filterPlugins(MapperPlugin.class);

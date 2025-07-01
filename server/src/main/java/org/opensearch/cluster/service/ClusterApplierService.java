@@ -382,6 +382,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         submitStateUpdateTask(source, ClusterStateTaskConfig.build(Priority.HIGH), applyFunction, listener);
     }
 
+    public void updateClusterState(
+        final String source,
+        final Function<ClusterState, ClusterState> updateFunction,
+        final ClusterApplyListener listener
+    ) {
+        submitStateUpdateTask(source, ClusterStateTaskConfig.build(Priority.HIGH), updateFunction, listener);
+    }
+
     private void submitStateUpdateTask(
         final String source,
         final ClusterStateTaskConfig config,
