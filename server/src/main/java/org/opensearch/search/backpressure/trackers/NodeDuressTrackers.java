@@ -44,7 +44,7 @@ public class NodeDuressTrackers {
      * @return Boolean
      */
     public boolean isResourceInDuress(ResourceType resourceType) {
-        updateCache(resourceType);
+        updateCache();
         return resourceDuressCache.get(resourceType);
     }
 
@@ -61,9 +61,10 @@ public class NodeDuressTrackers {
         return false;
     }
 
-    private void updateCache(ResourceType resourceType) {
+    private void updateCache() {
         if (nodeDuressCacheExpiryChecker.getAsBoolean()) {
-            resourceDuressCache.put(resourceType, duressTrackers.get(resourceType).test());
+            for (ResourceType resourceType: ResourceType.values())
+                resourceDuressCache.put(resourceType, duressTrackers.get(resourceType).test());
         }
     }
 
