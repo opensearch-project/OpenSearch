@@ -63,7 +63,7 @@ public class NodeDuressTrackers {
 
     private void updateCache() {
         if (nodeDuressCacheExpiryChecker.getAsBoolean()) {
-            for (ResourceType resourceType: ResourceType.values())
+            for (ResourceType resourceType : ResourceType.values())
                 resourceDuressCache.put(resourceType, duressTrackers.get(resourceType).test());
         }
     }
