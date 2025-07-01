@@ -38,6 +38,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResultTests;
+import org.opensearch.search.profile.fetch.FetchProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfileShardResultTests;
 import org.opensearch.test.OpenSearchTestCase;
@@ -69,10 +70,16 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
                 queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
             }
             AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
+            List<ProfileResult> fetchResults = new ArrayList<>();
+            int fetchItems = rarely() ? 0 : randomIntBetween(1, 2);
+            for (int f = 0; f < fetchItems; f++) {
+                fetchResults.add(ProfileResultTests.createTestItem(1, false));
+            }
+            FetchProfileShardResult fetchProfileShardResult = new FetchProfileShardResult(fetchResults);
             NetworkTime networkTime = new NetworkTime(inboundTime, outboundTime);
             searchProfileResults.put(
                 randomAlphaOfLengthBetween(5, 10),
-                new ProfileShardResult(queryProfileResults, aggProfileShardResult, networkTime)
+                new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime)
             );
         }
         return new SearchProfileShardResults(searchProfileResults);
