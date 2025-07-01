@@ -71,7 +71,4 @@ public class FetchProfileShardResult implements Writeable, ToXContentFragment {
         }
         return new FetchProfileShardResult(results);
     }
-
-
-
 }
