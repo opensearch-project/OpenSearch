@@ -32,7 +32,7 @@ public class TimeBasedCacheExpiryTrackerTests extends OpenSearchTestCase {
         assertFalse(sut.getAsBoolean());
     }
 
-    private static class TestTimeSupplier implements LongSupplier {
+    public static class TestTimeSupplier implements LongSupplier {
         long currentTime = System.nanoTime();
 
         @Override
@@ -40,7 +40,7 @@ public class TimeBasedCacheExpiryTrackerTests extends OpenSearchTestCase {
             return currentTime;
         }
 
-        void advanceClockBy(long nanos) {
+        public void advanceClockBy(long nanos) {
             currentTime += nanos;
         }
     }

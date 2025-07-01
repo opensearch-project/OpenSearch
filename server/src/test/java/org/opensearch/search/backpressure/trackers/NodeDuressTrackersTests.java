@@ -37,7 +37,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeInDuressWhenHeapInDuress() {
         EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.MEMORY, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> true, () -> 6));
                 put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 1));
             }
         };
@@ -55,7 +55,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
         EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
                 put(ResourceType.MEMORY, new NodeDuressTracker(() -> false, () -> 1));
-                put(ResourceType.CPU, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> true, () -> 5));
             }
         };
 
@@ -71,8 +71,8 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeInDuressWhenCPUAndHeapInDuress() {
         EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.MEMORY, new NodeDuressTracker(() -> true, () -> 3));
-                put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 3));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> true, () -> 6));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> true, () -> 5));
             }
         };
 

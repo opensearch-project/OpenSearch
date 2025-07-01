@@ -103,8 +103,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         AtomicReference<Double> cpuUsage = new AtomicReference<>();
         AtomicReference<Double> heapUsage = new AtomicReference<>();
-        NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5, () -> 3);
-        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> heapUsage.get() >= 0.5, () -> 3);
+        NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5, () -> 5);
+        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> heapUsage.get() >= 0.5, () -> 6);
 
         EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
             {
