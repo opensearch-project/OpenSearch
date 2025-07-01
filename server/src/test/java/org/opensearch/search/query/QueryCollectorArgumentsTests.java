@@ -9,7 +9,6 @@
 package org.opensearch.search.query;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Test;
 
 public class QueryCollectorArgumentsTests extends OpenSearchTestCase {
 
@@ -31,7 +30,6 @@ public class QueryCollectorArgumentsTests extends OpenSearchTestCase {
         assertTrue(args1.equals(args1));          // Same object
     }
 
-    @Test
     public void testHashCode() {
         QueryCollectorArguments args1 = new QueryCollectorArguments.Builder().hasFilterCollector(true).build();
 
@@ -41,7 +39,6 @@ public class QueryCollectorArgumentsTests extends OpenSearchTestCase {
         assertEquals(args1.hashCode(), args1.hashCode());  // Consistent
     }
 
-    @Test
     public void testToString() {
         QueryCollectorArguments args = new QueryCollectorArguments.Builder().hasFilterCollector(true).build();
 
