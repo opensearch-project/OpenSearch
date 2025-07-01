@@ -450,6 +450,16 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                         return topDocs.scoreDocs[0].score;
                     }
                 };
+            } else if (SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0])) {
+                maxScoreSupplier = () -> {
+                    TopDocs topDocs = topDocsSupplier.get();
+                    if (topDocs.scoreDocs.length == 0) {
+                        return Float.NaN;
+                    } else {
+                        FieldDoc fieldDoc = (FieldDoc) topDocs.scoreDocs[0];
+                        return (float) fieldDoc.fields[0];
+                    }
+                };
             } else if (trackMaxScore) {
                 maxScoreCollector = new MaxScoreCollector();
                 maxScoreSupplier = maxScoreCollector::getMaxScore;

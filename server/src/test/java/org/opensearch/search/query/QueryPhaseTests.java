@@ -994,6 +994,46 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
+    public void testMaxScoreWithSortOnScoreFirstly() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
+
+        final int numDocs = scaledRandomIntBetween(10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("foo", "bar", Store.NO));
+            doc.add(new StringField("filter", "f1" + ((i > 0) ? " " + i : ""), Store.NO));
+            w.addDocument(doc);
+        }
+        w.close();
+
+        IndexReader reader = DirectoryReader.open(dir);
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
+        context.trackScores(true);
+        Sort sort = new Sort(new SortField("_score", SortField.Type.SCORE), new SortField("_doc", SortField.Type.DOC));
+        SortAndFormats sortAndFormats = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW});
+        context.sort(sortAndFormats);
+        context.parsedQuery(
+            new ParsedQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
+                    .add(new TermQuery(new Term("filter", "f1")), Occur.SHOULD)
+                    .build()
+            )
+        );
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setSize(1);
+        context.trackTotalHitsUpTo(5);
+
+        QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
+        assertFalse(Float.isNaN(context.queryResult().getMaxScore()));
+        assertEquals(1, context.queryResult().topDocs().topDocs.scoreDocs.length);
+        assertThat(((FieldDoc)context.queryResult().topDocs().topDocs.scoreDocs[0]).fields[0], equalTo(context.queryResult().getMaxScore()));
+
+        reader.close();
+        dir.close();
+    }
+
     public void testMaxScore() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("filter", SortField.Type.STRING));
