@@ -20,6 +20,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCachedIndexInputTests extends OpenSearchTestCase {
 
     protected FileCache fileCache;

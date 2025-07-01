@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCacheTests extends OpenSearchTestCase {
     // need concurrency level to be static to make these tests more deterministic because capacity per segment is dependent on
     // (total capacity) / (concurrency level) so having high concurrency level might trigger early evictions which is tolerable in real life
