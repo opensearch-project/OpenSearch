@@ -11,6 +11,7 @@ package org.opensearch.search.profile.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.util.List;
@@ -24,15 +25,15 @@ import java.util.Map;
 public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
     @Override
-    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new ConcurrentQueryProfileBreakdown();
+    protected ContextualProfileBreakdown createProfileBreakdown() {
+        return new ConcurrentQueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
     }
 
     @Override
     protected ProfileResult createProfileResult(
         String type,
         String description,
-        ContextualProfileBreakdown<QueryTimingType> breakdown,
+        ContextualProfileBreakdown breakdown,
         List<ProfileResult> childrenProfileResults
     ) {
         assert breakdown instanceof ConcurrentQueryProfileBreakdown;
@@ -62,7 +63,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
     @Override
     public List<ProfileResult> getTree() {
         for (Integer root : roots) {
-            final ContextualProfileBreakdown<QueryTimingType> parentBreakdown = breakdowns.get(root);
+            final ContextualProfileBreakdown parentBreakdown = breakdowns.get(root);
             assert parentBreakdown instanceof ConcurrentQueryProfileBreakdown;
             final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryProfileBreakdown) parentBreakdown)
                 .getSliceCollectorsToLeaves();
@@ -82,7 +83,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
             for (Integer currentChild : children) {
-                final ContextualProfileBreakdown<QueryTimingType> currentChildBreakdown = breakdowns.get(currentChild);
+                final ContextualProfileBreakdown currentChildBreakdown = breakdowns.get(currentChild);
                 currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
                 updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
             }
