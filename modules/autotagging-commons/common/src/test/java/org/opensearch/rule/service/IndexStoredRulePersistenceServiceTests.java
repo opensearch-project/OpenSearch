@@ -25,6 +25,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
@@ -109,6 +110,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         queryBuilder = mock(QueryBuilder.class);
         when(queryBuilder.filter(any())).thenReturn(queryBuilder);
         when(ruleQueryMapper.from(any(GetRuleRequest.class))).thenReturn(queryBuilder);
+        when(ruleQueryMapper.getCardinalityQuery()).thenReturn(mock(QueryBuilder.class));
         when(ruleEntityParser.parse(anyString())).thenReturn(rule);
 
         rulePersistenceService = new IndexStoredRulePersistenceService(
@@ -142,6 +144,25 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         ArgumentCaptor<CreateRuleResponse> responseCaptor = ArgumentCaptor.forClass(CreateRuleResponse.class);
         verify(listener).onResponse(responseCaptor.capture());
         assertNotNull(responseCaptor.getValue().getRule());
+    }
+
+    public void testCardinalityCheckBasedFailure() throws Exception {
+        CreateRuleRequest createRuleRequest = mock(CreateRuleRequest.class);
+        when(createRuleRequest.getRule()).thenReturn(rule);
+        when(rule.toXContent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(
+            new SearchHits(new SearchHit[] {}, new TotalHits(10000, TotalHits.Relation.EQUAL_TO), 1.0f)
+        );
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        rulePersistenceService.createRule(createRuleRequest, listener);
+
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(OpenSearchRejectedExecutionException.class);
+        verify(listener).onFailure(exceptionCaptor.capture());
+        assertNotNull(exceptionCaptor.getValue());
     }
 
     public void testConcurrentCreateDuplicateRules() throws InterruptedException {

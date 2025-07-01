@@ -111,24 +111,17 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     }
 
     private void performCardinalityCheck(ActionListener<CreateRuleResponse> listener) {
-        client.prepareSearch(indexName).setQuery(queryBuilder.getCardinalityQuery())
-            .execute(new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    if (searchResponse.getHits().getTotalHits().value() >= MAX_ALLOWED_RULE_COUNT) {
-                        listener.onFailure(
-                            new OpenSearchRejectedExecutionException("This create operation will violate" +
-                                " the cardinality limit of " + MAX_ALLOWED_RULE_COUNT +
-                                ". Please delete some stale or redundant rules first")
-                        );
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+        SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(queryBuilder.getCardinalityQuery()).get();
+        if (searchResponse.getHits().getTotalHits() != null && searchResponse.getHits().getTotalHits().value() >= MAX_ALLOWED_RULE_COUNT) {
+            listener.onFailure(
+                new OpenSearchRejectedExecutionException(
+                    "This create operation will violate"
+                        + " the cardinality limit of "
+                        + MAX_ALLOWED_RULE_COUNT
+                        + ". Please delete some stale or redundant rules first"
+                )
+            );
+        }
     }
 
     /**
