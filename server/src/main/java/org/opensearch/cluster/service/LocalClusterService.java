@@ -12,7 +12,6 @@ import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
-import org.opensearch.cluster.action.shard.LocalShardStateAction;
 import org.opensearch.cluster.coordination.ClusterStatePublisher;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -84,10 +83,5 @@ public class LocalClusterService extends ClusterService {
         final ClusterStateTaskExecutor<T> executor
     ) {
         throw new UnsupportedOperationException("Cannot submit cluster state update tasks when cluster manager service is not available");
-    }
-
-    @Override
-    public Class<?> getShardStateActionClass() {
-        return LocalShardStateAction.class;
     }
 }

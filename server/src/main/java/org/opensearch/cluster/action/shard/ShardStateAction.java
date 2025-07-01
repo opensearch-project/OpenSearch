@@ -88,7 +88,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Transport action for retrieving the shard state
+ * Registers transport actions that react to shard state changes, such as shard started or shard failed.
  *
  * @opensearch.internal
  */
