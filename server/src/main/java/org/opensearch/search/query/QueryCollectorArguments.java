@@ -48,7 +48,7 @@ public final class QueryCollectorArguments {
      */
     @Override
     public String toString() {
-        return "QueryCollectorArguments{" + "hasFilterCollector=" + hasFilterCollector + '}';
+        return "QueryCollectorArguments[hasFilterCollector=" + hasFilterCollector + "]";
     }
 
     /**

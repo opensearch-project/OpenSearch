@@ -44,6 +44,6 @@ public class QueryCollectorArgumentsTests extends OpenSearchTestCase {
 
         String result = args.toString();
 
-        assertEquals("QueryCollectorArguments{hasFilterCollector=true}", result);
+        assertEquals("QueryCollectorArguments[hasFilterCollector=true]", result);
     }
 }

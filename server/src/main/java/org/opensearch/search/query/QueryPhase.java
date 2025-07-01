@@ -446,6 +446,11 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
+            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
+            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
+        }
+
+        private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector) throws IOException {
             // create the top docs collector last when the other collectors are known
             final Optional<QueryCollectorContext> queryCollectorContextOpt = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
                 searchContext,
@@ -467,27 +472,10 @@ public class QueryPhase {
                     queryCollectorContextSpec.postProcess(result);
                 }
             });
-
             if (queryCollectorContextOpt.isPresent()) {
-                return searchWithCollector(
-                    searchContext,
-                    searcher,
-                    query,
-                    collectors,
-                    queryCollectorContextOpt.get(),
-                    hasFilterCollector,
-                    hasTimeout
-                );
+                return queryCollectorContextOpt.get();
             } else {
-                return searchWithCollector(
-                    searchContext,
-                    searcher,
-                    query,
-                    collectors,
-                    createTopDocsCollectorContext(searchContext, hasFilterCollector),
-                    hasFilterCollector,
-                    hasTimeout
-                );
+                return createTopDocsCollectorContext(searchContext, hasFilterCollector);
             }
         }
 
