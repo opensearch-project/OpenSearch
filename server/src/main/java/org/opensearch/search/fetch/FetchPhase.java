@@ -71,6 +71,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.search.profile.Timer;
+import org.opensearch.search.profile.fetch.FetchProfileBreakdown;
 import org.opensearch.search.profile.fetch.FetchTimingType;
 
 import java.io.IOException;
@@ -105,10 +106,9 @@ public class FetchPhase {
     }
 
     public void execute(SearchContext context) {
-        Timer timer = null;
+        FetchProfileBreakdown profile = null;
         if (context.getProfilers() != null) {
-            timer = context.getProfilers().getFetchProfiler().getQueryBreakdown("fetch").getTimer(FetchTimingType.EXECUTE_FETCH_PHASE);
-            timer.start();
+            profile = context.getProfilers().getFetchProfiler().getQueryBreakdown("fetch");
         }
         try {
             if (LOGGER.isTraceEnabled()) {
@@ -131,16 +131,39 @@ public class FetchPhase {
                 docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
             }
             // make sure that we iterate in doc id order
-            Arrays.sort(docs);
+            if (profile != null) {
+                Timer t = profile.getTimer(FetchTimingType.SORT_DOC_IDS);
+                t.start();
+                Arrays.sort(docs);
+                t.stop();
+            } else {
+                Arrays.sort(docs);
+            }
 
             Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-            FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+            FieldsVisitor fieldsVisitor;
+            if (profile != null) {
+                Timer t = profile.getTimer(FetchTimingType.CREATE_STORED_FIELDS_VISITOR);
+                t.start();
+                fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+                t.stop();
+            } else {
+                fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+            }
 
             FetchContext fetchContext = new FetchContext(context);
 
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
-            List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext);
+            List<Tuple<FetchSubPhaseProcessor, FetchSubPhase>> processors;
+            if (profile != null) {
+                Timer t = profile.getTimer(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS);
+                t.start();
+                processors = getProcessors(context.shardTarget(), fetchContext);
+                t.stop();
+            } else {
+                processors = getProcessors(context.shardTarget(), fetchContext);
+            }
 
             int currentReaderIndex = -1;
             LeafReaderContext currentReaderContext = null;
@@ -154,7 +177,14 @@ public class FetchPhase {
                 try {
                     int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
                     if (currentReaderIndex != readerIndex) {
-                        currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                        if (profile != null) {
+                            Timer t = profile.getTimer(FetchTimingType.GET_LEAF_READER);
+                            t.start();
+                            currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                            t.stop();
+                        } else {
+                            currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                        }
                         currentReaderIndex = readerIndex;
                         if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader
                             && hasSequentialDocs
@@ -168,22 +198,48 @@ public class FetchPhase {
                         } else {
                             fieldReader = currentReaderContext.reader().storedFields()::document;
                         }
-                        for (FetchSubPhaseProcessor processor : processors) {
-                            processor.setNextReader(currentReaderContext);
+                        for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p: processors) {
+                            p.v1().setNextReader(currentReaderContext);
                         }
                     }
                     assert currentReaderContext != null;
-                    HitContext hit = prepareHitContext(
-                        context,
-                        fetchContext.searchLookup(),
-                        fieldsVisitor,
-                        docId,
-                        storedToRequestedFields,
-                        currentReaderContext,
-                        fieldReader
-                    );
-                    for (FetchSubPhaseProcessor processor : processors) {
-                        processor.process(hit);
+                    HitContext hit;
+                    if (profile != null) {
+                        Timer t = profile.getTimer(FetchTimingType.PREPARE_HIT_CONTEXT);
+                        t.start();
+                        hit = prepareHitContext(
+                            context,
+                            fetchContext.searchLookup(),
+                            fieldsVisitor,
+                            docId,
+                            storedToRequestedFields,
+                            currentReaderContext,
+                            fieldReader
+                        );
+                        t.stop();
+                    } else {
+                        hit = prepareHitContext(
+                            context,
+                            fetchContext.searchLookup(),
+                            fieldsVisitor,
+                            docId,
+                            storedToRequestedFields,
+                            currentReaderContext,
+                            fieldReader
+                        );
+                    }
+                    for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
+                        if (profile != null) {
+                            FetchTimingType tt = timingTypeFor(p.v2());
+                            if (tt != null) {
+                                Timer st = profile.getTimer(tt);
+                                st.start();
+                                p.v1().process(hit);
+                                st.stop();
+                                continue;
+                            }
+                        }
+                        p.v1().process(hit);
                     }
                     hits[docs[index].index] = hit.hit();
                 } catch (Exception e) {
@@ -195,27 +251,59 @@ public class FetchPhase {
             }
 
             TotalHits totalHits = context.queryResult().getTotalHits();
-            context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
+            if (profile != null) {
+                Timer t = profile.getTimer(FetchTimingType.BUILD_SEARCH_HITS);
+                t.start();
+                context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
+                t.stop();
+            } else {
+                context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
+            }
         } finally {
-            if (timer != null) {
-                timer.stop();
+            if (profile != null) {
                 context.getProfilers().getFetchProfiler().pollLastElement();
             }
         }
     }
 
-    List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context) {
+    List<Tuple<FetchSubPhaseProcessor, FetchSubPhase>> getProcessors(SearchShardTarget target, FetchContext context) {
         try {
-            List<FetchSubPhaseProcessor> processors = new ArrayList<>();
+            List<Tuple<FetchSubPhaseProcessor, FetchSubPhase>> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
                 FetchSubPhaseProcessor processor = fsp.getProcessor(context);
                 if (processor != null) {
-                    processors.add(processor);
+                    processors.add(new Tuple<>(processor, fsp));
                 }
             }
             return processors;
         } catch (Exception e) {
             throw new FetchPhaseExecutionException(target, "Error building fetch sub-phases", e);
+        }
+    }
+
+    private FetchTimingType timingTypeFor(FetchSubPhase phase) {
+        if (phase instanceof org.opensearch.search.fetch.subphase.ExplainPhase) {
+            return FetchTimingType.EXPLAIN;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchDocValuesPhase) {
+            return FetchTimingType.FETCH_DOC_VALUES;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.ScriptFieldsPhase) {
+            return FetchTimingType.SCRIPT_FIELDS;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchSourcePhase) {
+            return FetchTimingType.FETCH_SOURCE;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchFieldsPhase) {
+            return FetchTimingType.FETCH_FIELDS;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchVersionPhase) {
+            return FetchTimingType.FETCH_VERSION;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.SeqNoPrimaryTermPhase) {
+            return FetchTimingType.SEQ_NO_PRIMARY_TERM;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.MatchedQueriesPhase) {
+            return FetchTimingType.MATCHED_QUERIES;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.highlight.HighlightPhase) {
+            return FetchTimingType.HIGHLIGHT;
+        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchScorePhase) {
+            return FetchTimingType.FETCH_SCORE;
+        } else {
+            return null;
         }
     }
 

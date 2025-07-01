@@ -15,58 +15,61 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.profile.ProfileResult;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 @ExperimentalApi()
 public class FetchProfileShardResult implements Writeable, ToXContentFragment {
     public static final String FETCH = "fetch";
-    public static final String TIME_IN_NANOS = "time_in_nanos";
 
-    private final long fetchTime;
+    private final List<ProfileResult> fetchProfileResults;
 
-    public FetchProfileShardResult(long fetchTime) {
-        this.fetchTime = fetchTime;
+    public FetchProfileShardResult(List<ProfileResult> results) {
+        this.fetchProfileResults = Collections.unmodifiableList(results);
     }
 
     public FetchProfileShardResult(StreamInput in) throws IOException {
-        this.fetchTime = in.readLong();
+        int profileSize = in.readVInt();
+        List<ProfileResult> tmp = new ArrayList<>(profileSize);
+        for (int j = 0; j < profileSize; j++) {
+            tmp.add(new ProfileResult(in));
+        }
+        this.fetchProfileResults = Collections.unmodifiableList(tmp);
     }
 
-    public long getFetchTime() {
-        return fetchTime;
+    public List<ProfileResult> getFetchProfileResults() {
+        return fetchProfileResults;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(fetchTime);
+        out.writeVInt(fetchProfileResults.size());
+        for (ProfileResult p : fetchProfileResults) {
+            p.writeTo(out);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(FETCH).field(TIME_IN_NANOS, fetchTime).endObject();
+        builder.startArray(FETCH);
+        for (ProfileResult p : fetchProfileResults) {
+            p.toXContent(builder, params);
+        }
+        return builder.endArray();
     }
 
     public static FetchProfileShardResult fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        String currentFieldName = null;
-        long time = 0;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (TIME_IN_NANOS.equals(currentFieldName)) {
-                    time = parser.longValue();
-                } else {
-                    parser.skipChildren();
-                }
-            } else {
-                parser.skipChildren();
-            }
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        List<ProfileResult> results = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            results.add(ProfileResult.fromXContent(parser));
         }
-        return new FetchProfileShardResult(time);
+        return new FetchProfileShardResult(results);
     }
 
 

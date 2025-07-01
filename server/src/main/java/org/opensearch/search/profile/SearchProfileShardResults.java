@@ -214,12 +214,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             queryResults.add(result);
         }
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
-        long fetchTime = 0L;
         List<ProfileResult> fetchTree = fetchProfiler.getTree();
-        if (!fetchTree.isEmpty()) {
-            fetchTime = fetchTree.get(0).getTime();
-        }
-        FetchProfileShardResult fetchResult = new FetchProfileShardResult(fetchTime);
+        FetchProfileShardResult fetchResult = new FetchProfileShardResult(fetchTree);
         NetworkTime networkTime = new NetworkTime(0, 0);
         if (request != null) {
             networkTime.setInboundNetworkTime(request.getInboundNetworkTime());
