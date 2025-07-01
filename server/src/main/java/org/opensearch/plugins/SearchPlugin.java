@@ -68,6 +68,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.query.QueryCollectorContextSpecFactory;
 import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.Rescorer;
@@ -80,6 +81,7 @@ import org.opensearch.search.suggest.SuggestionBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -87,6 +89,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -97,6 +100,14 @@ import static java.util.Collections.emptyMap;
  * @opensearch.api
  */
 public interface SearchPlugin {
+
+    /**
+     * The plugin provider to be used to get the profilers from plugins.
+     */
+    default PluginMetricsProvider getPluginMetricsProvider() {
+        return null;
+    }
+
     /**
      * The new {@link ScoreFunction}s defined by this plugin.
      */
@@ -230,6 +241,17 @@ public interface SearchPlugin {
 
     default List<QueryCollectorContextSpecFactory> getCollectorContextSpecFactories() {
         return emptyList();
+    }
+
+    /**
+     * Plugin Profiler provider
+     */
+    interface PluginMetricsProvider {
+        /**
+         * Provides a profiler instance
+         * @return profiler instance
+         */
+        Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> getPluginMetrics();
     }
 
     /**
