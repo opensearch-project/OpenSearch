@@ -198,7 +198,7 @@ public class FetchPhase {
                         } else {
                             fieldReader = currentReaderContext.reader().storedFields()::document;
                         }
-                        for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p: processors) {
+                        for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
                             p.v1().setNextReader(currentReaderContext);
                         }
                     }

@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+
 @ExperimentalApi()
 public class FetchProfileShardResult implements Writeable, ToXContentFragment {
     public static final String FETCH = "fetch";

@@ -10,7 +10,6 @@ package org.opensearch.search.profile.fetch;
 
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 
-
 public class FetchProfileBreakdown extends AbstractProfileBreakdown<FetchTimingType> {
     public FetchProfileBreakdown() {
         super(FetchTimingType.class);
