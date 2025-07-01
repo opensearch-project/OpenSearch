@@ -159,9 +159,17 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         // TODO: A note is that in scripted aggregations, the way of collecting from buckets is determined from
         // the script aggregator. For now, we will not be able to support the script aggregation.
 
-        if (subAggregators.length > 0 || includeExclude != null || fieldName == null) {
-            // The optimization does not work when there are subaggregations or if there is a filter.
-            // The query has to be a match all, otherwise
+        // The optimization does not work when there are subaggregations or if there is a filter.
+        // The query has to be a match all, otherwise
+        if (subAggregators.length > 0 || includeExclude != null || fieldName == null || weight == null) {
+            return false;
+        }
+
+        // The optimization could only be used if there are no deleted documents and the top-level
+        // query matches all documents in the segment.
+        if (weight.count(ctx) == 0) {
+            return true;
+        } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
             return false;
         }
 
@@ -169,28 +177,13 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         // field missing, we might not be able to use the index unless there is some way we can
         // calculate which ordinal value that missing field is (something I am not sure how to
         // do yet).
-        if (config != null && config.missing() != null && ((weight.count(ctx) == ctx.reader().getDocCount(fieldName)) == false)) {
-            return false;
-        }
-
         // Custom scripts cannot be supported because when the aggregation is returned, parts of the custom
         // script are not included. See test 'org.opensearch.painless.\
         // LangPainlessClientYamlTestSuiteIT.test {yaml=painless/100_terms_agg/String Value Script with doc notation}'
         // for more details on why it cannot be supported.
-        if (config != null && config.script() != null) {
+        if ((config != null)
+            && ((config.missing() != null && ((weight.count(ctx) != ctx.reader().getDocCount(fieldName)))) || (config.script() != null))) {
             return false;
-        }
-
-        // The optimization could only be used if there are no deleted documents and the top-level
-        // query matches all documents in the segment.
-        if (weight == null) {
-            return false;
-        } else {
-            if (weight.count(ctx) == 0) {
-                return true;
-            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
-                return false;
-            }
         }
 
         Terms stringTerms = ctx.reader().terms(fieldName);
@@ -214,11 +207,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = -1 - bucketOrdinal;
             }
-            int amount = stringTermsEnum.docFreq();
-            if (resultStrategy instanceof SignificantTermsResults) {
-                ((SignificantTermsResults) resultStrategy).updateSubsetSizes(0L, amount);
+            int docCount = stringTermsEnum.docFreq();
+            if (resultStrategy instanceof SignificantTermsResults sigTermsResultStrategy) {
+                sigTermsResultStrategy.updateSubsetSizes(0L, docCount);
             }
-            incrementBucketDocCount(bucketOrdinal, amount);
+            incrementBucketDocCount(bucketOrdinal, docCount);
             stringTerm = stringTermsEnum.next();
         }
         return true;

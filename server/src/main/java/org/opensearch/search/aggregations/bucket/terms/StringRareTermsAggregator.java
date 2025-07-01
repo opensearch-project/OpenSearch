@@ -142,7 +142,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        if (subAggregators.length > 0 || filter != null) {
+        if (subAggregators.length > 0 || filter != null || weight == null) {
             // The optimization does not work when there are subaggregations or if there is a filter.
             // The query has to be a match all, otherwise
             return false;
@@ -158,14 +158,10 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
         // The optimization could only be used if there are no deleted documents and the top-level
         // query matches all documents in the segment.
-        if (weight == null) {
+        if (weight.count(ctx) == 0) {
+            return true;
+        } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
             return false;
-        } else {
-            if (weight.count(ctx) == 0) {
-                return true;
-            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
-                return false;
-            }
         }
 
         Terms stringTerms = ctx.reader().terms(fieldName);

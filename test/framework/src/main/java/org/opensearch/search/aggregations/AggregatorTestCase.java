@@ -860,8 +860,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * Half the time it aggregates each leaf individually and reduces all
      * results together. The other half the time it aggregates across the entire
      * index at once and runs a final reduction on the single resulting agg.
-     * A count of the number of collect operations will be returned as well as the
-     * agg.
+     * The difference between this method and {@link searchAndReduce} is that
+     * this method also asserts the the number of documents match the expectedCount.
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
         int expectedCount,

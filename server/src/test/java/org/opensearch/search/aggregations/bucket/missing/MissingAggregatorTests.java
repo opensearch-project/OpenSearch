@@ -659,51 +659,52 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         int docsBelowThreshold = 0;
         final List<Set<IndexableField>> docs = new ArrayList<>();
 
-        // Determines whether the fields we add to the documents are indexed.
-        final boolean isIndexed = randomBoolean();
-        for (int i = 0; i < numDocs; i++) {
-            if (isIndexed) {
-                final long firstValue = randomLongBetween(0, 100);
-                final long secondValue = firstValue + 1;
-                if (firstValue < threshold && secondValue < threshold) {
-                    docsBelowThreshold++;
-                }
-                docs.add(
-                    Set.of(
-                        new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
-                        new StringField(aggFieldType.name(), String.valueOf(firstValue), Store.NO),
-                        new SortedNumericDocValuesField(aggFieldType.name(), secondValue),
-                        new StringField(aggFieldType.name(), String.valueOf(secondValue), Store.NO)
-                    )
-                );
-            } else {
-                final long firstValue = randomLongBetween(0, 100);
-                final long secondValue = firstValue + 1;
-                if (firstValue < threshold && secondValue < threshold) {
-                    docsBelowThreshold++;
-                }
-                docs.add(
-                    Set.of(
-                        new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
-                        new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
-                    )
-                );
-            }
-        }
-        final int finalDocsBelowThreshold = docsBelowThreshold;
+        int docsIndexedBelowThreshold = 0;
+        final List<Set<IndexableField>> docsIndexed = new ArrayList<>();
 
-        if (isIndexed) {
-            // The precompute optimization did not kick in because the values source did not have an indexed name.
-            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-                assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-            }, singleton(aggFieldType), numDocs);
-        } else {
-            testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
-                assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-            }, singleton(aggFieldType), numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            final long firstIndexedValue = randomLongBetween(0, 100);
+            final long secondIndexedValue = firstIndexedValue + 1;
+            if (firstIndexedValue < threshold && secondIndexedValue < threshold) {
+                docsIndexedBelowThreshold++;
+            }
+            docsIndexed.add(
+                Set.of(
+                    new SortedNumericDocValuesField(aggFieldType.name(), firstIndexedValue),
+                    new StringField(aggFieldType.name(), String.valueOf(firstIndexedValue), Store.NO),
+                    new SortedNumericDocValuesField(aggFieldType.name(), secondIndexedValue),
+                    new StringField(aggFieldType.name(), String.valueOf(secondIndexedValue), Store.NO)
+                )
+            );
         }
+
+        for (int i = 0; i < numDocs; i++) {
+            final long firstValue = randomLongBetween(0, 100);
+            final long secondValue = firstValue + 1;
+            if (firstValue < threshold && secondValue < threshold) {
+                docsBelowThreshold++;
+            }
+            docs.add(
+                Set.of(
+                    new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
+                    new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
+                )
+            );
+        }
+
+        final int finalDocsBelowThreshold = docsBelowThreshold;
+        final int finalDocsIndexedBelowThreshold = docsIndexedBelowThreshold;
+
+        // The precompute optimization did not kick in because the values source did not have an indexed name.
+        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docsIndexed), internalMissing -> {
+            assertEquals(finalDocsIndexedBelowThreshold, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, singleton(aggFieldType), numDocs);
+
+        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+            assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, singleton(aggFieldType), numDocs);
     }
 
     private void testCase(
@@ -722,9 +723,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                // When counting the number of collects, we want to record how many collects actually happened. The new composite type
-                // ends up keeping track of the number of counts that happened, allowing us to verify whether the precomputation was used
-                // or not.
+                // When counting the number of collects, we want to record how many collects actually happened.
                 final InternalMissing missing = searchAndReduceCounting(expectedCount, indexSearcher, query, builder, fieldTypesArray);
                 verify.accept(missing);
             }
