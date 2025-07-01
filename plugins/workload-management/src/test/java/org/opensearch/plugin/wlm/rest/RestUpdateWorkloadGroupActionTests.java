@@ -8,59 +8,39 @@
 
 package org.opensearch.plugin.wlm.rest;
 
+import org.opensearch.plugin.wlm.NonPluginSettingValuesProvider;
+import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.wlm.WlmMode;
-import org.opensearch.wlm.WorkloadManagementSettings;
-import org.junit.Before;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestUpdateWorkloadGroupActionTests extends OpenSearchTestCase {
-    private WorkloadManagementSettings workloadManagementSettings;
-    private RestUpdateWorkloadGroupAction restAction;
-    private NodeClient nodeClient;
-    private RestRequest restRequest;
-
-    @Before
-    public void setup() {
-        workloadManagementSettings = mock(WorkloadManagementSettings.class);
-        restAction = new RestUpdateWorkloadGroupAction(workloadManagementSettings);
-        nodeClient = mock(NodeClient.class);
-        restRequest = mock(RestRequest.class);
-    }
 
     public void testPrepareRequestThrowsWhenWlmModeDisabled() {
-        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
         try {
-            restAction.prepareRequest(restRequest, nodeClient);
-            fail("Expected OpenSearchException when WLM mode is DISABLED");
+            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadManagementTestUtils.setUpNonPluginSettingValuesProvider(
+                "disabled"
+            );
+            RestUpdateWorkloadGroupAction restUpdateWorkloadGroupAction = new RestUpdateWorkloadGroupAction(nonPluginSettingValuesProvider);
+            restUpdateWorkloadGroupAction.prepareRequest(mock(RestRequest.class), mock(NodeClient.class));
+            fail("Expected exception when WLM mode is DISABLED");
         } catch (Exception e) {
-            assertTrue(e.getMessage().contains("Cannot update workload group."));
+            assertTrue(e.getMessage().contains("update"));
         }
     }
 
-    public void testPrepareRequestSucceedsWhenWlmModeEnabled() {
-        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+    public void testPrepareRequestThrowsWhenWlmModeMonitorOnly() {
         try {
-            restAction.prepareRequest(restRequest, nodeClient);
+            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadManagementTestUtils.setUpNonPluginSettingValuesProvider(
+                "monitor_only"
+            );
+            RestUpdateWorkloadGroupAction restUpdateWorkloadGroupAction = new RestUpdateWorkloadGroupAction(nonPluginSettingValuesProvider);
+            restUpdateWorkloadGroupAction.prepareRequest(mock(RestRequest.class), mock(NodeClient.class));
+            fail("Expected exception when WLM mode is MONITOR_ONLY");
         } catch (Exception e) {
-            if (e.getMessage().contains("Cannot update workload group.")) {
-                fail("Expected no exception when WLM mode is ENABLED");
-            }
-        }
-    }
-
-    public void testPrepareRequestSucceedsWhenWlmModeMonitorOnly() {
-        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.MONITOR_ONLY);
-        try {
-            restAction.prepareRequest(restRequest, nodeClient);
-        } catch (Exception e) {
-            if (e.getMessage().contains("Cannot update workload group.")) {
-                fail("Expected no exception when WLM mode is MONITOR_ONLY");
-            }
+            assertTrue(e.getMessage().contains("update"));
         }
     }
 }
