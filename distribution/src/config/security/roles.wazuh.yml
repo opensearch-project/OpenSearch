@@ -20,6 +20,7 @@ manage_wazuh_index:
 # Wazuh roles for security configuration
 
 stateful-read:
+  reserved: true
   cluster_permissions: []
   index_permissions:
     - index_patterns:
@@ -33,6 +34,7 @@ stateful-read:
   static: true
 
 stateful-write:
+  reserved: true
   cluster_permissions: []
   index_permissions:
     - index_patterns:
@@ -46,6 +48,7 @@ stateful-write:
   static: true
 
 stateful-delete:
+  reserved: true
   cluster_permissions: []
   index_permissions:
     - index_patterns:
@@ -59,6 +62,7 @@ stateful-delete:
   static: true
 
 stateless-read:
+  reserved: true
   cluster_permissions: []
   index_permissions:
     - index_patterns:
@@ -73,6 +77,7 @@ stateless-read:
   static: true
 
 stateless-write:
+  reserved: true
   cluster_permissions: []
   index_permissions:
     - index_patterns:
@@ -87,6 +92,7 @@ stateless-write:
   static: true
 
 metrics-read:
+  reserved: true
   cluster_permissions: []
   index_permissions:
     - index_patterns:
@@ -101,6 +107,7 @@ metrics-read:
   static: true
 
 metrics-write:
+  reserved: true
   cluster_permissions: []
   index_permissions:
     - index_patterns:
@@ -115,6 +122,7 @@ metrics-write:
   static: true
 
 sample-data-management:
+  reserved: true
   cluster_permissions: []
   index_permissions:
     - index_patterns:
