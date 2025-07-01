@@ -286,6 +286,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -322,6 +323,8 @@ public class SearchModule {
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
+    private final List<SearchPlugin.PluginMetricsProvider> pluginProfilerProviders;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -352,6 +355,7 @@ public class SearchModule {
         namedWriteables.addAll(SortValue.namedWriteables());
         concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
         registerQueryCollectorContextSpec(plugins);
+        pluginProfilerProviders = registerProfilerProviders(plugins);
     }
 
     private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
@@ -1303,6 +1307,20 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getCollectorContextSpecFactories, QueryCollectorContextSpecRegistry::registerFactory);
     }
 
+    private List<SearchPlugin.PluginMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
+
+        List<SearchPlugin.PluginMetricsProvider> profilerProviders = new ArrayList<>();
+
+        for (SearchPlugin plugin : plugins) {
+            SearchPlugin.PluginMetricsProvider profilerProvider = plugin.getPluginMetricsProvider();
+            if (profilerProvider != null) {
+                profilerProviders.add(profilerProvider);
+            }
+        }
+
+        return profilerProviders;
+    }
+
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
     }
@@ -1313,5 +1331,9 @@ public class SearchModule {
 
     public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {
         return (indexSearcherExecutorProvider != null) ? indexSearcherExecutorProvider.getExecutor(pool) : null;
+    }
+
+    public List<SearchPlugin.PluginMetricsProvider> getPluginPluginMetricsProviders() {
+        return Collections.unmodifiableList(pluginProfilerProviders);
     }
 }

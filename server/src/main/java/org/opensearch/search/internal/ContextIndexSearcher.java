@@ -156,6 +156,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.profiler = profiler;
     }
 
+    public QueryProfiler getProfiler() {
+        return profiler;
+    }
+
     /**
      * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
      * DirectoryReader but also while collecting them and check for query cancellation or timeout.
@@ -213,7 +217,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
+            ContextualProfileBreakdown profile = null;
+            try {
+                profile = profiler.getQueryBreakdown(query);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;

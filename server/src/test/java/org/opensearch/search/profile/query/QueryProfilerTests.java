@@ -166,8 +166,8 @@ public class QueryProfilerTests extends OpenSearchTestCase {
 
     public void testBasic() throws IOException {
         QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(null), null)
+            : new QueryProfiler(new InternalQueryProfileTree(null));
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
@@ -235,8 +235,8 @@ public class QueryProfilerTests extends OpenSearchTestCase {
 
     public void testNoScoring() throws IOException {
         QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(null), null)
+            : new QueryProfiler(new InternalQueryProfileTree(null));
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
@@ -304,8 +304,8 @@ public class QueryProfilerTests extends OpenSearchTestCase {
 
     public void testUseIndexStats() throws IOException {
         QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(null), null)
+            : new QueryProfiler(new InternalQueryProfileTree(null));
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
@@ -320,8 +320,8 @@ public class QueryProfilerTests extends OpenSearchTestCase {
 
     public void testApproximations() throws IOException {
         QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(null), null)
+            : new QueryProfiler(new InternalQueryProfileTree(null));
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);

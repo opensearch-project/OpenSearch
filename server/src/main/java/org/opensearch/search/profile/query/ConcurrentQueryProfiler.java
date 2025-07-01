@@ -10,10 +10,12 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.Timer;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -21,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * This class acts as a thread-local storage for profiling a query with concurrent execution
@@ -34,7 +37,12 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
     // one thread will access the LinkedList at a time.
     private final Map<Long, LinkedList<Timer>> threadToRewriteTimers;
 
-    public ConcurrentQueryProfiler(AbstractQueryProfileTree profileTree) {
+    private final Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics;
+
+    public ConcurrentQueryProfiler(
+        AbstractQueryProfileTree profileTree,
+        Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics
+    ) {
         super(profileTree);
         long threadId = getCurrentThreadId();
         // We utilize LinkedHashMap to preserve the insertion order of the profiled queries
@@ -42,13 +50,14 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
         threadToProfileTree.put(threadId, (ConcurrentQueryProfileTree) profileTree);
         threadToRewriteTimers = new ConcurrentHashMap<>();
         threadToRewriteTimers.put(threadId, new LinkedList<>());
+        this.pluginMetrics = pluginMetrics;
     }
 
     @Override
     public ContextualProfileBreakdown getQueryBreakdown(Query query) {
         ConcurrentQueryProfileTree profileTree = threadToProfileTree.computeIfAbsent(
             getCurrentThreadId(),
-            k -> new ConcurrentQueryProfileTree()
+            k -> new ConcurrentQueryProfileTree(pluginMetrics)
         );
         return profileTree.getProfileBreakdown(query);
     }
