@@ -14,9 +14,17 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsAction;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -26,7 +34,6 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
-import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -47,6 +54,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
@@ -84,11 +92,6 @@ import org.opensearch.rule.RuleRoutingServiceRegistry;
 import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.CreateRuleRequest;
 import org.opensearch.rule.action.CreateRuleResponse;
-import org.opensearch.rule.action.DeleteRuleAction;
-import org.opensearch.rule.action.DeleteRuleRequest;
-import org.opensearch.rule.action.GetRuleAction;
-import org.opensearch.rule.action.GetRuleRequest;
-import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.action.UpdateRuleAction;
 import org.opensearch.rule.action.UpdateRuleRequest;
 import org.opensearch.rule.action.UpdateRuleResponse;
@@ -118,6 +121,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -127,16 +131,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 
 public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.SECONDS);
     final static String PUT = "PUT";
-    final static String MEMORY = "MEMORY";
-    final static String CPU = "CPU";
-    final static String ENABLED = "enabled";
-    final static String DELETE = "DELETE";
 
     public WlmAutoTaggingIT(Settings nodeSettings) {
         super(nodeSettings);
@@ -162,7 +163,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     public void registerFeatureTypeIfMissingOnAllNodes() {
         FeatureType featureType;
         try {
-            featureType = AutoTaggingRegistry.getFeatureType("workload_group");
+            featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
         } catch (ResourceNotFoundException e) {
             featureType = TestWorkloadManagementPlugin.featureType;
             AutoTaggingRegistry.registerFeatureType(featureType);
@@ -183,81 +184,282 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
     private static final String RULE_ID = "test_rule_id";
 
-    public void testCreateAutoTaggingRule() throws Exception {
+    public void testAutoTaggingSingleRule() throws Exception {
+        String workloadGroupId = "wlm_auto_tag_single";
+        String ruleId = "wlm_auto_tag_test_rule";
+        String indexName = "logs-tagged-index";
 
-        String workloadGroupId = "wlm_test_group_id";
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
 
+        // Set the persistent setting
+        Settings.Builder persistentSettings = Settings.builder().put("wlm.workload_group.mode", "enabled");
+
+        request.persistentSettings(persistentSettings);
+
+        // Send request
+        ClusterUpdateSettingsResponse doNoth = client().admin().cluster().updateSettings(request).get();
+
+        // Step 1: Create workload group
         WorkloadGroup workloadGroup = new WorkloadGroup(
-            "wlm_test_group",
+            "tagging_test_group",
             workloadGroupId,
             new MutableWorkloadGroupFragment(
-                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
+                MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
                 Map.of(ResourceType.CPU, 0.1, ResourceType.MEMORY, 0.1)
             ),
             Instant.now().getMillis()
         );
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Map<Attribute, Set<String>> attributes = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*"));
+        // Step 2: Create auto-tagging rule
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        Map<Attribute, Set<String>> attributes = Map.of(RuleAttribute.INDEX_PATTERN, Set.of(indexName));
+        Rule rule = new Rule(ruleId, "tagging flow test", attributes, featureType, workloadGroupId, Instant.now().toString());
+        client().execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(rule)).get();
 
-        Rule rule = new Rule(RULE_ID, "Integration test rule", attributes, featureType, workloadGroupId, "2025-06-20T00:00:00.000Z");
+        Thread.sleep(5500);
 
-        for (String node : internalCluster().getNodeNames()) {
-            assertBusy(() -> {
-                ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node);
-                ClusterState state = clusterService.state();
-                WorkloadGroupMetadata metadata = (WorkloadGroupMetadata) state.metadata().custom(WorkloadGroupMetadata.TYPE);
-                assertNotNull("Metadata should not be null on node " + node, metadata);
-                assertTrue("wlm_test_group_id should exist on node " + node, metadata.workloadGroups().containsKey(workloadGroupId));
-            });
-        }
+        // Step 3: Index documents into matching index
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+        IndexResponse indexResponse = client().prepareIndex(indexName)
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
-        CreateRuleRequest createRequest = new CreateRuleRequest(rule);
-        CreateRuleResponse response = client().execute(CreateRuleAction.INSTANCE, createRequest).get();
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        assertNotNull(response);
-        assertEquals(RULE_ID, response.getRule().getId());
-        assertEquals(workloadGroupId, response.getRule().getFeatureValue());
+        // Step 4: Get initial completions before query
+        WlmStatsResponse statsResponsePre = getWlmStatsResponse(null, new String[] { workloadGroupId }, null);
+        int initialCompletions = extractTotalCompletions(statsResponsePre.toString(), workloadGroupId);
+
+        // Step 5: Run the actual search query
+        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertEquals(1, response.getHits().getTotalHits().value());
+
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // Step 6: Get completions after query and compare
+        WlmStatsResponse statsResponseAfter = getWlmStatsResponse(null, new String[] { workloadGroupId }, null);
+
+        // Confirm the workload group appears in stats
+        validateResponse(statsResponseAfter, new String[] { workloadGroupId }, null);
+        int afterCompletions = extractTotalCompletions(statsResponseAfter.toString(), workloadGroupId);
+
+        assertTrue("Expected total_completions to increase after query execution", afterCompletions > initialCompletions);
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("wlm.workload_group.mode"))
+            .get();
     }
 
-    public void testGetAutoTaggingRuleById() throws Exception {
-        String workloadGroupId = "wlm_test_group_id_get";
+    public void testAutoTaggingWildCard() throws Exception {
+        String workloadGroupId = "wlm_auto_tag_single";
+        String ruleId = "wlm_auto_tag_test_rule";
+        String indexName = "logs-tagged-index";
 
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+
+        // Set the persistent setting
+        Settings.Builder persistentSettings = Settings.builder().put("wlm.workload_group.mode", "enabled");
+
+        request.persistentSettings(persistentSettings);
+
+        // Send request
+        client().admin().cluster().updateSettings(request).get();
+
+        // Step 1: Create workload group
         WorkloadGroup workloadGroup = new WorkloadGroup(
-            "wlm_test_group_get",
+            "tagging_test_group",
             workloadGroupId,
             new MutableWorkloadGroupFragment(
-                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
-                Map.of(ResourceType.CPU, 0.3, ResourceType.MEMORY, 0.4)
+                MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
+                Map.of(ResourceType.CPU, 0.1, ResourceType.MEMORY, 0.1)
             ),
             Instant.now().getMillis()
         );
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Map<Attribute, Set<String>> attributes = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-get-*"));
+        // Step 2: Create auto-tagging rule with wild card
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        Map<Attribute, Set<String>> attributes = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-tagged*"));
+        Rule rule = new Rule(ruleId, "tagging flow test", attributes, featureType, workloadGroupId, Instant.now().toString());
+        client().execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(rule)).get();
 
-        Rule rule = new Rule(RULE_ID, "Rule for Get Test", attributes, featureType, workloadGroupId, Instant.now().toString());
-        CreateRuleRequest createRequest = new CreateRuleRequest(rule);
-        CreateRuleResponse createResponse = client().execute(CreateRuleAction.INSTANCE, createRequest).get();
+        Thread.sleep(5500);
 
-        assertNotNull("CreateRuleResponse should not be null", createResponse);
-        assertEquals(RULE_ID, createResponse.getRule().getId());
+        // Step 3: Index documents into matching index
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+        IndexResponse indexResponse = client().prepareIndex(indexName)
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
-        client().admin().indices().prepareRefresh().get();
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        GetRuleRequest getRequest = new GetRuleRequest(RULE_ID, Map.of(), null, featureType);
+        // Step 4: Get initial completions before query
+        WlmStatsResponse statsResponsePre = getWlmStatsResponse(null, new String[] { workloadGroupId }, null);
+        int initialCompletions = extractTotalCompletions(statsResponsePre.toString(), workloadGroupId);
 
-        GetRuleResponse getResponse = client().execute(GetRuleAction.INSTANCE, getRequest).get();
+        // Step 5: Run the actual search query
+        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertEquals(1, response.getHits().getTotalHits().value());
 
-        assertNotNull("GetRuleResponse should not be null", getResponse);
-        assertFalse("Returned rule list should not be empty", getResponse.getRules().isEmpty());
+        client().admin().indices().prepareRefresh(indexName).get();
 
-        Rule retrievedRule = getResponse.getRules().get(0);
-        assertEquals("Rule for Get Test", retrievedRule.getDescription());
-        assertEquals(RULE_ID, retrievedRule.getId());
-        assertEquals(workloadGroupId, retrievedRule.getFeatureValue());
+        // Step 6: Get completions after query and compare
+        WlmStatsResponse statsResponseAfter = getWlmStatsResponse(null, new String[] { workloadGroupId }, null);
+
+        // Confirm the workload group appears in stats
+        validateResponse(statsResponseAfter, new String[] { workloadGroupId }, null);
+        int afterCompletions = extractTotalCompletions(statsResponseAfter.toString(), workloadGroupId);
+
+        assertTrue("Expected total_completions to increase after query execution", afterCompletions > initialCompletions);
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("wlm.workload_group.mode"))
+            .get();
+    }
+
+    public void testAutoTaggingMultipleRules() throws Exception {
+        String index1 = "test_1";
+        String index2 = "test_2";
+
+        String workloadGroupId1 = "wlm_auto_tag_group_1";
+        String workloadGroupId2 = "wlm_auto_tag_group_2";
+
+        String ruleId1 = "wlm_auto_tag_rule_1";
+        String ruleId2 = "wlm_auto_tag_rule_2";
+
+        // Enable workload group mode
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        Settings.Builder persistentSettings = Settings.builder().put("wlm.workload_group.mode", "enabled");
+        request.persistentSettings(persistentSettings);
+        client().admin().cluster().updateSettings(request).get();
+
+        // Create two workload groups
+        WorkloadGroup wg1 = new WorkloadGroup(
+            "group_1",
+            workloadGroupId1,
+            new MutableWorkloadGroupFragment(
+                MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
+                Map.of(ResourceType.CPU, 0.1, ResourceType.MEMORY, 0.1)
+            ),
+            Instant.now().getMillis()
+        );
+        updateWorkloadGroupInClusterState(PUT, wg1);
+
+        WorkloadGroup wg2 = new WorkloadGroup(
+            "group_2",
+            workloadGroupId2,
+            new MutableWorkloadGroupFragment(
+                MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
+                Map.of(ResourceType.CPU, 0.1, ResourceType.MEMORY, 0.1)
+            ),
+            Instant.now().getMillis()
+        );
+        updateWorkloadGroupInClusterState(PUT, wg2);
+
+        // Create rules
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+
+        Rule rule1 = new Rule(
+            ruleId1,
+            "rule for test_1",
+            Map.of(RuleAttribute.INDEX_PATTERN, Set.of(index1)),
+            featureType,
+            workloadGroupId1,
+            Instant.now().toString()
+        );
+        client().execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(rule1)).get();
+
+        Rule rule2 = new Rule(
+            ruleId2,
+            "rule for test_2",
+            Map.of(RuleAttribute.INDEX_PATTERN, Set.of(index2)),
+            featureType,
+            workloadGroupId2,
+            Instant.now().toString()
+        );
+        client().execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(rule2)).get();
+
+        Thread.sleep(5500); // wait for rules to propagate
+
+        // Create and index one document into both indices
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index1)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index2)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+
+        client().prepareIndex(index1)
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        client().prepareIndex(index2)
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Get pre-query stats
+        int pre1 = extractTotalCompletions(getWlmStatsResponse(null, new String[] { workloadGroupId1 }, null).toString(), workloadGroupId1);
+        int pre2 = extractTotalCompletions(getWlmStatsResponse(null, new String[] { workloadGroupId2 }, null).toString(), workloadGroupId2);
+
+        // Perform search on both indices
+        SearchResponse resp1 = client().prepareSearch(index1).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertEquals(1, resp1.getHits().getTotalHits().value());
+
+        SearchResponse resp2 = client().prepareSearch(index2).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertEquals(1, resp2.getHits().getTotalHits().value());
+
+        // Refresh
+        client().admin().indices().prepareRefresh(index1).get();
+        client().admin().indices().prepareRefresh(index2).get();
+
+        // Get post-query stats
+        int post1 = extractTotalCompletions(
+            getWlmStatsResponse(null, new String[] { workloadGroupId1 }, null).toString(),
+            workloadGroupId1
+        );
+        int post2 = extractTotalCompletions(
+            getWlmStatsResponse(null, new String[] { workloadGroupId2 }, null).toString(),
+            workloadGroupId2
+        );
+
+        // Assert increase
+        assertTrue("Expected completions for group 1 to increase", post1 > pre1);
+        assertTrue("Expected completions for group 2 to increase", post2 > pre2);
+
+        // Cleanup setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("wlm.workload_group.mode"))
+            .get();
     }
 
     public void testUpdateAutoTaggingRule() throws Exception {
@@ -274,7 +476,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         );
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
         Map<Attribute, Set<String>> originalAttributes = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*"));
 
         Rule originalRule = new Rule(RULE_ID, "Original rule", originalAttributes, featureType, workloadGroupId, Instant.now().toString());
@@ -303,155 +505,140 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         assertTrue(updateResponse.getRule().getAttributeMap().get(RuleAttribute.INDEX_PATTERN).contains("metrics-*"));
     }
 
-    public void testDeleteAutoTaggingRule() throws Exception {
-        String workloadGroupId = "wlm_test_group_delete";
+    public void testAutoTaggingRuleUpdateReflectsInTagging() throws Exception {
+        String workloadGroupId = "wlm_auto_tag_update";
+        String ruleId = "wlm_auto_tag_update_rule";
+        String indexName = "nyc_taxis";
 
+        // Step 0: Enable auto-tagging
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(Settings.builder().put("wlm.workload_group.mode", "enabled"));
+        client().admin().cluster().updateSettings(request).get();
+
+        // Step 1: Create workload group
         WorkloadGroup workloadGroup = new WorkloadGroup(
-            "wlm_test_group_delete",
+            "update_test_group",
             workloadGroupId,
             new MutableWorkloadGroupFragment(
-                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
-                Map.of(ResourceType.CPU, 0.05, ResourceType.MEMORY, 0.05)
+                MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
+                Map.of(ResourceType.CPU, 0.1, ResourceType.MEMORY, 0.1)
             ),
             Instant.now().getMillis()
         );
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Rule rule = new Rule(
-            "delete_rule_id",
-            "To be deleted",
-            Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-delete-*")),
+        // Step 2: Create rule with non-matching pattern
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        Rule initialRule = new Rule(
+            ruleId,
+            "initial non-matching rule",
+            Map.of(RuleAttribute.INDEX_PATTERN, Set.of("random")),
             featureType,
             workloadGroupId,
-            "2025-06-20T00:00:00.000Z"
+            Instant.now().toString()
+        );
+        client().execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(initialRule)).get();
+        Thread.sleep(5500);
+
+        // Step 3: Create and index into `nyc_taxis`
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
         );
 
-        CreateRuleResponse createResponse = client().execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(rule)).get();
-        assertEquals("delete_rule_id", createResponse.getRule().getId());
+        client().prepareIndex(indexName)
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
-        AcknowledgedResponse deleteResponse = client().execute(
-            DeleteRuleAction.INSTANCE,
-            new DeleteRuleRequest("delete_rule_id", featureType)
-        ).get();
+        // Step 4: Query and assert no completions yet
+        SearchResponse response1 = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertEquals(1, response1.getHits().getTotalHits().value());
 
-        assertTrue(deleteResponse.isAcknowledged());
-    }
+        client().admin().indices().prepareRefresh(indexName).get();
 
-    public void testCreateRuleWithMultipleAttributeValues() throws Exception {
-        String workloadGroupId = "multi_attr_wlm_group";
+        int preUpdateCompletions = extractTotalCompletions(
+            getWlmStatsResponse(null, new String[] { workloadGroupId }, null).toString(),
+            workloadGroupId
+        );
 
-        WorkloadGroup workloadGroup = new WorkloadGroup(
-            "multi_attr_group",
+        // Expect no tagging because pattern was "random"
+        assertEquals("Expected no tagging before rule update", 0, preUpdateCompletions);
+
+        // Step 5: Update rule to match `nyc_taxis`
+        UpdateRuleRequest updatedRule = new UpdateRuleRequest(
+            ruleId,
+            "updated rule matching nyc_taxis",
+            Map.of(RuleAttribute.INDEX_PATTERN, Set.of(indexName)),
             workloadGroupId,
-            new MutableWorkloadGroupFragment(
-                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
-                Map.of(ResourceType.CPU, 0.15, ResourceType.MEMORY, 0.2)
-            ),
-            Instant.now().getMillis()
+            featureType
         );
-        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+        client().execute(UpdateRuleAction.INSTANCE, updatedRule).get();
+        Thread.sleep(5500);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Map<Attribute, Set<String>> attributes = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*", "metrics-*", "events-*"));
+        // Step 6: Run query again
+        SearchResponse response2 = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertEquals(1, response2.getHits().getTotalHits().value());
 
-        Rule rule = new Rule(RULE_ID, "Multiple index patterns rule", attributes, featureType, workloadGroupId, Instant.now().toString());
+        client().admin().indices().prepareRefresh(indexName).get();
 
-        CreateRuleRequest createRequest = new CreateRuleRequest(rule);
-        CreateRuleResponse createResponse = client().execute(CreateRuleAction.INSTANCE, createRequest).get();
+        int postUpdateCompletions = extractTotalCompletions(
+            getWlmStatsResponse(null, new String[] { workloadGroupId }, null).toString(),
+            workloadGroupId
+        );
 
-        assertNotNull("CreateRuleResponse should not be null", createResponse);
-        Rule createdRule = createResponse.getRule();
-        assertEquals("Rule ID mismatch", RULE_ID, createdRule.getId());
-        assertEquals("Description mismatch", "Multiple index patterns rule", createdRule.getDescription());
+        assertTrue("Expected completions to increase after rule was updated", postUpdateCompletions > preUpdateCompletions);
 
-        Set<String> returnedPatterns = createdRule.getAttributeMap().get(RuleAttribute.INDEX_PATTERN);
-        assertTrue("Should contain logs-*", returnedPatterns.contains("logs-*"));
-        assertTrue("Should contain metrics-*", returnedPatterns.contains("metrics-*"));
-        assertTrue("Should contain events-*", returnedPatterns.contains("events-*"));
+        // Cleanup: remove setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("wlm.workload_group.mode"))
+            .get();
     }
 
-    public void testCreateRuleWithInvalidWorkloadGroupFails() throws Exception {
-        String invalidGroupId = "nonexistent_group_id";
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-
-        Rule rule = new Rule(
-            "invalid_rule_id",
-            "Should fail",
-            Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-invalid-*")),
-            featureType,
-            invalidGroupId,
-            "2025-06-20T00:00:00.000Z"
-        );
-
-        CreateRuleRequest request = new CreateRuleRequest(rule);
-
-        Exception exception = expectThrows(ExecutionException.class, () -> client().execute(CreateRuleAction.INSTANCE, request).get());
-
-        assertTrue(exception.getCause().getMessage().contains("is not a valid workload group id."));
+    public WlmStatsResponse getWlmStatsResponse(String[] nodesId, String[] queryGroupIds, Boolean breach) throws ExecutionException,
+        InterruptedException {
+        WlmStatsRequest request = new WlmStatsRequest(nodesId, new HashSet<>(Arrays.asList(queryGroupIds)), breach);
+        return client().execute(WlmStatsAction.INSTANCE, request).get();
     }
 
-    public void testCreateMultipleAutoTaggingRules() throws Exception {
-        String workloadGroupId = "wlm_test_group_multiple";
+    public void validateResponse(WlmStatsResponse response, String[] validIds, String[] invalidIds) {
+        String res = response.toString();
+        if (validIds != null) {
+            for (String id : validIds) {
+                assertTrue("Expected ID not found in response: " + id, res.contains(id));
+            }
+        }
+        if (invalidIds != null) {
+            for (String id : invalidIds) {
+                assertFalse("Unexpected ID found in response: " + id, res.contains(id));
+            }
+        }
+    }
 
-        WorkloadGroup workloadGroup = new WorkloadGroup(
-            "wlm_test_group_multiple",
-            workloadGroupId,
-            new MutableWorkloadGroupFragment(
-                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
-                Map.of(ResourceType.CPU, 0.5, ResourceType.MEMORY, 0.5)
-            ),
-            Instant.now().getMillis()
-        );
-        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+    private int extractTotalCompletions(String responseBody, String workloadGroupId) {
+        int total = 0;
+        String groupKey = "\"" + workloadGroupId + "\"";
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
+        int index = 0;
+        while ((index = responseBody.indexOf(groupKey, index)) != -1) {
+            int groupStart = responseBody.indexOf("{", index);
+            int completionsIndex = responseBody.indexOf("\"total_completions\"", groupStart);
+            if (completionsIndex == -1) break;
 
-        List<Rule> rules = List.of(
-            new Rule(
-                "rule_1",
-                "Rule One",
-                Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*")),
-                featureType,
-                workloadGroupId,
-                Instant.now().toString()
-            ),
-            new Rule(
-                "rule_2",
-                "Rule Two",
-                Map.of(RuleAttribute.INDEX_PATTERN, Set.of("metrics-*")),
-                featureType,
-                workloadGroupId,
-                Instant.now().toString()
-            ),
-            new Rule(
-                "rule_3",
-                "Rule Three",
-                Map.of(RuleAttribute.INDEX_PATTERN, Set.of("traces-*")),
-                featureType,
-                workloadGroupId,
-                Instant.now().toString()
-            )
-        );
+            int colonIndex = responseBody.indexOf(":", completionsIndex);
+            int commaIndex = responseBody.indexOf(",", colonIndex);
+            String numberStr = responseBody.substring(colonIndex + 1, commaIndex).trim();
+            total += Integer.parseInt(numberStr);
 
-        for (Rule rule : rules) {
-            CreateRuleRequest createRequest = new CreateRuleRequest(rule);
-            CreateRuleResponse createResponse = client().execute(CreateRuleAction.INSTANCE, createRequest).get();
-            assertNotNull("Create response should not be null for " + rule.getId(), createResponse);
-            assertEquals(rule.getId(), createResponse.getRule().getId());
+            index = commaIndex;
         }
 
-        client().admin().indices().prepareRefresh().get();
-
-        for (Rule rule : rules) {
-            GetRuleRequest getRequest = new GetRuleRequest(rule.getId(), Map.of(), null, featureType);
-            GetRuleResponse getResponse = client().execute(GetRuleAction.INSTANCE, getRequest).get();
-            assertNotNull(getResponse);
-            assertFalse("Rule " + rule.getId() + " should exist", getResponse.getRules().isEmpty());
-            Rule retrieved = getResponse.getRules().get(0);
-            assertEquals(rule.getDescription(), retrieved.getDescription());
-            assertEquals(rule.getFeatureValue(), retrieved.getFeatureValue());
-        }
+        return total;
     }
 
     public void updateWorkloadGroupInClusterState(String method, WorkloadGroup workloadGroup) throws InterruptedException {
@@ -607,7 +794,13 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     }
 
     /**
-     * Plugin class for WorkloadManagement
+     * Test-only plugin implementation for Workload Management (WLM).
+     * This plugin registers a {@link FeatureType} for {@code workload_group}, along with
+     * the necessary components to support rule-based auto-tagging logic in integration tests.
+     * It uses in-memory rule processing and index-backed rule persistence for isolated testing.
+
+     * This class is not intended for production use and should only be used in internal
+     * cluster tests that validate WLM rule framework behavior end-to-end.
      */
     public static class TestWorkloadManagementPlugin extends Plugin
         implements
@@ -617,11 +810,11 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             RuleFrameworkExtension {
 
         /**
-         * The name of the index where rules are stored.
+         * Name of the system index used to store workload management rules.
          */
         public static final String INDEX_NAME = ".wlm_rules";
         /**
-         * The maximum number of rules allowed per GET request.
+         * Maximum number of rules returned in a single page during GET operations.
          */
         public static final int MAX_RULES_PER_PAGE = 50;
         static FeatureType featureType;
@@ -630,7 +823,8 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         private AutoTaggingActionFilter autoTaggingActionFilter;
 
         /**
-         * Default constructor
+         * Default constructor.
+         * Required for plugin instantiation during integration tests.
          */
         public TestWorkloadManagementPlugin() {}
 
