@@ -72,6 +72,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
+import org.opensearch.search.approximate.ApproximateTermQuery;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.opensearch.search.query.BitmapIndexQuery;
@@ -475,9 +476,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             public Query termQuery(String field, Object value, boolean hasDocValues, boolean isSearchable) {
                 float v = parse(value, false);
                 if (isSearchable && hasDocValues) {
-                    Query query = FloatPoint.newExactQuery(field, v);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
-                    return new IndexOrDocValuesQuery(query, dvQuery);
+                    byte[] packedValue = FloatPoint.pack(new float[] { v }).bytes;
+                    return new ApproximateScoreQuery(
+                        FloatPoint.newExactQuery(field, v),
+                        new ApproximateTermQuery(field, packedValue, 1, bytes -> Float.toString(FloatPoint.decodeDimension(bytes, 0)))
+                    );
                 }
                 if (hasDocValues) {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
@@ -642,9 +645,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             public Query termQuery(String field, Object value, boolean hasDocValues, boolean isSearchable) {
                 double v = parse(value, false);
                 if (isSearchable && hasDocValues) {
-                    Query query = DoublePoint.newExactQuery(field, v);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
-                    return new IndexOrDocValuesQuery(query, dvQuery);
+                    byte[] packedValue = DoublePoint.pack(new double[] { v }).bytes;
+                    return new ApproximateScoreQuery(
+                        DoublePoint.newExactQuery(field, v),
+                        new ApproximateTermQuery(field, packedValue, 1, bytes -> Double.toString(DoublePoint.decodeDimension(bytes, 0)))
+                    );
                 }
                 if (hasDocValues) {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
@@ -970,18 +975,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
                 int v = parse(value, true);
                 if (isSearchable && hasDocValues) {
-                    // Query query = IntPoint.newExactQuery(field, v);
-                    // Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
-                    // return new IndexOrDocValuesQuery(query, dvQuery);
+                    byte[] packedValue = IntPoint.pack(new int[] { v }).bytes;
                     return new ApproximateScoreQuery(
                         IntPoint.newExactQuery(field, v),
-                        new ApproximatePointRangeQuery(
-                            field,
-                            IntPoint.pack(new int[] { v }).bytes,
-                            IntPoint.pack(new int[] { v }).bytes,
-                            new int[] { v }.length,
-                            ApproximatePointRangeQuery.INT_FORMAT
-                        )
+                        new ApproximateTermQuery(field, packedValue, 1, ApproximatePointRangeQuery.INT_FORMAT)
                     );
                 }
                 if (hasDocValues) {
@@ -1166,14 +1163,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
                 long v = parse(value, true);
                 if (isSearchable && hasDocValues) {
-                    Query query = LongPoint.newExactQuery(field, v);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
-                    return new IndexOrDocValuesQuery(query, dvQuery);
-
+                    byte[] packedValue = LongPoint.pack(new long[] { v }).bytes;
+                    return new ApproximateScoreQuery(
+                        LongPoint.newExactQuery(field, v),
+                        new ApproximateTermQuery(field, packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT)
+                    );
                 }
                 if (hasDocValues) {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
-
                 }
                 return LongPoint.newExactQuery(field, v);
             }
