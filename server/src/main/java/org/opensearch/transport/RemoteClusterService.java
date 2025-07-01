@@ -249,12 +249,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return this.remoteClusters.keySet();
     }
 
-    @Override
-    public void listenForUpdates(ClusterSettings clusterSettings) {
-        super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
-    }
-
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (remote != null) {
