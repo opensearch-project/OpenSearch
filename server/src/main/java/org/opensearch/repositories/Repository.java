@@ -602,6 +602,10 @@ public interface Repository extends LifecycleComponent {
         return false;
     }
 
+    default boolean isReloadableSettings(RepositoryMetadata newRepositoryMetadata) {
+        return false;
+    }
+
     /**
      * Reload the repository inplace
      */
