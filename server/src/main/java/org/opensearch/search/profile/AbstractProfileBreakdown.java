@@ -33,6 +33,7 @@
 package org.opensearch.search.profile;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Supplier;
@@ -74,7 +75,7 @@ public abstract class AbstractProfileBreakdown {
         for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
             map.putAll(entry.getValue().toBreakdownMap());
         }
-        return map;
+        return Collections.unmodifiableMap(map);
     }
 
     public long toNodeTime() {
