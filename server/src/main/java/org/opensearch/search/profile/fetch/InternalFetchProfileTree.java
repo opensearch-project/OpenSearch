@@ -9,6 +9,7 @@
 package org.opensearch.search.profile.fetch;
 
 import org.opensearch.search.profile.AbstractInternalProfileTree;
+
 /**
  * Profiling tree for fetch operations.
  */
@@ -29,4 +30,3 @@ public class InternalFetchProfileTree extends AbstractInternalProfileTree<FetchP
         return element;
     }
 }
-

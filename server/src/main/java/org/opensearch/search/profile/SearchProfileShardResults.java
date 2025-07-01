@@ -43,7 +43,6 @@ import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
 import org.opensearch.search.profile.fetch.FetchProfileShardResult;
 import org.opensearch.search.profile.fetch.FetchProfiler;
-import org.opensearch.search.profile.fetch.FetchTimingType;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfiler;
 
@@ -188,7 +187,10 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             }
         }
         NetworkTime networkTime = new NetworkTime(inboundNetworkTime, outboundNetworkTime);
-        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime));
+        searchProfileResults.put(
+            id,
+            new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime)
+        );
     }
 
     /**
