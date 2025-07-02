@@ -48,13 +48,14 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
     private final AtomicLong clientBatchTimeMax = new AtomicLong();
 
     // Shared metrics
-    private final AtomicLong bytesSentTotal = new AtomicLong();
-    private final AtomicLong bytesReceivedTotal = new AtomicLong();
-    private final AtomicLong streamErrorsTotal = new AtomicLong();
-    private final AtomicLong connectionErrorsTotal = new AtomicLong();
-    private final AtomicLong timeoutErrorsTotal = new AtomicLong();
-    private final AtomicLong streamsCompletedSuccessfully = new AtomicLong();
-    private final AtomicLong streamsFailedTotal = new AtomicLong();
+    private final AtomicLong bytesSent = new AtomicLong();
+    private final AtomicLong bytesReceived = new AtomicLong();
+    private final AtomicLong clientApplicationErrors = new AtomicLong();
+    private final AtomicLong clientTransportErrors = new AtomicLong();
+    private final AtomicLong serverApplicationErrors = new AtomicLong();
+    private final AtomicLong serverTransportErrors = new AtomicLong();
+    private final AtomicLong clientStreamsCompleted = new AtomicLong();
+    private final AtomicLong serverStreamsCompleted = new AtomicLong();
     private final long startTimeMillis = System.currentTimeMillis();
 
     private final AtomicLong channelsActive = new AtomicLong();
@@ -107,18 +108,19 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
             totalClientBatches,
             totalClientResponses,
             totalServerBatches,
-            bytesSentTotal.get(),
-            bytesReceivedTotal.get()
+            bytesSent.get(),
+            bytesReceived.get()
         );
 
         ResourceUtilizationStats resourceUtilization = collectResourceStats();
 
         ReliabilityStats reliability = new ReliabilityStats(
-            streamErrorsTotal.get(),
-            connectionErrorsTotal.get(),
-            timeoutErrorsTotal.get(),
-            streamsCompletedSuccessfully.get(),
-            streamsFailedTotal.get(),
+            clientApplicationErrors.get(),
+            clientTransportErrors.get(),
+            serverApplicationErrors.get(),
+            serverTransportErrors.get(),
+            clientStreamsCompleted.get(),
+            serverStreamsCompleted.get(),
             System.currentTimeMillis() - startTimeMillis
         );
 
@@ -146,17 +148,21 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
             directMemoryUsed = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         }
 
-        int flightThreadsActive = 0;
-        int flightThreadsTotal = 0;
+        int clientThreadsActive = 0;
+        int clientThreadsTotal = 0;
+        int serverThreadsActive = 0;
+        int serverThreadsTotal = 0;
 
         if (threadPool != null) {
             try {
                 var allStats = threadPool.stats();
                 for (var stat : allStats) {
-                    if (ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME.equals(stat.getName())
-                        || ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME.equals(stat.getName())) {
-                        flightThreadsActive += stat.getActive();
-                        flightThreadsTotal += stat.getThreads();
+                    if (ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME.equals(stat.getName())) {
+                        clientThreadsActive += stat.getActive();
+                        clientThreadsTotal += stat.getThreads();
+                    } else if (ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME.equals(stat.getName())) {
+                        serverThreadsActive += stat.getActive();
+                        serverThreadsTotal += stat.getThreads();
                     }
                 }
             } catch (Exception e) {
@@ -164,19 +170,22 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
             }
         }
 
+        // Add Netty event loop threads to server total
         if (bossEventLoopGroup != null && !bossEventLoopGroup.isShutdown()) {
-            flightThreadsTotal += 1;
+            serverThreadsTotal += 1;
         }
         if (workerEventLoopGroup != null && !workerEventLoopGroup.isShutdown()) {
-            flightThreadsTotal += Runtime.getRuntime().availableProcessors() * 2;
+            serverThreadsTotal += Runtime.getRuntime().availableProcessors() * 2;
         }
 
         return new ResourceUtilizationStats(
             arrowAllocatedBytes,
             arrowPeakBytes,
             directMemoryUsed,
-            flightThreadsActive,
-            flightThreadsTotal,
+            clientThreadsActive,
+            clientThreadsTotal,
+            serverThreadsActive,
+            serverThreadsTotal,
             (int) channelsActive.get(),
             (int) channelsActive.get()
         );
@@ -257,58 +266,43 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
     /** Adds bytes sent
      * @param bytes number of bytes */
     public void addBytesSent(long bytes) {
-        bytesSentTotal.addAndGet(bytes);
+        bytesSent.addAndGet(bytes);
     }
 
     /** Adds bytes received
      * @param bytes number of bytes */
     public void addBytesReceived(long bytes) {
-        bytesReceivedTotal.addAndGet(bytes);
+        bytesReceived.addAndGet(bytes);
     }
 
-    /** Increments stream errors counter */
-    public void incrementStreamErrors() {
-        streamErrorsTotal.incrementAndGet();
+    /** Increments client application errors counter */
+    public void incrementClientApplicationErrors() {
+        clientApplicationErrors.incrementAndGet();
     }
 
-    /** Increments connection errors counter */
-    public void incrementConnectionErrors() {
-        connectionErrorsTotal.incrementAndGet();
+    /** Increments client transport errors counter */
+    public void incrementClientTransportErrors() {
+        clientTransportErrors.incrementAndGet();
     }
 
-    /** Increments timeout errors counter */
-    public void incrementTimeoutErrors() {
-        timeoutErrorsTotal.incrementAndGet();
+    /** Increments server application errors counter */
+    public void incrementServerApplicationErrors() {
+        serverApplicationErrors.incrementAndGet();
     }
 
-    /** Increments serialization errors counter */
-    public void incrementSerializationErrors() {
-        streamErrorsTotal.incrementAndGet();
+    /** Increments server transport errors counter */
+    public void incrementServerTransportErrors() {
+        serverTransportErrors.incrementAndGet();
     }
 
-    /** Increments transport errors counter */
-    public void incrementTransportErrors() {
-        streamErrorsTotal.incrementAndGet();
+    /** Increments client streams completed counter */
+    public void incrementClientStreamsCompleted() {
+        clientStreamsCompleted.incrementAndGet();
     }
 
-    /** Increments channel errors counter */
-    public void incrementChannelErrors() {
-        streamErrorsTotal.incrementAndGet();
-    }
-
-    /** Increments Flight server errors counter */
-    public void incrementFlightServerErrors() {
-        streamErrorsTotal.incrementAndGet();
-    }
-
-    /** Increments completed streams counter */
-    public void incrementStreamsCompleted() {
-        streamsCompletedSuccessfully.incrementAndGet();
-    }
-
-    /** Increments failed streams counter */
-    public void incrementStreamsFailed() {
-        streamsFailedTotal.incrementAndGet();
+    /** Increments server streams completed counter */
+    public void incrementServerStreamsCompleted() {
+        serverStreamsCompleted.incrementAndGet();
     }
 
     /** Increments active channels counter */

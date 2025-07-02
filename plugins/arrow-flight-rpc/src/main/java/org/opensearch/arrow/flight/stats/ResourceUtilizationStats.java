@@ -11,6 +11,7 @@ package org.opensearch.arrow.flight.stats;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -21,68 +22,89 @@ import java.io.IOException;
  */
 class ResourceUtilizationStats implements Writeable, ToXContentFragment {
 
-    final long arrowAllocatorAllocatedBytes;
-    final long arrowAllocatorPeakBytes;
-    final long directMemoryUsedBytes;
-    final int flightServerThreadsActive;
-    final int flightServerThreadsTotal;
-    final int connectionPoolSize;
+    final long arrowAllocatedBytes;
+    final long arrowPeakBytes;
+    final long directMemoryBytes;
+    final int clientThreadsActive;
+    final int clientThreadsTotal;
+    final int serverThreadsActive;
+    final int serverThreadsTotal;
+    final int connectionsActive;
     final int channelsActive;
 
     public ResourceUtilizationStats(
-        long arrowAllocatorAllocatedBytes,
-        long arrowAllocatorPeakBytes,
-        long directMemoryUsedBytes,
-        int flightServerThreadsActive,
-        int flightServerThreadsTotal,
-        int connectionPoolSize,
+        long arrowAllocatedBytes,
+        long arrowPeakBytes,
+        long directMemoryBytes,
+        int clientThreadsActive,
+        int clientThreadsTotal,
+        int serverThreadsActive,
+        int serverThreadsTotal,
+        int connectionsActive,
         int channelsActive
     ) {
-        this.arrowAllocatorAllocatedBytes = arrowAllocatorAllocatedBytes;
-        this.arrowAllocatorPeakBytes = arrowAllocatorPeakBytes;
-        this.directMemoryUsedBytes = directMemoryUsedBytes;
-        this.flightServerThreadsActive = flightServerThreadsActive;
-        this.flightServerThreadsTotal = flightServerThreadsTotal;
-        this.connectionPoolSize = connectionPoolSize;
+        this.arrowAllocatedBytes = arrowAllocatedBytes;
+        this.arrowPeakBytes = arrowPeakBytes;
+        this.directMemoryBytes = directMemoryBytes;
+        this.clientThreadsActive = clientThreadsActive;
+        this.clientThreadsTotal = clientThreadsTotal;
+        this.serverThreadsActive = serverThreadsActive;
+        this.serverThreadsTotal = serverThreadsTotal;
+        this.connectionsActive = connectionsActive;
         this.channelsActive = channelsActive;
     }
 
     public ResourceUtilizationStats(StreamInput in) throws IOException {
-        this.arrowAllocatorAllocatedBytes = in.readVLong();
-        this.arrowAllocatorPeakBytes = in.readVLong();
-        this.directMemoryUsedBytes = in.readVLong();
-        this.flightServerThreadsActive = in.readVInt();
-        this.flightServerThreadsTotal = in.readVInt();
-
-        this.connectionPoolSize = in.readVInt();
+        this.arrowAllocatedBytes = in.readVLong();
+        this.arrowPeakBytes = in.readVLong();
+        this.directMemoryBytes = in.readVLong();
+        this.clientThreadsActive = in.readVInt();
+        this.clientThreadsTotal = in.readVInt();
+        this.serverThreadsActive = in.readVInt();
+        this.serverThreadsTotal = in.readVInt();
+        this.connectionsActive = in.readVInt();
         this.channelsActive = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(arrowAllocatorAllocatedBytes);
-        out.writeVLong(arrowAllocatorPeakBytes);
-        out.writeVLong(directMemoryUsedBytes);
-        out.writeVInt(flightServerThreadsActive);
-        out.writeVInt(flightServerThreadsTotal);
-
-        out.writeVInt(connectionPoolSize);
+        out.writeVLong(arrowAllocatedBytes);
+        out.writeVLong(arrowPeakBytes);
+        out.writeVLong(directMemoryBytes);
+        out.writeVInt(clientThreadsActive);
+        out.writeVInt(clientThreadsTotal);
+        out.writeVInt(serverThreadsActive);
+        out.writeVInt(serverThreadsTotal);
+        out.writeVInt(connectionsActive);
         out.writeVInt(channelsActive);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("resource_utilization");
-        builder.field("arrow_allocator_allocated_bytes", arrowAllocatorAllocatedBytes);
-        builder.field("arrow_allocator_peak_bytes", arrowAllocatorPeakBytes);
-        builder.field("direct_memory_used_bytes", directMemoryUsedBytes);
-        builder.field("flight_server_threads_active", flightServerThreadsActive);
-        builder.field("flight_server_threads_total", flightServerThreadsTotal);
-
-        builder.field("connection_pool_size", connectionPoolSize);
+        builder.field("arrow_allocated_bytes", arrowAllocatedBytes);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("arrow_allocated", new ByteSizeValue(arrowAllocatedBytes).toString());
+        }
+        builder.field("arrow_peak_bytes", arrowPeakBytes);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("arrow_peak", new ByteSizeValue(arrowPeakBytes).toString());
+        }
+        builder.field("direct_memory_bytes", directMemoryBytes);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("direct_memory", new ByteSizeValue(directMemoryBytes).toString());
+        }
+        builder.field("client_threads_active", clientThreadsActive);
+        builder.field("client_threads_total", clientThreadsTotal);
+        builder.field("server_threads_active", serverThreadsActive);
+        builder.field("server_threads_total", serverThreadsTotal);
+        builder.field("connections_active", connectionsActive);
         builder.field("channels_active", channelsActive);
-        if (flightServerThreadsTotal > 0) {
-            builder.field("thread_pool_utilization_percent", (flightServerThreadsActive * 100.0) / flightServerThreadsTotal);
+        if (clientThreadsTotal > 0) {
+            builder.field("client_thread_utilization_percent", (clientThreadsActive * 100.0) / clientThreadsTotal);
+        }
+        if (serverThreadsTotal > 0) {
+            builder.field("server_thread_utilization_percent", (serverThreadsActive * 100.0) / serverThreadsTotal);
         }
         builder.endObject();
         return builder;
