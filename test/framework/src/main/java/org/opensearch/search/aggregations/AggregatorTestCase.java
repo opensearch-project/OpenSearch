@@ -214,7 +214,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         denylist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
         denylist.add(DerivedFieldMapper.CONTENT_TYPE); // TODO support derived fields
         denylist.add(StarTreeMapper.CONTENT_TYPE); // TODO evaluate support for star tree fields
-        denylist.add(SemanticVersionFieldMapper.CONTENT_TYPE); // TODO evaludate support for semantic version fields
+        denylist.add(SemanticVersionFieldMapper.CONTENT_TYPE); // TODO support for semantic version fields
         TYPE_TEST_DENYLIST = denylist;
     }
 

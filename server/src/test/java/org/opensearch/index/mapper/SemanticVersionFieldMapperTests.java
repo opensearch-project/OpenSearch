@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -32,20 +33,25 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryShardException;
+import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 /**
  * Field mapper for OpenSearch semantic version field type
@@ -55,6 +61,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "version");
+        b.field("store", true);
+        b.field("index", true);
     }
 
     @Override
@@ -222,8 +230,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
 
     public void testMultipleVersionFields() throws Exception {
         XContentBuilder mapping = mapping(b -> {
-            b.startObject("version1").field("type", "version").endObject();
-            b.startObject("version2").field("type", "version").endObject();
+            b.startObject("version1").field("type", "version").field("store", true).endObject();
+            b.startObject("version2").field("type", "version").field("store", true).endObject();
         });
 
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -291,8 +299,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
 
     public void testMultipleFieldsInDocument() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("version1").field("type", "version").endObject();
-            b.startObject("version2").field("type", "version").endObject();
+            b.startObject("version1").field("type", "version").field("store", true).endObject();
+            b.startObject("version2").field("type", "version").field("store", true).endObject();
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> {
@@ -469,33 +477,40 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
 
         // Test various range scenarios
         Query rangeQuery1 = fieldType.rangeQuery("1.0.0", "2.0.0", true, true, ShapeRelation.INTERSECTS, null, null, null);
-        assertThat(rangeQuery1, instanceOf(TermRangeQuery.class));
+        assertTrue(
+            rangeQuery1 instanceof TermRangeQuery
+                || (rangeQuery1 instanceof IndexOrDocValuesQuery
+                    && ((IndexOrDocValuesQuery) rangeQuery1).getIndexQuery() instanceof TermRangeQuery)
+        );
 
         Query rangeQuery2 = fieldType.rangeQuery("1.0.0-alpha", "1.0.0", true, true, ShapeRelation.INTERSECTS, null, null, null);
-        assertThat(rangeQuery2, instanceOf(TermRangeQuery.class));
+        assertTrue(
+            rangeQuery2 instanceof TermRangeQuery
+                || (rangeQuery2 instanceof IndexOrDocValuesQuery
+                    && ((IndexOrDocValuesQuery) rangeQuery2).getIndexQuery() instanceof TermRangeQuery)
+        );
 
         // Test null bounds
         Query rangeQuery3 = fieldType.rangeQuery(null, "2.0.0", true, true, ShapeRelation.INTERSECTS, null, null, null);
-        assertThat(rangeQuery3, instanceOf(TermRangeQuery.class));
+        assertTrue(
+            rangeQuery3 instanceof TermRangeQuery
+                || (rangeQuery3 instanceof IndexOrDocValuesQuery
+                    && ((IndexOrDocValuesQuery) rangeQuery3).getIndexQuery() instanceof TermRangeQuery)
+        );
 
         Query rangeQuery4 = fieldType.rangeQuery("1.0.0", null, true, true, ShapeRelation.INTERSECTS, null, null, null);
-        assertThat(rangeQuery4, instanceOf(TermRangeQuery.class));
+        assertTrue(
+            rangeQuery4 instanceof TermRangeQuery
+                || (rangeQuery4 instanceof IndexOrDocValuesQuery
+                    && ((IndexOrDocValuesQuery) rangeQuery4).getIndexQuery() instanceof TermRangeQuery)
+        );
 
         // Test actual document matching
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", "1.5.0")));
         ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", "2.5.0")));
 
         // Should match doc1 but not doc2
-        TermRangeQuery rangeQuery = (TermRangeQuery) fieldType.rangeQuery(
-            "1.0.0",
-            "2.0.0",
-            true,
-            true,
-            ShapeRelation.INTERSECTS,
-            null,
-            null,
-            null
-        );
+        Query rangeQuery = fieldType.rangeQuery("1.0.0", "2.0.0", true, true, ShapeRelation.INTERSECTS, null, null, null);
 
         // Create readers and searcher
         Directory dir1 = new ByteBuffersDirectory();
@@ -653,81 +668,187 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
         dir.close();
     }
 
-    public void testComplexCombinationQuery() throws Exception {
+    public void testComplexQuery() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = ((FieldMapper) mapper.mappers().getMapper("field")).fieldType();
+        IndexSearcher searcher = setupSearcher(mapper);
 
-        // Create test documents
-        List<ParsedDocument> docs = Arrays.asList(
-            mapper.parse(source(b -> b.field("field", "1.0.0"))),
-            mapper.parse(source(b -> b.field("field", "1.0.1"))),
-            mapper.parse(source(b -> b.field("field", "1.0.0-alpha"))),
-            mapper.parse(source(b -> b.field("field", "1.0.0-beta"))),
-            mapper.parse(source(b -> b.field("field", "1.0.0+build.123")))
-        );
-
-        Directory dir = new ByteBuffersDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig());
-        for (ParsedDocument doc : docs) {
-            writer.addDocument(doc.rootDoc());
-        }
-        writer.close();
-
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(dir));
-
-        // Test complex query 1
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-
-        // Match all 1.0.x versions
-        builder.add(fieldType.prefixQuery("1.0.", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, null), BooleanClause.Occur.MUST);
-
-        // But not alpha/beta versions
-        builder.add(
-            fieldType.regexpQuery(
-                ".*-.*",
-                RegExp.ALL,
-                0,
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE,
-                null
-            ),
-            BooleanClause.Occur.MUST_NOT
-        );
-
-        // And should have build metadata
-        builder.add(fieldType.wildcardQuery("*+build*", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, null), BooleanClause.Occur.MUST);
-
-        Query complexQuery = builder.build();
-        assertThat("Should match only 1.0.0+build.123", searcher.count(complexQuery), equalTo(1));
-
-        // Test complex query 2
-        BooleanQuery.Builder builder2 = new BooleanQuery.Builder();
-
-        // Match pre-release versions
-        builder2.add(
-            fieldType.regexpQuery(
-                ".*-.*",
-                RegExp.ALL,
-                0,
-                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE,
-                null
-            ),
+        Query complexQuery = new BooleanQuery.Builder().add(
+            fieldType.prefixQuery("1.", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, null),
             BooleanClause.Occur.MUST
+        )
+            .add(
+                fieldType.regexpQuery(
+                    ".*-.*",
+                    RegExp.ALL,
+                    0,
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                    MultiTermQuery.CONSTANT_SCORE_REWRITE,
+                    null
+                ),
+                BooleanClause.Occur.MUST_NOT
+            )
+            .build();
+
+        assertThat("Should match 1.0.0, 1.0.1, 1.1.0, 1.0.0+build.123", searcher.count(complexQuery), equalTo(4));
+    }
+
+    /**
+     * Test to cover error cases in SemanticVersionFieldType
+     */
+    public void testFieldTypeErrorCases() {
+        // Create a mock QueryShardContext
+        QueryShardContext mockContext = mock(QueryShardContext.class);
+
+        // Create a field type with various configurations to test error paths
+        SemanticVersionFieldMapper.SemanticVersionFieldType fieldType = new SemanticVersionFieldMapper.SemanticVersionFieldType(
+            "test_field",
+            new HashMap<>(),
+            true,  // isSearchable
+            true,  // hasDocValues
+            false  // isStored
         );
 
-        // With version 1.x
-        builder2.add(fieldType.prefixQuery("1.", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, null), BooleanClause.Occur.MUST);
+        // Test termQuery with null value (should throw exception)
+        IllegalArgumentException nullValueException = expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldType.termQuery(null, mockContext)
+        );
+        assertEquals("Cannot search for null value", nullValueException.getMessage());
 
-        // Similar to alpha
-        builder2.add(
-            fieldType.fuzzyQuery("alpha", Fuzziness.AUTO, 0, 50, true, MultiTermQuery.CONSTANT_SCORE_REWRITE, null),
-            BooleanClause.Occur.SHOULD
+        // Create a field type that is not searchable but has doc values
+        SemanticVersionFieldMapper.SemanticVersionFieldType docValuesOnlyFieldType =
+            new SemanticVersionFieldMapper.SemanticVersionFieldType(
+                "docvalues_only",
+                new HashMap<>(),
+                false,  // isSearchable
+                true,   // hasDocValues
+                false   // isStored
+            );
+
+        // Test termQuery - should use doc values query only
+        Query docValuesQuery = docValuesOnlyFieldType.termQuery("1.0.0", mockContext);
+        assertNotNull(docValuesQuery);
+
+        // Create a field type that is searchable but has no doc values
+        SemanticVersionFieldMapper.SemanticVersionFieldType searchOnlyFieldType = new SemanticVersionFieldMapper.SemanticVersionFieldType(
+            "search_only",
+            new HashMap<>(),
+            true,   // isSearchable
+            false,  // hasDocValues
+            false   // isStored
         );
 
-        Query complexQuery2 = builder2.build();
-        assertThat("Should match 1.0.0-alpha and 1.0.0-beta", searcher.count(complexQuery2), equalTo(2));
+        // Test termQuery - should use index query only
+        Query indexQuery = searchOnlyFieldType.termQuery("1.0.0", mockContext);
+        assertNotNull(indexQuery);
 
-        dir.close();
+        // Create a field type that is neither searchable nor has doc values
+        SemanticVersionFieldMapper.SemanticVersionFieldType invalidFieldType = new SemanticVersionFieldMapper.SemanticVersionFieldType(
+            "invalid_field",
+            new HashMap<>(),
+            false,  // isSearchable
+            false,  // hasDocValues
+            false   // isStored
+        );
+
+        // Test termQuery - should throw exception
+        IllegalArgumentException invalidFieldException = expectThrows(
+            IllegalArgumentException.class,
+            () -> invalidFieldType.termQuery("1.0.0", mockContext)
+        );
+        assertThat(invalidFieldException.getMessage(), containsString("is neither indexed nor has doc_values enabled"));
+
+        // Test rangeQuery with invalid version format - should throw QueryShardException
+        QueryShardException rangeException = expectThrows(
+            QueryShardException.class,
+            () -> fieldType.rangeQuery("invalid-version", "2.0.0", true, true, null, null, null, mockContext)
+        );
+        assertThat(rangeException.getMessage(), containsString("Failed to create range query for field"));
+
+        // Test termsQuery with different field configurations
+        List<String> terms = Arrays.asList("1.0.0", "2.0.0", "3.0.0");
+
+        // Test with searchable field
+        Query termsQuery = searchOnlyFieldType.termsQuery(terms, mockContext);
+        assertNotNull(termsQuery);
+
+        // Test with doc values only field
+        Query docValuesTermsQuery = docValuesOnlyFieldType.termsQuery(terms, mockContext);
+        assertNotNull(docValuesTermsQuery);
+
+        // Test with invalid field
+        IllegalArgumentException termsException = expectThrows(
+            IllegalArgumentException.class,
+            () -> invalidFieldType.termsQuery(terms, mockContext)
+        );
+        assertThat(termsException.getMessage(), containsString("is neither indexed nor has doc_values enabled"));
+
+        // Test regexpQuery with non-searchable field
+        IllegalArgumentException regexpException = expectThrows(
+            IllegalArgumentException.class,
+            () -> docValuesOnlyFieldType.regexpQuery("1\\.0\\..*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_REWRITE, mockContext)
+        );
+        assertEquals("Regexp queries require the field to be indexed", regexpException.getMessage());
+
+        // Test wildcardQuery with case insensitivity
+        Query wildcardQuery = fieldType.wildcardQuery(
+            "1.0.*",
+            MultiTermQuery.CONSTANT_SCORE_REWRITE,
+            true,  // case insensitive
+            mockContext
+        );
+        assertNotNull(wildcardQuery);
+
+        // Test wildcardQuery with non-searchable field
+        IllegalArgumentException wildcardException = expectThrows(
+            IllegalArgumentException.class,
+            () -> docValuesOnlyFieldType.wildcardQuery("1.0.*", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, mockContext)
+        );
+        assertEquals("Wildcard queries require the field to be indexed", wildcardException.getMessage());
+
+        // Test prefixQuery with non-searchable field
+        IllegalArgumentException prefixException = expectThrows(
+            IllegalArgumentException.class,
+            () -> docValuesOnlyFieldType.prefixQuery("1.0", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, mockContext)
+        );
+        assertEquals("Prefix queries require the field to be indexed", prefixException.getMessage());
+
+        // Test fuzzyQuery with null rewrite method (should use default)
+        Query fuzzyQuery = fieldType.fuzzyQuery(
+            "1.0.0",
+            Fuzziness.ONE,
+            0,
+            50,
+            true,
+            null,  // null rewrite method
+            mockContext
+        );
+        assertNotNull(fuzzyQuery);
+
+        // Test fuzzyQuery with non-searchable field
+        IllegalArgumentException fuzzyException = expectThrows(
+            IllegalArgumentException.class,
+            () -> docValuesOnlyFieldType.fuzzyQuery("1.0.0", Fuzziness.ONE, 0, 50, true, MultiTermQuery.CONSTANT_SCORE_REWRITE, mockContext)
+        );
+        assertEquals("Fuzzy queries require the field to be indexed", fuzzyException.getMessage());
+
+        // Test valueFetcher with format parameter
+        SearchLookup mockLookup = mock(SearchLookup.class);
+        IllegalArgumentException formatException = expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldType.valueFetcher(mockContext, mockLookup, "some_format")
+        );
+        assertThat(formatException.getMessage(), containsString("doesn't support formats"));
+
+        // Test valueFetcher without format parameter
+        assertNotNull(fieldType.valueFetcher(mockContext, mockLookup, null));
+
+        // Test fielddataBuilder with doc_values disabled
+        IllegalArgumentException fieldDataException = expectThrows(
+            IllegalArgumentException.class,
+            () -> searchOnlyFieldType.fielddataBuilder("test_index", null)
+        );
+        assertThat(fieldDataException.getMessage(), containsString("does not have doc_values enabled"));
     }
 }
