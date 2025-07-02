@@ -86,6 +86,29 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * @param shardSizes a shardkey to size in bytes mapping per shard.
      * @param routingToDataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
+     * @param nodeFileCacheStats node file cache stats
+     * @see #shardIdentifierFromRouting
+     */
+    @Deprecated(forRemoval = true)
+    public ClusterInfo(
+        final Map<String, DiskUsage> leastAvailableSpaceUsage,
+        final Map<String, DiskUsage> mostAvailableSpaceUsage,
+        final Map<String, Long> shardSizes,
+        final Map<ShardRouting, String> routingToDataPath,
+        final Map<NodeAndPath, ReservedSpace> reservedSpace,
+        final Map<String, AggregateFileCacheStats> nodeFileCacheStats
+    ) {
+        this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, routingToDataPath, reservedSpace, nodeFileCacheStats, Map.of());
+    }
+
+    /**
+     * Creates a new ClusterInfo instance.
+     *
+     * @param leastAvailableSpaceUsage a node id to disk usage mapping for the path that has the least available space on the node.
+     * @param mostAvailableSpaceUsage  a node id to disk usage mapping for the path that has the most available space on the node.
+     * @param shardSizes a shardkey to size in bytes mapping per shard.
+     * @param routingToDataPath the shard routing to datapath mapping
+     * @param reservedSpace reserved space per shard broken down by node and data path
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -126,7 +149,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             this.nodeFileCacheStats = Map.of();
         }
 
-        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
             this.nodeResourceUsageStats = in.readMap(StreamInput::readString, NodeResourceUsageStats::new);
         } else {
             this.nodeResourceUsageStats = Map.of();
@@ -176,7 +199,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeMap(this.nodeFileCacheStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
-        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             out.writeMap(this.nodeResourceUsageStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
     }
