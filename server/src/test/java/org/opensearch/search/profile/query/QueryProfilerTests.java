@@ -42,6 +42,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
@@ -65,7 +66,10 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -74,11 +78,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -404,6 +410,38 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         leafCollector.collect(0);
         assertThat(profileCollector.getTime(), greaterThan(time));
         assertEquals(sliceStartTime, profileCollector.getSliceStartTime());
+    }
+
+    public void testQueryTree() throws IOException {
+        QueryProfiler profiler = executor != null
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(null), null)
+            : new QueryProfiler(new InternalQueryProfileTree(null));
+        searcher.setProfiler(profiler);
+        Query query = new TermQuery(new Term("foo", "bar"));
+
+        ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
+        assertNotNull(profile);
+        assertEquals(profiler.getTopBreakdown(), profile);
+        profiler.getQueryBreakdown(query);
+        profiler.pollLastElement();
+        assertEquals(profiler.getTopBreakdown(), profile);
+    }
+
+    public void testPlugins() throws IOException {
+        Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics = new HashMap<>();
+        pluginMetrics.put(ConstantScoreQuery.class, List.of(() -> new Timer("plugin_timer")));
+        QueryProfiler profiler = executor != null
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(pluginMetrics), pluginMetrics)
+            : new QueryProfiler(new InternalQueryProfileTree(pluginMetrics));
+
+        searcher.setProfiler(profiler);
+        Query query = new TermQuery(new Term("foo", "bar"));
+        searcher.count(query);
+        List<ProfileResult> results = profiler.getTree();
+        ProfileResult profileResult = results.get(0);
+        Map<String, Long> breakdown = profileResult.getTimeBreakdown();
+        if (executor != null) assert !breakdown.containsKey("plugin_timer");
+        else assert breakdown.containsKey("plugin_timer");
     }
 
     private static class DummyQuery extends Query {

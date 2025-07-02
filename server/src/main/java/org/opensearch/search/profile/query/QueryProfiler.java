@@ -108,7 +108,7 @@ public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown, 
     /**
      * Return the top level breakdown for plugins to use
      */
-    public AbstractProfileBreakdown getTopBreakdown() {
+    public ContextualProfileBreakdown getTopBreakdown() {
         return profileTree.getStackTop();
     }
 
