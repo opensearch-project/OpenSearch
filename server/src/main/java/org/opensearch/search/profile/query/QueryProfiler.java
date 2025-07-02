@@ -34,7 +34,6 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 
