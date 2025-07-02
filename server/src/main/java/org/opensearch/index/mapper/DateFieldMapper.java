@@ -522,47 +522,40 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 resolution,
                 (l, u, nowUsed) -> {
                     Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
-                    if (isSearchable()) {
-                        Query pointRangeQuery = LongPoint.newRangeQuery(name(), l, u);
-                        Query query;
-                        if (dvQuery != null) {
-                            query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
-                            if (context.indexSortedOnField(name())) {
-                                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
-                            }
-                        } else {
-                            query = pointRangeQuery;
-                        }
-                        if (nowUsed[0]) {
-                            return new ApproximateScoreQuery(
-                                new DateRangeIncludingNowQuery(query),
-                                new ApproximatePointRangeQuery(
-                                    name(),
-                                    pack(new long[] { l }).bytes,
-                                    pack(new long[] { u }).bytes,
-                                    new long[] { l }.length,
-                                    ApproximatePointRangeQuery.LONG_FORMAT
-                                )
-                            );
-                        } else {
-                            return new ApproximateScoreQuery(
-                                query,
-                                new ApproximatePointRangeQuery(
-                                    name(),
-                                    pack(new long[] { l }).bytes,
-                                    pack(new long[] { u }).bytes,
-                                    new long[] { l }.length,
-                                    ApproximatePointRangeQuery.LONG_FORMAT
-                                )
-                            );
-                        }
-                    }
 
                     // Not searchable. Must have doc values.
-                    if (context.indexSortedOnField(name())) {
-                        dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
+                    if (!isSearchable()) {
+                        if (context.indexSortedOnField(name())) {
+                            dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
+                        }
+                        return nowUsed[0] ? new DateRangeIncludingNowQuery(dvQuery) : dvQuery;
                     }
-                    return nowUsed[0] ? new DateRangeIncludingNowQuery(dvQuery) : dvQuery;
+
+                    // Field is searchable
+                    Query pointRangeQuery = LongPoint.newRangeQuery(name(), l, u);
+                    Query query;
+
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                        if (context.indexSortedOnField(name())) {
+                            query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                        }
+                    } else {
+                        query = pointRangeQuery;
+                    }
+
+                    ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(
+                        name(),
+                        pack(new long[] { l }).bytes,
+                        pack(new long[] { u }).bytes,
+                        new long[] { l }.length,
+                        ApproximatePointRangeQuery.LONG_FORMAT
+                    );
+
+                    return nowUsed[0]
+                        ? new ApproximateScoreQuery(new DateRangeIncludingNowQuery(query), approxQuery)
+                        : new ApproximateScoreQuery(query, approxQuery);
+
                 }
             );
         }
