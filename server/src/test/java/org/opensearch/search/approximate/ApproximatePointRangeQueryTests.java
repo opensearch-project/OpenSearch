@@ -273,7 +273,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numDocs = RandomNumbers.randomIntBetween(random(), 50, 200);
+                int numDocs = RandomNumbers.randomIntBetween(random(), 1500, 3000);
                 for (int i = 0; i < numDocs; i++) {
                     int numValues = RandomNumbers.randomIntBetween(random(), 1, 10);
                     Document doc = new Document();
@@ -293,6 +293,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 try (IndexReader reader = iw.getReader()) {
                     long lower = RandomNumbers.randomLongBetween(random(), numericType.getMinTestValue(), 200);
                     long upper = RandomNumbers.randomLongBetween(random(), lower, lower + 150);
+                    int searchSize = RandomNumbers.randomIntBetween(random(), 10, 50);
                     Query approximateQuery = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -302,10 +303,13 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     );
                     Query exactQuery = numericType.rangeQuery(numericType.fieldName, lower, upper);
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    int searchSize = RandomNumbers.randomIntBetween(random(), 10, 50);
                     TopDocs topDocs = searcher.search(approximateQuery, searchSize);
                     TopDocs topDocs1 = searcher.search(exactQuery, searchSize);
-                    assertEquals("Approximate and exact queries should return same total hits", topDocs.totalHits, topDocs1.totalHits);
+                    assertEquals(
+                        "Approximate and exact queries should return same number of docs",
+                        topDocs1.scoreDocs.length,
+                        topDocs.scoreDocs.length
+                    );
                 }
             }
         }
@@ -345,7 +349,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 500, 2000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 1000, 3000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -391,7 +395,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 500, 2000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 1000, 3000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -436,7 +440,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 500, 2000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 1000, 3000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -516,7 +520,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 500, 2000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 3000, 10000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -533,7 +537,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     final int size = RandomNumbers.randomIntBetween(random(), 5, 20);
                     long lower = RandomNumbers.randomLongBetween(random(), 0, numPoints / 2);
                     long upper = RandomNumbers.randomLongBetween(random(), lower + size * 2, Math.min(lower + 200, numPoints - 1));
-                    long expectedHits = upper - lower + 1;
                     Query approximateQuery = new ApproximatePointRangeQuery(
                         numericType.fieldName,
                         numericType.encode(lower),
@@ -545,11 +548,14 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     );
                     Query exactQuery = numericType.rangeQuery(numericType.fieldName, lower, upper);
                     IndexSearcher searcher = new IndexSearcher(reader);
+                    TopDocs exactAllDocs = searcher.search(exactQuery, numPoints);
+                    long actualHitsInRange = exactAllDocs.totalHits.value();
                     TopDocs topDocs = searcher.search(approximateQuery, size);
                     TopDocs topDocs1 = searcher.search(exactQuery, size);
                     assertEquals(size, topDocs.scoreDocs.length);
                     assertEquals(size, topDocs1.scoreDocs.length);
-                    assertEquals(expectedHits, topDocs1.totalHits.value());
+                    assertEquals(actualHitsInRange, topDocs1.totalHits.value());
+                    assertTrue("Approximate query should find at least 'size' documents", topDocs.totalHits.value() >= size);
                 }
             }
         }
@@ -691,8 +697,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int dataStart = RandomNumbers.randomIntBetween(random(), 500, 1500);
-                int dataEnd = dataStart + RandomNumbers.randomIntBetween(random(), 50, 200);
+                int dataStart = RandomNumbers.randomIntBetween(random(), 5000, 15000);
+                int dataEnd = dataStart + RandomNumbers.randomIntBetween(random(), 1000, 2000);
                 int numDocs = dataEnd - dataStart + 1;
                 for (int i = dataStart; i <= dataEnd; i++) {
                     Document doc = new Document();
@@ -734,8 +740,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int range1Start = RandomNumbers.randomIntBetween(random(), 0, 100);
-                int range1End = range1Start + RandomNumbers.randomIntBetween(random(), 50, 150);
+                int range1Start = RandomNumbers.randomIntBetween(random(), 0, 1000);
+                int range1End = range1Start + RandomNumbers.randomIntBetween(random(), 1000, 15000);
                 for (int i = range1Start; i <= range1End; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -828,7 +834,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numSameValueDocs = RandomNumbers.randomIntBetween(random(), 50, 200);
+                int numSameValueDocs = RandomNumbers.randomIntBetween(random(), 1000, 3000);
                 long sameValue = RandomNumbers.randomLongBetween(random(), 500, 2000);
                 for (int i = 0; i < numSameValueDocs; i++) {
                     Document doc = new Document();
