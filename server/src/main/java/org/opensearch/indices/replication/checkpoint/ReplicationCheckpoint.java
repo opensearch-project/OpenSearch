@@ -11,6 +11,7 @@ package org.opensearch.indices.replication.checkpoint;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -19,6 +20,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -56,11 +58,11 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         length = 0L;
         this.codec = codec;
         this.metadataMap = Collections.emptyMap();
-        this.createdTimeStamp = System.nanoTime();
+        this.createdTimeStamp = DateUtils.toLong(Instant.now());
     }
 
     public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, String codec) {
-        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec, Collections.emptyMap(), System.nanoTime());
+        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec, Collections.emptyMap(), DateUtils.toLong(Instant.now()));
     }
 
     public ReplicationCheckpoint(
@@ -79,7 +81,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         this.length = length;
         this.codec = codec;
         this.metadataMap = metadataMap;
-        this.createdTimeStamp = System.nanoTime();
+        this.createdTimeStamp = DateUtils.toLong(Instant.now());
     }
 
     public ReplicationCheckpoint(

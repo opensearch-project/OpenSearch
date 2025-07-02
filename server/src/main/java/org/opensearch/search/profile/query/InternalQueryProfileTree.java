@@ -33,6 +33,7 @@
 package org.opensearch.search.profile.query;
 
 import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.search.profile.ProfileResult;
 
 /**
@@ -43,7 +44,7 @@ import org.opensearch.search.profile.ProfileResult;
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
     @Override
-    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new QueryProfileBreakdown();
+    protected ContextualProfileBreakdown createProfileBreakdown() {
+        return new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
     }
 }
