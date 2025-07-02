@@ -32,6 +32,7 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -77,6 +78,7 @@ import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.profile.Timer;
 import org.opensearch.search.query.ConcurrentQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
@@ -420,6 +422,19 @@ public class SearchModuleTests extends OpenSearchTestCase {
                 .collect(toList()),
             hasSize(1)
         );
+    }
+
+    public void testPluginMetricsProvider() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
+            @Override
+            public PluginMetricsProvider getPluginMetricsProvider() {
+                return () -> Map.of(TermQuery.class, List.of(() -> new Timer("plugin_timer")));
+            }
+        }));
+
+        List<SearchPlugin.PluginMetricsProvider> providers = module.getPluginPluginMetricsProviders();
+        assertThat(providers, hasSize(1));
+        assertEquals(providers.getFirst().getPluginMetrics().size(), 1);
     }
 
     public void testDefaultQueryPhaseSearcher() {

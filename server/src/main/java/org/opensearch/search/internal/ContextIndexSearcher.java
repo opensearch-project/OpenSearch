@@ -217,12 +217,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            ContextualProfileBreakdown profile = null;
-            try {
-                profile = profiler.getQueryBreakdown(query);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
             Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;
