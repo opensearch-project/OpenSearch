@@ -45,7 +45,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
+public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown, E> {
 
     protected ArrayList<PB> breakdowns;
     /** Maps the Query to it's list of children.  This is basically the dependency tree */

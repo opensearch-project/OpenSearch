@@ -79,7 +79,7 @@ public final class Profilers {
 
     /** Get the current profiler. */
     public QueryProfiler getCurrentQueryProfiler() {
-        return queryProfilers.get(queryProfilers.size() - 1);
+        return queryProfilers.getLast();
     }
 
     /** Return the list of all created {@link QueryProfiler}s so far. */
