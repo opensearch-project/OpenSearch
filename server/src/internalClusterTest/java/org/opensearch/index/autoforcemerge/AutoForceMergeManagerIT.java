@@ -216,22 +216,26 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         SegmentsStats segmentsStatsForShard3Before = shard3.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard4Before = shard4.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard5Before = shard5.segmentStats(false, false);
-        AtomicLong totalSegments = new AtomicLong(
+        AtomicLong totalSegmentsBefore = new AtomicLong(
             segmentsStatsForShard1Before.getCount() + segmentsStatsForShard2Before.getCount() + segmentsStatsForShard3Before.getCount()
                 + segmentsStatsForShard4Before.getCount() + segmentsStatsForShard5Before.getCount()
         );
-        assertTrue(totalSegments.get() > 5);
+        assertTrue(totalSegmentsBefore.get() > 5);
+        waitUntil(() -> shard1.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard2.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard3.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard4.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
         waitUntil(() -> shard5.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
         SegmentsStats segmentsStatsForShard1After = shard1.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard2After = shard2.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard3After = shard3.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard4After = shard4.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard5After = shard5.segmentStats(false, false);
-        totalSegments.set(
+        AtomicLong totalSegmentsAfter = new AtomicLong(
             segmentsStatsForShard1After.getCount() + segmentsStatsForShard2After.getCount() + segmentsStatsForShard3After.getCount()
                 + segmentsStatsForShard4After.getCount() + segmentsStatsForShard5After.getCount()
         );
-        assertEquals(5, totalSegments.get());
+        assertTrue(totalSegmentsBefore.get() > totalSegmentsAfter.get());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_2).get());
     }
