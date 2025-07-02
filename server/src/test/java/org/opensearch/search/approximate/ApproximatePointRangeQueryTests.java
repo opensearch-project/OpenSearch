@@ -33,14 +33,13 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
-
-import java.time.Instant;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.Function;
@@ -968,6 +967,9 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
     }
 
     public void testDateRangeIncludingNowQueryApproximation() throws IOException {
+        if (numericType != NumericType.LONG) {
+            return;
+        }
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
@@ -1016,38 +1018,34 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         long nowInMillis = System.currentTimeMillis();
 
         // Parse the date expressions using the DateFieldType's resolution
-        long lowerMillis = dateFieldType.resolution().convert(
-            parser.parse(lowerBound, () -> nowInMillis)
-        );
+        long lowerMillis = dateFieldType.resolution().convert(parser.parse(lowerBound, () -> nowInMillis));
 
-        long upperMillis = dateFieldType.resolution().convert(
-            parser.parse(upperBound, () -> nowInMillis)
-        );
+        long upperMillis = dateFieldType.resolution().convert(parser.parse(upperBound, () -> nowInMillis));
 
-        testApproximateVsExactQuery(
-            searcher,
-            dateFieldType.name(),
-            lowerMillis,
-            upperMillis,
-            size,
-            dims
-        );
+        testApproximateVsExactQuery(searcher, dateFieldType.name(), lowerMillis, upperMillis, size, dims);
     }
 
-    private void testApproximateVsExactQuery(IndexSearcher searcher, String field, long lower, long upper, int size, int dims)
+    private void testApproximateVsExactQuery(IndexSearcher searcher, String field, Number lower, Number upper, int size, int dims)
         throws IOException {
         // Test with approximate query
-        ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(
-            field,
-            numericType.encode(lower),
-            numericType.encode(upper),
-            dims,
-            size,
-            null,
-            numericType.format
-        );
-        // Test with exact query
+        byte[] lowerBytes = numericType.encode(lower);
+        byte[] upperBytes = numericType.encode(upper);
+        Function<byte[], String> format = numericType.format;
+        ;
+
         Query exactQuery = numericType.rangeQuery(field, lower, upper);
+
+        if (field.equals("@timestamp")) {
+
+            // Use NumericType.LONG for date fields
+            lowerBytes = LongPoint.pack((long) lower).bytes;
+            upperBytes = LongPoint.pack((long) upper).bytes;
+            format = ApproximatePointRangeQuery.LONG_FORMAT;
+            exactQuery = LongPoint.newRangeQuery(field, (long) lower, (long) upper);
+        }
+
+        ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(field, upperBytes, lowerBytes, dims, size, null, format);
+        // Test with exact query
         TopDocs approxDocs = searcher.search(approxQuery, size);
         TopDocs exactDocs = searcher.search(exactQuery, size);
 
@@ -1060,11 +1058,27 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         TopDocs approxDocs,
         TopDocs exactDocs,
         String field,
-        long lower,
-        long upper,
+        Number lower,
+        Number upper,
         int size,
         int dims
     ) throws IOException {
+
+        byte[] lowerBytes = numericType.encode(lower);
+        byte[] upperBytes = numericType.encode(upper);
+        Function<byte[], String> format = numericType.format;
+        ;
+
+        // Test with sorting (ASC and DESC)
+        Sort ascSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType()));
+        Sort descSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
+
+        if (field.equals("@timestamp")) {
+            // Use NumericType.LONG for date fields
+            ascSort = new Sort(new SortField(field, SortField.Type.LONG));
+            descSort = new Sort(new SortField(field, SortField.Type.LONG, true));
+        }
+
         // Verify approximate query returns correct number of results
         assertTrue("Approximate query should return at most " + size + " docs", approxDocs.scoreDocs.length <= size);
         // If exact query returns fewer docs than size, approximate should match
@@ -1075,18 +1089,16 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 approxDocs.totalHits.value()
             );
         }
-        // Test with sorting (ASC and DESC)
-        Sort ascSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType()));
-        Sort descSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
+
         // Test ASC sort
         ApproximatePointRangeQuery approxQueryAsc = new ApproximatePointRangeQuery(
             field,
-            numericType.encode(lower),
-            numericType.encode(upper),
+            lowerBytes,
+            upperBytes,
             dims,
             size,
             SortOrder.ASC,
-            numericType.format
+            format
         );
         TopDocs approxDocsAsc = searcher.search(approxQueryAsc, size, ascSort);
         TopDocs exactDocsAsc = searcher.search(exactQuery, size, ascSort);
@@ -1105,12 +1117,12 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         // Test DESC sort
         ApproximatePointRangeQuery approxQueryDesc = new ApproximatePointRangeQuery(
             field,
-            numericType.encode(lower),
-            numericType.encode(upper),
+            lowerBytes,
+            upperBytes,
             dims,
             size,
             SortOrder.DESC,
-            numericType.format
+            format
         );
         TopDocs approxDocsDesc = searcher.search(approxQueryDesc, size, descSort);
         TopDocs exactDocsDesc = searcher.search(exactQuery, size, descSort);
