@@ -36,12 +36,26 @@ public class ResourceTrackerProvider {
         );
     }
 
+    /**
+     * Container for resource usage trackers used in auto force merge operations.
+     * Provides access to CPU and JVM memory usage trackers with different time windows.
+     *
+     * @opensearch.internal
+     */
     public static class ResourceTrackers {
         public final AverageCpuUsageTracker cpuOneMinute;
         public final AverageCpuUsageTracker cpuFiveMinute;
         public final AverageMemoryUsageTracker jvmOneMinute;
         public final AverageMemoryUsageTracker jvmFiveMinute;
 
+        /**
+         * Creates a new ResourceTrackers instance.
+         *
+         * @param cpuOneMinute CPU tracker with 1-minute window
+         * @param cpuFiveMinute CPU tracker with 5-minute window
+         * @param jvmOneMinute JVM memory tracker with 1-minute window
+         * @param jvmFiveMinute JVM memory tracker with 5-minute window
+         */
         ResourceTrackers(
             AverageCpuUsageTracker cpuOneMinute,
             AverageCpuUsageTracker cpuFiveMinute,
