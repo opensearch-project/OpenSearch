@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -45,7 +46,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Field mapper for OpenSearch semantic version field type
@@ -55,6 +55,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "version");
+        b.field("store", true);
+        b.field("index", true);
     }
 
     @Override
@@ -222,8 +224,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
 
     public void testMultipleVersionFields() throws Exception {
         XContentBuilder mapping = mapping(b -> {
-            b.startObject("version1").field("type", "version").endObject();
-            b.startObject("version2").field("type", "version").endObject();
+            b.startObject("version1").field("type", "version").field("store", true).endObject();
+            b.startObject("version2").field("type", "version").field("store", true).endObject();
         });
 
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -291,8 +293,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
 
     public void testMultipleFieldsInDocument() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("version1").field("type", "version").endObject();
-            b.startObject("version2").field("type", "version").endObject();
+            b.startObject("version1").field("type", "version").field("store", true).endObject();
+            b.startObject("version2").field("type", "version").field("store", true).endObject();
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> {
@@ -469,33 +471,40 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
 
         // Test various range scenarios
         Query rangeQuery1 = fieldType.rangeQuery("1.0.0", "2.0.0", true, true, ShapeRelation.INTERSECTS, null, null, null);
-        assertThat(rangeQuery1, instanceOf(TermRangeQuery.class));
+        assertTrue(
+            rangeQuery1 instanceof TermRangeQuery
+                || (rangeQuery1 instanceof IndexOrDocValuesQuery
+                    && ((IndexOrDocValuesQuery) rangeQuery1).getIndexQuery() instanceof TermRangeQuery)
+        );
 
         Query rangeQuery2 = fieldType.rangeQuery("1.0.0-alpha", "1.0.0", true, true, ShapeRelation.INTERSECTS, null, null, null);
-        assertThat(rangeQuery2, instanceOf(TermRangeQuery.class));
+        assertTrue(
+            rangeQuery2 instanceof TermRangeQuery
+                || (rangeQuery2 instanceof IndexOrDocValuesQuery
+                    && ((IndexOrDocValuesQuery) rangeQuery2).getIndexQuery() instanceof TermRangeQuery)
+        );
 
         // Test null bounds
         Query rangeQuery3 = fieldType.rangeQuery(null, "2.0.0", true, true, ShapeRelation.INTERSECTS, null, null, null);
-        assertThat(rangeQuery3, instanceOf(TermRangeQuery.class));
+        assertTrue(
+            rangeQuery3 instanceof TermRangeQuery
+                || (rangeQuery3 instanceof IndexOrDocValuesQuery
+                    && ((IndexOrDocValuesQuery) rangeQuery3).getIndexQuery() instanceof TermRangeQuery)
+        );
 
         Query rangeQuery4 = fieldType.rangeQuery("1.0.0", null, true, true, ShapeRelation.INTERSECTS, null, null, null);
-        assertThat(rangeQuery4, instanceOf(TermRangeQuery.class));
+        assertTrue(
+            rangeQuery4 instanceof TermRangeQuery
+                || (rangeQuery4 instanceof IndexOrDocValuesQuery
+                    && ((IndexOrDocValuesQuery) rangeQuery4).getIndexQuery() instanceof TermRangeQuery)
+        );
 
         // Test actual document matching
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", "1.5.0")));
         ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", "2.5.0")));
 
         // Should match doc1 but not doc2
-        TermRangeQuery rangeQuery = (TermRangeQuery) fieldType.rangeQuery(
-            "1.0.0",
-            "2.0.0",
-            true,
-            true,
-            ShapeRelation.INTERSECTS,
-            null,
-            null,
-            null
-        );
+        Query rangeQuery = fieldType.rangeQuery("1.0.0", "2.0.0", true, true, ShapeRelation.INTERSECTS, null, null, null);
 
         // Create readers and searcher
         Directory dir1 = new ByteBuffersDirectory();

@@ -213,4 +213,87 @@ public class SemanticVersionTests extends OpenSearchTestCase {
         String preReleaseWithBuildNorm = preReleaseWithBuild.getNormalizedComparableString();
         assertEquals(betaNorm, preReleaseWithBuildNorm);
     }
+
+    public void testSquareBracketRemoval() {
+        // Test that square brackets are removed during parsing
+        SemanticVersion version1 = SemanticVersion.parse("[1.2.3]");
+        assertEquals("1.2.3", version1.toString());
+
+        SemanticVersion version2 = SemanticVersion.parse("[1.2.3-alpha]");
+        assertEquals("1.2.3-alpha", version2.toString());
+
+        SemanticVersion version3 = SemanticVersion.parse("[1.2.3+build.123]");
+        assertEquals("1.2.3+build.123", version3.toString());
+
+        SemanticVersion version4 = SemanticVersion.parse("[1.2.3-alpha+build.123]");
+        assertEquals("1.2.3-alpha+build.123", version4.toString());
+    }
+
+    public void testWhitespaceHandling() {
+        // Test that whitespace is converted to dots during parsing
+        SemanticVersion version1 = SemanticVersion.parse("1 2 3");
+        assertEquals("1.2.3", version1.toString());
+
+        SemanticVersion version2 = SemanticVersion.parse("1  2  3");
+        assertEquals("1.2.3", version2.toString());
+
+        SemanticVersion version3 = SemanticVersion.parse("1\t2\t3");
+        assertEquals("1.2.3", version3.toString());
+
+        SemanticVersion version4 = SemanticVersion.parse("1 2 3");
+        assertEquals("1.2.3", version4.toString());
+
+        // Test mixed whitespace
+        SemanticVersion version5 = SemanticVersion.parse("1 \t 2 \t 3");
+        assertEquals("1.2.3", version5.toString());
+    }
+
+    public void testNumberFormatExceptionHandling() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SemanticVersion.parse("01.02.03"));
+        assertTrue(e.getMessage().contains("Invalid semantic version format"));
+    }
+
+    public void testComparePreReleaseMethod() {
+        // Test numeric vs non-numeric identifiers
+        assertThat(SemanticVersion.parse("1.0.0-1").compareTo(SemanticVersion.parse("1.0.0-alpha")), lessThan(0));
+        assertThat(SemanticVersion.parse("1.0.0-alpha").compareTo(SemanticVersion.parse("1.0.0-1")), greaterThan(0));
+
+        // Test numeric comparison
+        assertThat(SemanticVersion.parse("1.0.0-1").compareTo(SemanticVersion.parse("1.0.0-2")), lessThan(0));
+        assertThat(SemanticVersion.parse("1.0.0-10").compareTo(SemanticVersion.parse("1.0.0-2")), greaterThan(0));
+
+        // Test string comparison
+        assertThat(SemanticVersion.parse("1.0.0-alpha").compareTo(SemanticVersion.parse("1.0.0-beta")), lessThan(0));
+        assertThat(SemanticVersion.parse("1.0.0-beta").compareTo(SemanticVersion.parse("1.0.0-alpha")), greaterThan(0));
+
+        // Test mixed numeric and string
+        assertThat(SemanticVersion.parse("1.0.0-alpha.1").compareTo(SemanticVersion.parse("1.0.0-alpha.2")), lessThan(0));
+        assertThat(SemanticVersion.parse("1.0.0-alpha.2").compareTo(SemanticVersion.parse("1.0.0-alpha.10")), lessThan(0));
+
+        // Test different lengths
+        assertThat(SemanticVersion.parse("1.0.0-alpha").compareTo(SemanticVersion.parse("1.0.0-alpha.1")), lessThan(0));
+        assertThat(SemanticVersion.parse("1.0.0-alpha.1").compareTo(SemanticVersion.parse("1.0.0-alpha")), greaterThan(0));
+    }
+
+    public void testPadWithZerosMethod() {
+        // Test with small numbers that need padding
+        SemanticVersion version1 = SemanticVersion.parse("1.2.3");
+        String normalized1 = version1.getNormalizedString();
+        assertEquals("00000000000000000001.00000000000000000002.00000000000000000003", normalized1);
+
+        // Test with larger numbers that need less padding
+        SemanticVersion version2 = SemanticVersion.parse("123.456.789");
+        String normalized2 = version2.getNormalizedString();
+        assertEquals("00000000000000000123.00000000000000000456.00000000000000000789", normalized2);
+
+        // Test with very large numbers
+        SemanticVersion version3 = SemanticVersion.parse("999999999.999999999.999999999");
+        String normalized3 = version3.getNormalizedString();
+        assertEquals("00000000000999999999.00000000000999999999.00000000000999999999", normalized3);
+
+        // Test with zero values
+        SemanticVersion version4 = SemanticVersion.parse("0.0.0");
+        String normalized4 = version4.getNormalizedString();
+        assertEquals("00000000000000000000.00000000000000000000.00000000000000000000", normalized4);
+    }
 }

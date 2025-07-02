@@ -23,6 +23,10 @@ import java.util.regex.Pattern;
  * @see <a href="https://github.com/opensearch-project/OpenSearch/issues/16814">OpenSearch github issue</a>
  */
 public class SemanticVersion implements Comparable<SemanticVersion> {
+
+    // Regex used to check SemVer string. Source: https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+    private static final String SEMANTIC_VERSION_REGEX =
+        "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$";
     private final int major;
     private final int minor;
     private final int patch;
@@ -74,9 +78,7 @@ public class SemanticVersion implements Comparable<SemanticVersion> {
             version = version.replaceAll("\\s+", ".");
         }
 
-        Pattern pattern = Pattern.compile(
-            "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
-        );
+        Pattern pattern = Pattern.compile(SEMANTIC_VERSION_REGEX);
 
         Matcher matcher = pattern.matcher(version);
         if (!matcher.matches()) {
