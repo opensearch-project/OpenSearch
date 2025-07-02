@@ -32,9 +32,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
-import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.opensearch.index.mapper.DateFieldMapper.Resolution;
+
+import java.time.Instant;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -982,7 +982,12 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 for (int i = 0; i < 10000; i++) {
                     long timestamp = startTimestamp + (i * minute);
 
-                    iw.addDocument(asList(new LongPoint("@timestamp", timestamp), new NumericDocValuesField("@timestamp", timestamp)));
+                    long convertedTimestamp = dateFieldType.resolution().convert(Instant.ofEpochMilli(timestamp));
+
+                    Document doc = new Document();
+                    doc.add(new LongPoint(dateFieldType.name(), convertedTimestamp));
+                    doc.add(new NumericDocValuesField(dateFieldType.name(), convertedTimestamp));
+                    iw.addDocument(doc);
                 }
 
                 iw.flush();
@@ -990,30 +995,40 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 try (IndexReader reader = iw.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
 
-                    testApproximateVsExactQuery(searcher, "@timestamp", "now-1h", "now", 50, dims);
-
-                    testApproximateVsExactQuery(searcher, "@timestamp", "now-1d", "now", 50, dims);
-
-                    testApproximateVsExactQuery(searcher, "@timestamp", "now-30m", "now+30m", 50, dims);
-
+                    testApproximateVsExactQueryWithDateField(searcher, dateFieldType, "now-1h", "now", 50, dims);
+                    testApproximateVsExactQueryWithDateField(searcher, dateFieldType, "now-1d", "now", 50, dims);
+                    testApproximateVsExactQueryWithDateField(searcher, dateFieldType, "now-30m", "now+30m", 50, dims);
                 }
             }
         }
     }
 
-    // This method can be used to test both DateRangeQueries and DateRangeIncludingNowQueries
-    private void testApproximateVsExactQuery(IndexSearcher searcher, String field, String lowerBound, String upperBound, int size, int dims)
-        throws IOException {
-        // Parse date expressions to milliseconds
-        DateFormatter formatter = DateFieldMapper.getDefaultDateTimeFormatter();
+    private void testApproximateVsExactQueryWithDateField(
+        IndexSearcher searcher,
+        DateFieldType dateFieldType,
+        String lowerBound,
+        String upperBound,
+        int size,
+        int dims
+    ) throws IOException {
+        DateFormatter formatter = dateFieldType.dateTimeFormatter();
         DateMathParser parser = formatter.toDateMathParser();
         long nowInMillis = System.currentTimeMillis();
 
+        // Parse the date expressions using the DateFieldType's resolution
+        long lowerMillis = dateFieldType.resolution().convert(
+            parser.parse(lowerBound, () -> nowInMillis)
+        );
+
+        long upperMillis = dateFieldType.resolution().convert(
+            parser.parse(upperBound, () -> nowInMillis)
+        );
+
         testApproximateVsExactQuery(
             searcher,
-            field,
-            Resolution.MILLISECONDS.convert(parser.parse(lowerBound, () -> nowInMillis)),
-            Resolution.MILLISECONDS.convert(parser.parse(upperBound, () -> nowInMillis)),
+            dateFieldType.name(),
+            lowerMillis,
+            upperMillis,
             size,
             dims
         );
