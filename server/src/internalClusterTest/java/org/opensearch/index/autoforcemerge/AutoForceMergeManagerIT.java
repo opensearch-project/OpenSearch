@@ -46,11 +46,6 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
     private static final Integer SEGMENT_COUNT = 1;
 
     @Override
-    protected boolean addMockIndexStorePlugin() {
-        return false;
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
         return Settings.builder()
@@ -158,8 +153,8 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
         waitUntil(() -> shard.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
         SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
-        // assertTrue((int) segmentsStatsBefore.getCount() > segmentsStatsAfter.getCount());
-        // assertEquals((int) SEGMENT_COUNT, segmentsStatsAfter.getCount());
+        assertTrue((int) segmentsStatsBefore.getCount() > segmentsStatsAfter.getCount());
+        assertEquals((int) SEGMENT_COUNT, segmentsStatsAfter.getCount());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
     }
 
@@ -226,10 +221,6 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
                 + segmentsStatsForShard4Before.getCount() + segmentsStatsForShard5Before.getCount()
         );
         assertTrue(totalSegments.get() > 5);
-        waitUntil(() -> shard1.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        waitUntil(() -> shard2.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        waitUntil(() -> shard3.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        waitUntil(() -> shard4.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
         waitUntil(() -> shard5.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
         SegmentsStats segmentsStatsForShard1After = shard1.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard2After = shard2.segmentStats(false, false);
@@ -240,7 +231,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             segmentsStatsForShard1After.getCount() + segmentsStatsForShard2After.getCount() + segmentsStatsForShard3After.getCount()
                 + segmentsStatsForShard4After.getCount() + segmentsStatsForShard5After.getCount()
         );
-        // assertEquals(5, totalSegments.get());
+        assertEquals(5, totalSegments.get());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_2).get());
     }
