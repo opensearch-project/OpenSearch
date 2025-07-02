@@ -70,14 +70,15 @@ class FlightClientChannel implements TcpChannel {
      * Constructs a new FlightClientChannel for handling Arrow Flight streams.
      *
      * @param client                 the Arrow Flight client
-     * @param node                  the discovery node for this channel
-     * @param location              the flight server location
-     * @param headerContext         the context for header management
-     * @param profile               the channel profile
+     * @param node                   the discovery node for this channel
+     * @param location               the flight server location
+     * @param headerContext          the context for header management
+     * @param profile                the channel profile
      * @param responseHandlers       the transport response handlers
-     * @param threadPool            the thread pool for async operations
-     * @param messageListener       the transport message listener
+     * @param threadPool             the thread pool for async operations
+     * @param messageListener        the transport message listener
      * @param namedWriteableRegistry the registry for deserialization
+     * @param statsCollector         the collector for flight statistics
      */
     public FlightClientChannel(
         BoundTransportAddress boundTransportAddress,
@@ -136,9 +137,6 @@ class FlightClientChannel implements TcpChannel {
             closeFuture.complete(null);
             notifyListeners(closeListeners, closeFuture);
         } catch (Exception e) {
-            if (statsCollector != null) {
-                statsCollector.incrementConnectionErrors();
-            }
             closeFuture.completeExceptionally(e);
             notifyListeners(closeListeners, closeFuture);
         }
@@ -204,16 +202,16 @@ class FlightClientChannel implements TcpChannel {
             // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
             FlightTransportResponse<?> streamResponse = createStreamResponse(ticket);
-            if (statsCollector != null) {
-                statsCollector.incrementClientRequestsSent();
-                statsCollector.addBytesReceived(reference.length());
-                statsCollector.incrementClientRequestsCurrent();
-            }
             processStreamResponseAsync(streamResponse);
             listener.onResponse(null);
+            if (statsCollector != null) {
+                statsCollector.incrementClientRequestsSent();
+                statsCollector.addBytesSent(reference.length());
+                statsCollector.incrementClientRequestsCurrent();
+            }
         } catch (Exception e) {
             if (statsCollector != null) {
-                statsCollector.incrementConnectionErrors();
+                statsCollector.incrementClientTransportErrors();
             }
             listener.onFailure(new TransportException("Failed to send message", e));
         }
@@ -238,6 +236,9 @@ class FlightClientChannel implements TcpChannel {
                 statsCollector
             );
         } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementClientTransportErrors();
+            }
             logger.error("Failed to create stream for ticket at [{}]: {}", location, e.getMessage());
             throw new RuntimeException("Failed to create stream", e);
         }
@@ -274,8 +275,9 @@ class FlightClientChannel implements TcpChannel {
         long requestId = header.getRequestId();
         TransportResponseHandler handler = responseHandlers.onResponseReceived(requestId, messageListener);
         if (handler == null) {
-            streamResponse.close();
-            throw new IllegalStateException("Missing handler for stream request [" + requestId + "].");
+            var t = new IllegalStateException("Missing handler for stream request [" + requestId + "].");
+            streamResponse.cancel("Missing handler for stream request", t);
+            throw t;
         }
         streamResponse.setHandler(handler);
         executeWithThreadContext(header, handler, streamResponse);
@@ -304,6 +306,7 @@ class FlightClientChannel implements TcpChannel {
                         if (statsCollector != null) {
                             statsCollector.decrementClientRequestsCurrent();
                             statsCollector.incrementClientResponsesReceived();
+                            statsCollector.incrementClientStreamsCompleted();
                         }
                     } catch (IOException e) {
                         // Log the exception instead of throwing it
@@ -320,6 +323,7 @@ class FlightClientChannel implements TcpChannel {
                             if (statsCollector != null) {
                                 statsCollector.decrementClientRequestsCurrent();
                                 statsCollector.incrementClientResponsesReceived();
+                                statsCollector.incrementClientStreamsCompleted();
                             }
                         } catch (IOException e) {
                             // Log the exception instead of throwing it
@@ -354,13 +358,8 @@ class FlightClientChannel implements TcpChannel {
                 logger.error("Failed to handle stream, no header available", e);
             }
 
-            // Track different types of errors
             if (statsCollector != null) {
-                if (e.getMessage() != null && e.getMessage().contains("timeout")) {
-                    statsCollector.incrementTimeoutErrors();
-                } else {
-                    statsCollector.incrementConnectionErrors();
-                }
+                statsCollector.incrementClientApplicationErrors();
             }
         } finally {
             streamResponse.close();

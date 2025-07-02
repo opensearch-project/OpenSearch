@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.flight.stats;
 
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -21,61 +22,65 @@ import java.io.IOException;
  */
 class ReliabilityStats implements Writeable, ToXContentFragment {
 
-    final long streamErrorsTotal;
-    final long connectionErrorsTotal;
-    final long timeoutErrorsTotal;
-    final long streamsCompletedSuccessfully;
-    final long streamsFailedTotal;
+    final long clientApplicationErrors;
+    final long clientTransportErrors;
+    final long serverApplicationErrors;
+    final long serverTransportErrors;
+    final long clientStreamsCompleted;
+    final long serverStreamsCompleted;
     final long uptimeMillis;
 
     public ReliabilityStats(
-        long streamErrorsTotal,
-        long connectionErrorsTotal,
-        long timeoutErrorsTotal,
-        long streamsCompletedSuccessfully,
-        long streamsFailedTotal,
+        long clientApplicationErrors,
+        long clientTransportErrors,
+        long serverApplicationErrors,
+        long serverTransportErrors,
+        long clientStreamsCompleted,
+        long serverStreamsCompleted,
         long uptimeMillis
     ) {
-        this.streamErrorsTotal = streamErrorsTotal;
-        this.connectionErrorsTotal = connectionErrorsTotal;
-        this.timeoutErrorsTotal = timeoutErrorsTotal;
-        this.streamsCompletedSuccessfully = streamsCompletedSuccessfully;
-        this.streamsFailedTotal = streamsFailedTotal;
+        this.clientApplicationErrors = clientApplicationErrors;
+        this.clientTransportErrors = clientTransportErrors;
+        this.serverApplicationErrors = serverApplicationErrors;
+        this.serverTransportErrors = serverTransportErrors;
+        this.clientStreamsCompleted = clientStreamsCompleted;
+        this.serverStreamsCompleted = serverStreamsCompleted;
         this.uptimeMillis = uptimeMillis;
     }
 
     public ReliabilityStats(StreamInput in) throws IOException {
-        this.streamErrorsTotal = in.readVLong();
-        this.connectionErrorsTotal = in.readVLong();
-        this.timeoutErrorsTotal = in.readVLong();
-        this.streamsCompletedSuccessfully = in.readVLong();
-        this.streamsFailedTotal = in.readVLong();
+        this.clientApplicationErrors = in.readVLong();
+        this.clientTransportErrors = in.readVLong();
+        this.serverApplicationErrors = in.readVLong();
+        this.serverTransportErrors = in.readVLong();
+        this.clientStreamsCompleted = in.readVLong();
+        this.serverStreamsCompleted = in.readVLong();
         this.uptimeMillis = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(streamErrorsTotal);
-        out.writeVLong(connectionErrorsTotal);
-        out.writeVLong(timeoutErrorsTotal);
-        out.writeVLong(streamsCompletedSuccessfully);
-        out.writeVLong(streamsFailedTotal);
+        out.writeVLong(clientApplicationErrors);
+        out.writeVLong(clientTransportErrors);
+        out.writeVLong(serverApplicationErrors);
+        out.writeVLong(serverTransportErrors);
+        out.writeVLong(clientStreamsCompleted);
+        out.writeVLong(serverStreamsCompleted);
         out.writeVLong(uptimeMillis);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("reliability");
-        builder.field("stream_errors_total", streamErrorsTotal);
-        builder.field("connection_errors_total", connectionErrorsTotal);
-        builder.field("timeout_errors_total", timeoutErrorsTotal);
-        builder.field("streams_completed_successfully", streamsCompletedSuccessfully);
-        builder.field("streams_failed_total", streamsFailedTotal);
+        builder.field("client_application_errors", clientApplicationErrors);
+        builder.field("client_transport_errors", clientTransportErrors);
+        builder.field("server_application_errors", serverApplicationErrors);
+        builder.field("server_transport_errors", serverTransportErrors);
+        builder.field("client_streams_completed", clientStreamsCompleted);
+        builder.field("server_streams_completed", serverStreamsCompleted);
         builder.field("uptime_millis", uptimeMillis);
-
-        long totalStreams = streamsCompletedSuccessfully + streamsFailedTotal;
-        if (totalStreams > 0) {
-            builder.field("success_rate_percent", (streamsCompletedSuccessfully * 100.0) / totalStreams);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("uptime", TimeValue.timeValueMillis(uptimeMillis).toString());
         }
         builder.endObject();
         return builder;

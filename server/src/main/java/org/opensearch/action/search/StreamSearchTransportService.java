@@ -22,11 +22,11 @@ import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
@@ -98,21 +98,16 @@ public class StreamSearchTransportService extends SearchTransportService {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        TransportResponseHandler<SearchPhaseResult> transportHandler = new TransportResponseHandler<>() {
-
+        StreamTransportResponseHandler<SearchPhaseResult> transportHandler = new StreamTransportResponseHandler<SearchPhaseResult>() {
             @Override
             public void handleStreamResponse(StreamTransportResponse<SearchPhaseResult> response) {
                 try {
                     SearchPhaseResult result = response.nextResponse();
                     listener.onResponse(result);
                 } catch (Exception e) {
+                    response.cancel("Client error during search phase", e);
                     listener.onFailure(e);
                 }
-            }
-
-            @Override
-            public void handleResponse(SearchPhaseResult response) {
-                throw new IllegalStateException("handleResponse is not supported for Streams");
             }
 
             @Override
@@ -147,17 +142,16 @@ public class StreamSearchTransportService extends SearchTransportService {
         SearchTask task,
         final SearchActionListener<FetchSearchResult> listener
     ) {
-        TransportResponseHandler<FetchSearchResult> transportHandler = new TransportResponseHandler<FetchSearchResult>() {
-
+        StreamTransportResponseHandler<FetchSearchResult> transportHandler = new StreamTransportResponseHandler<FetchSearchResult>() {
             @Override
             public void handleStreamResponse(StreamTransportResponse<FetchSearchResult> response) {
-                FetchSearchResult result = response.nextResponse();
-                listener.onResponse(result);
-            }
-
-            @Override
-            public void handleResponse(FetchSearchResult response) {
-                throw new IllegalStateException("handleResponse is not supported for Streams");
+                try {
+                    FetchSearchResult result = response.nextResponse();
+                    listener.onResponse(result);
+                } catch (Exception e) {
+                    response.cancel("Client error during fetch phase", e);
+                    listener.onFailure(e);
+                }
             }
 
             @Override
@@ -185,20 +179,20 @@ public class StreamSearchTransportService extends SearchTransportService {
         SearchTask task,
         final ActionListener<SearchService.CanMatchResponse> listener
     ) {
-        TransportResponseHandler<SearchService.CanMatchResponse> transportHandler = new TransportResponseHandler<>() {
-
+        StreamTransportResponseHandler<SearchService.CanMatchResponse> transportHandler = new StreamTransportResponseHandler<
+            SearchService.CanMatchResponse>() {
             @Override
             public void handleStreamResponse(StreamTransportResponse<SearchService.CanMatchResponse> response) {
-                SearchService.CanMatchResponse result = response.nextResponse();
-                if (response.nextResponse() != null) {
-                    throw new IllegalStateException("Only one response expected from SearchService.CanMatchResponse");
+                try {
+                    SearchService.CanMatchResponse result = response.nextResponse();
+                    if (response.nextResponse() != null) {
+                        throw new IllegalStateException("Only one response expected from SearchService.CanMatchResponse");
+                    }
+                    listener.onResponse(result);
+                } catch (Exception e) {
+                    response.cancel("Client error during can match", e);
+                    listener.onFailure(e);
                 }
-                listener.onResponse(result);
-            }
-
-            @Override
-            public void handleResponse(SearchService.CanMatchResponse response) {
-                throw new IllegalStateException("handleResponse is not supported for Streams");
             }
 
             @Override

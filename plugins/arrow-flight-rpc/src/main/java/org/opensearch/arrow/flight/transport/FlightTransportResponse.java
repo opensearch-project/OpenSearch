@@ -10,6 +10,7 @@ package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightCallHeaders;
 import org.apache.arrow.flight.FlightClient;
+import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.HeaderCallOption;
 import org.apache.arrow.flight.Ticket;
@@ -120,7 +121,15 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                 } else {
                     return null;  // No more data
                 }
+            } catch (FlightRuntimeException e) {
+                if (statsCollector != null) {
+                    statsCollector.incrementClientApplicationErrors();
+                }
+                throw e;
             } catch (Exception e) {
+                if (statsCollector != null) {
+                    statsCollector.incrementClientTransportErrors();
+                }
                 throw new TransportException("Failed to fetch next batch", e);
             }
         }
@@ -134,6 +143,11 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                 statsCollector.addClientBatchTime(batchTime);
             }
             return response;
+        } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementClientTransportErrors();
+            }
+            throw new TransportException("Failed to deserialize response", e);
         } finally {
             rootToUse.close();
         }
@@ -146,11 +160,11 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
      * @return the header for the current batch, or null if no more data is available
      */
     public Header currentHeader() {
-        ensureOpen();
         if (pendingRoot != null) {
             return headerContext.getHeader(reqId);
         }
         try {
+            ensureOpen();
             if (flightStream.next()) {
                 pendingRoot = flightStream.getRoot();
                 return headerContext.getHeader(reqId);
@@ -161,6 +175,31 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             pendingException = e;
             logger.warn("Error fetching next batch", e);
             return headerContext.getHeader(reqId);
+        }
+    }
+
+    /**
+     * Cancels the flight stream due to client-side error or timeout
+     * @param reason the reason for cancellation
+     * @param cause the exception that caused cancellation (can be null)
+     */
+    @Override
+    public void cancel(String reason, Throwable cause) {
+        if (isClosed) {
+            return;
+        }
+
+        try {
+            // Cancel the flight stream - this notifies the server to stop producing
+            flightStream.cancel(reason, cause);
+            logger.debug("Cancelled flight stream: {}", reason);
+        } catch (Exception e) {
+            if (statsCollector != null) {
+                statsCollector.incrementClientTransportErrors();
+            }
+            logger.warn("Error cancelling flight stream", e);
+        } finally {
+            close();
         }
     }
 
@@ -180,7 +219,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             flightStream.close();
         } catch (Exception e) {
             if (statsCollector != null) {
-                statsCollector.incrementChannelErrors();
+                statsCollector.incrementClientTransportErrors();
             }
             throw new TransportException("Failed to close flight stream", e);
         } finally {

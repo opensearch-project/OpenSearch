@@ -93,13 +93,26 @@ public class StreamTransportService extends TransportService {
             return;
         }
         // TODO: add logic for validation
-        connectionManager.connectToNode(node, connectionProfile, (connection, profile, listener1) -> listener1.onResponse(null), listener);
+        final ActionListener<Void> wrappedListener = ActionListener.wrap(response -> { listener.onResponse(response); }, exception -> {
+            logger.warn("Failed to connect to streaming node [{}]: {}", node, exception.getMessage());
+            listener.onFailure(new ConnectTransportException(node, "Failed to connect for streaming", exception));
+        });
+
+        connectionManager.connectToNode(
+            node,
+            connectionProfile,
+            (connection, profile, listener1) -> listener1.onResponse(null),
+            wrappedListener
+        );
     }
 
     @Override
     public Transport.Connection getConnection(DiscoveryNode node) {
-        // no direct channel for local node
-        // TODO: add support for direct channel for streaming
-        return connectionManager.getConnection(node);
+        try {
+            return connectionManager.getConnection(node);
+        } catch (Exception e) {
+            logger.error("Failed to get streaming connection to node [{}]", node, e);
+            throw new ConnectTransportException(node, "Failed to get streaming connection", e);
+        }
     }
 }

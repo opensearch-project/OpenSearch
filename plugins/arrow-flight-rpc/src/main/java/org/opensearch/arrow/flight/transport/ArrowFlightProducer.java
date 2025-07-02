@@ -85,16 +85,14 @@ class ArrowFlightProducer extends NoOpFlightProducer {
             }
         } catch (FlightRuntimeException ex) {
             if (statsCollector != null) {
-                statsCollector.incrementFlightServerErrors();
-                statsCollector.incrementStreamsFailed();
+                statsCollector.incrementServerTransportErrors();
                 statsCollector.decrementServerRequestsCurrent();
             }
             listener.error(ex);
             throw ex;
         } catch (Exception ex) {
             if (statsCollector != null) {
-                statsCollector.incrementSerializationErrors();
-                statsCollector.incrementStreamsFailed();
+                statsCollector.incrementServerTransportErrors();
                 statsCollector.decrementServerRequestsCurrent();
             }
             FlightRuntimeException fre = CallStatus.INTERNAL.withCause(ex).withDescription("Unexpected server error").toRuntimeException();
