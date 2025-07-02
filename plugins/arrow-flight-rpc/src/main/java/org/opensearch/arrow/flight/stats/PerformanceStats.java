@@ -8,9 +8,11 @@
 
 package org.opensearch.arrow.flight.stats;
 
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -23,109 +25,109 @@ class PerformanceStats implements Writeable, ToXContentFragment {
 
     final long serverRequestsReceived;
     final long serverRequestsCurrent;
-    final long serverRequestTimeMillis;
-    final long serverRequestAvgTimeMillis;
-    final long serverRequestMinTimeMillis;
-    final long serverRequestMaxTimeMillis;
-    final long serverBatchTimeMillis;
-    final long serverBatchAvgTimeMillis;
-    final long serverBatchMinTimeMillis;
-    final long serverBatchMaxTimeMillis;
-    final long clientBatchTimeMillis;
-    final long clientBatchAvgTimeMillis;
-    final long clientBatchMinTimeMillis;
-    final long clientBatchMaxTimeMillis;
+    final long serverRequestTotalMillis;
+    final long serverRequestAvgMillis;
+    final long serverRequestMinMillis;
+    final long serverRequestMaxMillis;
+    final long serverBatchTotalMillis;
+    final long serverBatchAvgMillis;
+    final long serverBatchMinMillis;
+    final long serverBatchMaxMillis;
+    final long clientBatchTotalMillis;
+    final long clientBatchAvgMillis;
+    final long clientBatchMinMillis;
+    final long clientBatchMaxMillis;
     final long clientBatchesReceived;
     final long clientResponsesReceived;
     final long serverBatchesSent;
-    final long bytesSentTotal;
-    final long bytesReceivedTotal;
+    final long bytesSent;
+    final long bytesReceived;
 
     public PerformanceStats(
         long serverRequestsReceived,
         long serverRequestsCurrent,
-        long serverRequestTimeMillis,
-        long serverRequestAvgTimeMillis,
-        long serverRequestMinTimeMillis,
-        long serverRequestMaxTimeMillis,
-        long serverBatchTimeMillis,
-        long serverBatchAvgTimeMillis,
-        long serverBatchMinTimeMillis,
-        long serverBatchMaxTimeMillis,
-        long clientBatchTimeMillis,
-        long clientBatchAvgTimeMillis,
-        long clientBatchMinTimeMillis,
-        long clientBatchMaxTimeMillis,
+        long serverRequestTotalMillis,
+        long serverRequestAvgMillis,
+        long serverRequestMinMillis,
+        long serverRequestMaxMillis,
+        long serverBatchTotalMillis,
+        long serverBatchAvgMillis,
+        long serverBatchMinMillis,
+        long serverBatchMaxMillis,
+        long clientBatchTotalMillis,
+        long clientBatchAvgMillis,
+        long clientBatchMinMillis,
+        long clientBatchMaxMillis,
         long clientBatchesReceived,
         long clientResponsesReceived,
         long serverBatchesSent,
-        long bytesSentTotal,
-        long bytesReceivedTotal
+        long bytesSent,
+        long bytesReceived
     ) {
         this.serverRequestsReceived = serverRequestsReceived;
         this.serverRequestsCurrent = serverRequestsCurrent;
-        this.serverRequestTimeMillis = serverRequestTimeMillis;
-        this.serverRequestAvgTimeMillis = serverRequestAvgTimeMillis;
-        this.serverRequestMinTimeMillis = serverRequestMinTimeMillis;
-        this.serverRequestMaxTimeMillis = serverRequestMaxTimeMillis;
-        this.serverBatchTimeMillis = serverBatchTimeMillis;
-        this.serverBatchAvgTimeMillis = serverBatchAvgTimeMillis;
-        this.serverBatchMinTimeMillis = serverBatchMinTimeMillis;
-        this.serverBatchMaxTimeMillis = serverBatchMaxTimeMillis;
-        this.clientBatchTimeMillis = clientBatchTimeMillis;
-        this.clientBatchAvgTimeMillis = clientBatchAvgTimeMillis;
-        this.clientBatchMinTimeMillis = clientBatchMinTimeMillis;
-        this.clientBatchMaxTimeMillis = clientBatchMaxTimeMillis;
+        this.serverRequestTotalMillis = serverRequestTotalMillis;
+        this.serverRequestAvgMillis = serverRequestAvgMillis;
+        this.serverRequestMinMillis = serverRequestMinMillis;
+        this.serverRequestMaxMillis = serverRequestMaxMillis;
+        this.serverBatchTotalMillis = serverBatchTotalMillis;
+        this.serverBatchAvgMillis = serverBatchAvgMillis;
+        this.serverBatchMinMillis = serverBatchMinMillis;
+        this.serverBatchMaxMillis = serverBatchMaxMillis;
+        this.clientBatchTotalMillis = clientBatchTotalMillis;
+        this.clientBatchAvgMillis = clientBatchAvgMillis;
+        this.clientBatchMinMillis = clientBatchMinMillis;
+        this.clientBatchMaxMillis = clientBatchMaxMillis;
         this.clientBatchesReceived = clientBatchesReceived;
         this.clientResponsesReceived = clientResponsesReceived;
         this.serverBatchesSent = serverBatchesSent;
-        this.bytesSentTotal = bytesSentTotal;
-        this.bytesReceivedTotal = bytesReceivedTotal;
+        this.bytesSent = bytesSent;
+        this.bytesReceived = bytesReceived;
     }
 
     public PerformanceStats(StreamInput in) throws IOException {
         this.serverRequestsReceived = in.readVLong();
         this.serverRequestsCurrent = in.readVLong();
-        this.serverRequestTimeMillis = in.readVLong();
-        this.serverRequestAvgTimeMillis = in.readVLong();
-        this.serverRequestMinTimeMillis = in.readVLong();
-        this.serverRequestMaxTimeMillis = in.readVLong();
-        this.serverBatchTimeMillis = in.readVLong();
-        this.serverBatchAvgTimeMillis = in.readVLong();
-        this.serverBatchMinTimeMillis = in.readVLong();
-        this.serverBatchMaxTimeMillis = in.readVLong();
-        this.clientBatchTimeMillis = in.readVLong();
-        this.clientBatchAvgTimeMillis = in.readVLong();
-        this.clientBatchMinTimeMillis = in.readVLong();
-        this.clientBatchMaxTimeMillis = in.readVLong();
+        this.serverRequestTotalMillis = in.readVLong();
+        this.serverRequestAvgMillis = in.readVLong();
+        this.serverRequestMinMillis = in.readVLong();
+        this.serverRequestMaxMillis = in.readVLong();
+        this.serverBatchTotalMillis = in.readVLong();
+        this.serverBatchAvgMillis = in.readVLong();
+        this.serverBatchMinMillis = in.readVLong();
+        this.serverBatchMaxMillis = in.readVLong();
+        this.clientBatchTotalMillis = in.readVLong();
+        this.clientBatchAvgMillis = in.readVLong();
+        this.clientBatchMinMillis = in.readVLong();
+        this.clientBatchMaxMillis = in.readVLong();
         this.clientBatchesReceived = in.readVLong();
         this.clientResponsesReceived = in.readVLong();
         this.serverBatchesSent = in.readVLong();
-        this.bytesSentTotal = in.readVLong();
-        this.bytesReceivedTotal = in.readVLong();
+        this.bytesSent = in.readVLong();
+        this.bytesReceived = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverRequestsReceived);
         out.writeVLong(serverRequestsCurrent);
-        out.writeVLong(serverRequestTimeMillis);
-        out.writeVLong(serverRequestAvgTimeMillis);
-        out.writeVLong(serverRequestMinTimeMillis);
-        out.writeVLong(serverRequestMaxTimeMillis);
-        out.writeVLong(serverBatchTimeMillis);
-        out.writeVLong(serverBatchAvgTimeMillis);
-        out.writeVLong(serverBatchMinTimeMillis);
-        out.writeVLong(serverBatchMaxTimeMillis);
-        out.writeVLong(clientBatchTimeMillis);
-        out.writeVLong(clientBatchAvgTimeMillis);
-        out.writeVLong(clientBatchMinTimeMillis);
-        out.writeVLong(clientBatchMaxTimeMillis);
+        out.writeVLong(serverRequestTotalMillis);
+        out.writeVLong(serverRequestAvgMillis);
+        out.writeVLong(serverRequestMinMillis);
+        out.writeVLong(serverRequestMaxMillis);
+        out.writeVLong(serverBatchTotalMillis);
+        out.writeVLong(serverBatchAvgMillis);
+        out.writeVLong(serverBatchMinMillis);
+        out.writeVLong(serverBatchMaxMillis);
+        out.writeVLong(clientBatchTotalMillis);
+        out.writeVLong(clientBatchAvgMillis);
+        out.writeVLong(clientBatchMinMillis);
+        out.writeVLong(clientBatchMaxMillis);
         out.writeVLong(clientBatchesReceived);
         out.writeVLong(clientResponsesReceived);
         out.writeVLong(serverBatchesSent);
-        out.writeVLong(bytesSentTotal);
-        out.writeVLong(bytesReceivedTotal);
+        out.writeVLong(bytesSent);
+        out.writeVLong(bytesReceived);
     }
 
     @Override
@@ -133,23 +135,41 @@ class PerformanceStats implements Writeable, ToXContentFragment {
         builder.startObject("performance");
         builder.field("server_requests_received", serverRequestsReceived);
         builder.field("server_requests_current", serverRequestsCurrent);
-        builder.field("server_request_time_millis", serverRequestTimeMillis);
-        builder.field("server_request_avg_time_millis", serverRequestAvgTimeMillis);
-        builder.field("server_request_min_time_millis", serverRequestMinTimeMillis);
-        builder.field("server_request_max_time_millis", serverRequestMaxTimeMillis);
-        builder.field("server_batch_time_millis", serverBatchTimeMillis);
-        builder.field("server_batch_avg_time_millis", serverBatchAvgTimeMillis);
-        builder.field("server_batch_min_time_millis", serverBatchMinTimeMillis);
-        builder.field("server_batch_max_time_millis", serverBatchMaxTimeMillis);
+        builder.field("server_request_total_millis", serverRequestTotalMillis);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("server_request_total_time", TimeValue.timeValueMillis(serverRequestTotalMillis).toString());
+        }
+        builder.field("server_request_avg_millis", serverRequestAvgMillis);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("server_request_avg_time", TimeValue.timeValueMillis(serverRequestAvgMillis).toString());
+        }
+        builder.field("server_request_min_millis", serverRequestMinMillis);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("server_request_min_time", TimeValue.timeValueMillis(serverRequestMinMillis).toString());
+        }
+        builder.field("server_request_max_millis", serverRequestMaxMillis);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("server_request_max_time", TimeValue.timeValueMillis(serverRequestMaxMillis).toString());
+        }
+        builder.field("server_batch_total_millis", serverBatchTotalMillis);
+        builder.field("server_batch_avg_millis", serverBatchAvgMillis);
+        builder.field("server_batch_min_millis", serverBatchMinMillis);
+        builder.field("server_batch_max_millis", serverBatchMaxMillis);
         builder.field("server_batches_sent", serverBatchesSent);
-        builder.field("client_batch_time_millis", clientBatchTimeMillis);
-        builder.field("client_batch_avg_time_millis", clientBatchAvgTimeMillis);
-        builder.field("client_batch_min_time_millis", clientBatchMinTimeMillis);
-        builder.field("client_batch_max_time_millis", clientBatchMaxTimeMillis);
+        builder.field("client_batch_total_millis", clientBatchTotalMillis);
+        builder.field("client_batch_avg_millis", clientBatchAvgMillis);
+        builder.field("client_batch_min_millis", clientBatchMinMillis);
+        builder.field("client_batch_max_millis", clientBatchMaxMillis);
         builder.field("client_batches_received", clientBatchesReceived);
         builder.field("client_responses_received", clientResponsesReceived);
-        builder.field("bytes_sent_total", bytesSentTotal);
-        builder.field("bytes_received_total", bytesReceivedTotal);
+        builder.field("bytes_sent", bytesSent);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("bytes_sent_human", new ByteSizeValue(bytesSent).toString());
+        }
+        builder.field("bytes_received", bytesReceived);
+        if (params.paramAsBoolean("human", false)) {
+            builder.field("bytes_received_human", new ByteSizeValue(bytesReceived).toString());
+        }
         builder.endObject();
         return builder;
     }

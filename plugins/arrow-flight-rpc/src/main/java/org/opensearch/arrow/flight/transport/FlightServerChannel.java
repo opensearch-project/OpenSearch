@@ -105,7 +105,7 @@ class FlightServerChannel implements TcpChannel {
             completionListener.onResponse(null);
         } catch (Exception e) {
             if (statsCollector != null) {
-                statsCollector.incrementTransportErrors();
+                statsCollector.incrementServerTransportErrors();
             }
             completionListener.onFailure(new TransportException("Failed to send batch", e));
         }
@@ -123,7 +123,7 @@ class FlightServerChannel implements TcpChannel {
         try {
             serverStreamListener.completed();
             if (statsCollector != null) {
-                statsCollector.incrementStreamsCompleted();
+                statsCollector.incrementServerStreamsCompleted();
                 statsCollector.decrementServerRequestsCurrent();
                 // Track total request time from start to completion
                 long requestTime = (System.nanoTime() - requestStartTime) / 1_000_000;
@@ -132,7 +132,7 @@ class FlightServerChannel implements TcpChannel {
             completionListener.onResponse(null);
         } catch (Exception e) {
             if (statsCollector != null) {
-                statsCollector.incrementTransportErrors();
+                statsCollector.incrementServerTransportErrors();
             }
             completionListener.onFailure(new TransportException("Failed to complete stream", e));
         }
@@ -156,10 +156,9 @@ class FlightServerChannel implements TcpChannel {
                     .toRuntimeException()
             );
             // TODO - move to debug log
-            logger.error(error);
+            logger.debug(error);
             if (statsCollector != null) {
-                statsCollector.incrementFlightServerErrors();
-                statsCollector.incrementStreamsFailed();
+                statsCollector.incrementServerApplicationErrors();
                 statsCollector.decrementServerRequestsCurrent();
                 // Track request time even for failed requests
                 long requestTime = (System.nanoTime() - requestStartTime) / 1_000_000;
@@ -167,9 +166,6 @@ class FlightServerChannel implements TcpChannel {
             }
             completionListener.onFailure(error);
         } catch (Exception e) {
-            if (statsCollector != null) {
-                statsCollector.incrementChannelErrors();
-            }
             completionListener.onFailure(new IOException("Failed to send error", e));
         } finally {
             if (root.get() != null) {
@@ -200,7 +196,7 @@ class FlightServerChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        listener.onFailure(new UnsupportedOperationException("FlightServerChannel does not support BytesReference"));
+        listener.onFailure(new UnsupportedOperationException("FlightServerChannel does not support BytesReference based sendMessage()"));
     }
 
     @Override
