@@ -42,6 +42,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.bouncycastle:bcpg-fips` from 2.0.10 to 2.0.11 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
 - Bump `com.password4j:password4j` from 1.8.2 to 1.8.3 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
 - Bump `com.azure:azure-core` from 1.55.3 to 1.55.5 ([#18691](https://github.com/opensearch-project/OpenSearch/pull/18691))
+- Bump `com.google.guava:failureaccess` from 1.0.1 to 1.0.2 ([#18672](https://github.com/opensearch-project/OpenSearch/pull/18672))
+- Bump `io.perfmark:perfmark-api` from 0.26.0 to 0.27.0 ([#18672](https://github.com/opensearch-project/OpenSearch/pull/18672))
 
 ### Deprecated
 
