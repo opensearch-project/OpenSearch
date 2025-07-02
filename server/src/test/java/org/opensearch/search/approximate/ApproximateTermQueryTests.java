@@ -311,12 +311,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
         long value = 42;
         byte[] packedValue = pack(new long[] { value }).bytes;
 
-        ApproximateTermQuery query = new ApproximateTermQuery(
-            "point",
-            packedValue,
-            1,
-            ApproximatePointRangeQuery.LONG_FORMAT
-        );
+        ApproximateTermQuery query = new ApproximateTermQuery("point", packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT);
         assertEquals(query.getSize(), 10_000);
 
         query.setSize(100);
@@ -327,12 +322,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
         long value = 42;
         byte[] packedValue = pack(new long[] { value }).bytes;
 
-        ApproximateTermQuery query = new ApproximateTermQuery(
-            "point",
-            packedValue,
-            1,
-            ApproximatePointRangeQuery.LONG_FORMAT
-        );
+        ApproximateTermQuery query = new ApproximateTermQuery("point", packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT);
         assertNull(query.getSortOrder());
 
         query.setSortOrder(SortOrder.ASC);
@@ -343,12 +333,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
         long value = 42;
         byte[] packedValue = pack(new long[] { value }).bytes;
 
-        ApproximateTermQuery query = new ApproximateTermQuery(
-            "point",
-            packedValue,
-            1,
-            ApproximatePointRangeQuery.LONG_FORMAT
-        );
+        ApproximateTermQuery query = new ApproximateTermQuery("point", packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT);
 
         assertFalse(query.canApproximate(null));
 
@@ -370,12 +355,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
         long value = 42;
         byte[] packedValue = pack(new long[] { value }).bytes;
 
-        ApproximateTermQuery query = new ApproximateTermQuery(
-            "point",
-            packedValue,
-            1,
-            ApproximatePointRangeQuery.LONG_FORMAT
-        );
+        ApproximateTermQuery query = new ApproximateTermQuery("point", packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT);
         SearchContext mockContext = mock(SearchContext.class);
         when(mockContext.trackTotalHitsUpTo()).thenReturn(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         assertFalse(query.canApproximate(mockContext));
@@ -509,7 +489,11 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                     TopDocs exactDocs = searcher.search(query, 1000); // Get all exact matches
 
                     // We should have expectedMatchCount documents with value 999
-                    assertEquals("Should find the correct number of documents with value 999", expectedMatchCount, exactDocs.totalHits.value());
+                    assertEquals(
+                        "Should find the correct number of documents with value 999",
+                        expectedMatchCount,
+                        exactDocs.totalHits.value()
+                    );
 
                     // The approximate query should return at most 'size' documents
                     assertTrue("Approximate query should return at most " + size + " docs", topDocs.scoreDocs.length <= size);

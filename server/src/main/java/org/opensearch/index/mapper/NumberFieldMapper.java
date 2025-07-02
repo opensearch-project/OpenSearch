@@ -450,12 +450,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     byte[] packedValue = FloatPoint.pack(new float[] { v }).bytes;
                     return new ApproximateScoreQuery(
                         FloatPoint.newExactQuery(field, v),
-                        new ApproximateTermQuery(
-                            field,
-                            packedValue,
-                            1,
-                            bytes -> Float.toString(FloatPoint.decodeDimension(bytes, 0))
-                        )
+                        new ApproximateTermQuery(field, packedValue, 1, bytes -> Float.toString(FloatPoint.decodeDimension(bytes, 0)))
                     );
                 }
                 if (hasDocValues) {
@@ -595,12 +590,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     byte[] packedValue = DoublePoint.pack(new double[] { v }).bytes;
                     return new ApproximateScoreQuery(
                         DoublePoint.newExactQuery(field, v),
-                        new ApproximateTermQuery(
-                            field,
-                            packedValue,
-                            1,
-                            bytes -> Double.toString(DoublePoint.decodeDimension(bytes, 0))
-                        )
+                        new ApproximateTermQuery(field, packedValue, 1, bytes -> Double.toString(DoublePoint.decodeDimension(bytes, 0)))
                     );
                 }
                 if (hasDocValues) {
@@ -904,12 +894,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     byte[] packedValue = IntPoint.pack(new int[] { v }).bytes;
                     return new ApproximateScoreQuery(
                         IntPoint.newExactQuery(field, v),
-                        new ApproximateTermQuery(
-                            field,
-                            packedValue,
-                            1,
-                            ApproximatePointRangeQuery.INT_FORMAT
-                        )
+                        new ApproximateTermQuery(field, packedValue, 1, ApproximatePointRangeQuery.INT_FORMAT)
                     );
                 }
                 if (hasDocValues) {
@@ -1087,12 +1072,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     byte[] packedValue = LongPoint.pack(new long[] { v }).bytes;
                     return new ApproximateScoreQuery(
                         LongPoint.newExactQuery(field, v),
-                        new ApproximateTermQuery(
-                            field,
-                            packedValue,
-                            1,
-                            ApproximatePointRangeQuery.LONG_FORMAT
-                        )
+                        new ApproximateTermQuery(field, packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT)
                     );
                 }
                 if (hasDocValues) {

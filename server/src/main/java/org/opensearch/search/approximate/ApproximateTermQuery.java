@@ -36,12 +36,7 @@ public class ApproximateTermQuery extends ApproximateQuery {
      * @param numDims Number of dimensions
      * @param valueToString Function to convert bytes to string representation
      */
-    public ApproximateTermQuery(
-        String field,
-        byte[] pointValue,
-        int numDims,
-        Function<byte[], String> valueToString
-    ) {
+    public ApproximateTermQuery(String field, byte[] pointValue, int numDims, Function<byte[], String> valueToString) {
         this(field, pointValue, pointValue, numDims, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, null, valueToString);
     }
 
