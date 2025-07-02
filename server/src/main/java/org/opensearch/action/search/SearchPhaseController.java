@@ -78,6 +78,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -431,7 +432,17 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(queryResults, Collections.emptyList(), topDocs, topDocsStats, 0, true, aggReduceContextBuilder, true);
+        return reducedQueryPhase(
+            queryResults,
+            Collections.emptyList(),
+            topDocs,
+            topDocsStats,
+            0,
+            true,
+            aggReduceContextBuilder,
+            true,
+            () -> false
+        );
     }
 
     /**
@@ -451,7 +462,8 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
-        boolean performFinalReduce
+        boolean performFinalReduce,
+        BooleanSupplier isTaskCancelled
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -526,7 +538,7 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
+        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs, isTaskCancelled);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
@@ -551,14 +563,14 @@ public final class SearchPhaseController {
     private static InternalAggregations reduceAggs(
         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
         boolean performFinalReduce,
-        List<InternalAggregations> toReduce
+        List<InternalAggregations> toReduce,
+        BooleanSupplier isTaskCancelled
     ) {
-        return toReduce.isEmpty()
-            ? null
-            : InternalAggregations.topLevelReduce(
-                toReduce,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
+        final ReduceContext reduceContext = performFinalReduce
+            ? aggReduceContextBuilder.forFinalReduction()
+            : aggReduceContextBuilder.forPartialReduction();
+        reduceContext.setIsTaskCancelled(isTaskCancelled);
+        return toReduce.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce, reduceContext);
     }
 
     /**
@@ -757,7 +769,8 @@ public final class SearchPhaseController {
         SearchProgressListener listener,
         SearchRequest request,
         int numShards,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled
     ) {
         return new QueryPhaseResultConsumer(
             request,
@@ -767,7 +780,8 @@ public final class SearchPhaseController {
             listener,
             namedWriteableRegistry,
             numShards,
-            onPartialMergeFailure
+            onPartialMergeFailure,
+            isTaskCancelled
         );
     }
 

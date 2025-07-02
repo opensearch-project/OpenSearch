@@ -119,6 +119,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         long docCount = 0L;
         List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             assert aggregation.getName().equals(getName());
             docCount += ((InternalSingleBucketAggregation) aggregation).docCount;
             subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).aggregations);

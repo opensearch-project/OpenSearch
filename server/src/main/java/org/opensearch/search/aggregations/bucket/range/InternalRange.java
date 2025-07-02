@@ -348,6 +348,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             rangeList[i] = new ArrayList<>();
         }
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
             int i = 0;
             for (B range : ranges.ranges) {

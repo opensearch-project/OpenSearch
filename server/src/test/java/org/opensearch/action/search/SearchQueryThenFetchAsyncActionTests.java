@@ -219,7 +219,8 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             task.getProgressListener(),
             writableRegistry(),
             shardsIter.size(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,

@@ -119,6 +119,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -548,7 +549,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchAsyncActionProvider,
                             searchRequestContext
                         ),
-                        searchRequestContext
+                        searchRequestContext,
+                        () -> task instanceof CancellableTask ? ((CancellableTask) task).isCancelled() : false
                     );
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
@@ -639,7 +641,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ThreadPool threadPool,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
-        SearchRequestContext searchRequestContext
+        SearchRequestContext searchRequestContext,
+        BooleanSupplier isTaskCancelled
     ) {
 
         if (localIndices == null && remoteIndices.size() == 1) {
@@ -728,7 +731,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger,
                     totalClusters,
                     listener,
-                    searchRequestContext
+                    searchRequestContext,
+                    isTaskCancelled
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
@@ -743,7 +747,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger,
                     totalClusters,
                     listener,
-                    searchRequestContext
+                    searchRequestContext,
+                    isTaskCancelled
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
                     searchRequest,
@@ -841,7 +846,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMerger searchResponseMerger,
         int totalClusters,
         ActionListener<SearchResponse> originalListener,
-        SearchRequestContext searchRequestContext
+        SearchRequestContext searchRequestContext,
+        BooleanSupplier isTaskCancelled
     ) {
         return new CCSActionListener<SearchResponse, SearchResponse>(
             clusterAlias,
@@ -863,7 +869,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger.numResponses(),
                     skippedClusters.get()
                 );
-                return searchResponseMerger.getMergedResponse(clusters, searchRequestContext);
+                return searchResponseMerger.getMergedResponse(clusters, searchRequestContext, isTaskCancelled);
             }
         };
     }
@@ -1265,7 +1271,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 task.getProgressListener(),
                 searchRequest,
                 shardIterators.size(),
-                exc -> cancelTask(task, exc)
+                exc -> cancelTask(task, exc),
+                task::isCancelled
             );
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {

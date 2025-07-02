@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BooleanSupplier;
 
 /**
  * Merges multiple search responses into one. Used in cross-cluster search when reduction is performed locally on each cluster.
@@ -110,7 +111,7 @@ final class SearchResponseMerger {
     /**
      * Add a search response to the list of responses to be merged together into one.
      * Merges currently happen at once when all responses are available and
-     * {@link #getMergedResponse(SearchResponse.Clusters, SearchRequestContext)} )} is called.
+     * {@link #getMergedResponse(SearchResponse.Clusters, SearchRequestContext searchCotext, BooleanSupplier isTaskCancelled)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
     void add(SearchResponse searchResponse) {
@@ -126,7 +127,11 @@ final class SearchResponseMerger {
      * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
      * so that all responses are merged into a single one.
      */
-    SearchResponse getMergedResponse(SearchResponse.Clusters clusters, SearchRequestContext searchRequestContext) {
+    SearchResponse getMergedResponse(
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext,
+        BooleanSupplier isTaskCancelled
+    ) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
@@ -214,7 +219,9 @@ final class SearchResponseMerger {
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
         setSuggestShardIndex(shards, groupedSuggestions);
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
+        InternalAggregation.ReduceContext reduceContext = aggReduceContextBuilder.forFinalReduction();
+        reduceContext.setIsTaskCancelled(isTaskCancelled);
+        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, reduceContext);
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
         SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from

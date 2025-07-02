@@ -395,6 +395,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         long otherDocCount = 0;
         InternalTerms<A, B> referenceTerms = null;
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             @SuppressWarnings("unchecked")
             InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
             // For Concurrent Segment Search the aggregation will have a computed doc count error coming from the shards.
