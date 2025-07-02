@@ -384,8 +384,8 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                 for (int i = 0; i < 1000; i++) {
                     Document doc = new Document();
                     int value = i % 100; // Create 10 documents for each value 0-99
-                    doc.add(new IntPoint("int_point", value));
-                    doc.add(new NumericDocValuesField("int_point", value));
+                    doc.add(new IntPoint("int", value));
+                    doc.add(new NumericDocValuesField("int", value));
                     iw.addDocument(doc);
                 }
                 iw.flush();
@@ -396,14 +396,14 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
 
                     final int size = 10;
                     ApproximatePointRangeQuery approximateQuery = new ApproximatePointRangeQuery(
-                        "int_point",
+                        "int",
                         packedValue,
                             packedValue,
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
                     approximateQuery.setSize(size);
-                    Query query = IntPoint.newExactQuery("int_point", value);
+                    Query query = IntPoint.newExactQuery("int", value);
 
                     IndexSearcher searcher = new IndexSearcher(reader);
                     TopDocs topDocs = searcher.search(approximateQuery, size);
@@ -518,6 +518,86 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                             topDocs.totalHits.value()
                         );
                     }
+                }
+            }
+        }
+    }
+
+    // Test with float values
+    public void testApproximateTermWithFloatValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                // Create documents with float values
+                for (int i = 0; i < 1000; i++) {
+                    Document doc = new Document();
+                    float value = i % 100 + 0.5f; // Create 10 documents for each value 0.5, 1.5, 2.5, etc.
+                    doc.add(new FloatPoint("float", value));
+                    doc.add(new NumericDocValuesField("float", Float.floatToIntBits(value)));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                iw.forceMerge(1);
+                try (IndexReader reader = iw.getReader()) {
+                    float value = 42.5f;
+                    byte[] packedValue = FloatPoint.pack(new float[] { value }).bytes;
+
+                    final int size = 10;
+                    ApproximatePointRangeQuery approximateQuery = new ApproximatePointRangeQuery(
+                        "float",
+                        packedValue,
+                        packedValue,
+                        1,
+                        bytes -> Float.toString(FloatPoint.decodeDimension(bytes, 0))
+                    );
+                    approximateQuery.setSize(size);
+                    Query query = FloatPoint.newExactQuery("float", value);
+
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    TopDocs topDocs = searcher.search(approximateQuery, size);
+                    TopDocs topDocs1 = searcher.search(query, size);
+
+                    assertEquals("Total hits should match", topDocs1.totalHits.value(), topDocs.totalHits.value());
+                    assertEquals("Should return exactly the number of matching documents", 10, topDocs.totalHits.value());
+                }
+            }
+        }
+    }
+
+    // Test with double values
+    public void testApproximateTermWithDoubleValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                // Create documents with double values
+                for (int i = 0; i < 1000; i++) {
+                    Document doc = new Document();
+                    double value = i % 100 + 0.25; // Create 10 documents for each value 0.25, 1.25, 2.25, etc.
+                    doc.add(new DoublePoint("double", value));
+                    doc.add(new NumericDocValuesField("double", Double.doubleToLongBits(value)));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                iw.forceMerge(1);
+                try (IndexReader reader = iw.getReader()) {
+                    double value = 42.25;
+                    byte[] packedValue = DoublePoint.pack(new double[] { value }).bytes;
+
+                    final int size = 10;
+                    ApproximatePointRangeQuery approximateQuery = new ApproximatePointRangeQuery(
+                        "double",
+                        packedValue,
+                        packedValue,
+                        1,
+                        bytes -> Double.toString(DoublePoint.decodeDimension(bytes, 0))
+                    );
+                    approximateQuery.setSize(size);
+                    Query query = DoublePoint.newExactQuery("double", value);
+
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    TopDocs topDocs = searcher.search(approximateQuery, size);
+                    TopDocs topDocs1 = searcher.search(query, size);
+
+                    assertEquals("Total hits should match", topDocs1.totalHits.value(), topDocs.totalHits.value());
+                    assertEquals("Should return exactly the number of matching documents", 10, topDocs.totalHits.value());
                 }
             }
         }
