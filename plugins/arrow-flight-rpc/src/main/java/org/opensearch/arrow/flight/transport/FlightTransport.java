@@ -77,7 +77,7 @@ import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLI
 @SuppressWarnings("removal")
 class FlightTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(FlightTransport.class);
-    private static final String DEFAULT_PROFILE = "default";
+    private static final String DEFAULT_PROFILE = "stream_profile";
 
     private final PortsRange portRange;
     private final String[] bindHosts;
@@ -269,6 +269,8 @@ class FlightTransport extends TcpTransport {
             TransportAddress publishAddress = node.getStreamAddress();
             String address = publishAddress.getAddress();
             int flightPort = publishAddress.address().getPort();
+            // TODO: check feasibility of GRPC_DOMAIN_SOCKET for local connections
+            // This would require server to addListener on GRPC_DOMAIN_SOCKET
             Location location = sslContextProvider != null
                 ? Location.forGrpcTls(address, flightPort)
                 : Location.forGrpcInsecure(address, flightPort);
