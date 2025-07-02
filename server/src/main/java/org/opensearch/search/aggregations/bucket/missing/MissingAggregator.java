@@ -123,15 +123,15 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
             return false;
         }
 
-        // There is a chance that when the fieldName does not exist, there could be a missing
-        // parameter. We must check that case separately.
+        // When fieldname does not exist, we cannot collect through the precomputation.
         if (fieldName == null || weight == null) {
-            // we do not collect any documents through the missing aggregation when the missing parameter
-            // is up.
-            if (valuesSourceConfig != null && valuesSourceConfig.missing() != null) {
-                return true;
-            }
             return false;
+        }
+
+        // we do not collect any documents through the missing aggregation when the missing parameter
+        // is up.
+        if (valuesSourceConfig != null && valuesSourceConfig.missing() != null) {
+            return true;
         }
 
         // The optimization could only be used if there are no deleted documents and the top-level

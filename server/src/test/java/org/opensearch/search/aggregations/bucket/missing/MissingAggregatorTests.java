@@ -452,7 +452,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field("unknown_field").missing(randomLong());
 
-        // Having the missing parameter will make the missing aggregator not responsible for any documents, so it will short circuit
+        // Because the field is unmapped, the fieldname will not existm so we cannot collect through precomputation optimization.
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 final long randomLong = randomLong();
@@ -466,7 +466,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
             assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
-        }, singleton(aggFieldType), 0);
+        }, singleton(aggFieldType), numDocs);
 
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
@@ -475,7 +475,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
             assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
-        }, singleton(aggFieldType), 0);
+        }, singleton(aggFieldType), numDocs);
     }
 
     public void testMissingParam() throws IOException {
