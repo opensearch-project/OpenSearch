@@ -109,6 +109,7 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadManagementSettings;
 import org.joda.time.Instant;
 import org.junit.Before;
 
@@ -178,7 +179,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         }
     }
 
-    public void testAutoTaggingSingleRule() throws Exception {
+    public void testExactIndexMatchTriggersTagging() throws Exception {
         String workloadGroupId = "wlm_auto_tag_single";
         String ruleId = "wlm_auto_tag_test_rule";
         String indexName = "logs-tagged-index";
@@ -212,10 +213,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         });
 
         // Step 7: Clean up
-        setWlmMode(null);
+        clearWlmModeSetting();
     }
 
-    public void testAutoTaggingWildCard() throws Exception {
+    public void testWildcardBasedAttributesAreTagged() throws Exception {
         String workloadGroupId = "wlm_auto_tag_single";
         String ruleId = "wlm_auto_tag_test_rule";
         String indexName = "logs-tagged-index";
@@ -238,10 +239,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             assertTrue("Expected completions to increase", completionsAfter > completionsBefore);
         });
 
-        setWlmMode(null);
+        clearWlmModeSetting();
     }
 
-    public void testAutoTaggingMultipleRules() throws Exception {
+    public void testMultipleRulesDoNotInterfereWithEachOther() throws Exception {
         String index1 = "test_1";
         String index2 = "test_2";
         String testIndex = "test_*";
@@ -278,10 +279,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             assertTrue("Expected completions for group 2 not to increase", post2 == pre2);
         });
 
-        setWlmMode(null);
+        clearWlmModeSetting();
     }
 
-    public void testAutoTaggingRuleUpdate() throws Exception {
+    public void testTaggingTriggeredAfterRuleUpdate() throws Exception {
         String workloadGroupId = "wlm_auto_tag_update";
         String ruleId = "wlm_auto_tag_update_rule";
         String indexName = "update_index";
@@ -316,10 +317,16 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int postUpdateCompletions = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase after rule update", postUpdateCompletions > preUpdateCompletions);
         });
-        setWlmMode(null);
+
+        clearWlmModeSetting();
     }
 
     // Helper functions
+    public void clearWlmModeSetting() {
+        Settings.Builder builder = Settings.builder().putNull(WorkloadManagementSettings.WLM_MODE_SETTING.getKey());
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+    }
+
     private void createRule(String ruleId, String ruleName, String indexPattern, FeatureType featureType, String workloadGroupId)
         throws Exception {
         Rule rule = new Rule(
