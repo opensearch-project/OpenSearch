@@ -144,7 +144,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             }
         } catch (Exception e) {
             if (statsCollector != null) {
-                statsCollector.incrementSerializationErrors();
+                statsCollector.incrementServerTransportErrors();
             }
             listener.onFailure(new TransportException("Failed to send response batch for action [" + action + "]", e));
             messageListener.onResponseSent(requestId, action, e);
