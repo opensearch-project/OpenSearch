@@ -46,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix the visit of sub queries for HasParentQuery and HasChildQuery ([#18621](https://github.com/opensearch-project/OpenSearch/pull/18621))
 - Fix the backward compatibility regression with COMPLEMENT for Regexp queries introduced in OpenSearch 3.0 ([#18640](https://github.com/opensearch-project/OpenSearch/pull/18640))
 - Fix Replication lag computation ([#18602](https://github.com/opensearch-project/OpenSearch/pull/18602))
+- Add task cancellation checks in FetchPhase in aggregation reductions ([18673](https://github.com/opensearch-project/OpenSearch/pull/18673))
 
 ### Security
 
