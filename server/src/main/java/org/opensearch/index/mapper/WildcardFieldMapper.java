@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -219,6 +220,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         Tokenizer tokenizer = new WildcardFieldTokenizer();
         tokenizer.setReader(new StringReader(value));
         context.doc().add(new Field(fieldType().name(), tokenizer, FIELD_TYPE));
+        context.doc().add(new StringField(fieldType().name(), value, null));
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         } else {
