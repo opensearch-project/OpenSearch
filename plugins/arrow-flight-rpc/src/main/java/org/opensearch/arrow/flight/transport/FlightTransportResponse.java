@@ -235,9 +235,6 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
      * @throws RuntimeException if deserialization fails
      */
     private T deserializeResponse(VectorSchemaRoot root) {
-        if (root.getRowCount() == 0) {
-            throw new IllegalStateException("Empty response received");
-        }
         try (VectorStreamInput input = new VectorStreamInput(root, namedWriteableRegistry)) {
             return handler.read(input);
         } catch (IOException e) {
