@@ -19,9 +19,11 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
@@ -52,9 +54,24 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 public class IndexStoredRulePersistenceService implements RulePersistenceService {
+    // Default value for max rules count
+    public static final int MAX_ALLOWED_RULE_COUNT = 10000;
+
+    // max wlm rules setting name
+    public static final String MAX_RULES_COUNT_SETTING_NAME = "wlm.autotagging.max_rules";
+
+    // max wlm rules setting
+    public static final Setting<Integer> MAX_WLM_RULES_SETTING = Setting.intSetting(
+        MAX_RULES_COUNT_SETTING_NAME,
+        MAX_ALLOWED_RULE_COUNT,
+        10,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     /**
      * The system index name used for storing rules
      */
+    private int maxAllowedRulesCount;
     private final String indexName;
     private final Client client;
     private final ClusterService clusterService;
@@ -87,6 +104,12 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         this.maxRulesPerPage = maxRulesPerPage;
         this.parser = parser;
         this.queryBuilder = queryBuilder;
+        this.maxAllowedRulesCount = MAX_WLM_RULES_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_WLM_RULES_SETTING, this::setMaxAllowedRules);
+    }
+
+    private void setMaxAllowedRules(int maxAllowedRules) {
+        this.maxAllowedRulesCount = maxAllowedRules;
     }
 
     /**
@@ -101,9 +124,24 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                 logger.error("Index {} does not exist", indexName);
                 listener.onFailure(new IllegalStateException("Index" + indexName + " does not exist"));
             } else {
+                performCardinalityCheck(listener);
                 Rule rule = request.getRule();
                 validateNoDuplicateRule(rule, ActionListener.wrap(unused -> persistRule(rule, listener), listener::onFailure));
             }
+        }
+    }
+
+    private void performCardinalityCheck(ActionListener<CreateRuleResponse> listener) {
+        SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(queryBuilder.getCardinalityQuery()).get();
+        if (searchResponse.getHits().getTotalHits() != null && searchResponse.getHits().getTotalHits().value() >= maxAllowedRulesCount) {
+            listener.onFailure(
+                new OpenSearchRejectedExecutionException(
+                    "This create operation will violate"
+                        + " the cardinality limit of "
+                        + MAX_ALLOWED_RULE_COUNT
+                        + ". Please delete some stale or redundant rules first"
+                )
+            );
         }
     }
 

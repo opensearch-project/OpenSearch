@@ -53,4 +53,9 @@ public class IndexBasedRuleQueryMapper implements RuleQueryMapper<QueryBuilder> 
         }
         return boolQuery;
     }
+
+    @Override
+    public QueryBuilder getCardinalityQuery() {
+        return QueryBuilders.matchAllQuery();
+    }
 }
