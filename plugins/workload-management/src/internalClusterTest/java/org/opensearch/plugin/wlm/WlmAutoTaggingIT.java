@@ -275,8 +275,8 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int post1 = getCompletions(workloadGroupId1);
             int post2 = getCompletions(workloadGroupId2);
 
-            assertTrue("Expected completions for group 1 not to increase", post1 == pre1);
-            assertTrue("Expected completions for group 2 not to increase", post2 == pre2);
+            assertTrue("Expected completions for group 1 not to increase (pre: \" + pre1 + \", post: \" + post1 + \")", post1 == pre1);
+            assertTrue("Expected completions for group 2 not to increase (pre: \" + pre2 + \", post: \" + post2 + \")", post2 == pre2);
         });
 
         clearWlmModeSetting();
