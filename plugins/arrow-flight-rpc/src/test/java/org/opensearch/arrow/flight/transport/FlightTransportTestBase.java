@@ -1,0 +1,176 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.arrow.flight.transport;
+
+import org.apache.arrow.flight.FlightClient;
+import org.apache.arrow.flight.Location;
+import org.opensearch.Version;
+import org.opensearch.arrow.flight.bootstrap.ServerConfig;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.StreamTransportService;
+import org.opensearch.transport.TransportMessageListener;
+import org.opensearch.transport.TransportRequest;
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Collections;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+
+public abstract class FlightTransportTestBase extends OpenSearchTestCase {
+
+    protected DiscoveryNode remoteNode;
+    protected Location serverLocation;
+    protected HeaderContext headerContext;
+    protected ThreadPool threadPool;
+    protected NamedWriteableRegistry namedWriteableRegistry;
+    protected FlightStatsCollector statsCollector;
+    protected BoundTransportAddress boundAddress;
+    protected FlightTransport flightTransport;
+    protected StreamTransportService streamTransportService;
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
+        TransportAddress streamAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9401);
+        TransportAddress transportAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        remoteNode = new DiscoveryNode(new DiscoveryNode("test-node-id", transportAddress, Version.CURRENT), streamAddress);
+        boundAddress = new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress);
+        serverLocation = Location.forGrpcInsecure("localhost", 9401);
+        headerContext = new HeaderContext();
+
+        Settings settings = Settings.builder().put("node.name", getTestName()).build();
+        ServerConfig.init(settings);
+        threadPool = new ThreadPool(settings, ServerConfig.getClientExecutorBuilder(), ServerConfig.getServerExecutorBuilder());
+        namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        statsCollector = new FlightStatsCollector();
+
+        flightTransport = new FlightTransport(
+            settings,
+            Version.CURRENT,
+            threadPool,
+            new PageCacheRecycler(settings),
+            new NoneCircuitBreakerService(),
+            namedWriteableRegistry,
+            new NetworkService(Collections.emptyList()),
+            mock(Tracer.class),
+            null,
+            statsCollector
+        );
+        flightTransport.start();
+
+        streamTransportService = spy(
+            new StreamTransportService(
+                settings,
+                flightTransport,
+                threadPool,
+                StreamTransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> remoteNode,
+                null,
+                Collections.emptySet(),
+                mock(Tracer.class)
+            )
+        );
+        streamTransportService.connectToNode(remoteNode);
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        if (streamTransportService != null) {
+            streamTransportService.close();
+        }
+        if (flightTransport != null) {
+            flightTransport.close();
+        }
+        if (threadPool != null) {
+            threadPool.shutdown();
+        }
+        super.tearDown();
+    }
+
+    protected FlightClientChannel createChannel(FlightClient flightClient) {
+        return createChannel(flightClient, threadPool);
+    }
+
+    protected FlightClientChannel createChannel(FlightClient flightClient, ThreadPool customThreadPool) {
+        return new FlightClientChannel(
+            boundAddress,
+            flightClient,
+            remoteNode,
+            serverLocation,
+            headerContext,
+            "test-profile",
+            flightTransport.getResponseHandlers(),
+            customThreadPool,
+            new TransportMessageListener() {
+            },
+            namedWriteableRegistry,
+            statsCollector
+        );
+    }
+
+    protected static class TestRequest extends TransportRequest {
+        public TestRequest() {}
+
+        public TestRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+        }
+    }
+
+    protected static class TestResponse extends TransportResponse {
+        private final String data;
+
+        public TestResponse() {
+            this.data = null;
+        }
+
+        public TestResponse(String data) {
+            this.data = data;
+        }
+
+        public TestResponse(StreamInput in) throws IOException {
+            super(in);
+            this.data = in.readOptionalString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(data);
+        }
+
+        public String getData() {
+            return data;
+        }
+    }
+}
