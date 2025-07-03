@@ -264,7 +264,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         indexDocument(index1);
         indexDocument(index2);
 
-
         assertBusy(() -> {
             int pre1 = getCompletions(workloadGroupId1);
             int pre2 = getCompletions(workloadGroupId2);
