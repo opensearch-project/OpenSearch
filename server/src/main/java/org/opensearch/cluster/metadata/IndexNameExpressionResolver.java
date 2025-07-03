@@ -89,7 +89,7 @@ public class IndexNameExpressionResolver {
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
     private final List<ExpressionResolver> expressionResolvers;
-    private final List<ExpressionResolver> customResolvers = Collections.emptyList();
+    private final List<ExpressionResolver> customResolvers = new ArrayList<>();
 
     private final ThreadContext threadContext;
 
@@ -109,6 +109,11 @@ public class IndexNameExpressionResolver {
         expressionResolvers.add(dateMathExpressionResolver);
         expressionResolvers.add(wildcardExpressionResolver);
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
+    }
+
+    // Visible for testing
+    public List<ExpressionResolver> getExpressionResolvers() {
+        return new ArrayList<>(this.expressionResolvers);
     }
 
     /**
