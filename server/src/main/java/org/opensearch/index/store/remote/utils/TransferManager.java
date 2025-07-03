@@ -76,10 +76,7 @@ public class TransferManager {
             return AccessController.doPrivileged((PrivilegedExceptionAction<IndexInput>) () -> {
                 CachedIndexInput cacheEntry = fileCache.get(key);
                 if (cacheEntry == null || cacheEntry.isClosed()) {
-                    cacheEntry = fileCache.compute(
-                        key,
-                        (path, cachedIndexInput) -> new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest)
-                    );
+                    cacheEntry = fileCache.put(key, new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest));
                 }
 
                 // Cache entry was either retrieved from the cache or newly added, either
