@@ -265,7 +265,7 @@ public final class MockTransportService extends TransportService {
         this(
             settings,
             new StubbableTransport(transport),
-            new StubbableTransport(streamTransport),
+            streamTransport != null ? new StubbableTransport(streamTransport) : null,
             threadPool,
             interceptor,
             localNodeFactory,
