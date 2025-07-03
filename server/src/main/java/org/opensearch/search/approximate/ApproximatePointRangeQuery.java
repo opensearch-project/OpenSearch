@@ -36,7 +36,6 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.Objects;
 import java.util.function.Function;
 

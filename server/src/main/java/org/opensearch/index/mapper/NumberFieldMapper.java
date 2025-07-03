@@ -1125,7 +1125,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 long v = parse(value, true);
-                Query dvQuery =  null;
+                Query dvQuery = null;
                 if (hasDocValues) {
                     dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
                 }
@@ -1299,13 +1299,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
                     return new ApproximateScoreQuery(
                         query,
-                        new ApproximatePointRangeQuery(
-                            field,
-                            exactPoint,
-                            exactPoint,
-                            1,
-                            ApproximatePointRangeQuery.BIG_INTEGER_FORMAT
-                        )
+                        new ApproximatePointRangeQuery(field, exactPoint, exactPoint, 1, ApproximatePointRangeQuery.BIG_INTEGER_FORMAT)
                     );
                 }
                 return dvQuery;
