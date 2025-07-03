@@ -156,6 +156,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.profiler = profiler;
     }
 
+    public QueryProfiler getProfiler() {
+        return profiler;
+    }
+
     /**
      * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
      * DirectoryReader but also while collecting them and check for query cancellation or timeout.
