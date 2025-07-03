@@ -45,6 +45,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.approximate.ApproximateBooleanQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -335,7 +337,15 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-        return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
+
+        if (adjustPureNegative) {
+            query = fixNegativeQueryIfNeeded(query);
+        }
+
+        // TODO: Figure out why multi-clause breaks testPhrasePrefix() in HighlighterWithAnalyzersTests.java
+        return ((BooleanQuery) query).clauses().size() == 1
+            ? new ApproximateScoreQuery(query, new ApproximateBooleanQuery((BooleanQuery) query))
+            : query;
     }
 
     private static void addBooleanClauses(
