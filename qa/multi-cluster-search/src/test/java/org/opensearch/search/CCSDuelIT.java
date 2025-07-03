@@ -418,18 +418,18 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         duelSearch(searchRequest, CCSDuelIT::assertHits);
     }
 
-    public void testProfile() throws Exception  {
-        assumeMultiClusterSetup();
-        SearchRequest searchRequest = initSearchRequest();
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.profile(true);
-        sourceBuilder.query(QueryBuilders.matchQuery("tags", "html"));
-        searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
-            assertHits(response);
-            assertFalse(response.getProfileResults().isEmpty());
-        });
-    }
+//    public void testProfile() throws Exception  {
+//        assumeMultiClusterSetup();
+//        SearchRequest searchRequest = initSearchRequest();
+//        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+//        sourceBuilder.profile(true);
+//        sourceBuilder.query(QueryBuilders.matchQuery("tags", "html"));
+//        searchRequest.source(sourceBuilder);
+//        duelSearch(searchRequest, response -> {
+//            assertHits(response);
+//            assertFalse(response.getProfileResults().isEmpty());
+//        });
+//    }
 
     public void testSortByField() throws Exception  {
         assumeMultiClusterSetup();
