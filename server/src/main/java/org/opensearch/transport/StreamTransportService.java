@@ -113,7 +113,7 @@ public class StreamTransportService extends TransportService {
         try {
             return connectionManager.getConnection(node);
         } catch (Exception e) {
-            logger.error("Failed to get streaming connection to node [{}]", node, e);
+            logger.error("Failed to get streaming connection to node [{}]: {}", node, e.getMessage());
             throw new ConnectTransportException(node, "Failed to get streaming connection", e);
         }
     }
