@@ -36,11 +36,14 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 public abstract class FlightTransportTestBase extends OpenSearchTestCase {
+
+    private static final AtomicInteger portCounter = new AtomicInteger(0);
 
     protected DiscoveryNode remoteNode;
     protected Location serverLocation;
@@ -57,14 +60,21 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        TransportAddress streamAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9401);
-        TransportAddress transportAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        int basePort = getBasePort(9500);
+        int streamPort = basePort + portCounter.incrementAndGet();
+        int transportPort = basePort + portCounter.incrementAndGet();
+
+        TransportAddress streamAddress = new TransportAddress(InetAddress.getLoopbackAddress(), streamPort);
+        TransportAddress transportAddress = new TransportAddress(InetAddress.getLoopbackAddress(), transportPort);
         remoteNode = new DiscoveryNode(new DiscoveryNode("test-node-id", transportAddress, Version.CURRENT), streamAddress);
         boundAddress = new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress);
-        serverLocation = Location.forGrpcInsecure("localhost", 9401);
+        serverLocation = Location.forGrpcInsecure("localhost", streamPort);
         headerContext = new HeaderContext();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
+        Settings settings = Settings.builder()
+            .put("node.name", getTestName())
+            .put("aux.transport.transport-flight.port", streamPort)
+            .build();
         ServerConfig.init(settings);
         threadPool = new ThreadPool(settings, ServerConfig.getClientExecutorBuilder(), ServerConfig.getServerExecutorBuilder());
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -150,10 +160,6 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
 
     protected static class TestResponse extends TransportResponse {
         private final String data;
-
-        public TestResponse() {
-            this.data = null;
-        }
 
         public TestResponse(String data) {
             this.data = data;
