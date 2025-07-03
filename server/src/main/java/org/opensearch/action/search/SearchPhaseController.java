@@ -566,11 +566,14 @@ public final class SearchPhaseController {
         List<InternalAggregations> toReduce,
         BooleanSupplier isTaskCancelled
     ) {
+        if (toReduce.isEmpty()) {
+            return null;
+        }
         final ReduceContext reduceContext = performFinalReduce
             ? aggReduceContextBuilder.forFinalReduction()
             : aggReduceContextBuilder.forPartialReduction();
         reduceContext.setIsTaskCancelled(isTaskCancelled);
-        return toReduce.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce, reduceContext);
+        return InternalAggregations.topLevelReduce(toReduce, reduceContext);
     }
 
     /**
