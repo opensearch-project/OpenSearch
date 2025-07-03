@@ -344,10 +344,10 @@ class FlightClientChannel implements TcpChannel {
      */
     private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception e, long startTime) {
         try {
+            logger.error("Exception while handling stream response", e);
             Header header = streamResponse.currentHeader();
             if (header != null) {
                 long requestId = header.getRequestId();
-                logger.error("Failed to handle stream for requestId [{}]: {}", requestId, e.getMessage());
                 TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
                 if (handler != null) {
                     handler.handleException(new TransportException(e));
