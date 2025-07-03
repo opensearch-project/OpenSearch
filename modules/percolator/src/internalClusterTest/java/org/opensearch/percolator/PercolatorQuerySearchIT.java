@@ -291,43 +291,40 @@ public class PercolatorQuerySearchIT extends ParameterizedStaticSettingsOpenSear
             .get();
         logger.info("response={}", response);
         assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
+        assertSearchHits(response, "3", "1");
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 11).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertSearchHits(response, "1");
 
         // Test double range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field2", 12).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("6"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("4"));
+        assertSearchHits(response, "6", "4");
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field2", 11).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("4"));
+        assertSearchHits(response, "4");
 
         // Test IP range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field3", "192.168.1.5").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("9"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("7"));
+        assertSearchHits(response, "9", "7");
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field3", "192.168.1.4").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("7"));
+        assertSearchHits(response, "7");
 
         // Test date range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field4", "2016-05-15").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("10"));
+        assertSearchHits(response, "10");
     }
 
     public void testPercolatorGeoQueries() throws Exception {

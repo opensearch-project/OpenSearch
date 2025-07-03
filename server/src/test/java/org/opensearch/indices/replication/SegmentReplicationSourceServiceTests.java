@@ -23,6 +23,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -38,6 +39,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,6 +63,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
     private SegmentReplicationSourceService segmentReplicationSourceService;
     private OngoingSegmentReplications ongoingSegmentReplications;
     private IndexShard mockIndexShard;
+    private IndicesService mockIndicesService;
 
     @Override
     public void setUp() throws Exception {
@@ -68,7 +71,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         // setup mocks
         mockIndexShard = CopyStateTests.createMockIndexShard();
         ShardId testShardId = mockIndexShard.shardId();
-        IndicesService mockIndicesService = mock(IndicesService.class);
+        mockIndicesService = mock(IndicesService.class);
         IndexService mockIndexService = mock(IndexService.class);
         when(mockIndicesService.iterator()).thenReturn(List.of(mockIndexService).iterator());
         when(mockIndicesService.indexServiceSafe(testShardId.getIndex())).thenReturn(mockIndexService);
@@ -85,6 +88,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         when(mockIndexShard.isPrimaryMode()).thenReturn(true);
         final ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(mockIndexShard.getReplicationGroup()).thenReturn(replicationGroup);
+        when(mockIndexShard.state()).thenReturn(IndexShardState.STARTED);
         when(replicationGroup.getInSyncAllocationIds()).thenReturn(Collections.emptySet());
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
         testCheckpoint = new ReplicationCheckpoint(
@@ -112,6 +116,8 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         final Settings settings = Settings.builder().put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName()).build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
+        when(mockIndexShard.getRecoverySettings()).thenReturn(recoverySettings);
+        when(mockIndexShard.getThreadPool()).thenReturn(testThreadPool);
 
         ongoingSegmentReplications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
         segmentReplicationSourceService = new SegmentReplicationSourceService(
@@ -146,6 +152,71 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(Exception e) {
                 fail("unexpected exception: " + e);
+            }
+        });
+    }
+
+    public void testGetMergedSegmentFiles() {
+        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
+            1,
+            "allocationId",
+            localNode,
+            Collections.emptyList(),
+            testCheckpoint
+        );
+        executeGetMergedSegmentFiles(request, new ActionListener<>() {
+            @Override
+            public void onResponse(GetSegmentFilesResponse response) {
+                assertEquals(0, response.files.size());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected exception: " + e);
+            }
+        });
+    }
+
+    public void testGetMergedSegmentFiles_shardClosed() {
+        when(mockIndexShard.state()).thenReturn(IndexShardState.CLOSED);
+        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
+            1,
+            "allocationId",
+            localNode,
+            Collections.emptyList(),
+            testCheckpoint
+        );
+        executeGetMergedSegmentFiles(request, new ActionListener<>() {
+            @Override
+            public void onResponse(GetSegmentFilesResponse response) {
+                Assert.fail("Test should fail");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert e.getCause() instanceof IllegalStateException;
+            }
+        });
+    }
+
+    public void testGetMergedSegmentFiles_shardNonPrimary() {
+        when(mockIndexShard.isPrimaryMode()).thenReturn(false);
+        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
+            1,
+            "allocationId",
+            localNode,
+            Collections.emptyList(),
+            testCheckpoint
+        );
+        executeGetMergedSegmentFiles(request, new ActionListener<>() {
+            @Override
+            public void onResponse(GetSegmentFilesResponse response) {
+                Assert.fail("Test should fail");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert e.getCause() instanceof IllegalStateException;
             }
         });
     }
@@ -228,6 +299,35 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         transportService.sendRequest(
             localNode,
             SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES,
+            request,
+            new TransportResponseHandler<GetSegmentFilesResponse>() {
+                @Override
+                public void handleResponse(GetSegmentFilesResponse response) {
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public GetSegmentFilesResponse read(StreamInput in) throws IOException {
+                    return new GetSegmentFilesResponse(in);
+                }
+            }
+        );
+    }
+
+    private void executeGetMergedSegmentFiles(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
+        transportService.sendRequest(
+            localNode,
+            SegmentReplicationSourceService.Actions.GET_MERGED_SEGMENT_FILES,
             request,
             new TransportResponseHandler<GetSegmentFilesResponse>() {
                 @Override
