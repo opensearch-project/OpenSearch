@@ -51,9 +51,9 @@ public class ResourceTrackerProvider {
         /**
          * Creates a new ResourceTrackers instance.
          *
-         * @param cpuOneMinute CPU tracker with 1-minute window
+         * @param cpuOneMinute  CPU tracker with 1-minute window
          * @param cpuFiveMinute CPU tracker with 5-minute window
-         * @param jvmOneMinute JVM memory tracker with 1-minute window
+         * @param jvmOneMinute  JVM memory tracker with 1-minute window
          * @param jvmFiveMinute JVM memory tracker with 5-minute window
          */
         ResourceTrackers(
@@ -66,6 +66,20 @@ public class ResourceTrackerProvider {
             this.cpuFiveMinute = cpuFiveMinute;
             this.jvmOneMinute = jvmOneMinute;
             this.jvmFiveMinute = jvmFiveMinute;
+        }
+
+        public void start() {
+            cpuOneMinute.start();
+            cpuFiveMinute.start();
+            jvmOneMinute.start();
+            jvmFiveMinute.start();
+        }
+
+        public void stop() {
+            cpuOneMinute.stop();
+            cpuFiveMinute.stop();
+            jvmOneMinute.stop();
+            jvmFiveMinute.stop();
         }
     }
 }

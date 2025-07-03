@@ -18,6 +18,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -187,6 +188,31 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         autoForceMergeManager.start();
         assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.close();
+    }
+
+    public void testNodeValidatorWithFeatureSwitch() {
+        when(cpu.getPercent()).thenReturn((short) 50);
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
+        ThreadPoolStats stats = new ThreadPoolStats(
+            Arrays.asList(new ThreadPoolStats.Stats(
+                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0
+            ))
+        );
+        when(threadPool.stats()).thenReturn(stats);
+        Settings settings = getConfiguredClusterSettings(false, false, Collections.emptyMap());
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(settings, getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        autoForceMergeManager.start();
+        assertFalse(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
+        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
         autoForceMergeManager.close();
     }
 

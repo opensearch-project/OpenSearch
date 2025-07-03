@@ -287,6 +287,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
 
         @Override
         public ValidationResult validate() {
+            resourceTrackers.start();
             if (isCpuUsageOverThreshold()) {
                 return new ValidationResult(false);
             }
@@ -476,6 +477,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         @Override
         protected void runInternal() {
             if (configurationValidator.validate().isAllowed() == false) {
+                resourceTrackers.stop();
                 return;
             }
             triggerForceMerge();

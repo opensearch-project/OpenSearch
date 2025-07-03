@@ -104,7 +104,7 @@ public class ForceMergeManagerSettings {
     );
 
     /**
-     * Setting for memory threshold. (default: 85)
+     * Setting for disk threshold. (default: 85)
      */
     public static final Setting<Double> DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
         "node.auto_force_merge.disk.threshold",
