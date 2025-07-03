@@ -18,15 +18,22 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 class VectorStreamOutput extends StreamOutput {
 
     private int row = 0;
     private final VarBinaryVector vector;
+    private Optional<VectorSchemaRoot> root = Optional.empty();
 
-    public VectorStreamOutput(BufferAllocator allocator) {
-        Field field = new Field("0", new FieldType(true, new ArrowType.Binary(), null, null), null);
-        vector = (VarBinaryVector) field.createVector(allocator);
+    public VectorStreamOutput(BufferAllocator allocator, Optional<VectorSchemaRoot> root) {
+        if (root.isPresent()) {
+            vector = (VarBinaryVector) root.get().getVector(0);
+            this.root = root;
+        } else {
+            Field field = new Field("0", new FieldType(true, new ArrowType.Binary(), null, null), null);
+            vector = (VarBinaryVector) field.createVector(allocator);
+        }
         vector.allocateNew();
     }
 
@@ -67,8 +74,10 @@ class VectorStreamOutput extends StreamOutput {
 
     public VectorSchemaRoot getRoot() {
         vector.setValueCount(row);
-        VectorSchemaRoot root = new VectorSchemaRoot(List.of(vector));
-        root.setRowCount(row);
-        return root;
+        if (!root.isPresent()) {
+            root = Optional.of(new VectorSchemaRoot(List.of(vector)));
+        }
+        root.get().setRowCount(row);
+        return root.get();
     }
 }
