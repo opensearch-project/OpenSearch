@@ -264,18 +264,15 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         indexDocument(index1);
         indexDocument(index2);
 
+
         assertBusy(() -> {
             int pre1 = getCompletions(workloadGroupId1);
             int pre2 = getCompletions(workloadGroupId2);
 
-            client().prepareSearch(index1).setQuery(QueryBuilders.matchAllQuery()).get();
-            client().prepareSearch(index2).setQuery(QueryBuilders.matchAllQuery()).get();
-            client().admin().indices().prepareRefresh(testIndex).get();
+            client().prepareSearch(testIndex).setQuery(QueryBuilders.matchAllQuery()).get();
 
             int post1 = getCompletions(workloadGroupId1);
             int post2 = getCompletions(workloadGroupId2);
-
-            logger.info("pre1 = {}, post1 = {}, pre2 = {}, post2 = {}", pre1, post1, pre2, post2);
 
             assertTrue("Expected completions for group 1 not to increase", post1 == pre1);
             assertTrue("Expected completions for group 2 not to increase", post2 == pre2);
