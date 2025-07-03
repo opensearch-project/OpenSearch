@@ -53,14 +53,6 @@ internalClusterTest{
 
 thirdPartyAudit {
   ignoreMissingClasses(
-    'com.fasterxml.jackson.databind.JsonNode',
-    'com.fasterxml.jackson.databind.ObjectMapper',
-    'com.fasterxml.jackson.databind.node.ArrayNode',
-    'com.fasterxml.jackson.databind.node.BooleanNode',
-    'com.fasterxml.jackson.databind.node.JsonNodeFactory',
-    'com.fasterxml.jackson.databind.node.JsonNodeType',
-    'com.fasterxml.jackson.databind.node.NullNode',
-    'com.fasterxml.jackson.databind.node.ObjectNode',
     'net.jpountz.lz4.LZ4Compressor',
     'net.jpountz.lz4.LZ4Factory',
     'net.jpountz.lz4.LZ4SafeDecompressor',
