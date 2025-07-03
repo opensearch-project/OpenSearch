@@ -67,7 +67,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                         Query approximateQuery = new ApproximatePointRangeQuery(
                             "point",
                             packedValue,
-                                packedValue,
+                            packedValue,
                             dims,
                             ApproximatePointRangeQuery.LONG_FORMAT
                         );
@@ -110,7 +110,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                         Query approximateQuery = new ApproximatePointRangeQuery(
                             "point",
                             packedValue,
-                                packedValue,
+                            packedValue,
                             dims,
                             ApproximatePointRangeQuery.LONG_FORMAT
                         );
@@ -152,7 +152,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                         Query approximateQuery = new ApproximatePointRangeQuery(
                             "point",
                             packedValue,
-                                packedValue,
+                            packedValue,
                             dims,
                             ApproximatePointRangeQuery.LONG_FORMAT
                         );
@@ -196,7 +196,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                         Query approximateQuery = new ApproximatePointRangeQuery(
                             "point",
                             packedValue,
-                                packedValue,
+                            packedValue,
                             dims,
                             ApproximatePointRangeQuery.LONG_FORMAT
                         );
@@ -241,7 +241,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                         Query approximateQuery = new ApproximatePointRangeQuery(
                             "point",
                             packedValue,
-                                packedValue,
+                            packedValue,
                             dims,
                             ApproximatePointRangeQuery.LONG_FORMAT
                         );
@@ -290,7 +290,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                         Query approximateQuery = new ApproximatePointRangeQuery(
                             "point",
                             packedValue,
-                                packedValue,
+                            packedValue,
                             dims,
                             ApproximatePointRangeQuery.LONG_FORMAT
                         );
@@ -319,7 +319,13 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
         long value = 42;
         byte[] packedValue = pack(new long[] { value }).bytes;
 
-        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery("point", packedValue, packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT);
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+            "point",
+            packedValue,
+            packedValue,
+            1,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
         assertEquals(query.getSize(), 10_000);
 
         query.setSize(100);
@@ -330,7 +336,13 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
         long value = 42;
         byte[] packedValue = pack(new long[] { value }).bytes;
 
-        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery("point", packedValue, packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT);
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+            "point",
+            packedValue,
+            packedValue,
+            1,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
         assertNull(query.getSortOrder());
 
         query.setSortOrder(SortOrder.ASC);
@@ -341,14 +353,20 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
         long value = 42;
         byte[] packedValue = pack(new long[] { value }).bytes;
 
-        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery("point", packedValue, packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT);
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+            "point",
+            packedValue,
+            packedValue,
+            1,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
 
         assertFalse(query.canApproximate(null));
 
         ApproximatePointRangeQuery queryCanApproximate = new ApproximatePointRangeQuery(
             "point",
             packedValue,
-                packedValue,
+            packedValue,
             1,
             ApproximatePointRangeQuery.LONG_FORMAT
         ) {
@@ -364,7 +382,13 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
         long value = 42;
         byte[] packedValue = pack(new long[] { value }).bytes;
 
-        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery("point", packedValue, packedValue, 1, ApproximatePointRangeQuery.LONG_FORMAT);
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+            "point",
+            packedValue,
+            packedValue,
+            1,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
         SearchContext mockContext = mock(SearchContext.class);
         when(mockContext.trackTotalHitsUpTo()).thenReturn(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         assertFalse(query.canApproximate(mockContext));
@@ -398,7 +422,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                     ApproximatePointRangeQuery approximateQuery = new ApproximatePointRangeQuery(
                         "int",
                         packedValue,
-                            packedValue,
+                        packedValue,
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
@@ -443,7 +467,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                     ApproximatePointRangeQuery approximateQuery = new ApproximatePointRangeQuery(
                         "point",
                         packedValue,
-                            packedValue,
+                        packedValue,
                         1,
                         ApproximatePointRangeQuery.LONG_FORMAT
                     );
@@ -489,7 +513,7 @@ public class ApproximateTermQueryTests extends OpenSearchTestCase {
                     ApproximatePointRangeQuery approximateQuery = new ApproximatePointRangeQuery(
                         "point",
                         packedValue,
-                            packedValue,
+                        packedValue,
                         1,
                         ApproximatePointRangeQuery.LONG_FORMAT
                     );

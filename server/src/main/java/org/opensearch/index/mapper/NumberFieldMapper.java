@@ -298,15 +298,34 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Query termQuery(String field, Object value, boolean hasDocValues, boolean isSearchable) {
                 float v = parse(value, false);
-                if (isSearchable && hasDocValues) {
-                    Query query = HalfFloatPoint.newExactQuery(field, v);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
-                    return new IndexOrDocValuesQuery(query, dvQuery);
-                }
+                Query dvQuery = null;
                 if (hasDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
+                    dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
                 }
-                return HalfFloatPoint.newExactQuery(field, v);
+                if (isSearchable) {
+                    Query pointQuery = HalfFloatPoint.newExactQuery(field, v);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointQuery, dvQuery);
+                    } else {
+                        query = pointQuery;
+                    }
+
+                    // Use this instead of HalfFloatPoint's pack until Lucene 10.3.0
+                    byte[] exactPoint = NumberType.HALF_FLOAT.encodePoint(v);
+
+                    return new ApproximateScoreQuery(
+                        query,
+                        new ApproximatePointRangeQuery(
+                            field,
+                            exactPoint,
+                            exactPoint,
+                            new float[] { v }.length,
+                            ApproximatePointRangeQuery.HALF_FLOAT_FORMAT
+                        )
+                    );
+                }
+                return dvQuery;
             }
 
             @Override
@@ -474,22 +493,30 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Query termQuery(String field, Object value, boolean hasDocValues, boolean isSearchable) {
                 float v = parse(value, false);
-                if (isSearchable && hasDocValues) {
+                Query dvQuery = null;
+                if (hasDocValues) {
+                    dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
+                }
+                if (isSearchable) {
+                    Query pointQuery = FloatPoint.newExactQuery(field, v);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointQuery, dvQuery);
+                    } else {
+                        query = pointQuery;
+                    }
                     return new ApproximateScoreQuery(
-                        FloatPoint.newExactQuery(field, v),
+                        query,
                         new ApproximatePointRangeQuery(
                             field,
                             FloatPoint.pack(new float[] { v }).bytes,
                             FloatPoint.pack(new float[] { v }).bytes,
-                            1,
-                            bytes -> Float.toString(FloatPoint.decodeDimension(bytes, 0))
+                            new float[] { v }.length,
+                            ApproximatePointRangeQuery.FLOAT_FORMAT
                         )
                     );
                 }
-                if (hasDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
-                }
-                return FloatPoint.newExactQuery(field, v);
+                return dvQuery;
             }
 
             @Override
@@ -648,22 +675,30 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Query termQuery(String field, Object value, boolean hasDocValues, boolean isSearchable) {
                 double v = parse(value, false);
-                if (isSearchable && hasDocValues) {
+                Query dvQuery = null;
+                if (hasDocValues) {
+                    dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
+                }
+                if (isSearchable) {
+                    Query pointQuery = DoublePoint.newExactQuery(field, v);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointQuery, dvQuery);
+                    } else {
+                        query = pointQuery;
+                    }
                     return new ApproximateScoreQuery(
-                        DoublePoint.newExactQuery(field, v),
+                        query,
                         new ApproximatePointRangeQuery(
                             field,
                             DoublePoint.pack(new double[] { v }).bytes,
                             DoublePoint.pack(new double[] { v }).bytes,
-                            1,
-                            bytes -> Double.toString(DoublePoint.decodeDimension(bytes, 0))
+                            new double[] { v }.length,
+                            ApproximatePointRangeQuery.DOUBLE_FORMAT
                         )
                     );
                 }
-                if (hasDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
-                }
-                return DoublePoint.newExactQuery(field, v);
+                return dvQuery;
             }
 
             @Override
@@ -983,22 +1018,30 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 int v = parse(value, true);
-                if (isSearchable && hasDocValues) {
+                Query dvQuery = null;
+                if (hasDocValues) {
+                    dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                }
+                if (isSearchable) {
+                    Query pointQuery = IntPoint.newExactQuery(field, v);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointQuery, dvQuery);
+                    } else {
+                        query = pointQuery;
+                    }
                     return new ApproximateScoreQuery(
-                        IntPoint.newExactQuery(field, v),
+                        query,
                         new ApproximatePointRangeQuery(
                             field,
                             IntPoint.pack(new int[] { v }).bytes,
                             IntPoint.pack(new int[] { v }).bytes,
-                            1,
+                            new int[] { v }.length,
                             ApproximatePointRangeQuery.INT_FORMAT
                         )
                     );
                 }
-                if (hasDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
-                }
-                return IntPoint.newExactQuery(field, v);
+                return dvQuery;
             }
 
             @Override
@@ -1176,22 +1219,30 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 long v = parse(value, true);
-                if (isSearchable && hasDocValues) {
+                Query dvQuery = null;
+                if (hasDocValues) {
+                    dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                }
+                if (isSearchable) {
+                    Query pointQuery = LongPoint.newExactQuery(field, v);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointQuery, dvQuery);
+                    } else {
+                        query = pointQuery;
+                    }
                     return new ApproximateScoreQuery(
-                        LongPoint.newExactQuery(field, v),
+                        query,
                         new ApproximatePointRangeQuery(
                             field,
                             LongPoint.pack(new long[] { v }).bytes,
                             LongPoint.pack(new long[] { v }).bytes,
-                            1,
+                            new long[] { v }.length,
                             ApproximatePointRangeQuery.LONG_FORMAT
                         )
                     );
                 }
-                if (hasDocValues) {
-                    return SortedNumericDocValuesField.newSlowExactQuery(field, v);
-                }
-                return LongPoint.newExactQuery(field, v);
+                return dvQuery;
             }
 
             @Override
@@ -1323,15 +1374,28 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 BigInteger v = parse(value, true);
-                if (isSearchable && hasDocValues) {
-                    Query query = BigIntegerPoint.newExactQuery(field, v);
-                    Query dvQuery = SortedUnsignedLongDocValuesSetQuery.newSlowExactQuery(field, v);
-                    return new IndexOrDocValuesQuery(query, dvQuery);
-                }
+                Query dvQuery = null;
                 if (hasDocValues) {
-                    return SortedUnsignedLongDocValuesSetQuery.newSlowExactQuery(field, v);
+                    dvQuery = SortedUnsignedLongDocValuesSetQuery.newSlowExactQuery(field, v);
                 }
-                return BigIntegerPoint.newExactQuery(field, v);
+                if (isSearchable) {
+                    Query pointQuery = BigIntegerPoint.newExactQuery(field, v);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointQuery, dvQuery);
+                    } else {
+                        query = pointQuery;
+                    }
+
+                    // Until Lucene 10.3.0
+                    byte[] exactPoint = NumberType.UNSIGNED_LONG.encodePoint(v);
+
+                    return new ApproximateScoreQuery(
+                        query,
+                        new ApproximatePointRangeQuery(field, exactPoint, exactPoint, 1, ApproximatePointRangeQuery.UNSIGNED_LONG_FORMAT)
+                    );
+                }
+                return dvQuery;
             }
 
             @Override
