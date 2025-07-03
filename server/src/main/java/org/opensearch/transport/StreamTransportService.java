@@ -34,6 +34,8 @@ import static org.opensearch.discovery.HandshakingTransportAddressConnector.PROB
  */
 public class StreamTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(StreamTransportService.class);
+    // TODO make it configurable
+    private static final TimeValue DEFAULT_STREAM_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     public StreamTransportService(
         Settings settings,
@@ -81,7 +83,7 @@ public class StreamTransportService extends TransportService {
             action,
             request,
             parentTask,
-            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).withTimeout(DEFAULT_STREAM_TIMEOUT).build(),
             handler
         );
     }

@@ -132,7 +132,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                 headerBuffer = ByteBuffer.wrap(headerBytes.toBytesRef().bytes);
             }
 
-            try (VectorStreamOutput out = new VectorStreamOutput(flightChannel.getAllocator())) {
+            try (VectorStreamOutput out = new VectorStreamOutput(flightChannel.getAllocator(), flightChannel.getRoot())) {
                 response.writeTo(out);
                 flightChannel.sendBatch(headerBuffer, out, listener);
                 messageListener.onResponseSent(requestId, action, response);

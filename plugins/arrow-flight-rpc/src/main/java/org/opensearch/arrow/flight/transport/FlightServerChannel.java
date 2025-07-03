@@ -15,7 +15,6 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
-import org.opensearch.common.SetOnce;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.transport.TcpChannel;
@@ -28,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -45,7 +45,7 @@ class FlightServerChannel implements TcpChannel {
     private final InetSocketAddress remoteAddress;
     private final List<ActionListener<Void>> closeListeners = Collections.synchronizedList(new ArrayList<>());
     private final ServerHeaderMiddleware middleware;
-    private final SetOnce<VectorSchemaRoot> root = new SetOnce<>();
+    private Optional<VectorSchemaRoot> root = Optional.empty();
     private final FlightStatsCollector statsCollector;
     private volatile long requestStartTime;
 
@@ -69,6 +69,10 @@ class FlightServerChannel implements TcpChannel {
         return allocator;
     }
 
+    Optional<VectorSchemaRoot> getRoot() {
+        return root;
+    }
+
     /**
      * Sends a batch of data as a VectorSchemaRoot.
      *
@@ -82,11 +86,12 @@ class FlightServerChannel implements TcpChannel {
         long batchStartTime = System.nanoTime();
         try {
             // Only set for the first batch
-            if (root.get() == null) {
+            if (root.isEmpty()) {
                 middleware.setHeader(header);
-                root.trySet(output.getRoot());
+                root = Optional.of(output.getRoot());
                 serverStreamListener.start(root.get());
             } else {
+                root = Optional.of(output.getRoot());
                 // placeholder to clear and fill the root with data for the next batch
             }
 
