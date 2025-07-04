@@ -51,7 +51,7 @@ public class PublishMergedSegmentActionProvider implements Provider<MergedSegmen
     @Override
     public MergedSegmentPublisher.PublishAction get() {
         if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING) == false) {
-            return null;
+            return (indexShard, checkpoint) -> {};
         }
         // TODO: FIX THIS
         if (false) {// || clusterService.localNode().isRemoteStoreNode() == false) {

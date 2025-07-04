@@ -8,17 +8,22 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.IndexInput;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FullFileCachedIndexInputTests extends FileCachedIndexInputTests {
     private FullFileCachedIndexInput fullFileCachedIndexInput;
 
     @Override
     protected void setupIndexInputAndAddToFileCache() {
         fullFileCachedIndexInput = new FullFileCachedIndexInput(fileCache, filePath, underlyingIndexInput);
+        // Putting in the file cache would increase refCount to 1
         fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, fullFileCachedIndexInput));
     }
 
@@ -37,15 +42,11 @@ public class FullFileCachedIndexInputTests extends FileCachedIndexInputTests {
         fileCache.decRef(filePath);
         assertFalse(isActiveAndTotalUsageSame());
 
-        // After cloning the refCount will increase again and activeUsage and totalUsage will be same again
-        FileCachedIndexInput clonedFileCachedIndexInput1 = fullFileCachedIndexInput.clone();
-        FileCachedIndexInput clonedFileCachedIndexInput2 = clonedFileCachedIndexInput1.clone();
-        FileCachedIndexInput clonedFileCachedIndexInput3 = clonedFileCachedIndexInput2.clone();
-        assertTrue(isActiveAndTotalUsageSame());
+        // Since no clones have been done, refCount should be zero
+        assertEquals((int) fileCache.getRef(filePath), 0);
 
-        // closing the first level clone will close all subsequent level clones and reduce ref count to 0
-        clonedFileCachedIndexInput1.close();
-        assertFalse(isActiveAndTotalUsageSame());
+        createUnclosedClonesSlices(false);
+        triggerGarbageCollectionAndAssertClonesClosed();
 
         fileCache.prune();
 
@@ -68,12 +69,38 @@ public class FullFileCachedIndexInputTests extends FileCachedIndexInputTests {
         fileCache.decRef(filePath);
         assertFalse(isActiveAndTotalUsageSame());
 
-        // Creating a slice will increase the refCount
-        IndexInput slicedFileCachedIndexInput = fullFileCachedIndexInput.slice(SLICE_DESC, 1, 2);
-        assertTrue(isActiveAndTotalUsageSame());
+        // Since no clones have been done, refCount should be zero
+        assertEquals((int) fileCache.getRef(filePath), 0);
 
-        // Closing the parent will close all the slices as well decreasing the refCount to 0
-        fullFileCachedIndexInput.close();
+        createUnclosedClonesSlices(true);
+        triggerGarbageCollectionAndAssertClonesClosed();
+
         assertFalse(isActiveAndTotalUsageSame());
+    }
+
+    private void triggerGarbageCollectionAndAssertClonesClosed() {
+        try {
+            // Clones/Slices will be phantom reachable now, triggering gc should call close on them
+            assertBusy(() -> {
+                System.gc(); // Do not rely on GC to be deterministic, hence the polling
+                assertEquals(
+                    "Expected refCount to drop to zero as all clones/slices should have closed",
+                    (int) fileCache.getRef(filePath),
+                    0
+                );
+            }, 5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.error("Exception thrown while triggering gc", e);
+            fail();
+        }
+    }
+
+    private void createUnclosedClonesSlices(boolean createSlice) throws IOException {
+        int NUM_OF_CLONES = 3;
+        for (int i = 0; i < NUM_OF_CLONES; i++) {
+            if (createSlice) fullFileCachedIndexInput.slice("slice", 1, 2);
+            else fullFileCachedIndexInput.clone();
+        }
+        assertEquals((int) fileCache.getRef(filePath), NUM_OF_CLONES);
     }
 }

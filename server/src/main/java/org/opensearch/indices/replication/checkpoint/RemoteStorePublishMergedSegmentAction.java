@@ -10,12 +10,14 @@ package org.opensearch.indices.replication.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
@@ -23,6 +25,7 @@ import org.opensearch.index.shard.RemoteStoreUploaderService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.ActiveMergesSegmentRegistry;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.search.profile.Timer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -30,6 +33,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckpointAction<
@@ -93,16 +97,28 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         if (!(checkpoint instanceof RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint)) {
             throw new AssertionError("Expected checkpoint to be an instance of " + RemoteStoreMergedSegmentCheckpoint.class);
         }
+        Timer timer = new Timer("remote_store:publish_merged_segments");
+        try {
+            publishMergedSegmentsToRemoteStore(indexShard, mergedSegmentCheckpoint);
+        } finally {
+            timer.stop();
+        }
 
-        publishMergedSegmentsToRemoteStore(indexShard, mergedSegmentCheckpoint);
-        doPublish(
-            indexShard,
-            checkpoint,
-            new RemoteStorePublishMergedSegmentRequest(mergedSegmentCheckpoint),
-            "segrep_publish_merged_segment",
-            true,
-            indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout()
-        );
+        long timeoutNanos = indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().nanos();
+        long elapsedNanos = timer.getApproximateTiming();
+        long remainingNanos = timeoutNanos - elapsedNanos;
+        long timeLeft = Math.max(0, remainingNanos);
+
+        if (timeLeft > 0) {
+            doPublish(
+                indexShard,
+                checkpoint,
+                new RemoteStorePublishMergedSegmentRequest(mergedSegmentCheckpoint),
+                "segrep_publish_merged_segment",
+                true,
+                TimeValue.timeValueNanos(timeLeft)
+            );
+        }
     }
 
     private void publishMergedSegmentsToRemoteStore(IndexShard indexShard, RemoteStoreMergedSegmentCheckpoint checkpoint) {
@@ -115,21 +131,24 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().length()));
 
         final CountDownLatch latch = new CountDownLatch(segmentsToUpload.size());
-
+        AtomicBoolean isUploadSuccessful = new AtomicBoolean(true);
         // TODO: Upload in low priority
         remoteStoreUploaderService.uploadSegments(segmentsToUpload, segmentsSizeMap, new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
                 if (logger.isTraceEnabled() == true) {
-                    logger.trace("Successfully uploaded segments {} to remote store", segmentsToUpload);
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "actionlistener onresponse called: Successfully uploaded segments {} to remote store",
+                            segmentsToUpload
+                        )
+                    );
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Failed to upload segments {} to remote store", segmentsToUpload, e);
-                segmentsToUpload.forEach(activeMergesSegmentRegistry::unregister);
-                throw new RuntimeException(e);
+                logger.warn(() -> new ParameterizedMessage("Failed to upload segments {} to remote store. {}", segmentsToUpload, e));
             }
         }, (x) -> new UploadListener() {
             @Override
@@ -139,26 +158,33 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
 
             @Override
             public void onSuccess(String file) {
-                checkpoint.updateLocalToRemoteSegmentFilenameMap(file, activeMergesSegmentRegistry.getExistingRemoteSegmentFilename(file));
-                latch.countDown();
+                try {
+                    checkpoint.updateLocalToRemoteSegmentFilenameMap(
+                        file,
+                        activeMergesSegmentRegistry.getExistingRemoteSegmentFilename(file)
+                    );
+                } finally {
+                    latch.countDown();
+                }
             }
 
             @Override
             public void onFailure(String file) {
-                segmentsToUpload.forEach(activeMergesSegmentRegistry::unregister);
-                /**
-                 * TODO: abort merge
-                 */
+                try {
+                    logger.warn("Unable to upload segments during merge. Continuing.");
+                    activeMergesSegmentRegistry.unregister(file);
+                } finally {
+                    latch.countDown();
+                }
             }
         });
         try {
+            // TODO: Finalize timeout
             if (latch.await(60, TimeUnit.MINUTES) == false) {
-                throw new RuntimeException("Merged segment upload timed out.");
+                logger.warn("Unable to confirm successful merge segment downloads by replicas. Continuing.");
             }
-            ; // TODO: Finalize timeout
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-            // TODO: abort merge properly here
+            logger.warn("Unable to confirm successful merge segment downloads by replicas. Continuing.");
         }
     }
 

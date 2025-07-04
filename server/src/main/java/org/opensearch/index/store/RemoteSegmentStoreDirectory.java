@@ -682,7 +682,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
         if (activeMergesSegmentRegistry.contains(src)) {
-            logger.info("[{}] Calling updateRemoteSegmentFileName for {} {}", Thread.currentThread().getName(), src, remoteFilename);
             activeMergesSegmentRegistry.updateMetadata(src, segmentMetadata);
             return;
         }
@@ -706,7 +705,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     activeMergesSegmentRegistry.unregister(segment);
                 }
             } catch (IOException e) {
-                logger.error("Exception while updating segmentsUploadedToRemoteStore for segment {}", segment, e);
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Exception while updating segmentsUploadedToRemoteStore for segment {}. Error - {}",
+                        segment,
+                        e
+                    )
+                );
             }
         });
     }

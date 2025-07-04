@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -18,6 +20,7 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -28,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCacheTests extends OpenSearchTestCase {
     // need concurrency level to be static to make these tests more deterministic because capacity per segment is dependent on
     // (total capacity) / (concurrency level) so having high concurrency level might trigger early evictions which is tolerable in real life

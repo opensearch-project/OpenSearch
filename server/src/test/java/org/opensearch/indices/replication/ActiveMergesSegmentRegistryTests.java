@@ -9,8 +9,8 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -18,15 +18,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ActiveMergesSegmentRegistryTests {
+public class ActiveMergesSegmentRegistryTests extends OpenSearchTestCase {
 
     private ActiveMergesSegmentRegistry registry;
     private UploadedSegmentMetadata mockMetadata;
@@ -48,28 +43,24 @@ public class ActiveMergesSegmentRegistryTests {
         registry.filenameRegistry.clear();
     }
 
-    @Test
     public void testSingletonInstance() {
         ActiveMergesSegmentRegistry instance1 = ActiveMergesSegmentRegistry.getInstance();
         ActiveMergesSegmentRegistry instance2 = ActiveMergesSegmentRegistry.getInstance();
         assertSame(instance1, instance2);
     }
 
-    @Test
     public void testRegisterSegment() {
         String filename = "segment_1.si";
         registry.register(filename);
         assertTrue(registry.contains(filename));
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testRegisterDuplicateSegment() {
         String filename = "segment_1.si";
         registry.register(filename);
-        registry.register(filename); // Should throw exception
+        assertThrows(IllegalArgumentException.class, () -> registry.register(filename));
     }
 
-    @Test
     public void testUpdateMetadata() {
         String filename = "segment_1.si";
         registry.register(filename);
@@ -79,12 +70,10 @@ public class ActiveMergesSegmentRegistryTests {
         assertTrue(registry.contains("remote_segment_1.si"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testUpdateMetadataUnregisteredSegment() {
-        registry.updateMetadata("unregistered_segment.si", mockMetadata);
+        assertThrows(IllegalArgumentException.class, () -> registry.updateMetadata("unregistered_segment.si", mockMetadata));
     }
 
-    @Test
     public void testUnregisterSegment() {
         String filename = "segment_1.si";
         registry.register(filename);
@@ -97,13 +86,11 @@ public class ActiveMergesSegmentRegistryTests {
         assertNull(registry.getMetadata(filename));
     }
 
-    @Test
     public void testUnregisterNonExistentSegment() {
         // Should not throw exception
         registry.unregister("non_existent.si");
     }
 
-    @Test
     public void testGetExistingRemoteSegmentFilename() {
         String filename = "segment_1.si";
         registry.register(filename);
@@ -112,14 +99,12 @@ public class ActiveMergesSegmentRegistryTests {
         assertEquals("remote_segment_1.si", registry.getExistingRemoteSegmentFilename(filename));
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testGetExistingRemoteSegmentFilenameNoMetadata() {
         String filename = "segment_1.si";
         registry.register(filename);
         registry.getExistingRemoteSegmentFilename(filename); // Metadata not available
     }
 
-    @Test
     public void testCanDelete() {
         String filename = "segment_1.si";
         assertTrue(registry.canDelete(filename)); // Not registered
@@ -131,7 +116,6 @@ public class ActiveMergesSegmentRegistryTests {
         assertTrue(registry.canDelete(filename)); // Unregistered
     }
 
-    @Test
     public void testConcurrentAccess() throws InterruptedException {
         int threadCount = 10;
         int operationsPerThread = 100;
@@ -164,7 +148,6 @@ public class ActiveMergesSegmentRegistryTests {
         executor.shutdown();
     }
 
-    @Test
     public void testMultipleSegmentsLifecycle() {
         String[] filenames = { "seg1.si", "seg2.si", "seg3.si" };
         UploadedSegmentMetadata[] metadatas = new UploadedSegmentMetadata[3];
