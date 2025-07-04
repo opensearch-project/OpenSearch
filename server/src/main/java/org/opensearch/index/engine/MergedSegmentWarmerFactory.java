@@ -59,7 +59,7 @@ public class MergedSegmentWarmerFactory {
 
     public IndexWriter.IndexReaderWarmer get(IndexShard shard) {
         if (shard.indexSettings().isAssignedOnRemoteNode()) {
-            return new RemoteStoreMergedSegmentWarmer(transportService, recoverySettings, clusterService);
+            return new RemoteStoreMergedSegmentWarmer(transportService, recoverySettings, clusterService, shard);
         } else if (shard.indexSettings().isSegRepLocalEnabled()) {
             return new LocalMergedSegmentWarmer(transportService, recoverySettings, clusterService, shard);
         } else if (shard.indexSettings().isDocumentReplication()) {
