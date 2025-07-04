@@ -517,6 +517,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount + 1);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18157")
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
         final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         final String replica = internalCluster().startDataAndWarmNodes(1).get(0);

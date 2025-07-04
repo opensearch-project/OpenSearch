@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
@@ -125,6 +126,61 @@ public class ClusterModuleTests extends ModuleTestCase {
         public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
             throw new UnsupportedOperationException("explain API not supported on FakeShardsAllocator");
         }
+    }
+
+    static class FakeExpressionResolver implements IndexNameExpressionResolver.ExpressionResolver {
+        @Override
+        public List<String> resolve(IndexNameExpressionResolver.Context context, List<String> expressions) {
+            throw new UnsupportedOperationException("resolve operation not supported on FakeExpressionResolver");
+        }
+    }
+
+    static class AnotherFakeExpressionResolver implements IndexNameExpressionResolver.ExpressionResolver {
+        @Override
+        public List<String> resolve(IndexNameExpressionResolver.Context context, List<String> expressions) {
+            throw new UnsupportedOperationException("resolve operation not supported on FakeExpressionResolver");
+        }
+    }
+
+    public void testRegisterCustomExpressionResolver() {
+        FakeExpressionResolver customResolver1 = new FakeExpressionResolver();
+        AnotherFakeExpressionResolver customResolver2 = new AnotherFakeExpressionResolver();
+        List<ClusterPlugin> clusterPlugins = Collections.singletonList(new ClusterPlugin() {
+            @Override
+            public Collection<IndexNameExpressionResolver.ExpressionResolver> getIndexNameCustomResolvers() {
+                return Arrays.asList(customResolver1, customResolver2);
+            }
+        });
+        ClusterModule module = new ClusterModule(
+            Settings.EMPTY,
+            clusterService,
+            clusterPlugins,
+            clusterInfoService,
+            null,
+            threadContext,
+            null
+        );
+        assertTrue(module.getIndexNameExpressionResolver().getExpressionResolvers().contains(customResolver1));
+        assertTrue(module.getIndexNameExpressionResolver().getExpressionResolvers().contains(customResolver2));
+    }
+
+    public void testRegisterCustomExpressionResolverDuplicate() {
+        FakeExpressionResolver customResolver1 = new FakeExpressionResolver();
+        FakeExpressionResolver customResolver2 = new FakeExpressionResolver();
+        List<ClusterPlugin> clusterPlugins = Collections.singletonList(new ClusterPlugin() {
+            @Override
+            public Collection<IndexNameExpressionResolver.ExpressionResolver> getIndexNameCustomResolvers() {
+                return Arrays.asList(customResolver1, customResolver2);
+            }
+        });
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ClusterModule(Settings.EMPTY, clusterService, clusterPlugins, clusterInfoService, null, threadContext, null)
+        );
+        assertEquals(
+            "Cannot specify expression resolver [org.opensearch.cluster.ClusterModuleTests$FakeExpressionResolver] twice",
+            ex.getMessage()
+        );
     }
 
     public void testRegisterClusterDynamicSettingDuplicate() {
