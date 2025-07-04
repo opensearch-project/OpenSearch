@@ -11,6 +11,7 @@ package org.opensearch.index.store.remote.filecache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
@@ -23,13 +24,17 @@ import org.opensearch.index.store.remote.utils.cache.stats.RefCountedCacheStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.RecursiveAction;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static org.opensearch.env.NodeEnvironment.processDirectoryFiles;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
 import static org.opensearch.index.store.remote.utils.FileTypeUtils.INDICES_FOLDER_IDENTIFIER;
 
@@ -336,5 +341,62 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
         @Override
         public void close() throws Exception {}
+    }
+
+    /**
+     * A recursive task for loading file cache entries from disk during node startup.
+     * Uses fork-join parallelism to efficiently scan directories and restore cached files.
+     */
+    public static class LoadTask extends RecursiveAction {
+        private final Path path;
+        private final FileCache fc;
+        private final boolean processedDirectory;
+        private final SetOnce<IOException> exception;
+
+        public LoadTask(Path path, FileCache fc, SetOnce<IOException> exception) {
+            this.path = path;
+            this.fc = fc;
+            this.exception = exception;
+            this.processedDirectory = false;
+        }
+
+        public LoadTask(Path path, FileCache fc, SetOnce<IOException> exception, boolean processedDirectory) {
+            this.path = path;
+            this.fc = fc;
+            this.exception = exception;
+            this.processedDirectory = processedDirectory;
+        }
+
+        @Override
+        public void compute() {
+            List<LoadTask> subTasks = new ArrayList<>();
+            try {
+                if (processedDirectory) {
+                    this.fc.restoreFromDirectory(List.of(path));
+                } else {
+                    if (Files.isDirectory(path)) {
+                        try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(path)) {
+                            for (Path indexPath : indexStream) {
+                                if (Files.isDirectory(indexPath)) {
+                                    List<Path> indexSubPaths = new ArrayList<>();
+                                    processDirectoryFiles(indexPath, indexSubPaths);
+                                    for (Path indexSubPath : indexSubPaths) {
+                                        subTasks.add(new LoadTask(indexSubPath, fc, exception, true));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                try {
+                    exception.set(e);
+                } catch (Exception ignore) {
+                    // ignore if exception is already set
+                }
+                return;
+            }
+            invokeAll(subTasks);
+        }
     }
 }

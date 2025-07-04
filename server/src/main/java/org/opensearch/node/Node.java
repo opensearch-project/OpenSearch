@@ -315,6 +315,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -326,7 +327,6 @@ import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
 import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
-import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteClusterStateConfigured;
@@ -2253,8 +2253,12 @@ public class Node implements Closeable {
 
         this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
-        List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath, settings);
-        this.fileCache.restoreFromDirectory(fileCacheDataPaths);
+        ForkJoinPool pool = ForkJoinPool.commonPool();
+        org.apache.lucene.util.SetOnce<IOException> exception = new org.apache.lucene.util.SetOnce<>();
+        pool.invoke(new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception));
+        if (DiscoveryNode.isDedicatedWarmNode(settings)) {
+            pool.invoke(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
+        }
     }
 
     private static long calculateFileCacheSize(String capacityRaw, long totalSpace) {
