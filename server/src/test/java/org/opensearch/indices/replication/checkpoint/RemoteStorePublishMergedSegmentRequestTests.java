@@ -15,42 +15,50 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class PublishMergedSegmentRequestTests extends OpenSearchTestCase {
+public class RemoteStorePublishMergedSegmentRequestTests extends OpenSearchTestCase {
 
     public void testPublishMergedSegmentRequest() {
-        MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
+        RemoteStoreMergedSegmentCheckpoint checkpoint = new RemoteStoreMergedSegmentCheckpoint(
             new ShardId(new Index("1", "1"), 0),
             0,
             0,
             "",
             Collections.emptyMap(),
-            "_0"
+            "_0",
+            null
         );
-        PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
+
+        RemoteStorePublishMergedSegmentRequest request = new RemoteStorePublishMergedSegmentRequest(checkpoint);
         assertNull(request.validate());
         assertEquals(checkpoint, request.getMergedSegment());
         assertEquals(Objects.hash(checkpoint), request.hashCode());
+        assertEquals(checkpoint.getLocalToRemoteSegmentFilenameMap(), Map.of());
+        checkpoint.updateLocalToRemoteSegmentFilenameMap("_0", "_0__uuid");
+        assertEquals(checkpoint.getLocalToRemoteSegmentFilenameMap(), Map.of("_0", "_0__uuid"));
     }
 
     public void testSerialize() throws Exception {
-        MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
+        RemoteStoreMergedSegmentCheckpoint checkpoint = new RemoteStoreMergedSegmentCheckpoint(
             new ShardId(new Index("1", "1"), 0),
             0,
             0,
             "",
             Collections.emptyMap(),
-            "_0"
+            "_0",
+            null
         );
-        PublishMergedSegmentRequest originalRequest = new PublishMergedSegmentRequest(checkpoint);
-        PublishMergedSegmentRequest cloneRequest;
+        RemoteStorePublishMergedSegmentRequest originalRequest = new RemoteStorePublishMergedSegmentRequest(checkpoint);
+        RemoteStorePublishMergedSegmentRequest cloneRequest;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                cloneRequest = new PublishMergedSegmentRequest(in);
+                cloneRequest = new RemoteStorePublishMergedSegmentRequest(in);
             }
         }
         assertThat(cloneRequest, equalTo(originalRequest));
