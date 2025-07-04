@@ -20,12 +20,15 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteStoreFileDownloader;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
+import java.rmi.Remote;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -150,6 +153,56 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
         } catch (IOException | RuntimeException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     **/
+    @Override
+    public void getMergedSegmentFiles(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        List<StoreFileMetadata> filesToFetch,
+        IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
+        ActionListener<GetSegmentFilesResponse> listener
+    ) {
+        try {
+            assert checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
+
+            if (filesToFetch.isEmpty()) {
+                listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+                return;
+            }
+
+            RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = (RemoteStoreMergedSegmentCheckpoint) checkpoint;
+
+            final Directory storeDirectory = indexShard.store().directory();
+
+        Map<String, String> localToRemoteSegmentFileNameMap = mergedSegmentCheckpoint.getLocalToRemoteSegmentFilenameMap();
+
+            final List<RemoteStoreFileDownloader.FileCopySpec> toDownloadSegmentNames = new ArrayList<>();
+            for (StoreFileMetadata fileMetadata : filesToFetch) {
+                String file = fileMetadata.name();
+                toDownloadSegmentNames.add(
+                    new RemoteStoreFileDownloader.FileCopySpec(
+                        file,
+                        localToRemoteSegmentFileNameMap.get(file)
+                    )
+                );
+            }
+
+            indexShard.getFileDownloader()
+                .download(
+                    indexShard.getRemoteDirectory(),
+                    storeDirectory,
+                    null,
+                    toDownloadSegmentNames,
+                    () -> listener.onResponse(new GetSegmentFilesResponse(filesToFetch))
+                );
+        } catch (InterruptedException | IOException e) {
             listener.onFailure(e);
         }
     }
