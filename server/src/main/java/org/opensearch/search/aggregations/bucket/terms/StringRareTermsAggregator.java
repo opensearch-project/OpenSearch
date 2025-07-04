@@ -136,6 +136,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         long offset = 0;
         for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
             try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(context.bigArrays())) {
+                checkCancelled();
                 filters[owningOrdIdx] = newFilter();
                 List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
                 BytesKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);

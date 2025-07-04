@@ -71,6 +71,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long noopUpdateCount;
         private long throttleTimeInMillis;
         private boolean isThrottled;
+        private long maxLastIndexRequestTimestamp;
 
         Stats() {}
 
@@ -85,6 +86,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
+            if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+                maxLastIndexRequestTimestamp = in.readLong();
+            } else {
+                maxLastIndexRequestTimestamp = 0L;
+            }
         }
 
         public Stats(
@@ -99,6 +105,35 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             boolean isThrottled,
             long throttleTimeInMillis
         ) {
+            this(
+                indexCount,
+                indexTimeInMillis,
+                indexCurrent,
+                indexFailedCount,
+                deleteCount,
+                deleteTimeInMillis,
+                deleteCurrent,
+                noopUpdateCount,
+                isThrottled,
+                throttleTimeInMillis,
+                docStatusStats,
+                0L
+            );
+        }
+
+        public Stats(
+            long indexCount,
+            long indexTimeInMillis,
+            long indexCurrent,
+            long indexFailedCount,
+            long deleteCount,
+            long deleteTimeInMillis,
+            long deleteCurrent,
+            long noopUpdateCount,
+            boolean isThrottled,
+            long throttleTimeInMillis,
+            long maxLastIndexRequestTimestamp
+        ) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
@@ -109,6 +144,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.noopUpdateCount = noopUpdateCount;
             this.isThrottled = isThrottled;
             this.throttleTimeInMillis = throttleTimeInMillis;
+            this.maxLastIndexRequestTimestamp = maxLastIndexRequestTimestamp;
         }
 
         public void add(Stats stats) {
@@ -124,6 +160,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount += stats.noopUpdateCount;
             throttleTimeInMillis += stats.throttleTimeInMillis;
             isThrottled |= stats.isThrottled; // When combining if one is throttled set result to throttled.
+            maxLastIndexRequestTimestamp = Math.max(maxLastIndexRequestTimestamp, stats.maxLastIndexRequestTimestamp);
         }
 
         /**
@@ -193,6 +230,10 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return noopUpdateCount;
         }
 
+        public long getMaxLastIndexRequestTimestamp() {
+            return maxLastIndexRequestTimestamp;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
@@ -205,6 +246,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
+            if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+                out.writeLong(maxLastIndexRequestTimestamp);
+            }
         }
 
         @Override
@@ -223,6 +267,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.field(Fields.IS_THROTTLED, isThrottled);
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
 
+            builder.field(Fields.MAX_LAST_INDEX_REQUEST_TIMESTAMP, maxLastIndexRequestTimestamp);
             return builder;
         }
 
@@ -295,6 +340,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         static final String IS_THROTTLED = "is_throttled";
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
+        static final String MAX_LAST_INDEX_REQUEST_TIMESTAMP = "max_last_index_request_timestamp";
     }
 
     @Override

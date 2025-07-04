@@ -54,7 +54,7 @@ final class ProfileScorer extends Scorer {
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
-    ProfileScorer(Scorer scorer, AbstractProfileBreakdown<QueryTimingType> profile) throws IOException {
+    ProfileScorer(Scorer scorer, AbstractProfileBreakdown profile) throws IOException {
         this.scorer = scorer;
         scoreTimer = profile.getTimer(QueryTimingType.SCORE);
         nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);

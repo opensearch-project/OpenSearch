@@ -100,7 +100,9 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             + counter[3]
             + ",\"5xx\":"
             + counter[4]
-            + "}}}";
+            + "},\"max_last_index_request_timestamp\":"
+            + totalStats.getMaxLastIndexRequestTimestamp()
+            + "}}";
 
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         xContentBuilder.startObject();
@@ -109,6 +111,64 @@ public class IndexingStatsTests extends OpenSearchTestCase {
 
         assertEquals(expected, xContentBuilder.toString());
     }*/
+
+    /**
+     * Tests aggregation logic for maxLastIndexRequestTimestamp in IndexingStats.Stats.
+     * Uses reflection because the field is private and not settable via public API.
+     * This ensures that aggregation (add) always surfaces the maximum value, even across multiple adds and random values.
+     */
+    public void testMaxLastIndexRequestTimestampAggregation() throws Exception {
+        // Use explicit values for all fields except the timestamp
+        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
+        long ts1 = randomLongBetween(0, 1000000);
+        long ts2 = randomLongBetween(0, 1000000);
+        long ts3 = randomLongBetween(0, 1000000);
+        IndexingStats.Stats stats1 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts1);
+        IndexingStats.Stats stats2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts2);
+        IndexingStats.Stats stats3 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts3);
+
+        // Aggregate stats1 + stats2
+        stats1.add(stats2);
+        assertEquals(Math.max(ts1, ts2), stats1.getMaxLastIndexRequestTimestamp());
+
+        // Aggregate stats1 + stats3
+        stats1.add(stats3);
+        assertEquals(Math.max(Math.max(ts1, ts2), ts3), stats1.getMaxLastIndexRequestTimestamp());
+
+        // Test with zero and negative values
+        IndexingStats.Stats statsZero = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, 0L);
+        IndexingStats.Stats statsNeg = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, -100L);
+        statsZero.add(statsNeg);
+        assertEquals(0L, statsZero.getMaxLastIndexRequestTimestamp());
+
+        IndexingStats.Stats statsNeg2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, -50L);
+        statsNeg.add(statsNeg2);
+        assertEquals(-50L, statsNeg.getMaxLastIndexRequestTimestamp());
+    }
+
+    public void testMaxLastIndexRequestTimestampBackwardCompatibility() throws IOException {
+        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
+        long ts = randomLongBetween(0, 1000000);
+        IndexingStats.Stats stats = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts);
+
+        // Serialize with V_3_1_0 (should include the field)
+        BytesStreamOutput outNew = new BytesStreamOutput();
+        outNew.setVersion(org.opensearch.Version.V_3_2_0);
+        stats.writeTo(outNew);
+        StreamInput inNew = outNew.bytes().streamInput();
+        inNew.setVersion(org.opensearch.Version.V_3_2_0);
+        IndexingStats.Stats deserializedNew = new IndexingStats.Stats(inNew);
+        assertEquals(ts, deserializedNew.getMaxLastIndexRequestTimestamp());
+
+        // Serialize with V_2_11_0 (should NOT include the field, should default to 0)
+        BytesStreamOutput outOld = new BytesStreamOutput();
+        outOld.setVersion(org.opensearch.Version.V_2_11_0);
+        stats.writeTo(outOld);
+        StreamInput inOld = outOld.bytes().streamInput();
+        inOld.setVersion(org.opensearch.Version.V_2_11_0);
+        IndexingStats.Stats deserializedOld = new IndexingStats.Stats(inOld);
+        assertEquals(0L, deserializedOld.getMaxLastIndexRequestTimestamp());
+    }
 
     private IndexingStats createTestInstance() {
         IndexingStats.Stats stats = new IndexingStats.Stats(
@@ -121,7 +181,8 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomBoolean(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomLong()
         );
 
         return new IndexingStats(stats);

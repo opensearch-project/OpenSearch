@@ -189,19 +189,9 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
             .build();
 
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_2).setSettings(settings).get());
-
-        // Verify from the cluster settings if the data locality is partial
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices(INDEX_NAME_2).includeDefaults(true))
-            .get();
-
-        Settings indexSettings = getIndexResponse.settings().get(INDEX_NAME_2);
-        assertEquals(IndexModule.DataLocalityType.PARTIAL.name(), indexSettings.get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()));
 
         // Ingesting docs again before force merge
         indexBulk(INDEX_NAME_2, NUM_DOCS_IN_BULK);

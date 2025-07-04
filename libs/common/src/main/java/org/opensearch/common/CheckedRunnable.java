@@ -32,11 +32,14 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * A {@link Runnable}-like interface which allows throwing checked exceptions.
  *
  * @opensearch.api
  */
+@PublicApi(since = "3.2.0")
 @FunctionalInterface
 public interface CheckedRunnable<E extends Exception> {
     void run() throws E;

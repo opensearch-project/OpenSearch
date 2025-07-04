@@ -411,9 +411,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testUnsignedLongRangeQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
-        Query expected = new IndexOrDocValuesQuery(
+        Query indexOrDvQuery = new IndexOrDocValuesQuery(
             BigIntegerPoint.newRangeQuery("field", BigInteger.valueOf(1), BigInteger.valueOf(3)),
             SortedUnsignedLongDocValuesRangeQuery.newSlowRangeQuery("field", BigInteger.valueOf(1), BigInteger.valueOf(3))
+        );
+        Query expected = new ApproximateScoreQuery(
+            indexOrDvQuery,
+            new ApproximatePointRangeQuery(
+                "field",
+                NumberType.UNSIGNED_LONG.encodePoint(BigInteger.valueOf(1)),
+                NumberType.UNSIGNED_LONG.encodePoint(BigInteger.valueOf(3)),
+                1,
+                ApproximatePointRangeQuery.UNSIGNED_LONG_FORMAT
+            )
         );
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
 
@@ -443,12 +453,22 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testDoubleRangeQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
-        Query expected = new IndexOrDocValuesQuery(
+        Query indexOrDvQuery = new IndexOrDocValuesQuery(
             DoublePoint.newRangeQuery("field", 1d, 3d),
             SortedNumericDocValuesField.newSlowRangeQuery(
                 "field",
                 NumericUtils.doubleToSortableLong(1),
                 NumericUtils.doubleToSortableLong(3)
+            )
+        );
+        Query expected = new ApproximateScoreQuery(
+            indexOrDvQuery,
+            new ApproximatePointRangeQuery(
+                "field",
+                DoublePoint.pack(new double[] { 1d }).bytes,
+                DoublePoint.pack(new double[] { 3d }).bytes,
+                1,
+                ApproximatePointRangeQuery.DOUBLE_FORMAT
             )
         );
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
