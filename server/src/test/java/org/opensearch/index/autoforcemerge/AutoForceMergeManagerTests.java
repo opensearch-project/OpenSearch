@@ -237,10 +237,10 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         autoForceMergeManager.start();
         when(cpu.getPercent()).thenReturn((short) 95);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        for (int i = 0; i < 60; i++)
+        for (int i = 0; i < 10; i++)
             ResourceTrackerProvider.resourceTrackers.cpuOneMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        for (int i = 0; i < 60; i++)
+        for (int i = 0; i < 10; i++)
             ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
@@ -261,10 +261,10 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         autoForceMergeManager.start();
         when(jvm.getHeapUsedPercent()).thenReturn((short) 90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        for(int i = 0; i < 60; i++)
+        for(int i = 0; i < 10; i++)
             ResourceTrackerProvider.resourceTrackers.jvmOneMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        for(int i = 0; i < 60; i++)
+        for(int i = 0; i < 10; i++)
             ResourceTrackerProvider.resourceTrackers.jvmFiveMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();

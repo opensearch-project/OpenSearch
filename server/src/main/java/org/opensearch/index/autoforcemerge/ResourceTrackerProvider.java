@@ -20,8 +20,8 @@ import org.opensearch.threadpool.ThreadPool;
  */
 public class ResourceTrackerProvider {
 
-    public static final TimeValue AVERAGE_WINDOW_ONE_SECOND = TimeValue.timeValueSeconds(1);
-    public static final TimeValue AVERAGE_WINDOW_FIVE_SECOND = TimeValue.timeValueSeconds(5);
+    public static final TimeValue AVERAGE_WINDOW_ONE_SECOND = TimeValue.timeValueSeconds(6);
+    public static final TimeValue AVERAGE_WINDOW_FIVE_SECOND = TimeValue.timeValueSeconds(30);
     public static final TimeValue AVERAGE_WINDOW_ONE_MINUTE = TimeValue.timeValueMinutes(1);
     public static final TimeValue AVERAGE_WINDOW_FIVE_MINUTE = TimeValue.timeValueMinutes(5);
 
