@@ -11,7 +11,6 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
-import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
@@ -21,7 +20,6 @@ import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
-import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -102,12 +100,12 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Should not fail for empty segments")
         );
 
-        uploaderService.uploadSegments(emptySegments, segmentSizeMap, listener, mockUploadListenerFunction);
+        uploaderService.uploadSegments(emptySegments, segmentSizeMap, listener, mockUploadListenerFunction, false);
 
         assertTrue(latch.await(1, TimeUnit.SECONDS));
     }
 
-    public void testUploadSegmentsSuccess() throws Exception {
+    public void testUploadSegmentsSuccessWithHighPriorityUpload() throws Exception {
         Collection<String> segments = Arrays.asList("segment1", "segment2");
         Map<String, Long> segmentSizeMap = new HashMap<>();
         segmentSizeMap.put("segment1", 100L);
@@ -155,7 +153,63 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Upload should succeed: " + exception.getMessage())
         );
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        // Verify the upload listener was called correctly
+        verify(mockUploadListener, times(2)).beforeUpload(any(String.class));
+        verify(mockUploadListener, times(2)).onSuccess(any(String.class));
+    }
+
+    public void testUploadSegmentsSuccessWithLowPriorityUpload() throws Exception {
+        Collection<String> segments = Arrays.asList("segment1", "segment2");
+        Map<String, Long> segmentSizeMap = new HashMap<>();
+        segmentSizeMap.put("segment1", 100L);
+        segmentSizeMap.put("segment2", 200L);
+
+        // Create a fresh mock IndexShard
+        IndexShard freshMockShard = mock(IndexShard.class);
+        ShardId shardId = new ShardId(new Index("test", "test"), 1);
+        when(freshMockShard.shardId()).thenReturn(shardId);
+        when(freshMockShard.state()).thenReturn(IndexShardState.STARTED);
+
+        // Create a mock directory structure that matches what the code expects
+        Directory innerMockDelegate = mock(Directory.class);
+        FilterDirectory innerFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(innerMockDelegate));
+
+        FilterDirectory outerFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(innerFilterDirectory));
+
+        // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
+        RemoteDirectory remoteDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDirectory,
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            freshMockShard.getThreadPool(),
+            freshMockShard.shardId()
+        );
+
+        // Create a new uploader service with the fresh mocks
+        RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
+            freshMockShard,
+            outerFilterDirectory,
+            remoteSegmentStoreDirectory
+        );
+
+        doAnswer(invocation -> {
+            ActionListener<Void> callback = invocation.getArgument(5);
+            callback.onResponse(null);
+            return true;
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ActionListener<Void> listener = ActionListener.wrap(
+            response -> latch.countDown(),
+            exception -> fail("Upload should succeed: " + exception.getMessage())
+        );
+
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, true);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         // Verify the upload listener was called correctly
@@ -213,7 +267,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Upload should succeed: " + exception.getMessage())
         );
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         verify(mockCompositeDirectory).afterSyncToRemote("segment1");
@@ -272,7 +326,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             latch.countDown();
         });
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         verify(freshMockShard).failShard(eq("Index corrupted (resource=test)"), eq(corruptException));
@@ -331,101 +385,11 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             latch.countDown();
         });
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         verify(freshMockShard, never()).failShard(any(), any());
         verify(mockUploadListener).onFailure("segment1");
-    }
-
-    public void testIsLowPriorityUpload() {
-        when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        mockIndexShard.shardRouting = mockShardRouting;
-        when(mockShardRouting.primary()).thenReturn(true);
-
-        RecoveryState mockRecoveryState = mock(RecoveryState.class);
-        RecoverySource mockRecoverySource = mock(RecoverySource.class);
-        when(mockRecoverySource.getType()).thenReturn(RecoverySource.Type.LOCAL_SHARDS);
-        when(mockRecoveryState.getRecoverySource()).thenReturn(mockRecoverySource);
-        when(mockIndexShard.recoveryState()).thenReturn(mockRecoveryState);
-
-        assertTrue(uploaderService.isLowPriorityUpload());
-    }
-
-    public void testIsLocalOrSnapshotRecoveryOrSeedingWithLocalShards() {
-        when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        mockIndexShard.shardRouting = mockShardRouting;
-        when(mockShardRouting.primary()).thenReturn(true);
-
-        RecoveryState mockRecoveryState = mock(RecoveryState.class);
-        RecoverySource mockRecoverySource = mock(RecoverySource.class);
-        when(mockRecoverySource.getType()).thenReturn(RecoverySource.Type.LOCAL_SHARDS);
-        when(mockRecoveryState.getRecoverySource()).thenReturn(mockRecoverySource);
-        when(mockIndexShard.recoveryState()).thenReturn(mockRecoveryState);
-
-        assertTrue(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
-    }
-
-    public void testIsLocalOrSnapshotRecoveryOrSeedingWithSnapshot() {
-        when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        mockIndexShard.shardRouting = mockShardRouting;
-        when(mockShardRouting.primary()).thenReturn(true);
-
-        RecoveryState mockRecoveryState = mock(RecoveryState.class);
-        RecoverySource mockRecoverySource = mock(RecoverySource.class);
-        when(mockRecoverySource.getType()).thenReturn(RecoverySource.Type.SNAPSHOT);
-        when(mockRecoveryState.getRecoverySource()).thenReturn(mockRecoverySource);
-        when(mockIndexShard.recoveryState()).thenReturn(mockRecoveryState);
-
-        assertTrue(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
-    }
-
-    public void testIsLocalOrSnapshotRecoveryOrSeedingWithSeeding() {
-        when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        mockIndexShard.shardRouting = mockShardRouting;
-        when(mockShardRouting.primary()).thenReturn(true);
-
-        RecoveryState mockRecoveryState = mock(RecoveryState.class);
-        RecoverySource mockRecoverySource = mock(RecoverySource.class);
-        when(mockRecoverySource.getType()).thenReturn(RecoverySource.Type.PEER);
-        when(mockRecoveryState.getRecoverySource()).thenReturn(mockRecoverySource);
-        when(mockIndexShard.recoveryState()).thenReturn(mockRecoveryState);
-        when(mockIndexShard.shouldSeedRemoteStore()).thenReturn(true);
-
-        assertTrue(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
-    }
-
-    public void testIsLocalOrSnapshotRecoveryOrSeedingReturnsFalse() {
-        when(mockIndexShard.state()).thenReturn(IndexShardState.STARTED);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        mockIndexShard.shardRouting = mockShardRouting;
-        when(mockShardRouting.primary()).thenReturn(true);
-
-        assertFalse(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
-    }
-
-    public void testIsLocalOrSnapshotRecoveryOrSeedingWithNonPrimary() {
-        when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        mockIndexShard.shardRouting = mockShardRouting;
-        when(mockShardRouting.primary()).thenReturn(true);
-
-        assertFalse(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
-    }
-
-    public void testIsLocalOrSnapshotRecoveryOrSeedingWithNullRecoveryState() {
-        when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        mockIndexShard.shardRouting = mockShardRouting;
-        when(mockShardRouting.primary()).thenReturn(true);
-        when(mockIndexShard.recoveryState()).thenReturn(null);
-
-        assertFalse(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
     }
 
     public static class TestFilterDirectory extends FilterDirectory {

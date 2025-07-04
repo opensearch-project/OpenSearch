@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Interface to handle the functionality for upload data in the remote store
+ * Interface to handle the functionality for uploading data in the remote store
  */
 public interface RemoteStoreUploader {
 
@@ -24,6 +24,7 @@ public interface RemoteStoreUploader {
         Collection<String> localSegments,
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> listener,
-        Function<Map<String, Long>, UploadListener> uploadListenerFunction
+        Function<Map<String, Long>, UploadListener> uploadListenerFunction,
+        boolean isLowPriorityUpload
     );
 }

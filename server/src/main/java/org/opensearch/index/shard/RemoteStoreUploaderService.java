@@ -15,7 +15,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.action.support.GroupedActionListener;
-import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
@@ -50,7 +49,8 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
         Collection<String> localSegments,
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> listener,
-        Function<Map<String, Long>, UploadListener> uploadListenerFunction
+        Function<Map<String, Long>, UploadListener> uploadListenerFunction,
+        boolean isLowPriorityUpload
     ) {
         if (localSegments.isEmpty()) {
             logger.debug("No new segments to upload in uploadNewSegments");
@@ -83,22 +83,7 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
             });
             statsListener.beforeUpload(localSegment);
             // Place where the actual upload is happening
-            remoteDirectory.copyFrom(storeDirectory, localSegment, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload());
+            remoteDirectory.copyFrom(storeDirectory, localSegment, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload);
         }
-    }
-
-    boolean isLowPriorityUpload() {
-        return isLocalOrSnapshotRecoveryOrSeeding();
-    }
-
-    boolean isLocalOrSnapshotRecoveryOrSeeding() {
-        // In this case when the primary mode is false, we need to upload segments to Remote Store
-        // This is required in case of remote migration seeding/snapshots/shrink/ split/clone where we need to durable persist
-        // all segments to remote before completing the recovery to ensure durability.
-        return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
-            && indexShard.recoveryState() != null
-            && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
-                || indexShard.shouldSeedRemoteStore());
     }
 }
