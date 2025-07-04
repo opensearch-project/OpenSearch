@@ -444,11 +444,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private volatile RateLimiter remoteDownloadRateLimiter;
 
+    private volatile RateLimiter remoteDownloadLowPriorityRateLimiter;
+
     private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
 
     private final CounterMetric restoreRateLimitingTimeInNanos = new CounterMetric();
 
     private final CounterMetric remoteDownloadRateLimitingTimeInNanos = new CounterMetric();
+
+    private final CounterMetric remoteDownloadLowPriorityRateLimitingTimeInNanos = new CounterMetric();
 
     private final CounterMetric remoteUploadRateLimitingTimeInNanos = new CounterMetric();
 
@@ -601,6 +605,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ByteSizeValue.ZERO
         );
         remoteDownloadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_download_bytes_per_sec", ByteSizeValue.ZERO);
+        remoteDownloadLowPriorityRateLimiter = getRateLimiter(metadata.settings(), "max_remote_download_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = READONLY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
@@ -2930,6 +2935,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return remoteDownloadRateLimitingTimeInNanos.count();
     }
 
+    @Override
+    public long getLowPriorityRemoteDownloadThrottleTimeInNanos() {
+        return remoteDownloadLowPriorityRateLimitingTimeInNanos.count();
+    }
+
     protected void assertSnapshotOrGenericThread() {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT_DELETION + ']')
             || Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
@@ -4314,6 +4324,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 inputStream,
                 () -> remoteDownloadRateLimiter,
                 remoteDownloadRateLimitingTimeInNanos,
+                BlobStoreTransferContext.REMOTE_DOWNLOAD
+            ),
+            recoverySettings::recoveryRateLimiter,
+            remoteDownloadRateLimitingTimeInNanos,
+            BlobStoreTransferContext.REMOTE_DOWNLOAD
+        );
+    }
+
+    public InputStream maybeRateLimitLowPriorityDownloadTransfers(InputStream inputStream) {
+        return maybeRateLimit(
+            maybeRateLimit(
+                inputStream,
+                () -> remoteDownloadLowPriorityRateLimiter,
+                remoteDownloadLowPriorityRateLimitingTimeInNanos,
                 BlobStoreTransferContext.REMOTE_DOWNLOAD
             ),
             recoverySettings::recoveryRateLimiter,

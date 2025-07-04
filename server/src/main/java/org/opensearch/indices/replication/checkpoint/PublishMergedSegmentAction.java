@@ -31,10 +31,11 @@ import org.opensearch.transport.TransportService;
  * @opensearch.api
  */
 @ExperimentalApi
-public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest> {
+public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest> implements MergedSegmentPublisher.PublishAction {
 
     public static final String ACTION_NAME = "indices:admin/publish_merged_segment";
-    protected static Logger logger = LogManager.getLogger(PublishMergedSegmentAction.class);
+
+    private static final Logger logger = LogManager.getLogger(PublishMergedSegmentAction.class);
 
     private final SegmentReplicationTargetService replicationService;
 
@@ -71,20 +72,6 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
         assert false : "use PublishMergedSegmentAction#publish";
     }
 
-    /**
-     * Publish merged segment request to shard
-     */
-    final void publish(IndexShard indexShard, MergeSegmentCheckpoint checkpoint) {
-        doPublish(
-            indexShard,
-            checkpoint,
-            new PublishMergedSegmentRequest(checkpoint),
-            "segrep_publish_merged_segment",
-            true,
-            indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout()
-        );
-    }
-
     @Override
     protected void shardOperationOnPrimary(
         PublishMergedSegmentRequest request,
@@ -92,6 +79,22 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
         ActionListener<PrimaryResult<PublishMergedSegmentRequest, ReplicationResponse>> listener
     ) {
         ActionListener.completeWith(listener, () -> new PrimaryResult<>(request, new ReplicationResponse()));
+    }
+
+    /**
+     * Publish merged segment request to shard
+     */
+    @Override
+    public void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
+        assert checkpoint instanceof MergedSegmentCheckpoint;
+        doPublish(
+            indexShard,
+            checkpoint,
+            new PublishMergedSegmentRequest((MergedSegmentCheckpoint) checkpoint),
+            "segrep_publish_merged_segment",
+            true,
+            indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout()
+        );
     }
 
     @Override
