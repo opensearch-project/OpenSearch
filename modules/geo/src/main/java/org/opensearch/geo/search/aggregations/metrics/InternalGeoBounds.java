@@ -119,6 +119,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         double negRight = Double.NEGATIVE_INFINITY;
 
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
 
             if (bounds.top > top) {

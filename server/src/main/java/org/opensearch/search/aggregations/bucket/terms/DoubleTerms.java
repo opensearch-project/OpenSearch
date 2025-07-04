@@ -219,6 +219,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        reduceContext.checkCancelled();
         boolean promoteToDouble = false;
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms

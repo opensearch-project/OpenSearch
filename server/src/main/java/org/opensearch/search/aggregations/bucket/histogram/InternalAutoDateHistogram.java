@@ -308,7 +308,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
      * is the same and they can be reduced together.
      */
     private BucketReduceResult reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-
+        reduceContext.checkCancelled();
         // First we need to find the highest level rounding used across all the
         // shards
         int reduceRoundingIdx = 0;
@@ -421,6 +421,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+        context.checkCancelled();
         assert buckets.size() > 0;
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
@@ -542,6 +543,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        reduceContext.checkCancelled();
         BucketReduceResult reducedBucketsResult = reduceBuckets(aggregations, reduceContext);
 
         if (reduceContext.isFinalReduce()) {

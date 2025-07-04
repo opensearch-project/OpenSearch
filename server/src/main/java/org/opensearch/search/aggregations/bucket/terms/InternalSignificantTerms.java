@@ -240,6 +240,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         // Compute the overall result set size and the corpus size using the
         // top-level Aggregations from each shard
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             @SuppressWarnings("unchecked")
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             globalSubsetSize += terms.getSubsetSize();

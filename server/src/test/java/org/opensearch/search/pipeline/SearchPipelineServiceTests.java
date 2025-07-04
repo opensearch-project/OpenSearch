@@ -759,7 +759,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             writableRegistry(),
             2,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
 
         final QuerySearchResult querySearchResult = new QuerySearchResult();

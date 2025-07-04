@@ -114,6 +114,7 @@ public abstract class BaseGeoGrid<B extends BaseGeoGridBucket> extends InternalM
         final int size = Math.toIntExact(reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
         BucketPriorityQueue<BaseGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
         for (LongObjectPagedHashMap.Cursor<List<BaseGeoGridBucket>> cursor : buckets) {
+            reduceContext.checkCancelled();
             List<BaseGeoGridBucket> sameCellBuckets = cursor.value;
             ordered.insertWithOverflow(reduceBucket(sameCellBuckets, reduceContext));
         }

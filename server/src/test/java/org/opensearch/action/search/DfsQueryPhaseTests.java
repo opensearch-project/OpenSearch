@@ -141,7 +141,8 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.searchRequest,
             results.length(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
             @Override
@@ -226,7 +227,8 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.searchRequest,
             results.length(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
             @Override
@@ -313,7 +315,8 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.searchRequest,
             results.length(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, consumer, (response) -> new SearchPhase("test") {
             @Override

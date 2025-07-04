@@ -229,7 +229,8 @@ public class TermsReduceBenchmark {
             SearchProgressListener.NOOP,
             namedWriteableRegistry,
             shards.size(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         CountDownLatch latch = new CountDownLatch(shards.size());
         for (int i = 0; i < shards.size(); i++) {

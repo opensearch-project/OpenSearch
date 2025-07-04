@@ -99,6 +99,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;
             aggregationObjects.addAll(mapReduceAggregation.aggregations);
         }

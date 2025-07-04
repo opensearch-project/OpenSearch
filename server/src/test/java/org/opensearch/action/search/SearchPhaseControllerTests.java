@@ -340,7 +340,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 0,
                 true,
                 InternalAggregationTestCase.emptyReduceContextBuilder(),
-                true
+                true,
+                () -> false
             );
             AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(
                 nShards,
@@ -668,7 +669,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             3 + numEmptyResponses,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         if (numEmptyResponses == 0) {
             assertEquals(0, reductions.size());
@@ -776,7 +778,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             expectedNumResults,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         AtomicInteger max = new AtomicInteger();
         Thread[] threads = new Thread[expectedNumResults];
@@ -840,7 +843,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             expectedNumResults,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         AtomicInteger max = new AtomicInteger();
         CountDownLatch latch = new CountDownLatch(expectedNumResults);
@@ -893,7 +897,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             expectedNumResults,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         AtomicInteger max = new AtomicInteger();
         CountDownLatch latch = new CountDownLatch(expectedNumResults);
@@ -951,7 +956,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             4,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         int score = 100;
         CountDownLatch latch = new CountDownLatch(4);
@@ -1000,7 +1006,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             expectedNumResults,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         AtomicInteger max = new AtomicInteger();
         SortField[] sortFields = { new SortField("field", SortField.Type.INT, true) };
@@ -1047,7 +1054,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             expectedNumResults,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         SortField[] sortFields = { new SortField("field", SortField.Type.STRING) };
         BytesRef a = new BytesRef("a");
@@ -1097,7 +1105,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             expectedNumResults,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         int maxScoreTerm = -1;
         int maxScorePhrase = -1;
@@ -1235,7 +1244,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 progressListener,
                 request,
                 expectedNumResults,
-                exc -> {}
+                exc -> {},
+                () -> false
             );
             AtomicInteger max = new AtomicInteger();
             Thread[] threads = new Thread[expectedNumResults];
@@ -1324,7 +1334,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             request,
             expectedNumResults,
-            exc -> hasConsumedFailure.set(true)
+            exc -> hasConsumedFailure.set(true),
+            () -> false
         );
         CountDownLatch latch = new CountDownLatch(expectedNumResults);
         Thread[] threads = new Thread[expectedNumResults];
