@@ -42,7 +42,6 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -52,7 +51,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Encapsulates stats for search time
@@ -171,16 +169,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
         @Nullable
         private RequestStatsLongHolder requestStatsLongHolder;
 
-        @Nullable
-        private SearchResponseStatusStats searchResponseStatusStats;
-
         public RequestStatsLongHolder getRequestStatsLongHolder() {
             return requestStatsLongHolder;
         }
 
         private Stats() {
             // for internal use, initializes all counts to 0
-            this.searchResponseStatusStats = new SearchResponseStatusStats();
         }
 
         public Stats(
@@ -203,8 +197,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestCount,
             long suggestTimeInMillis,
             long suggestCurrent,
-            long searchIdleReactivateCount,
-            SearchResponseStatusStats searchResponseStatusStats
+            long searchIdleReactivateCount
         ) {
             this.requestStatsLongHolder = new RequestStatsLongHolder();
             this.queryCount = queryCount;
@@ -233,7 +226,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.pitCurrent = pitCurrent;
 
             this.searchIdleReactivateCount = searchIdleReactivateCount;
-            this.searchResponseStatusStats = searchResponseStatusStats;
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -273,12 +265,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
                 searchIdleReactivateCount = in.readVLong();
             }
-
-            if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
-                searchResponseStatusStats = in.readOptionalWriteable(SearchResponseStatusStats::new);
-            } else {
-                searchResponseStatusStats = null;
-            }
         }
 
         public void add(Stats stats) {
@@ -308,10 +294,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             pitCurrent += stats.pitCurrent;
 
             searchIdleReactivateCount += stats.searchIdleReactivateCount;
-
-            if (getSearchResponseStatusStats() != null) {
-                getSearchResponseStatusStats().add(stats.getSearchResponseStatusStats());
-            }
         }
 
         public void addForClosingShard(Stats stats) {
@@ -338,10 +320,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             queryConcurrency += stats.queryConcurrency;
 
             searchIdleReactivateCount += stats.searchIdleReactivateCount;
-
-            if (getSearchResponseStatusStats() != null) {
-                getSearchResponseStatusStats().add(stats.getSearchResponseStatusStats());
-            }
         }
 
         public long getQueryCount() {
@@ -452,10 +430,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return searchIdleReactivateCount;
         }
 
-        public SearchResponseStatusStats getSearchResponseStatusStats() {
-            return searchResponseStatusStats;
-        }
-
         public static Stats readStats(StreamInput in) throws IOException {
             return new Stats(in);
         }
@@ -504,10 +478,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
                 out.writeVLong(searchIdleReactivateCount);
-            }
-
-            if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
-                out.writeOptionalWriteable(searchResponseStatusStats);
             }
         }
 
@@ -566,93 +536,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 builder.endObject();
             }
 
-            if (getSearchResponseStatusStats() != null) {
-                getSearchResponseStatusStats().toXContent(builder, params);
-            }
-
             return builder;
-        }
-
-        /**
-         * Tracks rest category class codes from search requests
-         *
-         * @opensearch.api
-         */
-        @PublicApi(since = "1.0.0")
-        public static class SearchResponseStatusStats implements Writeable, ToXContentFragment {
-            final AtomicLong[] searchResponseStatusCounter;
-
-            public SearchResponseStatusStats() {
-                searchResponseStatusCounter = new AtomicLong[5];
-                for (int i = 0; i < searchResponseStatusCounter.length; i++) {
-                    searchResponseStatusCounter[i] = new AtomicLong();
-                }
-            }
-
-            public SearchResponseStatusStats(StreamInput in) throws IOException {
-                searchResponseStatusCounter = in.readArray(i -> new AtomicLong(i.readLong()), AtomicLong[]::new);
-
-                assert searchResponseStatusCounter.length == 5 : "Length of incoming array should be 5! Got " + searchResponseStatusCounter.length;
-            }
-
-            /**
-             * Increment counter for status
-             *
-             * @param status {@link RestStatus}
-             */
-            public void inc(final RestStatus status) {
-                add(status, 1L);
-            }
-
-            /**
-             * Increment counter for status by count
-             *
-             * @param status {@link RestStatus}
-             * @param delta The value to add
-             */
-            void add(final RestStatus status, final long delta) {
-                searchResponseStatusCounter[status.getStatusFamilyCode() - 1].addAndGet(delta);
-            }
-
-            /**
-             * Accumulate stats from the passed Object
-             *
-             * @param stats Instance storing {@link SearchResponseStatusStats}
-             */
-            public void add(final SearchResponseStatusStats stats) {
-                if (null == stats) {
-                    return;
-                }
-
-                for (int i = 0; i < searchResponseStatusCounter.length; ++i) {
-                    searchResponseStatusCounter[i].addAndGet(stats.searchResponseStatusCounter[i].longValue());
-                }
-            }
-
-            public AtomicLong[] getSearchResponseStatusCounter() {
-                return searchResponseStatusCounter;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject(Fields.SEARCH_RESPONSE_STATUS);
-
-                for (int i = 0; i < searchResponseStatusCounter.length; ++i) {
-                    long value = searchResponseStatusCounter[i].longValue();
-
-                    if (value > 0) {
-                        String key = i + 1 + "xx";
-                        builder.field(key, value);
-                    }
-                }
-
-                return builder.endObject();
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeArray((o, v) -> o.writeLong(v.longValue()), searchResponseStatusCounter);
-            }
         }
     }
 
@@ -817,7 +701,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String TOTAL = "total";
         static final String SEARCH_IDLE_REACTIVATE_COUNT_TOTAL = "search_idle_reactivate_count_total";
         static final String TOOK = "took";
-        static final String SEARCH_RESPONSE_STATUS = "search_response_status";
 
     }
 

@@ -70,7 +70,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.query.Rewriteable;
-import org.opensearch.index.search.stats.SearchStats.Stats.SearchResponseStatusStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;

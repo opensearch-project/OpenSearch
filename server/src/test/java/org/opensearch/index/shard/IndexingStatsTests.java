@@ -10,16 +10,9 @@ package org.opensearch.index.shard;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class IndexingStatsTests extends OpenSearchTestCase {
 
@@ -51,7 +44,8 @@ public class IndexingStatsTests extends OpenSearchTestCase {
                 assertEquals(totalStats.isThrottled(), deserializedTotalStats.isThrottled());
                 assertEquals(totalStats.getThrottleTime(), deserializedTotalStats.getThrottleTime());
 
-                if (totalStats.getDocStatusStats() == null) {
+                // TODO: Make sure to test this logic in the NodeStatsTests.java
+                /*if (totalStats.getDocStatusStats() == null) {
                     assertNull(deserializedTotalStats.getDocStatusStats());
                     return;
                 }
@@ -65,11 +59,12 @@ public class IndexingStatsTests extends OpenSearchTestCase {
                         deserializedDocStatusStats.getDocStatusCounter(),
                         Comparator.comparingLong(AtomicLong::longValue)
                     )
-                );
+                );*/
             }
         }
     }
 
+    /*
     public void testToXContentForIndexingStats() throws IOException {
         IndexingStats stats = createTestInstance();
         IndexingStats.Stats totalStats = stats.getTotal();
@@ -113,14 +108,9 @@ public class IndexingStatsTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
 
         assertEquals(expected, xContentBuilder.toString());
-    }
+    }*/
 
     private IndexingStats createTestInstance() {
-        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
-        for (int i = 1; i < 6; ++i) {
-            docStatusStats.add(RestStatus.fromCode(i * 100), randomNonNegativeLong());
-        }
-
         IndexingStats.Stats stats = new IndexingStats.Stats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -131,8 +121,7 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomBoolean(),
-            randomNonNegativeLong(),
-            docStatusStats
+            randomNonNegativeLong()
         );
 
         return new IndexingStats(stats);

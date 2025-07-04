@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.stats.StatusCounterStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -80,6 +81,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     protected CommonStats stats;
     protected Map<Index, CommonStats> statsByIndex;
     protected Map<Index, List<IndexShardStats>> statsByShard;
+    protected StatusCounterStats statusCounterStats;
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
@@ -92,15 +94,28 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (in.readBoolean()) {
             statsByShard = readStatsByShard(in);
         }
+
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+            statusCounterStats = new StatusCounterStats(in);
+        }
     }
 
     /**
      * Without passing the information of the levels to the constructor, we return the Node-level aggregated stats as
      * {@link CommonStats} along with a hash-map containing Index to List of Shard Stats.
      */
-    public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, SearchRequestStats searchRequestStats) {
+    public NodeIndicesStats(
+        CommonStats oldStats,
+        Map<Index, List<IndexShardStats>> statsByShard,
+        SearchRequestStats searchRequestStats,
+        StatusCounterStats statusCounterStats
+    ) {
         // this.stats = stats;
         this.statsByShard = statsByShard;
+
+        // statusCounterStats should be a snapshot of the statusCounters at a point in time, just like all the items in
+        // NodeIndicesStats should be.
+        this.statusCounterStats = statusCounterStats;
 
         // make a total common stats from old ones and current ones
         this.stats = oldStats;
@@ -126,6 +141,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         CommonStats oldStats,
         Map<Index, List<IndexShardStats>> statsByShard,
         SearchRequestStats searchRequestStats,
+        StatusCounterStats statusCounterStats,
         StatsLevel level
     ) {
         // make a total common stats from old ones and current ones
@@ -141,6 +157,8 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (this.stats.search != null) {
             this.stats.search.setSearchRequestStats(searchRequestStats);
         }
+
+        this.statusCounterStats = statusCounterStats;
 
         if (level != null) {
             switch (level) {
@@ -280,6 +298,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         return stats.getRecoveryStats();
     }
 
+    @Nullable
+    public StatusCounterStats getStatusCounterStats() {
+        return statusCounterStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
@@ -343,6 +366,8 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         // "node" level
         builder.startObject(StatsLevel.INDICES.getRestName());
         stats.toXContent(builder, params);
+
+        statusCounterStats.toXContent(builder, params);
 
         if (StatsLevel.INDICES.getRestName().equals(level)) {
             assert statsByIndex != null || statsByShard != null : "Expected shard stats or index stats in response for generating ["

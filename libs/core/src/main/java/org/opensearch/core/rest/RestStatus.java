@@ -536,6 +536,17 @@ public enum RestStatus {
         return status / 100;
     }
 
+    public String getErrorType() {
+        int family = getStatusFamilyCode();
+        if (family <= 3) {
+            return "Success";
+        } else if (family == 4) {
+            return "Failure due to user error";
+        } else {
+            return "Failure due to system error";
+        }
+    }
+
     public static RestStatus readFrom(StreamInput in) throws IOException {
         return RestStatus.valueOf(in.readString());
     }
