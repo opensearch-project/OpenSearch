@@ -1031,7 +1031,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         byte[] lowerBytes = numericType.encode(lower);
         byte[] upperBytes = numericType.encode(upper);
         Function<byte[], String> format = numericType.format;
-        ;
 
         Query exactQuery = numericType.rangeQuery(field, lower, upper);
 
