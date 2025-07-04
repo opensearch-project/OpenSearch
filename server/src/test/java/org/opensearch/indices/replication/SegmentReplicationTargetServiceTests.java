@@ -625,6 +625,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
         latch.await(2, TimeUnit.SECONDS);
         verify(spy, (atLeastOnce())).updateVisibleCheckpoint(eq(0L), eq(replicaShard));
+        verify(spy, times(1)).processLatestReceivedCheckpoint(any(), any());
     }
 
     public void testStartReplicationListenerFailure() throws InterruptedException {
@@ -851,4 +852,5 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         spy.clusterChanged(new ClusterChangedEvent("ignored", oldState, newState));
         verify(spy, times(1)).processLatestReceivedCheckpoint(eq(replicaShard), any());
     }
+
 }
