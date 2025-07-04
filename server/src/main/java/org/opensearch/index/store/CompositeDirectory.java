@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.index.store.remote.utils.FileTypeUtils.BLOCK_FILE_IDENTIFIER;
+import static org.opensearch.index.store.remote.utils.FileTypeUtils.isBlockFile;
 import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
 
 /**
@@ -102,6 +103,24 @@ public class CompositeDirectory extends FilterDirectory {
     protected List<String> listBlockFiles(String fileName) throws IOException {
         return Stream.of(listLocalFiles())
             .filter(file -> file.equals(fileName) || file.startsWith(fileName + FileTypeUtils.BLOCK_FILE_IDENTIFIER))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns a list of names of all block files stored in the local directory for a given set of files,
+     * including the original file names itself if present.
+     *
+     * @param fileNames The set of files to search for, along with its associated block files.
+     * @return A list of file names, including the original file (if present) and all its block files.
+     * @throws IOException in case of I/O error while listing files.
+     */
+    protected List<String> listBlockFiles(String[] fileNames) throws IOException {
+        Set<String> files = Set.of(fileNames);
+        return Stream.of(listLocalFiles())
+            .filter(
+                file -> files.contains(file)
+                    || (isBlockFile(file) && files.contains(file.substring(0, file.indexOf(BLOCK_FILE_IDENTIFIER))))
+            )
             .collect(Collectors.toList());
     }
 
@@ -249,8 +268,15 @@ public class CompositeDirectory extends FilterDirectory {
     public void sync(Collection<String> names) throws IOException {
         ensureOpen();
         logger.trace("Composite Directory[{}]: sync() called {}", this::toString, () -> names);
-        Collection<String> remoteFiles = Arrays.asList(getRemoteFiles());
-        Collection<String> filesToSync = names.stream().filter(name -> remoteFiles.contains(name) == false).collect(Collectors.toList());
+        Set<String> remoteFiles = Set.of(getRemoteFiles());
+        Set<String> localFiles = Arrays.stream(listLocalFiles())
+            .map(file -> isBlockFile(file) ? file.substring(0, file.indexOf(BLOCK_FILE_IDENTIFIER)) : file)
+            .collect(Collectors.toSet());
+        String[] fullFilesToSync = names.stream().filter(name -> remoteFiles.contains(name) == false).toArray(String[]::new);
+        for (String fullFileToSync : fullFilesToSync) {
+            if (localFiles.contains(fullFileToSync) == false) throw new NoSuchFileException("Unable to sync file " + fullFileToSync);
+        }
+        List<String> filesToSync = listBlockFiles(fullFilesToSync);
         logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> filesToSync);
         localDirectory.sync(filesToSync);
     }
