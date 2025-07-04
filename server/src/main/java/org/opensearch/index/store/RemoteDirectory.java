@@ -488,12 +488,15 @@ public class RemoteDirectory extends Directory {
         private final UnaryOperator<InputStream> downloadRateLimiter;
         private final UnaryOperator<InputStream> lowPriorityDownloadRateLimiter;
 
-        DownloadRateLimiterProvider(UnaryOperator<InputStream> downloadRateLimiter, UnaryOperator<InputStream> lowPriorityDownloadRateLimiter) {
+        DownloadRateLimiterProvider(
+            UnaryOperator<InputStream> downloadRateLimiter,
+            UnaryOperator<InputStream> lowPriorityDownloadRateLimiter
+        ) {
             this.downloadRateLimiter = downloadRateLimiter;
             this.lowPriorityDownloadRateLimiter = lowPriorityDownloadRateLimiter;
         }
 
-        public UnaryOperator<InputStream> get(final String filename){
+        public UnaryOperator<InputStream> get(final String filename) {
             if (activeMergesSegmentRegistry.contains(filename)) {
                 return lowPriorityDownloadRateLimiter;
             }

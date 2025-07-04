@@ -645,9 +645,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     }
 
     public void onNewMergedSegmentCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
-        logger.info(
-            () -> new ParameterizedMessage("Replica received new merged segment checkpoint [{}] from primary", receivedCheckpoint)
-        );
+        logger.info(() -> new ParameterizedMessage("Replica received new merged segment checkpoint [{}] from primary", receivedCheckpoint));
         // if the shard is in any state
         if (replicaShard.state().equals(IndexShardState.CLOSED)) {
             // ignore if shard is closed

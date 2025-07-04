@@ -28,7 +28,6 @@ import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentChe
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
-import java.rmi.Remote;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -181,17 +180,12 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
             final Directory storeDirectory = indexShard.store().directory();
 
-        Map<String, String> localToRemoteSegmentFileNameMap = mergedSegmentCheckpoint.getLocalToRemoteSegmentFilenameMap();
+            Map<String, String> localToRemoteSegmentFileNameMap = mergedSegmentCheckpoint.getLocalToRemoteSegmentFilenameMap();
 
             final List<RemoteStoreFileDownloader.FileCopySpec> toDownloadSegmentNames = new ArrayList<>();
             for (StoreFileMetadata fileMetadata : filesToFetch) {
                 String file = fileMetadata.name();
-                toDownloadSegmentNames.add(
-                    new RemoteStoreFileDownloader.FileCopySpec(
-                        file,
-                        localToRemoteSegmentFileNameMap.get(file)
-                    )
-                );
+                toDownloadSegmentNames.add(new RemoteStoreFileDownloader.FileCopySpec(file, localToRemoteSegmentFileNameMap.get(file)));
             }
 
             indexShard.getFileDownloader()
