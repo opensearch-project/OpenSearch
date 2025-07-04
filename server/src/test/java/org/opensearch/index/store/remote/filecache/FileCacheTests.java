@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.breaker.TestCircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -505,7 +506,7 @@ public class FileCacheTests extends OpenSearchTestCase {
         Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER);
         long startTime = System.currentTimeMillis();
         ForkJoinPool pool = ForkJoinPool.commonPool();
-        org.apache.lucene.util.SetOnce<IOException> exception = new org.apache.lucene.util.SetOnce<>();
+        SetOnce<IOException> exception = new SetOnce<>();
         pool.invoke(new FileCache.LoadTask(cachePath, fileCache, exception));
         pool.invoke(new FileCache.LoadTask(indicesPath, fileCache, exception));
         logger.info("File cache loading latency : {}", System.currentTimeMillis() - startTime);

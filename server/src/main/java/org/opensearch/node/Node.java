@@ -2254,7 +2254,7 @@ public class Node implements Closeable {
         this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
         ForkJoinPool pool = ForkJoinPool.commonPool();
-        org.apache.lucene.util.SetOnce<IOException> exception = new org.apache.lucene.util.SetOnce<>();
+        SetOnce<IOException> exception = new SetOnce<>();
         pool.invoke(new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception));
         if (DiscoveryNode.isDedicatedWarmNode(settings)) {
             pool.invoke(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
