@@ -448,7 +448,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             true
         );
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
-        assertBusy(() -> assertEquals(1, successLatch.getCount()));
+        assertBusy(() -> assertEquals(0, successLatch.getCount()));
         RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
         RemoteSegmentTransferTracker segmentTracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertBusy(() -> {
