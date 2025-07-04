@@ -259,7 +259,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
-                    remoteDirectory.syncSegmentsUploadedToRemoteStoreWithActiveMergesSegmentRegistry(storeDirectory, localSegmentsPostRefresh);
+                    remoteDirectory.syncSegmentsUploadedToRemoteStoreWithActiveMergesSegmentRegistry(
+                        storeDirectory,
+                        localSegmentsPostRefresh
+                    );
 
                     // Create a map of file name to size and update the refresh segment tracker
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()

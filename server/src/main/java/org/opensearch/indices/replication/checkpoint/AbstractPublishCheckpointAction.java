@@ -213,7 +213,7 @@ public abstract class AbstractPublishCheckpointAction<
                         e
                     );
                 }
-        }
+            }
         }
     }
 

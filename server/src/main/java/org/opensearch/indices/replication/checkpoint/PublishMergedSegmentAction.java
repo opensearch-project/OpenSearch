@@ -31,7 +31,9 @@ import org.opensearch.transport.TransportService;
  * @opensearch.api
  */
 @ExperimentalApi
-public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest> implements MergedSegmentPublisher.PublishAction {
+public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest>
+    implements
+        MergedSegmentPublisher.PublishAction {
 
     public static final String ACTION_NAME = "indices:admin/publish_merged_segment";
 

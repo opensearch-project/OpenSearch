@@ -43,7 +43,8 @@ public final class RemoteStoreFileDownloader {
     private final RecoverySettings recoverySettings;
 
     @ExperimentalApi
-    public record FileCopySpec (String localFilename, String remoteFilename) {}
+    public record FileCopySpec(String localFilename, String remoteFilename) {
+    }
 
     public RemoteStoreFileDownloader(ShardId shardId, ThreadPool threadPool, RecoverySettings recoverySettings) {
         this.logger = Loggers.getLogger(RemoteStoreFileDownloader.class, shardId);
