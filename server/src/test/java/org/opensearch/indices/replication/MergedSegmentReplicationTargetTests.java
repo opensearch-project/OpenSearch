@@ -13,7 +13,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.Version;
-import org.junit.Test;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -131,7 +130,12 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(spyIndexShard, checkpointMergedSegment, segrepSource, segRepListener);
+        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(
+            spyIndexShard,
+            checkpointMergedSegment,
+            segrepSource,
+            segRepListener
+        );
 
         mergedSegmentReplicationTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -186,7 +190,12 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(spyIndexShard, checkpointMergedSegment, segrepSource, segRepListener);
+        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(
+            spyIndexShard,
+            checkpointMergedSegment,
+            segrepSource,
+            segRepListener
+        );
 
         mergedSegmentReplicationTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -237,7 +246,12 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(spyIndexShard, checkpointMergedSegment, segrepSource, segRepListener);
+        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(
+            spyIndexShard,
+            checkpointMergedSegment,
+            segrepSource,
+            segRepListener
+        );
         when(spyIndexShard.getSegmentMetadataMap()).thenReturn(SI_SNAPSHOT_DIFFERENT);
         mergedSegmentReplicationTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -270,7 +284,7 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         testFailureResponse_getMergedSegmentFiles(mergedSegmentCheckpoint);
     }
 
-    public void testSuccessfulResponse_startReplication_startReplication(){
+    public void testSuccessfulResponse_startReplication_startReplication() {
         testSuccessfulResponse_startReplication(remoteStoreMergedSegmentCheckpoint);
     }
 
