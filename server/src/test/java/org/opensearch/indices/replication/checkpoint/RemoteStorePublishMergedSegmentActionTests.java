@@ -312,6 +312,6 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
             "_1",
             null
         );
-   }
+    }
 
 }

@@ -509,7 +509,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         if (segmentsUploadedToRemoteStore.containsKey(name)) {
             return segmentsUploadedToRemoteStore.get(name).getLength();
         }
-        if (isRemoteStoreFileName(name)){
+        if (isRemoteStoreFileName(name)) {
             return remoteDataDirectory.fileLength(name);
         }
         String remoteFilename = getExistingRemoteFilename(name);
@@ -681,7 +681,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
-        if(activeMergesSegmentRegistry.contains(src)){
+        if (activeMergesSegmentRegistry.contains(src)) {
             logger.info("[{}] Calling updateRemoteSegmentFileName for {} {}", Thread.currentThread().getName(), src, remoteFilename);
             activeMergesSegmentRegistry.updateMetadata(src, segmentMetadata);
             return;
@@ -691,8 +691,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     public void syncSegmentsUploadedToRemoteStoreWithActiveMergesSegmentRegistry(Directory directory, Collection<String> segments) {
-        logger.info("At syncSegmentsUploadedToRemoteStoreWithActiveMergesSegmentRegistry. SEGMENTMETADATAMAP");
-        logger.info(activeMergesSegmentRegistry.segmentMetadataMap());
         segments.forEach(segment -> {
             try {
                 if (activeMergesSegmentRegistry.contains(segment) == true) {

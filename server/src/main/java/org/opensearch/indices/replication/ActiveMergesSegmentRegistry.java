@@ -9,13 +9,14 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
-import reactor.util.annotation.NonNull;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+
+import reactor.util.annotation.NonNull;
 
 /**
  * Registry to track active merge segments and their metadata.
@@ -32,7 +33,7 @@ public class ActiveMergesSegmentRegistry {
         private static final ActiveMergesSegmentRegistry INSTANCE = new ActiveMergesSegmentRegistry();
     }
 
-    private ActiveMergesSegmentRegistry() {};
+    private ActiveMergesSegmentRegistry() {}
 
     public static ActiveMergesSegmentRegistry getInstance() {
         return HOLDER.INSTANCE;
@@ -45,7 +46,7 @@ public class ActiveMergesSegmentRegistry {
     public void register(@NonNull String localSegmentFilename) {
         lock.lock();
         try {
-            if (contains(localSegmentFilename)){
+            if (contains(localSegmentFilename)) {
                 throw new IllegalArgumentException(localSegmentFilename + " is already registered. Cannot reregister.");
             }
             filenameRegistry.add(localSegmentFilename);
@@ -109,7 +110,7 @@ public class ActiveMergesSegmentRegistry {
         return Collections.unmodifiableMap(segmentMetadataMap);
     }
 
-    public UploadedSegmentMetadata getMetadata(String localSegmentFilename){
+    public UploadedSegmentMetadata getMetadata(String localSegmentFilename) {
         return segmentMetadataMap.get(localSegmentFilename);
     }
 }

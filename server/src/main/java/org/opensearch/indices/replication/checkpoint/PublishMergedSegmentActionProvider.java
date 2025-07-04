@@ -56,13 +56,25 @@ public class PublishMergedSegmentActionProvider implements Provider<MergedSegmen
         // TODO: FIX THIS
         if (false) {// || clusterService.localNode().isRemoteStoreNode() == false) {
             return new PublishMergedSegmentAction(
-                settings, transportService, clusterService, indicesService,
-                threadPool, shardStateAction, actionFilters, targetService
+                settings,
+                transportService,
+                clusterService,
+                indicesService,
+                threadPool,
+                shardStateAction,
+                actionFilters,
+                targetService
             );
         } else {
             return new RemoteStorePublishMergedSegmentAction(
-                settings, transportService, clusterService, indicesService,
-                threadPool, shardStateAction, actionFilters, targetService
+                settings,
+                transportService,
+                clusterService,
+                indicesService,
+                threadPool,
+                shardStateAction,
+                actionFilters,
+                targetService
             );
         }
     }

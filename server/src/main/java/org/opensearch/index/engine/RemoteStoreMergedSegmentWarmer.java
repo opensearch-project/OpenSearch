@@ -52,11 +52,10 @@ public class RemoteStoreMergedSegmentWarmer implements IndexWriter.IndexReaderWa
         assert leafReader instanceof SegmentReader;
 
         SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
-        if(logger.isTraceEnabled()) {
+        if (logger.isTraceEnabled()) {
             logger.trace("[ShardId {}] Warming segment: {}", indexShard.shardId(), segmentCommitInfo);
         }
         indexShard.publishMergedSegment(segmentCommitInfo);
-        logger.trace("Completed segment warming for {} on shard {}",
-            segmentCommitInfo.info.name, indexShard.shardId());
+        logger.trace("Completed segment warming for {} on shard {}", segmentCommitInfo.info.name, indexShard.shardId());
     }
 }

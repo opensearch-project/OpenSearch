@@ -132,7 +132,12 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(spyIndexShard, checkpointMergedSegment, segrepSource, segRepListener);
+        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(
+            spyIndexShard,
+            checkpointMergedSegment,
+            segrepSource,
+            segRepListener
+        );
 
         mergedSegmentReplicationTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -187,7 +192,12 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(spyIndexShard, checkpointMergedSegment, segrepSource, segRepListener);
+        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(
+            spyIndexShard,
+            checkpointMergedSegment,
+            segrepSource,
+            segRepListener
+        );
 
         mergedSegmentReplicationTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -238,7 +248,12 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
-        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(spyIndexShard, checkpointMergedSegment, segrepSource, segRepListener);
+        mergedSegmentReplicationTarget = new MergedSegmentReplicationTarget(
+            spyIndexShard,
+            checkpointMergedSegment,
+            segrepSource,
+            segRepListener
+        );
         when(spyIndexShard.getSegmentMetadataMap()).thenReturn(SI_SNAPSHOT_DIFFERENT);
         mergedSegmentReplicationTarget.startReplication(new ActionListener<Void>() {
             @Override
@@ -271,7 +286,7 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         testFailureResponse_getMergedSegmentFiles(mergedSegmentCheckpoint);
     }
 
-    public void testSuccessfulResponse_startReplication_startReplication(){
+    public void testSuccessfulResponse_startReplication_startReplication() {
         testSuccessfulResponse_startReplication(remoteStoreMergedSegmentCheckpoint);
     }
 
