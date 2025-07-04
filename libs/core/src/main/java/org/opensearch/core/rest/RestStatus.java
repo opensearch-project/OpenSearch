@@ -539,11 +539,11 @@ public enum RestStatus {
     public String getErrorType() {
         int family = getStatusFamilyCode();
         if (family <= 3) {
-            return "Success";
+            return "success";
         } else if (family == 4) {
-            return "Failure due to user error";
+            return "user_error";
         } else {
-            return "Failure due to system error";
+            return "system_failure";
         }
     }
 
