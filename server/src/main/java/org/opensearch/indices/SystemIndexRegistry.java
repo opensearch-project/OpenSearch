@@ -59,6 +59,10 @@ public class SystemIndexRegistry {
         return indexExpressions.stream().filter(pattern -> Regex.simpleMatch(SYSTEM_INDEX_PATTERNS, pattern)).collect(Collectors.toSet());
     }
 
+    public static boolean matchesSystemIndexPattern(String index) {
+        return Regex.simpleMatch(SYSTEM_INDEX_PATTERNS, index);
+    }
+
     public static Set<String> matchesPluginSystemIndexPattern(String pluginClassName, Set<String> indexExpressions) {
         if (!SYSTEM_INDEX_DESCRIPTORS_MAP.containsKey(pluginClassName)) {
             return Collections.emptySet();
@@ -70,6 +74,19 @@ public class SystemIndexRegistry {
         return indexExpressions.stream()
             .filter(pattern -> Regex.simpleMatch(pluginSystemIndexPatterns, pattern))
             .collect(Collectors.toSet());
+    }
+
+    public static boolean matchesPluginSystemIndexPattern(String pluginClassName, String index) {
+        Collection<SystemIndexDescriptor> systemIndexDescriptors = SYSTEM_INDEX_DESCRIPTORS_MAP.get(pluginClassName);
+        if (systemIndexDescriptors == null) {
+            return false;
+        }
+        String[] pluginSystemIndexPatterns = systemIndexDescriptors
+            .stream()
+            .map(SystemIndexDescriptor::getIndexPattern)
+            .toArray(String[]::new);
+
+
     }
 
     static List<SystemIndexDescriptor> getAllDescriptors() {
