@@ -15,7 +15,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
+import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
      */
     public void testSerializationSingleWorkloadGroup() throws IOException {
         List<WorkloadGroup> list = new ArrayList<>();
-        list.add(WorkloadGroupTestUtils.workloadGroupOne);
+        list.add(WorkloadManagementTestUtils.workloadGroupOne);
         GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(list, RestStatus.OK);
         assertEquals(response.getWorkloadGroups(), list);
 
@@ -41,15 +41,15 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
 
         GetWorkloadGroupResponse otherResponse = new GetWorkloadGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        WorkloadGroupTestUtils.assertEqualWorkloadGroups(response.getWorkloadGroups(), otherResponse.getWorkloadGroups(), false);
+        WorkloadManagementTestUtils.assertEqualWorkloadGroups(response.getWorkloadGroups(), otherResponse.getWorkloadGroups(), false);
     }
 
     /**
      * Test case to verify the serialization and deserialization of GetWorkloadGroupResponse when the result contains multiple WorkloadGroups.
      */
     public void testSerializationMultipleWorkloadGroup() throws IOException {
-        GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(WorkloadGroupTestUtils.workloadGroupList(), RestStatus.OK);
-        assertEquals(response.getWorkloadGroups(), WorkloadGroupTestUtils.workloadGroupList());
+        GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(WorkloadManagementTestUtils.workloadGroupList(), RestStatus.OK);
+        assertEquals(response.getWorkloadGroups(), WorkloadManagementTestUtils.workloadGroupList());
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
@@ -58,7 +58,7 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
         GetWorkloadGroupResponse otherResponse = new GetWorkloadGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(2, otherResponse.getWorkloadGroups().size());
-        WorkloadGroupTestUtils.assertEqualWorkloadGroups(response.getWorkloadGroups(), otherResponse.getWorkloadGroups(), false);
+        WorkloadManagementTestUtils.assertEqualWorkloadGroups(response.getWorkloadGroups(), otherResponse.getWorkloadGroups(), false);
     }
 
     /**
@@ -83,7 +83,7 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentGetSingleWorkloadGroup() throws IOException {
         List<WorkloadGroup> workloadGroupList = new ArrayList<>();
-        workloadGroupList.add(WorkloadGroupTestUtils.workloadGroupOne);
+        workloadGroupList.add(WorkloadManagementTestUtils.workloadGroupOne);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(workloadGroupList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
@@ -108,8 +108,8 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentGetMultipleWorkloadGroup() throws IOException {
         List<WorkloadGroup> workloadGroupList = new ArrayList<>();
-        workloadGroupList.add(WorkloadGroupTestUtils.workloadGroupOne);
-        workloadGroupList.add(WorkloadGroupTestUtils.workloadGroupTwo);
+        workloadGroupList.add(WorkloadManagementTestUtils.workloadGroupOne);
+        workloadGroupList.add(WorkloadManagementTestUtils.workloadGroupTwo);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(workloadGroupList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
