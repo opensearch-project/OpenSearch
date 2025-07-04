@@ -127,6 +127,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
 
     private boolean isValidForForceMerge() {
         if (configurationValidator.hasWarmNodes() == false) {
+            resourceTrackers.stop();
             logger.debug("No warm nodes found. Skipping Auto Force merge.");
             return false;
         }
