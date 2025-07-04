@@ -201,10 +201,7 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
-import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.checkpoint.*;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -1864,19 +1861,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Compute {@link MergeSegmentCheckpoint} from a SegmentCommitInfo.
+     * Compute {@link MergedSegmentCheckpoint} from a SegmentCommitInfo.
      * This function fetches a metadata snapshot from the store that comes with an IO cost.
      *
      * @param segmentCommitInfo {@link SegmentCommitInfo} segmentCommitInfo to use to compute.
-     * @return {@link MergeSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
+     * @return {@link MergedSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
      * @throws IOException When there is an error computing segment metadata from the store.
      */
-    public MergeSegmentCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
+    public ReplicationCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
         // Only need to get the file metadata information in segmentCommitInfo and reuse Store#getSegmentMetadataMap.
         SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
         segmentInfos.add(segmentCommitInfo);
         Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
-        return new MergeSegmentCheckpoint(
+        if (indexSettings.isRemoteStoreEnabled()) {
+            return new RemoteStoreMergedSegmentCheckpoint(
+                shardId,
+                getOperationPrimaryTerm(),
+                segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+                getEngine().config().getCodec().getName(),
+                segmentMetadataMap,
+                segmentCommitInfo.info.name,
+                null
+            );
+        }
+        return new MergedSegmentCheckpoint(
             shardId,
             getOperationPrimaryTerm(),
             segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
