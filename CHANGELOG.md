@@ -34,6 +34,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.squareup.okio:okio` from 3.13.0 to 3.14.0 ([#18645](https://github.com/opensearch-project/OpenSearch/pull/18645))
 - Bump `com.netflix.nebula.ospackage-base` from 11.11.2 to 12.0.0 ([#18646](https://github.com/opensearch-project/OpenSearch/pull/18646))
 - Bump `com.azure:azure-storage-blob` from 12.30.0 to 12.30.1 ([#18644](https://github.com/opensearch-project/OpenSearch/pull/18644))
+- Bump `org.bouncycastle:bctls-fips` from 2.0.19 to 2.0.20 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
+- Bump `org.bouncycastle:bcpkix-fips` from 2.0.7 to 2.0.8 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
+- Bump `org.bouncycastle:bcpg-fips` from 2.0.10 to 2.0.11 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
+- Bump `com.password4j:password4j` from 1.8.2 to 1.8.3 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
 
 ### Deprecated
 
