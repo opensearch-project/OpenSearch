@@ -19,6 +19,7 @@ import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.remote.ReadBlobWithMetrics;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
 import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
@@ -196,6 +197,22 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     }
 
     @Override
+    public void getAsyncIndexRoutingWithMetricsReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<ReadBlobWithMetrics<IndexRoutingTable>> latchedActionListener
+    ) {
+        ActionListener<ReadBlobWithMetrics<IndexRoutingTable>> actionListener = ActionListener.wrap(
+            latchedActionListener::onResponse,
+            latchedActionListener::onFailure
+        );
+
+        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(uploadedFilename, clusterUUID, compressor);
+
+        remoteIndexRoutingTableStore.readAsyncWithMetrics(remoteIndexRoutingTable, actionListener);
+    }
+
+    @Override
     public void getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
@@ -208,6 +225,21 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
         RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(uploadedFilename, clusterUUID, compressor);
         remoteRoutingTableDiffStore.readAsync(remoteRoutingTableDiff, actionListener);
+    }
+
+    @Override
+    public void getAsyncIndexRoutingTableDiffWithMetricsReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<ReadBlobWithMetrics<Diff<RoutingTable>>> latchedActionListener
+    ) {
+        ActionListener<ReadBlobWithMetrics<Diff<RoutingTable>>> actionListener = ActionListener.wrap(
+            latchedActionListener::onResponse,
+            latchedActionListener::onFailure
+        );
+
+        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(uploadedFilename, clusterUUID, compressor);
+        remoteRoutingTableDiffStore.readAsyncWithMetrics(remoteRoutingTableDiff, actionListener);
     }
 
     @Override
@@ -256,7 +288,8 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             clusterName,
             threadPool,
             ThreadPool.Names.REMOTE_STATE_READ,
-            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+            clusterSettings
         );
     }
 

@@ -43,6 +43,7 @@ import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
+import org.opensearch.common.remote.ReadBlobWithMetrics;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
@@ -862,29 +863,30 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        RemoteReadResult mockedResult = mock(RemoteReadResult.class);
+        RemoteReadResult mockedRemoteReadResult = mock(RemoteReadResult.class);
+        ReadBlobWithMetrics readBlobWithMetrics = new ReadBlobWithMetrics(mockedRemoteReadResult, 1L, 2L);
         RemoteIndexMetadataManager mockedIndexManager = mock(RemoteIndexMetadataManager.class);
         RemoteGlobalMetadataManager mockedGlobalMetadataManager = mock(RemoteGlobalMetadataManager.class);
         RemoteClusterStateAttributesManager mockedClusterStateAttributeManager = mock(RemoteClusterStateAttributesManager.class);
         remoteClusterStateService.setRemoteIndexMetadataManager(mockedIndexManager);
         remoteClusterStateService.setRemoteGlobalMetadataManager(mockedGlobalMetadataManager);
         remoteClusterStateService.setRemoteClusterStateAttributesManager(mockedClusterStateAttributeManager);
-        ArgumentCaptor<LatchedActionListener<RemoteReadResult>> listenerArgumentCaptor = ArgumentCaptor.forClass(
+        ArgumentCaptor<LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>>> listenerArgumentCaptor = ArgumentCaptor.forClass(
             LatchedActionListener.class
         );
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockedIndexManager).readAsync(any(), any(), listenerArgumentCaptor.capture());
+        }).when(mockedIndexManager).readAsyncWithMetrics(any(), any(), listenerArgumentCaptor.capture());
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockedGlobalMetadataManager).readAsync(any(), any(), listenerArgumentCaptor.capture());
+        }).when(mockedGlobalMetadataManager).readAsyncWithMetrics(any(), any(), listenerArgumentCaptor.capture());
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockedClusterStateAttributeManager).readAsync(anyString(), any(), listenerArgumentCaptor.capture());
-        when(mockedResult.getComponent()).thenReturn(COORDINATION_METADATA);
+        }).when(mockedClusterStateAttributeManager).readAsyncWithMetrics(anyString(), any(), listenerArgumentCaptor.capture());
+        when(mockedRemoteReadResult.getComponent()).thenReturn(COORDINATION_METADATA);
         RemoteClusterStateService mockService = spy(remoteClusterStateService);
         mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
 
@@ -916,26 +918,27 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        RemoteReadResult mockedResult = mock(RemoteReadResult.class);
+        RemoteReadResult mockedRemoteReadResult = mock(RemoteReadResult.class);
+        ReadBlobWithMetrics mockedReadBlobWithMetrics = new ReadBlobWithMetrics(mockedRemoteReadResult, 1L, 2L);
         RemoteIndexMetadataManager mockedIndexManager = mock(RemoteIndexMetadataManager.class);
         RemoteGlobalMetadataManager mockedGlobalMetadataManager = mock(RemoteGlobalMetadataManager.class);
         RemoteClusterStateAttributesManager mockedClusterStateAttributeManager = mock(RemoteClusterStateAttributesManager.class);
-        ArgumentCaptor<LatchedActionListener<RemoteReadResult>> listenerArgumentCaptor = ArgumentCaptor.forClass(
+        ArgumentCaptor<LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>>> listenerArgumentCaptor = ArgumentCaptor.forClass(
             LatchedActionListener.class
         );
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(mockedReadBlobWithMetrics);
             return null;
-        }).when(mockedIndexManager).readAsync(anyString(), any(), listenerArgumentCaptor.capture());
+        }).when(mockedIndexManager).readAsyncWithMetrics(anyString(), any(), listenerArgumentCaptor.capture());
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(mockedReadBlobWithMetrics);
             return null;
-        }).when(mockedGlobalMetadataManager).readAsync(anyString(), any(), listenerArgumentCaptor.capture());
+        }).when(mockedGlobalMetadataManager).readAsyncWithMetrics(anyString(), any(), listenerArgumentCaptor.capture());
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(mockedReadBlobWithMetrics);
             return null;
-        }).when(mockedClusterStateAttributeManager).readAsync(anyString(), any(), listenerArgumentCaptor.capture());
-        when(mockedResult.getComponent()).thenReturn(COORDINATION_METADATA);
+        }).when(mockedClusterStateAttributeManager).readAsyncWithMetrics(anyString(), any(), listenerArgumentCaptor.capture());
+        when(mockedRemoteReadResult.getComponent()).thenReturn(COORDINATION_METADATA);
         remoteClusterStateService.setRemoteIndexMetadataManager(mockedIndexManager);
         remoteClusterStateService.setRemoteGlobalMetadataManager(mockedGlobalMetadataManager);
         remoteClusterStateService.setRemoteClusterStateAttributesManager(mockedClusterStateAttributeManager);
@@ -983,13 +986,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         RemoteGlobalMetadataManager mockedGlobalMetadataManager = mock(RemoteGlobalMetadataManager.class);
         remoteClusterStateService.setRemoteIndexMetadataManager(mockedIndexManager);
         remoteClusterStateService.setRemoteGlobalMetadataManager(mockedGlobalMetadataManager);
-        ArgumentCaptor<LatchedActionListener<RemoteReadResult>> listenerArgumentCaptor = ArgumentCaptor.forClass(
+        ArgumentCaptor<LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>>> listenerArgumentCaptor = ArgumentCaptor.forClass(
             LatchedActionListener.class
         );
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(new RemoteReadResult(indexMetadata, INDEX, INDEX));
+            listenerArgumentCaptor.getValue()
+                .onResponse(new ReadBlobWithMetrics<>(new RemoteReadResult(indexMetadata, INDEX, INDEX), 1L, 2L));
             return null;
-        }).when(mockedIndexManager).readAsync(anyString(), any(), listenerArgumentCaptor.capture());
+        }).when(mockedIndexManager).readAsyncWithMetrics(anyString(), any(), listenerArgumentCaptor.capture());
         when(mockedGlobalMetadataManager.getGlobalMetadata(anyString(), eq(manifest))).thenReturn(Metadata.EMPTY_METADATA);
         RemoteClusterStateService spiedService = spy(remoteClusterStateService);
         spiedService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
@@ -1337,7 +1341,24 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 true
             )
         );
-        assertEquals("Timed out waiting to read cluster state from remote within timeout " + readTimeOut + "s", exception.getMessage());
+        // All lists and maps are passed as empty, while other boolean variables are set to true.
+        // So, for readClusterStateInParallel() total read tasks would be 7
+        int expectedTotalReadTasks = 7;
+        int expectedTasksTimedOut = 7;
+        int expectedTasksFailed = 0;
+
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                "Timed out waiting to read total [%s] tasks for cluster state from remote within "
+                    + "timeout of [%ss]. Could not read [%s] tasks while [%s] tasks failed to be read",
+                expectedTotalReadTasks,
+                readTimeOut,
+                expectedTasksTimedOut,
+                expectedTasksFailed
+            ),
+            exception.getMessage()
+        );
     }
 
     public void testReadClusterStateInParallel_ExceptionDuringRead() throws IOException {
@@ -1431,25 +1452,28 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .clusterStateCustomMetadataMap(uploadedClusterStateCustomMap)
             .build();
 
-        RemoteReadResult mockResult = mock(RemoteReadResult.class);
+        RemoteReadResult mockRemoteReadResult = mock(RemoteReadResult.class);
+        ReadBlobWithMetrics readBlobWithMetrics = new ReadBlobWithMetrics(mockRemoteReadResult, 1L, 2L);
         RemoteIndexMetadataManager mockIndexMetadataManager = mock(RemoteIndexMetadataManager.class);
         CheckedRunnable<IOException> mockRunnable = mock(CheckedRunnable.class);
-        ArgumentCaptor<LatchedActionListener<RemoteReadResult>> latchCapture = ArgumentCaptor.forClass(LatchedActionListener.class);
+        ArgumentCaptor<LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>>> latchCapture = ArgumentCaptor.forClass(
+            LatchedActionListener.class
+        );
         doAnswer(invocation -> {
-            latchCapture.getValue().onResponse(mockResult);
+            latchCapture.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockIndexMetadataManager).readAsync(anyString(), any(), latchCapture.capture());
+        }).when(mockIndexMetadataManager).readAsyncWithMetrics(anyString(), any(), latchCapture.capture());
         RemoteGlobalMetadataManager mockGlobalMetadataManager = mock(RemoteGlobalMetadataManager.class);
         doAnswer(invocation -> {
-            latchCapture.getValue().onResponse(mockResult);
+            latchCapture.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockGlobalMetadataManager).readAsync(any(), any(), latchCapture.capture());
+        }).when(mockGlobalMetadataManager).readAsyncWithMetrics(any(), any(), latchCapture.capture());
         RemoteClusterStateAttributesManager mockClusterStateAttributeManager = mock(RemoteClusterStateAttributesManager.class);
         doAnswer(invocation -> {
-            latchCapture.getValue().onResponse(mockResult);
+            latchCapture.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockClusterStateAttributeManager).readAsync(anyString(), any(), latchCapture.capture());
-        when(mockResult.getComponent()).thenReturn("mock-result");
+        }).when(mockClusterStateAttributeManager).readAsyncWithMetrics(anyString(), any(), latchCapture.capture());
+        when(mockRemoteReadResult.getComponent()).thenReturn("mock-result");
         remoteClusterStateService.start();
         remoteClusterStateService.setRemoteIndexMetadataManager(mockIndexMetadataManager);
         remoteClusterStateService.setRemoteGlobalMetadataManager(mockGlobalMetadataManager);
@@ -1478,56 +1502,56 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
         assertEquals("Unknown component: mock-result", exception.getMessage());
         newIndicesToRead.forEach(
-            uploadedIndexMetadata -> verify(mockIndexMetadataManager, times(1)).readAsync(
+            uploadedIndexMetadata -> verify(mockIndexMetadataManager, times(1)).readAsyncWithMetrics(
                 eq("test-index-1"),
                 argThat(new BlobNameMatcher(uploadedIndexMetadata.getUploadedFilename())),
                 any()
             )
         );
-        verify(mockGlobalMetadataManager, times(1)).readAsync(
+        verify(mockGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(COORDINATION_METADATA),
             argThat(new BlobNameMatcher(COORDINATION_METADATA_FILENAME)),
             any()
         );
-        verify(mockGlobalMetadataManager, times(1)).readAsync(
+        verify(mockGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(SETTING_METADATA),
             argThat(new BlobNameMatcher(PERSISTENT_SETTINGS_FILENAME)),
             any()
         );
-        verify(mockGlobalMetadataManager, times(1)).readAsync(
+        verify(mockGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(TRANSIENT_SETTING_METADATA),
             argThat(new BlobNameMatcher(TRANSIENT_SETTINGS_FILENAME)),
             any()
         );
-        verify(mockGlobalMetadataManager, times(1)).readAsync(
+        verify(mockGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(TEMPLATES_METADATA),
             argThat(new BlobNameMatcher(TEMPLATES_METADATA_FILENAME)),
             any()
         );
-        verify(mockGlobalMetadataManager, times(1)).readAsync(
+        verify(mockGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(HASHES_OF_CONSISTENT_SETTINGS),
             argThat(new BlobNameMatcher(HASHES_OF_CONSISTENT_SETTINGS_FILENAME)),
             any()
         );
         newCustomMetadataMap.keySet().forEach(uploadedCustomMetadataKey -> {
-            verify(mockGlobalMetadataManager, times(1)).readAsync(
+            verify(mockGlobalMetadataManager, times(1)).readAsyncWithMetrics(
                 eq(uploadedCustomMetadataKey),
                 argThat(new BlobNameMatcher(newCustomMetadataMap.get(uploadedCustomMetadataKey).getUploadedFilename())),
                 any()
             );
         });
-        verify(mockClusterStateAttributeManager, times(1)).readAsync(
+        verify(mockClusterStateAttributeManager, times(1)).readAsyncWithMetrics(
             eq(DISCOVERY_NODES),
             argThat(new BlobNameMatcher(DISCOVERY_NODES_FILENAME)),
             any()
         );
-        verify(mockClusterStateAttributeManager, times(1)).readAsync(
+        verify(mockClusterStateAttributeManager, times(1)).readAsyncWithMetrics(
             eq(CLUSTER_BLOCKS),
             argThat(new BlobNameMatcher(CLUSTER_BLOCKS_FILENAME)),
             any()
         );
         newClusterStateCustoms.keySet().forEach(uploadedClusterStateCustomMetadataKey -> {
-            verify(mockClusterStateAttributeManager, times(1)).readAsync(
+            verify(mockClusterStateAttributeManager, times(1)).readAsyncWithMetrics(
                 eq(String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, uploadedClusterStateCustomMetadataKey)),
                 argThat(new BlobNameMatcher(newClusterStateCustoms.get(uploadedClusterStateCustomMetadataKey).getUploadedFilename())),
                 any()
@@ -1611,76 +1635,139 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         RemoteClusterStateAttributesManager mockedClusterStateAttributeManager = mock(RemoteClusterStateAttributesManager.class);
 
         doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
-            latchedActionListener.onResponse(new RemoteReadResult(newIndexMetadata, INDEX, "test-index-1"));
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
+            latchedActionListener.onResponse(
+                new ReadBlobWithMetrics<>(new RemoteReadResult(newIndexMetadata, INDEX, "test-index-1"), 1L, 2L)
+            );
             return null;
         }).when(mockedIndexManager)
-            .readAsync(eq("test-index-1"), argThat(new BlobNameMatcher(indexFilename)), any(LatchedActionListener.class));
+            .readAsyncWithMetrics(eq("test-index-1"), argThat(new BlobNameMatcher(indexFilename)), any(LatchedActionListener.class));
         doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
-            latchedActionListener.onResponse(new RemoteReadResult(customMetadata3, CUSTOM_METADATA, "custom_md_3"));
-            return null;
-        }).when(mockedGlobalMetadataManager).readAsync(eq("custom_md_3"), argThat(new BlobNameMatcher(customMetadataFilename)), any());
-        doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
             latchedActionListener.onResponse(
-                new RemoteReadResult(updatedCoordinationMetadata, COORDINATION_METADATA, COORDINATION_METADATA)
+                new ReadBlobWithMetrics<>(new RemoteReadResult(customMetadata3, CUSTOM_METADATA, "custom_md_3"), 1L, 2L)
             );
             return null;
         }).when(mockedGlobalMetadataManager)
-            .readAsync(eq(COORDINATION_METADATA), argThat(new BlobNameMatcher(COORDINATION_METADATA_FILENAME)), any());
+            .readAsyncWithMetrics(eq("custom_md_3"), argThat(new BlobNameMatcher(customMetadataFilename)), any());
         doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
-            latchedActionListener.onResponse(new RemoteReadResult(updatedPersistentSettings, SETTING_METADATA, SETTING_METADATA));
-            return null;
-        }).when(mockedGlobalMetadataManager)
-            .readAsync(eq(SETTING_METADATA), argThat(new BlobNameMatcher(PERSISTENT_SETTINGS_FILENAME)), any());
-        doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
             latchedActionListener.onResponse(
-                new RemoteReadResult(updatedTransientSettings, TRANSIENT_SETTING_METADATA, TRANSIENT_SETTING_METADATA)
+                new ReadBlobWithMetrics<>(
+                    new RemoteReadResult(updatedCoordinationMetadata, COORDINATION_METADATA, COORDINATION_METADATA),
+                    1L,
+                    2L
+                )
             );
             return null;
         }).when(mockedGlobalMetadataManager)
-            .readAsync(eq(TRANSIENT_SETTING_METADATA), argThat(new BlobNameMatcher(TRANSIENT_SETTINGS_FILENAME)), any());
+            .readAsyncWithMetrics(eq(COORDINATION_METADATA), argThat(new BlobNameMatcher(COORDINATION_METADATA_FILENAME)), any());
         doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
-            latchedActionListener.onResponse(new RemoteReadResult(updatedTemplateMetadata, TEMPLATES_METADATA, TEMPLATES_METADATA));
-            return null;
-        }).when(mockedGlobalMetadataManager)
-            .readAsync(eq(TEMPLATES_METADATA), argThat(new BlobNameMatcher(TEMPLATES_METADATA_FILENAME)), any());
-        doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
             latchedActionListener.onResponse(
-                new RemoteReadResult(updatedHashesOfConsistentSettings, HASHES_OF_CONSISTENT_SETTINGS, HASHES_OF_CONSISTENT_SETTINGS)
+                new ReadBlobWithMetrics<>(new RemoteReadResult(updatedPersistentSettings, SETTING_METADATA, SETTING_METADATA), 1L, 2L)
             );
             return null;
         }).when(mockedGlobalMetadataManager)
-            .readAsync(eq(HASHES_OF_CONSISTENT_SETTINGS), argThat(new BlobNameMatcher(HASHES_OF_CONSISTENT_SETTINGS_FILENAME)), any());
+            .readAsyncWithMetrics(eq(SETTING_METADATA), argThat(new BlobNameMatcher(PERSISTENT_SETTINGS_FILENAME)), any());
         doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
-            latchedActionListener.onResponse(new RemoteReadResult(updatedDiscoveryNodes, CLUSTER_STATE_ATTRIBUTE, DISCOVERY_NODES));
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
+            latchedActionListener.onResponse(
+                new ReadBlobWithMetrics<>(
+                    new RemoteReadResult(updatedTransientSettings, TRANSIENT_SETTING_METADATA, TRANSIENT_SETTING_METADATA),
+                    1L,
+                    2L
+                )
+            );
+            return null;
+        }).when(mockedGlobalMetadataManager)
+            .readAsyncWithMetrics(eq(TRANSIENT_SETTING_METADATA), argThat(new BlobNameMatcher(TRANSIENT_SETTINGS_FILENAME)), any());
+        doAnswer(invocationOnMock -> {
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
+            latchedActionListener.onResponse(
+                new ReadBlobWithMetrics<>(new RemoteReadResult(updatedTemplateMetadata, TEMPLATES_METADATA, TEMPLATES_METADATA), 1l, 2l)
+            );
+            return null;
+        }).when(mockedGlobalMetadataManager)
+            .readAsyncWithMetrics(eq(TEMPLATES_METADATA), argThat(new BlobNameMatcher(TEMPLATES_METADATA_FILENAME)), any());
+        doAnswer(invocationOnMock -> {
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
+            latchedActionListener.onResponse(
+                new ReadBlobWithMetrics<>(
+                    new RemoteReadResult(updatedHashesOfConsistentSettings, HASHES_OF_CONSISTENT_SETTINGS, HASHES_OF_CONSISTENT_SETTINGS),
+                    1L,
+                    2L
+                )
+            );
+            return null;
+        }).when(mockedGlobalMetadataManager)
+            .readAsyncWithMetrics(
+                eq(HASHES_OF_CONSISTENT_SETTINGS),
+                argThat(new BlobNameMatcher(HASHES_OF_CONSISTENT_SETTINGS_FILENAME)),
+                any()
+            );
+        doAnswer(invocationOnMock -> {
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
+            latchedActionListener.onResponse(
+                new ReadBlobWithMetrics<>(new RemoteReadResult(updatedDiscoveryNodes, CLUSTER_STATE_ATTRIBUTE, DISCOVERY_NODES), 1L, 2L)
+            );
             return null;
         }).when(mockedClusterStateAttributeManager)
-            .readAsync(eq(DISCOVERY_NODES), argThat(new BlobNameMatcher(DISCOVERY_NODES_FILENAME)), any());
+            .readAsyncWithMetrics(eq(DISCOVERY_NODES), argThat(new BlobNameMatcher(DISCOVERY_NODES_FILENAME)), any());
         doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
-            latchedActionListener.onResponse(new RemoteReadResult(updatedClusterBlocks, CLUSTER_STATE_ATTRIBUTE, CLUSTER_BLOCKS));
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
+            latchedActionListener.onResponse(
+                new ReadBlobWithMetrics<>(new RemoteReadResult(updatedClusterBlocks, CLUSTER_STATE_ATTRIBUTE, CLUSTER_BLOCKS), 1L, 2L)
+            );
             return null;
         }).when(mockedClusterStateAttributeManager)
-            .readAsync(eq(CLUSTER_BLOCKS), argThat(new BlobNameMatcher(CLUSTER_BLOCKS_FILENAME)), any());
+            .readAsyncWithMetrics(eq(CLUSTER_BLOCKS), argThat(new BlobNameMatcher(CLUSTER_BLOCKS_FILENAME)), any());
         doAnswer(invocationOnMock -> {
-            LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
+            LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> latchedActionListener = invocationOnMock.getArgument(
+                2,
+                LatchedActionListener.class
+            );
             latchedActionListener.onResponse(
-                new RemoteReadResult(
-                    updatedClusterStateCustom3,
-                    CLUSTER_STATE_ATTRIBUTE,
-                    String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, updatedClusterStateCustom3.getWriteableName())
+                new ReadBlobWithMetrics<>(
+                    new RemoteReadResult(
+                        updatedClusterStateCustom3,
+                        CLUSTER_STATE_ATTRIBUTE,
+                        String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, updatedClusterStateCustom3.getWriteableName())
+                    ),
+                    1l,
+                    2l
                 )
             );
             return null;
         }).when(mockedClusterStateAttributeManager)
-            .readAsync(
+            .readAsyncWithMetrics(
                 eq(String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, updatedClusterStateCustom3.getWriteableName())),
                 argThat(new BlobNameMatcher(clusterStateCustomFilename)),
                 any()
@@ -1731,56 +1818,56 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         uploadedClusterStateCustomMap.keySet().forEach(key -> assertTrue(updatedClusterState.customs().containsKey(key)));
         assertEquals(updatedClusterStateCustom3, updatedClusterState.custom("custom_3"));
         newIndicesToRead.forEach(
-            uploadedIndexMetadata -> verify(mockedIndexManager, times(1)).readAsync(
+            uploadedIndexMetadata -> verify(mockedIndexManager, times(1)).readAsyncWithMetrics(
                 eq("test-index-1"),
                 argThat(new BlobNameMatcher(uploadedIndexMetadata.getUploadedFilename())),
                 any()
             )
         );
-        verify(mockedGlobalMetadataManager, times(1)).readAsync(
+        verify(mockedGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(COORDINATION_METADATA),
             argThat(new BlobNameMatcher(COORDINATION_METADATA_FILENAME)),
             any()
         );
-        verify(mockedGlobalMetadataManager, times(1)).readAsync(
+        verify(mockedGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(SETTING_METADATA),
             argThat(new BlobNameMatcher(PERSISTENT_SETTINGS_FILENAME)),
             any()
         );
-        verify(mockedGlobalMetadataManager, times(1)).readAsync(
+        verify(mockedGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(TRANSIENT_SETTING_METADATA),
             argThat(new BlobNameMatcher(TRANSIENT_SETTINGS_FILENAME)),
             any()
         );
-        verify(mockedGlobalMetadataManager, times(1)).readAsync(
+        verify(mockedGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(TEMPLATES_METADATA),
             argThat(new BlobNameMatcher(TEMPLATES_METADATA_FILENAME)),
             any()
         );
-        verify(mockedGlobalMetadataManager, times(1)).readAsync(
+        verify(mockedGlobalMetadataManager, times(1)).readAsyncWithMetrics(
             eq(HASHES_OF_CONSISTENT_SETTINGS),
             argThat(new BlobNameMatcher(HASHES_OF_CONSISTENT_SETTINGS_FILENAME)),
             any()
         );
         newCustomMetadataMap.keySet().forEach(uploadedCustomMetadataKey -> {
-            verify(mockedGlobalMetadataManager, times(1)).readAsync(
+            verify(mockedGlobalMetadataManager, times(1)).readAsyncWithMetrics(
                 eq(uploadedCustomMetadataKey),
                 argThat(new BlobNameMatcher(newCustomMetadataMap.get(uploadedCustomMetadataKey).getUploadedFilename())),
                 any()
             );
         });
-        verify(mockedClusterStateAttributeManager, times(1)).readAsync(
+        verify(mockedClusterStateAttributeManager, times(1)).readAsyncWithMetrics(
             eq(DISCOVERY_NODES),
             argThat(new BlobNameMatcher(DISCOVERY_NODES_FILENAME)),
             any()
         );
-        verify(mockedClusterStateAttributeManager, times(1)).readAsync(
+        verify(mockedClusterStateAttributeManager, times(1)).readAsyncWithMetrics(
             eq(CLUSTER_BLOCKS),
             argThat(new BlobNameMatcher(CLUSTER_BLOCKS_FILENAME)),
             any()
         );
         newClusterStateCustoms.keySet().forEach(uploadedClusterStateCustomMetadataKey -> {
-            verify(mockedClusterStateAttributeManager, times(1)).readAsync(
+            verify(mockedClusterStateAttributeManager, times(1)).readAsyncWithMetrics(
                 eq(String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, uploadedClusterStateCustomMetadataKey)),
                 argThat(new BlobNameMatcher(newClusterStateCustoms.get(uploadedClusterStateCustomMetadataKey).getUploadedFilename())),
                 any()
@@ -3271,29 +3358,30 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        RemoteReadResult mockedResult = mock(RemoteReadResult.class);
+        RemoteReadResult mockRemoteReadResult = mock(RemoteReadResult.class);
+        ReadBlobWithMetrics readBlobWithMetrics = new ReadBlobWithMetrics(mockRemoteReadResult, 1l, 2L);
         RemoteIndexMetadataManager mockedIndexManager = mock(RemoteIndexMetadataManager.class);
         RemoteGlobalMetadataManager mockedGlobalMetadataManager = mock(RemoteGlobalMetadataManager.class);
         RemoteClusterStateAttributesManager mockedClusterStateAttributeManager = mock(RemoteClusterStateAttributesManager.class);
         remoteClusterStateService.setRemoteIndexMetadataManager(mockedIndexManager);
         remoteClusterStateService.setRemoteGlobalMetadataManager(mockedGlobalMetadataManager);
         remoteClusterStateService.setRemoteClusterStateAttributesManager(mockedClusterStateAttributeManager);
-        ArgumentCaptor<LatchedActionListener<RemoteReadResult>> listenerArgumentCaptor = ArgumentCaptor.forClass(
+        ArgumentCaptor<LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>>> listenerArgumentCaptor = ArgumentCaptor.forClass(
             LatchedActionListener.class
         );
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockedIndexManager).readAsync(any(), any(), listenerArgumentCaptor.capture());
+        }).when(mockedIndexManager).readAsyncWithMetrics(any(), any(), listenerArgumentCaptor.capture());
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockedGlobalMetadataManager).readAsync(any(), any(), listenerArgumentCaptor.capture());
+        }).when(mockedGlobalMetadataManager).readAsyncWithMetrics(any(), any(), listenerArgumentCaptor.capture());
         doAnswer(invocation -> {
-            listenerArgumentCaptor.getValue().onResponse(mockedResult);
+            listenerArgumentCaptor.getValue().onResponse(readBlobWithMetrics);
             return null;
-        }).when(mockedClusterStateAttributeManager).readAsync(anyString(), any(), listenerArgumentCaptor.capture());
-        when(mockedResult.getComponent()).thenReturn(COORDINATION_METADATA);
+        }).when(mockedClusterStateAttributeManager).readAsyncWithMetrics(anyString(), any(), listenerArgumentCaptor.capture());
+        when(mockRemoteReadResult.getComponent()).thenReturn(COORDINATION_METADATA);
         RemoteClusterStateService mockService = spy(remoteClusterStateService);
         mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
         verify(mockService, times(1)).readClusterStateInParallel(

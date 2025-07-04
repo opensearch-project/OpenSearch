@@ -60,5 +60,14 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
         ) {
             return null;
         }
+
+        @Override
+        protected ActionListener<ReadBlobWithMetrics<Object>> getWrappedReadListenerForMetrics(
+            String component,
+            AbstractClusterMetadataWriteableBlobEntity remoteEntity,
+            ActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener
+        ) {
+            return null;
+        }
     }
 }
