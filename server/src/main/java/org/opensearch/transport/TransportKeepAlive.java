@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.AsyncBiFunction;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.metrics.CounterMetric;
@@ -59,7 +60,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @opensearch.internal
  */
-final class TransportKeepAlive implements Closeable {
+@ExperimentalApi
+public final class TransportKeepAlive implements Closeable {
 
     static final int PING_DATA_SIZE = -1;
 

@@ -76,6 +76,8 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         builder.addConnections(1, TransportRequestOptions.Type.BULK);
         builder.addConnections(2, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(3, TransportRequestOptions.Type.PING);
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
+
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, builder::build);
         assertEquals("not all types are added for this connection profile - missing types: [REG]", illegalStateException.getMessage());
 
@@ -85,11 +87,12 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         );
         assertEquals("type [PING] is already registered", illegalArgumentException.getMessage());
         builder.addConnections(4, TransportRequestOptions.Type.REG);
+        builder.addConnections(1, TransportRequestOptions.Type.STREAM);
         ConnectionProfile build = builder.build();
         if (randomBoolean()) {
             build = new ConnectionProfile.Builder(build).build();
         }
-        assertEquals(10, build.getNumConnections());
+        assertEquals(11, build.getNumConnections());
         if (setConnectTimeout) {
             assertEquals(connectTimeout, build.getConnectTimeout());
         } else {
@@ -114,12 +117,12 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
             assertNull(build.getPingInterval());
         }
 
-        List<Integer> list = new ArrayList<>(10);
-        for (int i = 0; i < 10; i++) {
+        List<Integer> list = new ArrayList<>(11);
+        for (int i = 0; i < 11; i++) {
             list.add(i);
         }
         final int numIters = randomIntBetween(5, 10);
-        assertEquals(4, build.getHandles().size());
+        assertEquals(5, build.getHandles().size());
         assertEquals(0, build.getHandles().get(0).offset);
         assertEquals(1, build.getHandles().get(0).length);
         assertEquals(EnumSet.of(TransportRequestOptions.Type.BULK), build.getHandles().get(0).getTypes());
@@ -155,11 +158,20 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
             assertThat(channel, Matchers.anyOf(Matchers.is(6), Matchers.is(7), Matchers.is(8), Matchers.is(9)));
         }
 
+        assertEquals(10, build.getHandles().get(4).offset);
+        assertEquals(1, build.getHandles().get(4).length);
+        assertEquals(EnumSet.of(TransportRequestOptions.Type.STREAM), build.getHandles().get(4).getTypes());
+        channel = build.getHandles().get(4).getChannel(list);
+        for (int i = 0; i < numIters; i++) {
+            assertEquals(10, channel.intValue());
+        }
+
         assertEquals(3, build.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(4, build.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
         assertEquals(2, build.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(2, build.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(1, build.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(1, build.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM));
     }
 
     public void testNoChannels() {
@@ -169,7 +181,8 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
             TransportRequestOptions.Type.BULK,
             TransportRequestOptions.Type.STATE,
             TransportRequestOptions.Type.RECOVERY,
-            TransportRequestOptions.Type.REG
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STREAM
         );
         builder.addConnections(0, TransportRequestOptions.Type.PING);
         ConnectionProfile build = builder.build();
@@ -188,6 +201,7 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.REG);
         builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.STATE);
         builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.PING);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.STREAM);
 
         final boolean connectionTimeoutSet = randomBoolean();
         if (connectionTimeoutSet) {
@@ -235,6 +249,7 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM));
         assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getConnectTimeout());
         assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getHandshakeTimeout());
         assertEquals(TransportSettings.TRANSPORT_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
@@ -247,6 +262,7 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM));
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(nonDataNode());
         assertEquals(11, profile.getNumConnections());
@@ -255,6 +271,7 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM));
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(
             removeRoles(
@@ -267,5 +284,6 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM));
     }
 }
