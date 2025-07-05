@@ -56,11 +56,11 @@ public class ForceMergeManagerSettings {
     );
 
     /**
-     * Setting for wait time between force merge operations (default: 10s).
+     * Setting for wait time between force merge operations (default: 15s).
      */
     public static final Setting<TimeValue> MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE = Setting.timeSetting(
         "node.auto_force_merge.merge_delay",
-        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(15),
         TimeValue.timeValueSeconds(1),
         TimeValue.timeValueSeconds(60),
         Setting.Property.Dynamic,
@@ -92,11 +92,11 @@ public class ForceMergeManagerSettings {
     );
 
     /**
-     * Setting for cpu threshold. (default: 80)
+     * Setting for cpu threshold. (default: 75)
      */
     public static final Setting<Double> CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
         "node.auto_force_merge.cpu.threshold",
-        80.0,
+        75.0,
         10,
         100,
         Setting.Property.Dynamic,
@@ -104,11 +104,11 @@ public class ForceMergeManagerSettings {
     );
 
     /**
-     * Setting for memory threshold. (default: 90)
+     * Setting for disk threshold. (default: 85)
      */
     public static final Setting<Double> DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
         "node.auto_force_merge.disk.threshold",
-        90.0,
+        85.0,
         10,
         100,
         Setting.Property.Dynamic,
