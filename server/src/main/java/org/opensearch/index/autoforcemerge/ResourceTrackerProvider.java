@@ -20,19 +20,19 @@ import org.opensearch.threadpool.ThreadPool;
  */
 public class ResourceTrackerProvider {
 
-    public static final TimeValue AVERAGE_WINDOW_ONE_SECOND = TimeValue.timeValueSeconds(6);
-    public static final TimeValue AVERAGE_WINDOW_FIVE_SECOND = TimeValue.timeValueSeconds(30);
-    public static final TimeValue AVERAGE_WINDOW_ONE_MINUTE = TimeValue.timeValueMinutes(1);
-    public static final TimeValue AVERAGE_WINDOW_FIVE_MINUTE = TimeValue.timeValueMinutes(5);
+    public static final TimeValue SHORT_POLL_INTERVAL = TimeValue.timeValueSeconds(6);
+    public static final TimeValue LONG_POLL_INTERVAL = TimeValue.timeValueSeconds(30);
+    public static final TimeValue SHORT_AVERAGE_WINDOW = TimeValue.timeValueMinutes(1);
+    public static final TimeValue LONG_AVERAGE_WINDOW = TimeValue.timeValueMinutes(5);
 
     public static ResourceTrackers resourceTrackers;
 
     public static ResourceTrackers create(ThreadPool threadPool) {
         return resourceTrackers = new ResourceTrackers(
-            new AverageCpuUsageTracker(threadPool, AVERAGE_WINDOW_ONE_SECOND, AVERAGE_WINDOW_ONE_MINUTE),
-            new AverageCpuUsageTracker(threadPool, AVERAGE_WINDOW_FIVE_SECOND, AVERAGE_WINDOW_FIVE_MINUTE),
-            new AverageMemoryUsageTracker(threadPool, AVERAGE_WINDOW_ONE_SECOND, AVERAGE_WINDOW_ONE_MINUTE),
-            new AverageMemoryUsageTracker(threadPool, AVERAGE_WINDOW_FIVE_SECOND, AVERAGE_WINDOW_FIVE_MINUTE)
+            new AverageCpuUsageTracker(threadPool, SHORT_POLL_INTERVAL, SHORT_AVERAGE_WINDOW),
+            new AverageCpuUsageTracker(threadPool, LONG_POLL_INTERVAL, LONG_AVERAGE_WINDOW),
+            new AverageMemoryUsageTracker(threadPool, SHORT_POLL_INTERVAL, SHORT_AVERAGE_WINDOW),
+            new AverageMemoryUsageTracker(threadPool, LONG_POLL_INTERVAL, LONG_AVERAGE_WINDOW)
         );
     }
 
