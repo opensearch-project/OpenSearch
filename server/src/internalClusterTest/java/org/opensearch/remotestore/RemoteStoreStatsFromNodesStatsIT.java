@@ -104,6 +104,12 @@ public class RemoteStoreStatsFromNodesStatsIT extends RemoteStoreBaseIntegTestCa
         indexSingleDoc(INDEX_NAME);
         refresh(INDEX_NAME);
 
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
         NodesStatsResponse nodesStatsResponseForClusterManager = client().admin()
             .cluster()
             .prepareNodesStats(internalCluster().getClusterManagerName())

@@ -2206,6 +2206,78 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Waits for the local commit to be uploaded to the remote store within the specified timeout.
+     * This method captures the local commit information once at the start and then periodically checks if
+     * that specific commit is in the remote store. This approach prevents issues when multiple local commits
+     * are happening during the wait period.
+     *
+     * Uses a 1 second initial polling interval with exponential backoff.
+     *
+     * @param timeout The maximum time to wait for the commit to be uploaded
+     * @return true if the commit was uploaded within the timeout period, false otherwise
+     * @throws AlreadyClosedException if the shard is closed during the wait
+     */
+    public boolean waitForLocalCommitToBeUploadedToRemote(TimeValue timeout) throws IOException {
+        assert indexSettings.isAssignedOnRemoteNode();
+
+        if (timeout == null) {
+            throw new IllegalArgumentException("Timeout must not be null");
+        }
+
+        long startTimeNanos = System.nanoTime();
+        long timeoutNanos = timeout.nanos();
+        long currentIntervalMillis = 1000;
+        final long maxIntervalMillis = 30000;
+
+        // Capture the current local commit generation once at the start
+        long localCommitGeneration;
+        try (GatedCloseable<IndexCommit> localCommit = acquireLastIndexCommit(false)) {
+            localCommitGeneration = localCommit.get().getGeneration();
+            logger.debug("Waiting for local commit generation [{}] to be uploaded to remote (timeout: {})", localCommitGeneration, timeout);
+        } catch (Exception e) {
+            logger.error("Failed to get local commit generation", e);
+            return false;
+        }
+
+        RemoteSegmentStoreDirectory directory = getRemoteDirectory();
+
+        while (System.nanoTime() - startTimeNanos < timeoutNanos) {
+            try {
+                // Check if the remote has a commit with generation >= our captured local commit generation
+                RemoteSegmentMetadata remoteMetadata = null;
+                try {
+                    remoteMetadata = directory.readLatestMetadataFile();
+                } catch (Exception e) {
+                    logger.debug("Error reading remote metadata file", e);
+                }
+
+                if (remoteMetadata != null && remoteMetadata.getGeneration() >= localCommitGeneration) {
+                    logger.debug(
+                        "Local commit generation [{}] has been successfully uploaded to remote within {} ms",
+                        localCommitGeneration,
+                        TimeValue.nsecToMSec(System.nanoTime() - startTimeNanos)
+                    );
+                    return true;
+                }
+
+                try {
+                    Thread.sleep(currentIntervalMillis);
+                    currentIntervalMillis = Math.min(currentIntervalMillis * 2, maxIntervalMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting for local commit to be uploaded to remote", e);
+                }
+            } catch (AlreadyClosedException e) {
+                logger.trace("Shard closed while waiting for local commit to be uploaded to remote");
+                throw e;
+            }
+        }
+
+        logger.warn("Timed out waiting for local commit generation [{}] to be uploaded to remote after {}", localCommitGeneration, timeout);
+        return false;
+    }
+
+    /**
      * Returns true iff it is able to verify that remote segment store
      * is in sync with local
      */
@@ -2250,40 +2322,81 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     Throws IOException if the remote store is not synced within the timeout
     */
     public void waitForRemoteStoreSync(Runnable onProgress) throws IOException {
+        waitForRemoteStoreSyncWithConfig(getRecoverySettings().internalRemoteUploadTimeout(), TimeValue.timeValueSeconds(30), onProgress);
+    }
+
+    /**
+     * Waits for remote store to sync with configurable timeout and poll interval.
+     * The method will periodically check if remote segments store is in sync with local store.
+     *
+     * @param timeout The maximum time to wait for the sync to complete
+     * @param pollInterval The time to wait between checks
+     * @param onProgress A runnable that will be executed when progress is detected
+     * @throws IOException if the sync doesn't complete within the timeout period
+     */
+    private void waitForRemoteStoreSyncWithConfig(TimeValue timeout, TimeValue pollInterval, Runnable onProgress) throws IOException {
         assert indexSettings.isAssignedOnRemoteNode();
+
+        if (timeout == null || pollInterval == null) {
+            throw new IllegalArgumentException("Timeout and poll interval must not be null");
+        }
+
         RemoteSegmentStoreDirectory directory = getRemoteDirectory();
-        int segmentUploadeCount = 0;
+        int segmentUploadCount = 0;
+
         if (shardRouting.primary() == false) {
             return;
         }
+
         long startNanos = System.nanoTime();
 
-        while (System.nanoTime() - startNanos < getRecoverySettings().internalRemoteUploadTimeout().nanos()) {
+        while (System.nanoTime() - startNanos < timeout.nanos()) {
             try {
                 if (isRemoteSegmentStoreInSync()) {
                     return;
                 } else {
-                    if (directory.getSegmentsUploadedToRemoteStore().size() > segmentUploadeCount) {
+                    if (directory.getSegmentsUploadedToRemoteStore().size() > segmentUploadCount) {
                         onProgress.run();
                         logger.debug("Uploaded segment count {}", directory.getSegmentsUploadedToRemoteStore().size());
-                        segmentUploadeCount = directory.getSegmentsUploadedToRemoteStore().size();
+                        segmentUploadCount = directory.getSegmentsUploadedToRemoteStore().size();
                     }
                     try {
-                        Thread.sleep(TimeValue.timeValueSeconds(30).millis());
+                        Thread.sleep(pollInterval.millis());
                     } catch (InterruptedException ie) {
-                        throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
+                        throw new OpenSearchException("Interrupted while waiting for remote store sync", ie);
                     }
                 }
             } catch (AlreadyClosedException e) {
-                // There is no point in waiting as shard is now closed .
+                // There is no point in waiting as shard is now closed.
                 return;
             }
         }
-        throw new IOException(
-            "Failed to upload to remote segment store within remote upload timeout of "
-                + getRecoverySettings().internalRemoteUploadTimeout().getMinutes()
-                + " minutes"
-        );
+        throw new IOException("Failed to upload to remote segment store within timeout of " + timeout);
+    }
+
+    /**
+     * Waits for remote store to sync with configurable timeout and poll interval.
+     * The method will periodically check if remote segments store is in sync with local store.
+     *
+     * @param timeout The maximum time to wait for the sync to complete
+     * @param pollInterval The time to wait between checks
+     * @throws IOException if the sync doesn't complete within the timeout period
+     */
+    public void awaitRemoteStoreSync(TimeValue timeout, TimeValue pollInterval) throws IOException {
+        waitForRemoteStoreSyncWithConfig(timeout, pollInterval, () -> {});
+    }
+
+    /**
+     * Blocks until remote store is synced with local shard or timeout occurs.
+     * This method should only be used in tests.
+     *
+     * @throws IOException if there is some failure while checking remote store sync status
+     */
+    public void awaitRemoteStoreSync() throws IOException {
+        if (indexSettings.isAssignedOnRemoteNode() == false) {
+            return;
+        }
+        awaitRemoteStoreSync(TimeValue.timeValueMinutes(2), TimeValue.timeValueMillis(100));
     }
 
     public void preRecovery() {

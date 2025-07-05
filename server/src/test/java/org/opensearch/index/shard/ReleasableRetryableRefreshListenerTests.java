@@ -46,7 +46,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         CountDownLatch countDownLatch = new CountDownLatch(2);
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 countDownLatch.countDown();
                 return false;
             }
@@ -57,6 +57,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             @Override
             protected Logger getLogger() {
                 return logger;
+            }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
             }
         };
 
@@ -78,7 +83,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 countDownLatch.countDown();
                 return false;
             }
@@ -89,6 +94,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             @Override
             protected Logger getLogger() {
                 return logger;
+            }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
             }
         };
 
@@ -115,7 +125,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 countDownLatch.countDown();
                 return countDownLatch.getCount() == 0;
             }
@@ -126,6 +136,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             @Override
             protected Logger getLogger() {
                 return logger;
+            }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
             }
         };
         testRefreshListener.afterRefresh(true);
@@ -134,7 +149,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
 
         testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 countDownLatch.countDown();
                 return countDownLatch.getCount() == 0;
             }
@@ -146,6 +161,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
+            }
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 2, countDownLatch.getCount());
@@ -153,7 +173,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
 
         testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 countDownLatch.countDown();
                 return countDownLatch.getCount() == 0;
             }
@@ -170,6 +190,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
+            }
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 3, countDownLatch.getCount());
@@ -177,7 +202,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
 
         testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 countDownLatch.countDown();
                 return countDownLatch.getCount() == 0;
             }
@@ -194,6 +219,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
+            }
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 4, countDownLatch.getCount());
@@ -208,7 +238,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 countDownLatch.countDown();
                 return countDownLatch.getCount() == 0;
             }
@@ -235,6 +265,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected boolean isRetryEnabled() {
                 return true;
             }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
+            }
         };
         testRefreshListener.afterRefresh(true);
         assertBusy(() -> assertEquals(0, countDownLatch.getCount()));
@@ -249,7 +284,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 countDownLatch.countDown();
                 return countDownLatch.getCount() == 0;
             }
@@ -271,6 +306,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
+            }
         };
         testRefreshListener.afterRefresh(randomBoolean());
         testRefreshListener.drainRefreshes();
@@ -282,7 +322,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 try {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
@@ -298,6 +338,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             @Override
             protected Logger getLogger() {
                 return logger;
+            }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
             }
         };
         Thread thread = new Thread(() -> {
@@ -343,7 +388,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
     private ReleasableRetryableRefreshListener getRetryableRefreshListener(AtomicLong runCount) {
         return new ReleasableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
@@ -379,6 +424,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
                     throw new AssertionError(e);
                 }
                 return TimeValue.timeValueMillis(100);
+            }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
             }
         };
     }
@@ -416,7 +466,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         final AtomicInteger retryCount = new AtomicInteger(0);
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 retryCount.incrementAndGet();
                 runCount.incrementAndGet();
                 return retryCount.get() >= 2;
@@ -444,6 +494,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected boolean isRetryEnabled() {
                 return true;
             }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
+            }
         };
         testRefreshListener.afterRefresh(true);
         testRefreshListener.afterRefresh(true);
@@ -460,7 +515,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         when(mockThreadPool.schedule(any(), any(), any())).thenThrow(new RuntimeException());
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mockThreadPool) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 runCount.incrementAndGet();
                 return false;
             }
@@ -487,6 +542,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected boolean isRetryEnabled() {
                 return true;
             }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
+            }
         };
         assertThrows(RuntimeException.class, () -> testRefreshListener.afterRefresh(true));
         assertBusy(() -> assertFalse(testRefreshListener.getRetryScheduledStatus()));
@@ -499,7 +559,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         // This test checks the expected behaviour when the drainRefreshes times out.
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 try {
                     Thread.sleep(TimeValue.timeValueSeconds(2).millis());
                 } catch (InterruptedException e) {
@@ -519,6 +579,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             @Override
             TimeValue getDrainTimeout() {
                 return TimeValue.timeValueSeconds(1);
+            }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
             }
         };
         Thread thread1 = new Thread(() -> {
@@ -540,7 +605,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         CountDownLatch latch = new CountDownLatch(2);
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 try {
                     Thread.sleep(TimeValue.timeValueSeconds(2).millis());
                 } catch (InterruptedException e) {
@@ -560,6 +625,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             @Override
             TimeValue getDrainTimeout() {
                 return TimeValue.timeValueSeconds(2);
+            }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
             }
         };
         Thread thread1 = new Thread(() -> {
@@ -589,7 +659,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         // by closing the releasables acquired by calling the drainRefreshes method.
         ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
             @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
                 return true;
             }
 
@@ -599,6 +669,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             @Override
             protected Logger getLogger() {
                 return logger;
+            }
+
+            @Override
+            protected IndexShard getIndexShard() {
+                return mock(IndexShard.class);
             }
         };
         assertRefreshListenerOpen(testRefreshListener);

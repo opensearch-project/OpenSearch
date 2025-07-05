@@ -971,6 +971,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexShard shard = shardFunction.apply(primary);
         if (primary) {
             recoverShardFromStore(shard);
+            shard.awaitRemoteStoreSync();
             assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         } else {
             recoveryEmptyReplica(shard, true);
@@ -999,6 +1000,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {
         for (IndexShard shard : shards) {
             if (shard != null) {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
                 closeShard(shard, true);
             }
         }
