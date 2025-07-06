@@ -10,12 +10,19 @@ package org.opensearch.search.approximate;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 
+import java.io.IOException;
 import java.util.List;
 
+/**
+ * An approximate-able version of {@link BooleanQuery}. For single clause boolean queries,
+ * it unwraps the query into the singular clause and ensures approximation is applied.
+ */
 public class ApproximateBooleanQuery extends ApproximateQuery {
     public final BooleanQuery boolQuery;
     private final int size;
@@ -35,7 +42,52 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
     @Override
     protected boolean canApproximate(SearchContext context) {
+        if (context == null) {
+            return false;
+        }
+
+        // Don't approximate if we need accurate total hits
+        if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+            return false;
+        }
+
+        // Don't approximate if we have aggregations
+        if (context.aggregations() != null) {
+            return false;
+        }
+
+        // For single clause boolean queries, check if the clause can be approximated
+        if (clauses.size() == 1 && clauses.get(0).occur() != BooleanClause.Occur.MUST_NOT) {
+            BooleanClause singleClause = clauses.get(0);
+            Query clauseQuery = singleClause.query();
+
+            // If the clause is already an ApproximateScoreQuery, we can approximate
+            if (clauseQuery instanceof ApproximateScoreQuery) {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        // Handle single clause boolean queries by unwrapping them and applying approximation
+        if (clauses.size() == 1) {
+            BooleanClause singleClause = clauses.get(0);
+            Query clauseQuery = singleClause.query();
+
+            // If the single clause is an ApproximateScoreQuery, set its context
+            if (clauseQuery instanceof ApproximateScoreQuery approximateQuery) {
+                // Do we want to setContext here or in ContextIndexSearcher? Most likely here to avoid cluttering CIS.
+                return approximateQuery;
+            }
+
+            return clauseQuery.rewrite(indexSearcher);
+        }
+
+        // For multi-clause boolean queries, use the default rewrite behavior
+        return super.rewrite(indexSearcher);
     }
 
     @Override
@@ -58,9 +110,6 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
     @Override
     public int hashCode() {
-        int result = boolQuery.hashCode();
-        result = 31 * result + size;
-        result = 31 * result + (sortOrder != null ? sortOrder.hashCode() : 0);
-        return result;
+        return boolQuery.hashCode();
     }
 }
