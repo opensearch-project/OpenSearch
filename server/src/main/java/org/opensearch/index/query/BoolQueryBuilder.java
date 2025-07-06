@@ -51,6 +51,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.approximate.ApproximateBooleanQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -344,7 +346,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-        return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
+
+        if (adjustPureNegative) {
+            query = fixNegativeQueryIfNeeded(query);
+        }
+
+        return new ApproximateScoreQuery(query, new ApproximateBooleanQuery((BooleanQuery) query));
     }
 
     private static void addBooleanClauses(
