@@ -79,8 +79,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             Query clauseQuery = singleClause.query();
 
             // If the single clause is an ApproximateScoreQuery, set its context
-            if (clauseQuery instanceof ApproximateScoreQuery) {
-                ApproximateScoreQuery approximateQuery = (ApproximateScoreQuery) clauseQuery;
+            if (clauseQuery instanceof ApproximateScoreQuery approximateQuery) {
 
                 // If we have a context, set it on the query
                 if (context != null) {
