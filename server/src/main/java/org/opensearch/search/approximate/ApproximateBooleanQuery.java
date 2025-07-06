@@ -26,17 +26,15 @@ import java.util.List;
 public class ApproximateBooleanQuery extends ApproximateQuery {
     public final BooleanQuery boolQuery;
     private final int size;
-    private final SortOrder sortOrder;
     private final List<BooleanClause> clauses;
 
     public ApproximateBooleanQuery(BooleanQuery boolQuery) {
-        this(boolQuery, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, null);
+        this(boolQuery, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
     }
 
-    protected ApproximateBooleanQuery(BooleanQuery boolQuery, int size, SortOrder sortOrder) {
+    protected ApproximateBooleanQuery(BooleanQuery boolQuery, int size) {
         this.boolQuery = boolQuery;
         this.size = size;
-        this.sortOrder = sortOrder;
         this.clauses = boolQuery.clauses();
     }
 
@@ -105,7 +103,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ApproximateBooleanQuery that = (ApproximateBooleanQuery) o;
-        return size == that.size && sortOrder == that.sortOrder && boolQuery.equals(that.boolQuery);
+        return size == that.size && boolQuery.equals(that.boolQuery);
     }
 
     @Override
