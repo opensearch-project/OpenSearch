@@ -41,6 +41,8 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;
+import org.opensearch.search.rescore.RescoreContext;
+import org.opensearch.search.rescore.QueryRescorer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,6 +67,17 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         if (context.parsedPostFilter() != null) {
             namedQueries.putAll(context.parsedPostFilter().namedFilters());
         }
+        if (context.rescore() != null) {
+            for (RescoreContext rescoreContext : context.rescore()) {
+                if (rescoreContext instanceof QueryRescorer.QueryRescoreContext) {
+                    QueryRescorer.QueryRescoreContext queryRescoreContext = (QueryRescorer.QueryRescoreContext) rescoreContext;
+                    if (queryRescoreContext.parsedQuery() != null) {
+                        namedQueries.putAll(queryRescoreContext.parsedQuery().namedFilters());
+                    }
+                }
+            }
+        }
+
         if (namedQueries.isEmpty()) {
             return null;
         }

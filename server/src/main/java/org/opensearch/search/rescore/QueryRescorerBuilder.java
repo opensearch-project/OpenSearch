@@ -42,7 +42,9 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.search.rescore.QueryRescorer.QueryRescoreContext;
+import org.apache.lucene.search.Query;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -190,8 +192,10 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     @Override
     public QueryRescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(windowSize);
-        // query is rewritten at this point already
-        queryRescoreContext.setQuery(queryBuilder.toQuery(context));
+
+        ParsedQuery parsedQuery = context.toQuery(queryBuilder);
+        queryRescoreContext.setParsedQuery(parsedQuery);
+
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);

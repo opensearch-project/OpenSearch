@@ -38,6 +38,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 
+import org.opensearch.search.rescore.QueryRescorer.QueryRescoreContext;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -190,7 +192,7 @@ public final class QueryRescorer implements Rescorer {
      * @opensearch.internal
      */
     public static class QueryRescoreContext extends RescoreContext {
-        private Query query;
+        private org.opensearch.index.query.ParsedQuery parsedQuery;
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
         private QueryRescoreMode scoreMode;
@@ -200,17 +202,21 @@ public final class QueryRescorer implements Rescorer {
             this.scoreMode = QueryRescoreMode.Total;
         }
 
-        public void setQuery(Query query) {
-            this.query = query;
+        public void setParsedQuery(org.opensearch.index.query.ParsedQuery parsedQuery) {
+            this.parsedQuery = parsedQuery;
+        }
+
+        public org.opensearch.index.query.ParsedQuery parsedQuery() {
+            return parsedQuery;
         }
 
         @Override
         public List<Query> getQueries() {
-            return Collections.singletonList(query);
+            return Collections.singletonList(query());
         }
 
         public Query query() {
-            return query;
+            return parsedQuery != null ? parsedQuery.query() : null;
         }
 
         public float queryWeight() {
