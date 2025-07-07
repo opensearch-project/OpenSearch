@@ -106,9 +106,9 @@ public class FetchPhase {
     }
 
     public void execute(SearchContext context) {
-        FetchProfileBreakdown profile = null;
+        FetchProfileBreakdown breakdown = null;
         if (context.getProfilers() != null) {
-            profile = context.getProfilers().getFetchProfiler().getQueryBreakdown("fetch");
+            breakdown = context.getProfilers().getFetchProfiler().getQueryBreakdown("fetch");
         }
         try {
             if (LOGGER.isTraceEnabled()) {
@@ -130,20 +130,12 @@ public class FetchPhase {
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
             }
-            // make sure that we iterate in doc id order
-            if (profile != null) {
-                Timer t = profile.getTimer(FetchTimingType.SORT_DOC_IDS);
-                t.start();
-                Arrays.sort(docs);
-                t.stop();
-            } else {
-                Arrays.sort(docs);
-            }
+            Arrays.sort(docs);
 
             Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
             FieldsVisitor fieldsVisitor;
-            if (profile != null) {
-                Timer t = profile.getTimer(FetchTimingType.CREATE_STORED_FIELDS_VISITOR);
+            if (breakdown != null) {
+                Timer t = breakdown.getTimer(FetchTimingType.CREATE_STORED_FIELDS_VISITOR);
                 t.start();
                 fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
                 t.stop();
@@ -156,13 +148,23 @@ public class FetchPhase {
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
             List<Tuple<FetchSubPhaseProcessor, FetchSubPhase>> processors;
-            if (profile != null) {
-                Timer t = profile.getTimer(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS);
+            if (breakdown != null) {
+                Timer t = breakdown.getTimer(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS);
                 t.start();
                 processors = getProcessors(context.shardTarget(), fetchContext);
                 t.stop();
             } else {
                 processors = getProcessors(context.shardTarget(), fetchContext);
+            }
+            Map<FetchSubPhaseProcessor, FetchProfileBreakdown> processorProfiles = new HashMap<>();
+            if (breakdown != null) {
+                for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
+                    FetchProfileBreakdown pb = context.getProfilers()
+                        .getFetchProfiler()
+                        .getQueryBreakdown(p.v2().getClass().getSimpleName());
+                    processorProfiles.put(p.v1(), pb);
+                    context.getProfilers().getFetchProfiler().pollLastElement();
+                }
             }
 
             int currentReaderIndex = -1;
@@ -177,8 +179,8 @@ public class FetchPhase {
                 try {
                     int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
                     if (currentReaderIndex != readerIndex) {
-                        if (profile != null) {
-                            Timer t = profile.getTimer(FetchTimingType.GET_LEAF_READER);
+                        if (breakdown != null) {
+                            Timer t = breakdown.getTimer(FetchTimingType.NEXT_READER);
                             t.start();
                             currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                             t.stop();
@@ -199,47 +201,39 @@ public class FetchPhase {
                             fieldReader = currentReaderContext.reader().storedFields()::document;
                         }
                         for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
-                            p.v1().setNextReader(currentReaderContext);
+                            if (breakdown != null) {
+                                FetchProfileBreakdown pbd = processorProfiles.get(p.v1());
+                                Timer st = pbd.getTimer(FetchTimingType.NEXT_READER);
+                                st.start();
+                                p.v1().setNextReader(currentReaderContext);
+                                st.stop();
+                            } else {
+                                p.v1().setNextReader(currentReaderContext);
+                            }
                         }
                     }
                     assert currentReaderContext != null;
-                    HitContext hit;
-                    if (profile != null) {
-                        Timer t = profile.getTimer(FetchTimingType.PREPARE_HIT_CONTEXT);
-                        t.start();
-                        hit = prepareHitContext(
-                            context,
-                            fetchContext.searchLookup(),
-                            fieldsVisitor,
-                            docId,
-                            storedToRequestedFields,
-                            currentReaderContext,
-                            fieldReader
-                        );
-                        t.stop();
-                    } else {
-                        hit = prepareHitContext(
-                            context,
-                            fetchContext.searchLookup(),
-                            fieldsVisitor,
-                            docId,
-                            storedToRequestedFields,
-                            currentReaderContext,
-                            fieldReader
-                        );
-                    }
+                    HitContext hit = prepareHitContext(
+                        context,
+                        fetchContext.searchLookup(),
+                        fieldsVisitor,
+                        docId,
+                        storedToRequestedFields,
+                        currentReaderContext,
+                        fieldReader,
+                        breakdown
+                    );
+
                     for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
-                        if (profile != null) {
-                            FetchTimingType tt = timingTypeFor(p.v2());
-                            if (tt != null) {
-                                Timer st = profile.getTimer(tt);
-                                st.start();
-                                p.v1().process(hit);
-                                st.stop();
-                                continue;
-                            }
+                        if (breakdown != null) {
+                            FetchProfileBreakdown pbd = processorProfiles.get(p.v1());
+                            Timer st = pbd.getTimer(FetchTimingType.PROCESS);
+                            st.start();
+                            p.v1().process(hit);
+                            st.stop();
+                        } else {
+                            p.v1().process(hit);
                         }
-                        p.v1().process(hit);
                     }
                     hits[docs[index].index] = hit.hit();
                 } catch (Exception e) {
@@ -251,8 +245,8 @@ public class FetchPhase {
             }
 
             TotalHits totalHits = context.queryResult().getTotalHits();
-            if (profile != null) {
-                Timer t = profile.getTimer(FetchTimingType.BUILD_SEARCH_HITS);
+            if (breakdown != null) {
+                Timer t = breakdown.getTimer(FetchTimingType.BUILD_SEARCH_HITS);
                 t.start();
                 context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
                 t.stop();
@@ -260,7 +254,7 @@ public class FetchPhase {
                 context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
             }
         } finally {
-            if (profile != null) {
+            if (breakdown != null) {
                 context.getProfilers().getFetchProfiler().pollLastElement();
             }
         }
@@ -281,31 +275,6 @@ public class FetchPhase {
         }
     }
 
-    private FetchTimingType timingTypeFor(FetchSubPhase phase) {
-        if (phase instanceof org.opensearch.search.fetch.subphase.ExplainPhase) {
-            return FetchTimingType.EXPLAIN;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchDocValuesPhase) {
-            return FetchTimingType.FETCH_DOC_VALUES;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.ScriptFieldsPhase) {
-            return FetchTimingType.SCRIPT_FIELDS;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchSourcePhase) {
-            return FetchTimingType.FETCH_SOURCE;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchFieldsPhase) {
-            return FetchTimingType.FETCH_FIELDS;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchVersionPhase) {
-            return FetchTimingType.FETCH_VERSION;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.SeqNoPrimaryTermPhase) {
-            return FetchTimingType.SEQ_NO_PRIMARY_TERM;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.MatchedQueriesPhase) {
-            return FetchTimingType.MATCHED_QUERIES;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.highlight.HighlightPhase) {
-            return FetchTimingType.HIGHLIGHT;
-        } else if (phase instanceof org.opensearch.search.fetch.subphase.FetchScorePhase) {
-            return FetchTimingType.FETCH_SCORE;
-        } else {
-            return null;
-        }
-    }
 
     static class DocIdToIndex implements Comparable<DocIdToIndex> {
         final int docId;
@@ -404,7 +373,8 @@ public class FetchPhase {
         int docId,
         Map<String, Set<String>> storedToRequestedFields,
         LeafReaderContext subReaderContext,
-        CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader
+        CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader,
+        FetchProfileBreakdown breakdown
     ) throws IOException {
         int rootDocId = findRootDocumentIfNested(context, subReaderContext, docId - subReaderContext.docBase);
         if (rootDocId == -1) {
@@ -415,10 +385,19 @@ public class FetchPhase {
                 docId,
                 storedToRequestedFields,
                 subReaderContext,
-                storedFieldReader
+                storedFieldReader,
+                breakdown
             );
         } else {
-            return prepareNestedHitContext(context, docId, rootDocId, storedToRequestedFields, subReaderContext, storedFieldReader);
+            return prepareNestedHitContext(
+                context,
+                docId,
+                rootDocId,
+                storedToRequestedFields,
+                subReaderContext,
+                storedFieldReader,
+                breakdown
+            );
         }
     }
 
@@ -436,7 +415,8 @@ public class FetchPhase {
         int docId,
         Map<String, Set<String>> storedToRequestedFields,
         LeafReaderContext subReaderContext,
-        CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader
+        CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
+        FetchProfileBreakdown breakdown
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
         DocumentMapper documentMapper = context.mapperService().documentMapper();
@@ -447,7 +427,14 @@ public class FetchPhase {
             return new HitContext(hit, subReaderContext, subDocId, lookup.source());
         } else {
             SearchHit hit;
-            loadStoredFields(context::fieldType, fieldReader, fieldsVisitor, subDocId);
+            if (breakdown != null) {
+                Timer t = breakdown.getTimer(FetchTimingType.LOAD_STORED_FIELDS);
+                t.start();
+                loadStoredFields(context::fieldType, fieldReader, fieldsVisitor, subDocId);
+                t.stop();
+            } else {
+                loadStoredFields(context::fieldType, fieldReader, fieldsVisitor, subDocId);
+            }
             String id = fieldsVisitor.id();
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
@@ -460,7 +447,14 @@ public class FetchPhase {
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
             if (fieldsVisitor.source() != null) {
-                hitContext.sourceLookup().setSource(fieldsVisitor.source());
+                if (breakdown != null) {
+                    Timer t = breakdown.getTimer(FetchTimingType.LOAD_SOURCE);
+                    t.start();
+                    hitContext.sourceLookup().setSource(fieldsVisitor.source());
+                    t.stop();
+                } else {
+                    hitContext.sourceLookup().setSource(fieldsVisitor.source());
+                }
             }
             return hitContext;
         }
@@ -481,7 +475,8 @@ public class FetchPhase {
         int rootDocId,
         Map<String, Set<String>> storedToRequestedFields,
         LeafReaderContext subReaderContext,
-        CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader
+        CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader,
+        FetchProfileBreakdown breakdown
     ) throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
@@ -505,15 +500,31 @@ public class FetchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context::fieldType, storedFieldReader, rootFieldsVisitor, rootDocId);
+            if (breakdown != null) {
+                Timer t = breakdown.getTimer(FetchTimingType.LOAD_STORED_FIELDS);
+                t.start();
+                loadStoredFields(context::fieldType, storedFieldReader, rootFieldsVisitor, rootDocId);
+                t.stop();
+            } else {
+                loadStoredFields(context::fieldType, storedFieldReader, rootFieldsVisitor, rootDocId);
+            }
             rootFieldsVisitor.postProcess(context::fieldType);
             rootId = rootFieldsVisitor.id();
 
             if (needSource) {
                 if (rootFieldsVisitor.source() != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootFieldsVisitor.source(), false);
-                    rootSourceAsMap = tuple.v2();
-                    rootSourceContentType = tuple.v1();
+                    if (breakdown != null) {
+                        Timer t = breakdown.getTimer(FetchTimingType.LOAD_SOURCE);
+                        t.start();
+                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootFieldsVisitor.source(), false);
+                        rootSourceAsMap = tuple.v2();
+                        rootSourceContentType = tuple.v1();
+                        t.stop();
+                    } else {
+                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootFieldsVisitor.source(), false);
+                        rootSourceAsMap = tuple.v2();
+                        rootSourceContentType = tuple.v1();
+                    }
                 } else {
                     rootSourceAsMap = Collections.emptyMap();
                 }
@@ -524,7 +535,14 @@ public class FetchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(context::fieldType, storedFieldReader, nestedFieldsVisitor, nestedDocId);
+            if (breakdown != null) {
+                Timer t = breakdown.getTimer(FetchTimingType.LOAD_STORED_FIELDS);
+                t.start();
+                loadStoredFields(context::fieldType, storedFieldReader, nestedFieldsVisitor, nestedDocId);
+                t.stop();
+            } else {
+                loadStoredFields(context::fieldType, storedFieldReader, nestedFieldsVisitor, nestedDocId);
+            }
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -593,8 +611,16 @@ public class FetchPhase {
                 }
             }
 
-            hitContext.sourceLookup().setSource(nestedSourceAsMap);
-            hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
+            if (breakdown != null) {
+                Timer t = breakdown.getTimer(FetchTimingType.LOAD_SOURCE);
+                t.start();
+                hitContext.sourceLookup().setSource(nestedSourceAsMap);
+                hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
+                t.stop();
+            } else {
+                hitContext.sourceLookup().setSource(nestedSourceAsMap);
+                hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
+            }
         }
         return hitContext;
     }

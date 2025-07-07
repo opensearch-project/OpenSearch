@@ -46,21 +46,34 @@ public class FetchProfilerTests extends OpenSearchTestCase {
 
     public void testBasicProfiling() {
         FetchProfiler profiler = new FetchProfiler();
-        FetchProfileBreakdown breakdown = profiler.getQueryBreakdown("fetch");
+        FetchProfileBreakdown root = profiler.getQueryBreakdown("fetch");
         for (FetchTimingType type : FetchTimingType.values()) {
-            Timer t = breakdown.getTimer(type);
+            if (type == FetchTimingType.PROCESS) {
+                continue;
+            }
+            Timer t = root.getTimer(type);
             t.start();
             t.stop();
         }
-        profiler.pollLastElement();
+
+        FetchProfileBreakdown child = profiler.getQueryBreakdown("phase");
+        Timer ct = child.getTimer(FetchTimingType.PROCESS);
+        ct.start();
+        ct.stop();
+        profiler.pollLastElement(); // pop child
+        profiler.pollLastElement(); // pop root
+
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
         ProfileResult profileResult = results.get(0);
         assertEquals("fetch", profileResult.getQueryName());
         Map<String, Long> map = profileResult.getTimeBreakdown();
-        assertEquals(FetchTimingType.values().length * 3, map.size());
+        assertEquals(3 * 3, map.size());
         long sum = 0;
         for (FetchTimingType type : FetchTimingType.values()) {
+            if (type == FetchTimingType.PROCESS) {
+                continue;
+            }
             String key = type.toString();
             assertThat(map.get(key), greaterThan(0L));
             assertThat(map.get(key + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX), equalTo(1L));
@@ -68,18 +81,19 @@ public class FetchProfilerTests extends OpenSearchTestCase {
             sum += map.get(key);
         }
         assertEquals(sum, profileResult.getTime());
+        assertFalse(map.containsKey(FetchTimingType.PROCESS.toString()));
     }
 
     public void testTimerAggregation() {
         FetchProfileBreakdown breakdown = new FetchProfileBreakdown();
-        Timer timer = breakdown.getTimer(FetchTimingType.FETCH_FIELDS);
+        Timer timer = breakdown.getTimer(FetchTimingType.PROCESS);
         timer.start();
         timer.stop();
         timer.start();
         timer.stop();
         Map<String, Long> map = breakdown.toBreakdownMap();
-        assertThat(map.get(FetchTimingType.FETCH_FIELDS.toString()), greaterThan(0L));
-        assertThat(map.get(FetchTimingType.FETCH_FIELDS + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX), equalTo(2L));
-        assertThat(breakdown.toNodeTime(), equalTo(map.get(FetchTimingType.FETCH_FIELDS.toString())));
+        assertThat(map.get(FetchTimingType.PROCESS.toString()), greaterThan(0L));
+        assertThat(map.get(FetchTimingType.PROCESS + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX), equalTo(2L));
+        assertThat(breakdown.toNodeTime(), equalTo(map.get(FetchTimingType.PROCESS.toString())));
     }
 }
