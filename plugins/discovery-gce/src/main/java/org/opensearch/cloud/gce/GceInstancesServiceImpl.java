@@ -33,7 +33,6 @@
 package org.opensearch.cloud.gce;
 
 import com.google.api.client.googleapis.compute.ComputeCredential;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequest;
@@ -58,7 +57,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.gce.RetryHttpInitializerWrapper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -191,7 +192,11 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
         if (gceHttpTransport == null) {
             if (validateCerts) {
-                gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+                KeyStore trustStore = KeyStore.getInstance("BCFKS");
+                try (InputStream in = getClass().getResourceAsStream("/google.bcfks")) {
+                    trustStore.load(in, "notasecret".toCharArray());
+                }
+                gceHttpTransport = new NetHttpTransport.Builder().trustCertificates(trustStore).build();
             } else {
                 // this is only used for testing - alternative we could use the defaul keystore but this requires special configs too..
                 gceHttpTransport = new NetHttpTransport.Builder().doNotValidateCertificate().build();

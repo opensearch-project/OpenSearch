@@ -70,6 +70,7 @@ public class StoreTrustConfigTests extends OpenSearchTestCase {
     }
 
     public void testBuildTrustConfigFromJks() throws Exception {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca-all/ca.jks");
         final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, JKS_PASS, JKS, DEFAULT_ALGORITHM);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));

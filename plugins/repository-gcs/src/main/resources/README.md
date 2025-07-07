@@ -5,7 +5,7 @@
 # Since BCFIPS requires its own BCFKS format this script creates it.
 #
 
-```
+```bash
 keytool -importkeystore -noprompt \
     -srckeystore $KEY_STORE_PATH/google.p12 \
     -srcstoretype PKCS12 \

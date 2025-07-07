@@ -278,8 +278,10 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
 
     private static SSLContext getSSLContext() throws Exception {
         char[] passphrase = "keypass".toCharArray();
-        KeyStore ks = KeyStore.getInstance("JKS");
-        try (InputStream stream = AzureDiscoveryClusterFormationTests.class.getResourceAsStream("/test-node.jks")) {
+        final String fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
+        final String keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
+        KeyStore ks = KeyStore.getInstance(keyStoreType);
+        try (InputStream stream = AzureDiscoveryClusterFormationTests.class.getResourceAsStream("/test-node" + fileExtension)) {
             assertNotNull("can't find keystore file", stream);
             ks.load(stream, passphrase);
         }
@@ -298,14 +300,16 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
      */
     @SuppressWarnings("removal")
     private static String getProtocol() {
-        if (Runtime.version().compareTo(Version.parse("12")) < 0) {
-            return "TLSv1.2";
-        } else {
-            Version full = AccessController.doPrivileged(
-                (PrivilegedAction<Version>) () -> Version.parse(System.getProperty("java.version"))
-            );
-            if (full.compareTo(Version.parse("12.0.1")) < 0) {
+        if (!inFipsJvm()) {
+            if (Runtime.version().compareTo(Version.parse("12")) < 0) {
                 return "TLSv1.2";
+            } else {
+                Version full = AccessController.doPrivileged(
+                    (PrivilegedAction<Version>) () -> Version.parse(System.getProperty("java.version"))
+                );
+                if (full.compareTo(Version.parse("12.0.1")) < 0) {
+                    return "TLSv1.2";
+                }
             }
         }
         return "TLS";

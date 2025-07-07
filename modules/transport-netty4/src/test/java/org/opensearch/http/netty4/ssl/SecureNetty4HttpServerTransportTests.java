@@ -52,11 +52,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -100,11 +95,35 @@ import static org.hamcrest.Matchers.is;
  */
 public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
+    final static String keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
+    final static String fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
+    final static String provider = inFipsJvm() ? "BCFIPS" : "SUN";
+    final static String algo = inFipsJvm() ? "PKIX" : KeyManagerFactory.getDefaultAlgorithm();
+    final static String jsseProvider = inFipsJvm() ? "BCJSSE" : "SunJSSE";
+    final static KeyManagerFactory keyManagerFactory = createKeyManagerFactory();
+
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
     private ClusterSettings clusterSettings;
     private SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
+
+    private static KeyManagerFactory createKeyManagerFactory() {
+        try {
+            final KeyStore keyStore = KeyStore.getInstance(keyStoreType, provider);
+
+            keyStore.load(
+                SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure" + fileExtension),
+                "password".toCharArray()
+            );
+
+            final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(algo, jsseProvider);
+            keyManagerFactory.init(keyStore, "password".toCharArray());
+            return keyManagerFactory;
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 
     @Before
     public void setup() throws Exception {
@@ -122,26 +141,13 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
                 try {
-                    var keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
-                    var fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
-                    var provider = inFipsJvm() ? "BCFIPS" : "SUN";
-                    final KeyStore keyStore = KeyStore.getInstance(keyStoreType, provider);
-
-                    keyStore.load(
-                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure" + fileExtension),
-                        "password".toCharArray()
-                    );
-
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-                    keyManagerFactory.init(keyStore, "password".toCharArray());
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
                         .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);
-                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException | CertificateException
-                    | NoSuchProviderException ex) {
+                } catch (Exception ex) {
                     throw new SSLException(ex);
                 }
             }

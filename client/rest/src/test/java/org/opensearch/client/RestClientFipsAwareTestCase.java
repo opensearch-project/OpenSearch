@@ -8,17 +8,27 @@
 
 package org.opensearch.client;
 
+import javax.net.ssl.SSLContext;
+
+import java.security.SecureRandom;
+
 import static org.opensearch.client.RestClientTestCase.inFipsJvm;
 
 public interface RestClientFipsAwareTestCase {
 
-    default void makeRequest() throws Exception {
+    default SSLContext getSslContext(boolean server) throws Exception {
+        String keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
+        String fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
+        SecureRandom secureRandom;
+
         if (inFipsJvm()) {
-            makeRequest("BCFKS");
+            secureRandom = SecureRandom.getInstance("DEFAULT", "BCFIPS");
         } else {
-            makeRequest("JKS");
+            secureRandom = SecureRandom.getInstanceStrong();
         }
+
+        return getSslContext(server, keyStoreType, secureRandom, fileExtension);
     }
 
-    void makeRequest(String keyStoreType) throws Exception;
+    SSLContext getSslContext(boolean server, String keyStoreType, SecureRandom secureRandom, String fileExtension) throws Exception;
 }

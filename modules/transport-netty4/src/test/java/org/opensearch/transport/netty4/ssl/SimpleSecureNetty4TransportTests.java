@@ -10,6 +10,7 @@ package org.opensearch.transport.netty4.ssl;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -29,7 +30,6 @@ import org.opensearch.transport.AbstractSimpleTransportTestCase;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.Netty4NioSocketChannel;
-import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.SharedGroupFactory;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TcpTransport;
@@ -37,26 +37,21 @@ import org.opensearch.transport.TestProfiles;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
-
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.SocketChannel;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
+import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.Optional;
-
-import io.netty.handler.ssl.ClientAuth;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -66,6 +61,61 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase {
+
+    final static String keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
+    final static String fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
+    final static String provider = inFipsJvm() ? "BCFIPS" : "SUN";
+    final static SecureRandom secureRandom = inFipsJvm() ? Randomness.createSecure() : new SecureRandom();
+
+    private static KeyManagerFactory createKeyManagerFactory(String file) {
+        try {
+            var keyStore = KeyStore.getInstance(keyStoreType, provider);
+            keyStore.load(SimpleSecureNetty4TransportTests.class.getResourceAsStream(file + fileExtension), "password".toCharArray());
+
+            keyStore.aliases();
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, "password".toCharArray());
+            return keyManagerFactory;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static TrustManagerFactory createTrustManagerFactory(String file) {
+        try {
+            final KeyStore trustStore = KeyStore.getInstance(keyStoreType, provider);
+            trustStore.load(SimpleSecureNetty4TransportTests.class.getResourceAsStream(file + fileExtension), "password".toCharArray());
+
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(trustStore);
+            return trustManagerFactory;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static KeyManagerFactory createKeyManagerFactory() {
+        try {
+            final KeyStore keyStore = KeyStore.getInstance(keyStoreType, provider);
+            keyStore.load(
+                SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure" + fileExtension),
+                "password".toCharArray()
+            );
+
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, "password".toCharArray());
+            return keyManagerFactory;
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    final static KeyManager[] serverKeyManagers = createKeyManagerFactory("/netty4-server-keystore").getKeyManagers();
+    final static TrustManager[] serverTrustManagers = createTrustManagerFactory("/netty4-server-truststore").getTrustManagers();
+    final static KeyManager[] clientKeyManagers = createKeyManagerFactory("/netty4-client-secure").getKeyManagers();
+    final static TrustManager[] clientTrustManagers = createTrustManagerFactory("/netty4-client-truststore").getTrustManagers();
+    final static KeyManagerFactory keyManagerFactory = createKeyManagerFactory();
+
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -78,42 +128,29 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
             @Override
             public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException {
                 try {
-                    var keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
-                    var fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
-                    var provider = inFipsJvm() ? "BCFIPS" : "SUN";
-                    final KeyStore keyStore = KeyStore.getInstance(keyStoreType, provider);
-                    keyStore.load(
-                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure" + fileExtension),
-                        "password".toCharArray()
-                    );
-
-                    var algo = inFipsJvm() ? "PKXI" : KeyManagerFactory.getDefaultAlgorithm();
-                    var jseeProvider = inFipsJvm() ? "BCJSSE" : "SunJSSE";
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(algo, jseeProvider);
-                    keyManagerFactory.init(keyStore, "password".toCharArray());
-
-                    SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
-                        .clientAuth(ClientAuth.NONE)
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                        .build()
-                        .newEngine(NettyAllocator.getAllocator());
+                    SSLContext sslContext = SSLContext.getInstance("TLS");
+                    sslContext.init(serverKeyManagers, serverTrustManagers, secureRandom);
+                    var engine = sslContext.createSSLEngine();
+                    engine.setUseClientMode(false);
+                    engine.setWantClientAuth(false);
+                    engine.setNeedClientAuth(false);
                     return Optional.of(engine);
-                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException | CertificateException
-                    | NoSuchProviderException ex) {
+                } catch (final Exception ex) {
                     throw new SSLException(ex);
                 }
-
             }
 
             @Override
             public Optional<SSLEngine> buildSecureClientTransportEngine(Settings settings, String hostname, int port) throws SSLException {
-                return Optional.of(
-                    SslContextBuilder.forClient()
-                        .clientAuth(ClientAuth.NONE)
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                        .build()
-                        .newEngine(NettyAllocator.getAllocator())
-                );
+                try {
+                    SSLContext sslContext = SSLContext.getInstance("TLS");
+                    sslContext.init(clientKeyManagers, clientTrustManagers, secureRandom);
+                    var engine = sslContext.createSSLEngine();
+                    engine.setUseClientMode(true);
+                    return Optional.of(engine);
+                } catch (final Exception ex) {
+                    throw new SSLException(ex);
+                }
             }
         };
 

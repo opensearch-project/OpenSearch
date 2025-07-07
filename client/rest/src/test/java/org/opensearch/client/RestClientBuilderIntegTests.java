@@ -39,9 +39,6 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
-import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
-import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -58,7 +55,6 @@ import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.security.SecureRandom;
-import java.security.Security;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
@@ -70,25 +66,12 @@ import static org.junit.Assert.fail;
  */
 public class RestClientBuilderIntegTests extends RestClientTestCase implements RestClientFipsAwareTestCase {
 
-    static {
-        if (inFipsJvm()) {
-            int highestPriority = 1;
-            if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
-                Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
-            }
-            if (Security.getProvider(BouncyCastleJsseProvider.PROVIDER_NAME) == null) {
-                Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
-            }
-        }
-    }
-
     private static HttpsServer httpsServer;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        String keyStoreType = CryptoServicesRegistrar.isInApprovedOnlyMode() ? "BCFKS" : "JKS";
-        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true, keyStoreType)));
+        httpsServer.setHttpsConfigurator(new HttpsConfigurator(new RestClientBuilderIntegTests().getSslContext(true)));
         httpsServer.createContext("/", new ResponseHandler());
         httpsServer.start();
     }
@@ -108,11 +91,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase implements R
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
-        makeRequest();
-    }
-
-    @Override
-    public void makeRequest(String keyStoreType) throws Exception {
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -124,7 +102,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase implements R
                 }
             }
 
-            SSLContext.setDefault(getSslContext(false, keyStoreType));
+            SSLContext.setDefault(getSslContext(false));
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
@@ -139,19 +117,10 @@ public class RestClientBuilderIntegTests extends RestClientTestCase implements R
         return RestClient.builder(new HttpHost("https", address.getHostString(), address.getPort())).build();
     }
 
-    private static SSLContext getSslContext(boolean server, String keyStoreType) throws Exception {
+    @Override
+    public SSLContext getSslContext(boolean server, String keyStoreType, SecureRandom secureRandom, String fileExtension) throws Exception {
         SSLContext sslContext;
         char[] password = "password".toCharArray();
-        SecureRandom secureRandom;
-        String fileExtension;
-
-        if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
-            secureRandom = SecureRandom.getInstance("DEFAULT", "BCFIPS");
-            fileExtension = ".bcfks";
-        } else {
-            secureRandom = SecureRandom.getInstanceStrong();
-            fileExtension = ".jks";
-        }
 
         try (
             InputStream trustStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore" + fileExtension);

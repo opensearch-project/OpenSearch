@@ -38,9 +38,11 @@ import org.opensearch.gradle.test.rest.YamlRestTestPlugin
 import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'opensearch.yaml-rest-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 dependencies {
   yamlRestTestImplementation project(':plugins:discovery-ec2')
+  testFipsRuntimeOnly libs.bundles.bouncycastle
 }
 
 restResources {
@@ -88,6 +90,9 @@ yamlRestTest.enabled = false
   SourceSetContainer sourceSets = getExtensions().getByType(SourceSetContainer.class);
   SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
   "yamlRestTest${action}" {
+//    if (action == "ContainerCredentials") {
+//      jvmArgs "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"
+//    }
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
   }
