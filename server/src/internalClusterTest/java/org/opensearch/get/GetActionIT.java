@@ -826,6 +826,21 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                             },
                             "ip_field": {
                                 "type": "ip"
+                            },
+                            "text_field_sub_fields": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword-1": {
+                                        "type": "keyword"
+                                    },
+                                    "keyword-2": {
+                                        "type": "keyword",
+                                        "ignore_above": 512
+                                    },
+                                    "keyword-0": {
+                                        "type": "keyword"
+                                    }
+                                }
                             }
                         }
                     }
@@ -847,6 +862,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                     .field("bool_field", true)
                     .field("text_field", "test text")
                     .field("ip_field", "1.2.3.4")
+                    .field("text_field_sub_fields", "keyword-0")
                     .endObject()
             )
             .get();
@@ -886,7 +902,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         getResponse = client().prepareGet("test_derive", "1").setFetchSource(null, new String[] { "text_field", "date_field" }).get();
         assertTrue(getResponse.isExists());
         source = getResponse.getSourceAsMap();
-        assertEquals(5, source.size());
+        assertEquals(6, source.size());
         assertFalse(source.containsKey("text_field"));
         assertFalse(source.containsKey("date_field"));
     }
@@ -995,6 +1011,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertEquals(true, source.get("bool_field"));
         assertEquals("test text", source.get("text_field"));
         assertEquals("1.2.3.4", source.get("ip_field"));
+        assertEquals("keyword-0", source.get("text_field_sub_fields"));
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
