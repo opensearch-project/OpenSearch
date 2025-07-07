@@ -85,7 +85,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
         }
 
         // For multi-clause boolean queries, use the default rewrite behavior
-        return super.rewrite(indexSearcher);
+        return boolQuery.rewrite(indexSearcher);
     }
 
     @Override
