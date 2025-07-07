@@ -209,13 +209,20 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 if (val == null) {
                     return null;
                 }
-                return switch (type) {
-                    case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(val.shortValue());
-                    case FLOAT -> NumericUtils.sortableIntToFloat(val.intValue());
-                    case DOUBLE -> NumericUtils.sortableLongToDouble(val);
-                    case BYTE, SHORT, INTEGER, LONG -> val;
-                    case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
-                };
+                if (type == NumberType.HALF_FLOAT) {
+                    return HalfFloatPoint.sortableShortToHalfFloat(val.shortValue());
+                } else if (type == NumberType.FLOAT) {
+                    return NumericUtils.sortableIntToFloat(val.intValue());
+                } else if (type == NumberType.DOUBLE) {
+                    return NumericUtils.sortableLongToDouble(val);
+                } else if (type == NumberType.BYTE || type == NumberType.SHORT || type == NumberType.INTEGER || type == NumberType.LONG) {
+                    return val;
+                } else if (type == NumberType.UNSIGNED_LONG) {
+                    return Numbers.toUnsignedBigInteger(val);
+                } else {
+                    // Handle default case or throw an exception if needed
+                    throw new IllegalArgumentException("Unsupported type: " + type);
+                }
             }
 
             // Unsigned long is sorted according to it's long value, as it is getting ingested as long, so we need to
