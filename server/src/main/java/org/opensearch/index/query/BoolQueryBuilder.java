@@ -351,7 +351,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             query = fixNegativeQueryIfNeeded(query);
         }
 
-        return new ApproximateScoreQuery(query, new ApproximateBooleanQuery((BooleanQuery) query));
+        // TODO: Figure out why multi-clause breaks testPhrasePrefix() in HighlighterWithAnalyzersTests.java
+        return ((BooleanQuery) query).clauses().size() == 1
+            ? new ApproximateScoreQuery(query, new ApproximateBooleanQuery((BooleanQuery) query))
+            : query;
     }
 
     private static void addBooleanClauses(
