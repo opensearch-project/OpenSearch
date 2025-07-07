@@ -5,7 +5,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 ## Current Maintainers
 
 | Maintainer        | GitHub ID                                               | Affiliation |
-|-------------------| ------------------------------------------------------- | ----------- |
+| ----------------- | ------------------------------------------------------- | ----------- |
 | Anas Alkouz       | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross       | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko      | [reta](https://github.com/reta)                         | Independent |
