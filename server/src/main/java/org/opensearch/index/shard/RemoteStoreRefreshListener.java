@@ -336,7 +336,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         ActionListener<Void> segmentUploadsCompletedListener
     ) {
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
-        Function<Map<String, Long>, UploadListener> uploadListenerFunction = (Map<String, Long> sizeMap) -> createUploadListener(localSegmentsSizeMap);
+        Function<Map<String, Long>, UploadListener> uploadListenerFunction = (Map<String, Long> sizeMap) -> createUploadListener(
+            localSegmentsSizeMap
+        );
 
         remoteStoreUploader.uploadSegments(
             filteredFiles,
