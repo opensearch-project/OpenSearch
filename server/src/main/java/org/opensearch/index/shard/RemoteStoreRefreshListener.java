@@ -323,13 +323,21 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return successful.get();
     }
 
+    /**
+     * Uploads new segment files to the remote store.
+     *
+     * @param localSegmentsPostRefresh collection of segment files present after refresh
+     * @param localSegmentsSizeMap map of segment file names to their sizes
+     * @param segmentUploadsCompletedListener listener to be notified when upload completes
+     */
     private void uploadNewSegments(
         Collection<String> localSegmentsPostRefresh,
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> segmentUploadsCompletedListener
     ) {
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
-        Function<Map<String, Long>, UploadListener> uploadListenerFunction = this::createUploadListener;
+        Function<Map<String, Long>, UploadListener> uploadListenerFunction = (Map<String, Long> sizeMap) -> createUploadListener(localSegmentsSizeMap);
+
         remoteStoreUploader.uploadSegments(
             filteredFiles,
             localSegmentsSizeMap,

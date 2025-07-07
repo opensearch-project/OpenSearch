@@ -42,15 +42,37 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Test class for {@link RemoteStoreUploaderService}.
+ * Tests various scenarios of segment upload functionality including success cases,
+ * error handling, and different directory configurations.
+ */
 public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
+    /** Mock IndexShard instance used across tests */
     private IndexShard mockIndexShard;
+
+    /** Mock Directory representing the local store directory */
     private Directory mockStoreDirectory;
+
+    /** Mock RemoteSegmentStoreDirectory for remote storage operations */
     private RemoteSegmentStoreDirectory mockRemoteDirectory;
+
+    /** The service under test */
     private RemoteStoreUploaderService uploaderService;
+
+    /** Mock upload listener for tracking upload events */
     private UploadListener mockUploadListener;
+
+    /** Mock function that creates upload listeners */
     private Function<Map<String, Long>, UploadListener> mockUploadListenerFunction;
 
+    /**
+     * Sets up the test environment before each test method.
+     * Initializes all mock objects and the service under test.
+     *
+     * @throws Exception if setup fails
+     */
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -75,6 +97,12 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
     /**
      * Creates a real RemoteSegmentStoreDirectory instance with mocked dependencies
      * instead of trying to mock the final class directly.
+     * This approach is used because RemoteSegmentStoreDirectory is a final class
+     * that cannot be mocked directly.
+     *
+     * @param remoteDirectory the remote directory to use (currently unused)
+     * @return a new RemoteSegmentStoreDirectory instance with mocked dependencies
+     * @throws RuntimeException if the directory creation fails
      */
     private RemoteSegmentStoreDirectory createMockRemoteDirectory(RemoteDirectory remoteDirectory) {
         try {
@@ -90,6 +118,12 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Tests that uploading an empty collection of segments completes successfully
+     * without performing any actual upload operations.
+     *
+     * @throws Exception if the test fails
+     */
     public void testUploadSegmentsWithEmptyCollection() throws Exception {
         Collection<String> emptySegments = Collections.emptyList();
         Map<String, Long> segmentSizeMap = new HashMap<>();
@@ -105,6 +139,12 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
         assertTrue(latch.await(1, TimeUnit.SECONDS));
     }
 
+    /**
+     * Tests successful segment upload with low priority upload flag set to false.
+     * Verifies that segments are uploaded correctly and upload listeners are notified.
+     *
+     * @throws Exception if the test fails
+     */
     public void testUploadSegmentsSuccessWithHighPriorityUpload() throws Exception {
         Collection<String> segments = Arrays.asList("segment1", "segment2");
         Map<String, Long> segmentSizeMap = new HashMap<>();
@@ -161,6 +201,12 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
         verify(mockUploadListener, times(2)).onSuccess(any(String.class));
     }
 
+    /**
+     * Tests successful segment upload with low priority upload flag set to true.
+     * Verifies that segments are uploaded correctly and upload listeners are notified.
+     *
+     * @throws Exception if the test fails
+     */
     public void testUploadSegmentsSuccessWithLowPriorityUpload() throws Exception {
         Collection<String> segments = Arrays.asList("segment1", "segment2");
         Map<String, Long> segmentSizeMap = new HashMap<>();
@@ -217,6 +263,13 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
         verify(mockUploadListener, times(2)).onSuccess(any(String.class));
     }
 
+    /**
+     * Tests segment upload functionality when using a CompositeDirectory.
+     * Verifies that the afterSyncToRemote callback is invoked on the CompositeDirectory
+     * after successful upload operations.
+     *
+     * @throws Exception if the test fails
+     */
     public void testUploadSegmentsWithCompositeDirectory() throws Exception {
         Collection<String> segments = Arrays.asList("segment1");
         Map<String, Long> segmentSizeMap = new HashMap<>();
@@ -273,6 +326,13 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
         verify(mockCompositeDirectory).afterSyncToRemote("segment1");
     }
 
+    /**
+     * Tests error handling when a CorruptIndexException occurs during segment upload.
+     * Verifies that the shard is failed with the appropriate error message
+     * and the upload listener is notified of the failure.
+     *
+     * @throws Exception if the test fails
+     */
     public void testUploadSegmentsWithCorruptIndexException() throws Exception {
         Collection<String> segments = Arrays.asList("segment1");
         Map<String, Long> segmentSizeMap = new HashMap<>();
@@ -333,6 +393,13 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
         verify(mockUploadListener).onFailure("segment1");
     }
 
+    /**
+     * Tests error handling when a generic RuntimeException occurs during segment upload.
+     * Verifies that the shard is NOT failed (unlike CorruptIndexException)
+     * but the upload listener is still notified of the failure.
+     *
+     * @throws Exception if the test fails
+     */
     public void testUploadSegmentsWithGenericException() throws Exception {
         Collection<String> segments = Arrays.asList("segment1");
         Map<String, Long> segmentSizeMap = new HashMap<>();
@@ -392,12 +459,16 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
         verify(mockUploadListener).onFailure("segment1");
     }
 
+    /**
+     * Test implementation of FilterDirectory used for creating nested directory structures
+     * in tests. This class simply delegates all operations to the wrapped directory.
+     */
     public static class TestFilterDirectory extends FilterDirectory {
 
         /**
-         * Sole constructor, typically called from sub-classes.
+         * Creates a new TestFilterDirectory wrapping the given directory.
          *
-         * @param in input directory
+         * @param in the directory to wrap
          */
         public TestFilterDirectory(Directory in) {
             super(in);
