@@ -17,9 +17,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
-import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.NAME_NONE_EXISTED;
-import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.NAME_ONE;
-import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.clusterState;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_NONE_EXISTED;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.clusterState;
 import static org.mockito.Mockito.mock;
 
 public class TransportGetWorkloadGroupActionTests extends OpenSearchTestCase {

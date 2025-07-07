@@ -40,7 +40,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class WorkloadManagementTestUtils {
+public class WorkloadGroupTestUtils {
     public static final String NAME_ONE = "workload_group_one";
     public static final String NAME_TWO = "workload_group_two";
     public static final String _ID_ONE = "AgfUO5Ja9yfsYlONlYi3TQ==";

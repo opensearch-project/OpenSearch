@@ -15,16 +15,19 @@ import org.opensearch.client.ResponseException;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
+import java.util.Locale;
 
 public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
     public void testCreate() throws Exception {
+        setWlmMode("enabled");
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         performOperation("DELETE", "_wlm/workload_group/analytics", null);
     }
 
     public void testMultipleCreate() throws Exception {
+        setWlmMode("enabled");
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics2", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
@@ -40,6 +43,7 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
     }
 
     public void testGet() throws Exception {
+        setWlmMode("enabled");
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics3", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
@@ -56,6 +60,7 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
     }
 
     public void testDelete() throws Exception {
+        setWlmMode("enabled");
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics4", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
@@ -67,6 +72,7 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
     }
 
     public void testUpdate() throws Exception {
+        setWlmMode("enabled");
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics5", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
@@ -93,6 +99,7 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
     }
 
     public void testCRUD() throws Exception {
+        setWlmMode("enabled");
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics6", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
@@ -127,6 +134,16 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         assertTrue(responseBody6.contains("\"users3\""));
         assertFalse(responseBody6.contains("\"analytics6\""));
         performOperation("DELETE", "_wlm/workload_group/users3", null);
+    }
+
+    public void testOperationWhenWlmDisabled() throws Exception {
+        setWlmMode("disabled");
+        assertThrows(
+            ResponseException.class,
+            () -> performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics", "enforced", 0.4, 0.2))
+        );
+        assertThrows(ResponseException.class, () -> performOperation("DELETE", "_wlm/workload_group/analytics4", null));
+        assertOK(performOperation("GET", "_wlm/workload_group/", null));
     }
 
     static String getCreateJson(String name, String resiliencyMode, double cpu, double memory) {
@@ -170,5 +187,20 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
             request.setJsonEntity(json);
         }
         return client().performRequest(request);
+    }
+
+    public void setWlmMode(String mode) throws Exception {
+        String settingJson = String.format(Locale.ROOT, """
+            {
+              "persistent": {
+                "wlm.workload_group.mode": "%s"
+              }
+            }
+            """, mode);
+
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(settingJson);
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 }

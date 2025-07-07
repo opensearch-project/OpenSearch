@@ -9,7 +9,7 @@
 package org.opensearch.plugin.wlm.rest;
 
 import org.opensearch.plugin.wlm.NonPluginSettingValuesProvider;
-import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
+import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
@@ -20,7 +20,7 @@ public class RestCreateWorkloadGroupActionTests extends OpenSearchTestCase {
 
     public void testPrepareRequestThrowsWhenWlmModeDisabled() {
         try {
-            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadManagementTestUtils.setUpNonPluginSettingValuesProvider(
+            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadGroupTestUtils.setUpNonPluginSettingValuesProvider(
                 "disabled"
             );
             RestCreateWorkloadGroupAction restCreateWorkloadGroupAction = new RestCreateWorkloadGroupAction(nonPluginSettingValuesProvider);
@@ -33,7 +33,7 @@ public class RestCreateWorkloadGroupActionTests extends OpenSearchTestCase {
 
     public void testPrepareRequestThrowsWhenWlmModeMonitorOnly() {
         try {
-            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadManagementTestUtils.setUpNonPluginSettingValuesProvider(
+            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadGroupTestUtils.setUpNonPluginSettingValuesProvider(
                 "monitor_only"
             );
             RestCreateWorkloadGroupAction restCreateWorkloadGroupAction = new RestCreateWorkloadGroupAction(nonPluginSettingValuesProvider);

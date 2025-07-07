@@ -12,7 +12,7 @@ import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.wlm.NonPluginSettingValuesProvider;
-import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
+import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.rest.RestChannel;
@@ -27,7 +27,7 @@ import java.util.List;
 
 import org.mockito.ArgumentCaptor;
 
-import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_ONE;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -89,7 +89,7 @@ public class RestDeleteWorkloadGroupActionTests extends OpenSearchTestCase {
 
     public void testPrepareRequestThrowsWhenWlmModeDisabled() throws Exception {
         try {
-            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadManagementTestUtils.setUpNonPluginSettingValuesProvider(
+            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadGroupTestUtils.setUpNonPluginSettingValuesProvider(
                 "disabled"
             );
             RestDeleteWorkloadGroupAction restDeleteWorkloadGroupAction = new RestDeleteWorkloadGroupAction(nonPluginSettingValuesProvider);

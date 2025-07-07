@@ -15,14 +15,14 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
+import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.workloadGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
 import static org.mockito.Mockito.mock;
 
 public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
@@ -43,7 +43,7 @@ public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
         List<WorkloadGroup> list2 = new ArrayList<>();
         list1.add(responseGroup);
         list2.add(otherResponseGroup);
-        WorkloadManagementTestUtils.assertEqualWorkloadGroups(list1, list2, false);
+        WorkloadGroupTestUtils.assertEqualWorkloadGroups(list1, list2, false);
     }
 
     /**

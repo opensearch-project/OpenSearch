@@ -17,8 +17,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.assertEqualWorkloadGroups;
-import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.workloadGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.assertEqualWorkloadGroups;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
 
 public class CreateWorkloadGroupRequestTests extends OpenSearchTestCase {
 
