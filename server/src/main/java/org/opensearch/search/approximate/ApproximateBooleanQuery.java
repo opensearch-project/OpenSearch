@@ -26,7 +26,6 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     public final BooleanQuery boolQuery;
     private final int size;
     private final List<BooleanClause> clauses;
-    private SearchContext context;
 
     public ApproximateBooleanQuery(BooleanQuery boolQuery) {
         this(boolQuery, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
@@ -40,8 +39,6 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
     @Override
     protected boolean canApproximate(SearchContext context) {
-        // Store the context for use in rewrite
-        this.context = context;
 
         if (context == null) {
             return false;
@@ -62,8 +59,9 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             BooleanClause singleClause = clauses.get(0);
             Query clauseQuery = singleClause.query();
 
-            // If the clause is already an ApproximateScoreQuery, we can approximate
-            if (clauseQuery instanceof ApproximateScoreQuery) {
+            // If the clause is already an ApproximateScoreQuery, we can approximate + set context
+            if (clauseQuery instanceof ApproximateScoreQuery approximateScoreQuery) {
+                approximateScoreQuery.setContext(context);
                 return true;
             }
         }
@@ -80,12 +78,6 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
             // If the single clause is an ApproximateScoreQuery, set its context
             if (clauseQuery instanceof ApproximateScoreQuery approximateQuery) {
-
-                // If we have a context, set it on the query
-                if (context != null) {
-                    approximateQuery.setContext(context);
-                }
-
                 return approximateQuery;
             }
 
