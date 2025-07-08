@@ -10,6 +10,7 @@ package org.opensearch.transport.stream;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.transport.Header;
 
 import java.io.Closeable;
 
@@ -51,4 +52,13 @@ public interface StreamTransportResponse<T extends TransportResponse> extends Cl
      * @param cause the underlying exception, if any
      */
     void cancel(String reason, Throwable cause);
+
+    /**
+     * Retrieves the header for the current batch.
+     * <p>
+     * For internal framework use only.
+     *
+     * @return the current header, or {@code null} if unavailable
+     */
+    Header currentHeader();
 }
