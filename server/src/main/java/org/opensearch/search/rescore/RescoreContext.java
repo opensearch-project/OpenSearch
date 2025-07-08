@@ -96,13 +96,6 @@ public class RescoreContext {
     }
 
     /**
-     * Returns queries associated with the rescorer
-     */
-    public List<Query> getQueries() {
-        return Collections.emptyList();
-    }
-
-    /**
      * Returns parsed queries associated with the rescorer
      */
     public List<ParsedQuery> getParsedQueries() {
