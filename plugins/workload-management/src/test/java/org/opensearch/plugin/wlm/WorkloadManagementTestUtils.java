@@ -40,7 +40,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class WorkloadGroupTestUtils {
+public class WorkloadManagementTestUtils {
     public static final String NAME_ONE = "workload_group_one";
     public static final String NAME_TWO = "workload_group_two";
     public static final String _ID_ONE = "AgfUO5Ja9yfsYlONlYi3TQ==";
@@ -168,7 +168,7 @@ public class WorkloadGroupTestUtils {
         }
     }
 
-    public static NonPluginSettingValuesProvider setUpNonPluginSettingValuesProvider(String wlmMode) throws Exception {
+    public static WlmClusterSettingValuesProvider setUpNonPluginSettingValuesProvider(String wlmMode) throws Exception {
         try (WorkloadManagementPlugin plugin = new WorkloadManagementPlugin()) {
             Settings settings = Settings.builder()
                 .put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000)
@@ -176,7 +176,7 @@ public class WorkloadGroupTestUtils {
                 .build();
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(plugin.getSettings()));
             clusterSettings.registerSetting(WorkloadManagementSettings.WLM_MODE_SETTING);
-            return new NonPluginSettingValuesProvider(settings, clusterSettings);
+            return new WlmClusterSettingValuesProvider(settings, clusterSettings);
         }
     }
 }

@@ -8,8 +8,8 @@
 
 package org.opensearch.plugin.wlm.rest;
 
-import org.opensearch.plugin.wlm.NonPluginSettingValuesProvider;
-import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
+import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
+import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
@@ -20,9 +20,8 @@ public class RestUpdateWorkloadGroupActionTests extends OpenSearchTestCase {
 
     public void testPrepareRequestThrowsWhenWlmModeDisabled() {
         try {
-            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadGroupTestUtils.setUpNonPluginSettingValuesProvider(
-                "disabled"
-            );
+            WlmClusterSettingValuesProvider nonPluginSettingValuesProvider = WorkloadManagementTestUtils
+                .setUpNonPluginSettingValuesProvider("disabled");
             RestUpdateWorkloadGroupAction restUpdateWorkloadGroupAction = new RestUpdateWorkloadGroupAction(nonPluginSettingValuesProvider);
             restUpdateWorkloadGroupAction.prepareRequest(mock(RestRequest.class), mock(NodeClient.class));
             fail("Expected exception when WLM mode is DISABLED");
@@ -33,9 +32,8 @@ public class RestUpdateWorkloadGroupActionTests extends OpenSearchTestCase {
 
     public void testPrepareRequestThrowsWhenWlmModeMonitorOnly() {
         try {
-            NonPluginSettingValuesProvider nonPluginSettingValuesProvider = WorkloadGroupTestUtils.setUpNonPluginSettingValuesProvider(
-                "monitor_only"
-            );
+            WlmClusterSettingValuesProvider nonPluginSettingValuesProvider = WorkloadManagementTestUtils
+                .setUpNonPluginSettingValuesProvider("monitor_only");
             RestUpdateWorkloadGroupAction restUpdateWorkloadGroupAction = new RestUpdateWorkloadGroupAction(nonPluginSettingValuesProvider);
             restUpdateWorkloadGroupAction.prepareRequest(mock(RestRequest.class), mock(NodeClient.class));
             fail("Expected exception when WLM mode is MONITOR_ONLY");

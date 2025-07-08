@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.wlm.rest;
 
-import org.opensearch.plugin.wlm.NonPluginSettingValuesProvider;
+import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.rest.BaseRestHandler;
@@ -28,13 +28,13 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
  */
 public class RestDeleteWorkloadGroupAction extends BaseRestHandler {
 
-    private final NonPluginSettingValuesProvider nonPluginSettingValuesProvider;
+    private final WlmClusterSettingValuesProvider nonPluginSettingValuesProvider;
 
     /**
      * Constructor for RestDeleteWorkloadGroupAction
      * @param nonPluginSettingValuesProvider the settings provider to access the current WLM mode
      */
-    public RestDeleteWorkloadGroupAction(NonPluginSettingValuesProvider nonPluginSettingValuesProvider) {
+    public RestDeleteWorkloadGroupAction(WlmClusterSettingValuesProvider nonPluginSettingValuesProvider) {
         this.nonPluginSettingValuesProvider = nonPluginSettingValuesProvider;
     }
 
@@ -53,7 +53,7 @@ public class RestDeleteWorkloadGroupAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        nonPluginSettingValuesProvider.ensureWlmEnabled("delete workload group");
+        nonPluginSettingValuesProvider.ensureWlmEnabled(getName());
         DeleteWorkloadGroupRequest deleteWorkloadGroupRequest = new DeleteWorkloadGroupRequest(request.param("name"));
         deleteWorkloadGroupRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", deleteWorkloadGroupRequest.clusterManagerNodeTimeout())

@@ -15,7 +15,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.NonPluginSettingValuesProvider;
+import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEvent;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.rule.RulePersistenceService;
@@ -65,7 +65,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
     private final RulePersistenceService rulePersistenceService;
     private final RuleEventClassifier ruleEventClassifier;
     private final FeatureType featureType;
-    private final NonPluginSettingValuesProvider nonPluginSettingValuesProvider;
+    private final WlmClusterSettingValuesProvider nonPluginSettingValuesProvider;
     // This var keeps the Rules which were present during last run of this service
     private Set<Rule> lastRunIndexedRules;
     private static final Logger logger = LogManager.getLogger(RefreshBasedSyncMechanism.class);
@@ -86,7 +86,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         FeatureType featureType,
         RulePersistenceService rulePersistenceService,
         RuleEventClassifier ruleEventClassifier,
-        NonPluginSettingValuesProvider nonPluginSettingValuesProvider
+        WlmClusterSettingValuesProvider nonPluginSettingValuesProvider
     ) {
         this.threadPool = threadPool;
         refreshInterval = RULE_SYNC_REFRESH_INTERVAL_SETTING.get(settings);

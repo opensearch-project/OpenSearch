@@ -12,7 +12,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
-import org.opensearch.plugin.wlm.NonPluginSettingValuesProvider;
+import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.rule.InMemoryRuleProcessingService;
@@ -57,7 +57,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
     Scheduler.Cancellable scheduledFuture;
     RuleEventClassifier ruleEventClassifier;
     FeatureType featureType;
-    NonPluginSettingValuesProvider nonPluginSettingValuesProvider;
+    WlmClusterSettingValuesProvider nonPluginSettingValuesProvider;
     ClusterSettings clusterSettings;
 
     @Override
@@ -76,7 +76,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             rulePersistenceService = mock(RulePersistenceService.class);
             ruleEventClassifier = new RuleEventClassifier(Collections.emptySet(), ruleProcessingService);
             attributeValueStoreFactory = new AttributeValueStoreFactory(featureType, DefaultAttributeValueStore::new);
-            nonPluginSettingValuesProvider = new NonPluginSettingValuesProvider(settings, clusterSettings);
+            nonPluginSettingValuesProvider = new WlmClusterSettingValuesProvider(settings, clusterSettings);
             mockClient = mock(Client.class);
             scheduledFuture = mock(Scheduler.Cancellable.class);
             when(mockThreadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(scheduledFuture);
@@ -125,7 +125,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             .put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000)
             .put(WorkloadManagementSettings.WLM_MODE_SETTING_NAME, "disabled")
             .build();
-        NonPluginSettingValuesProvider disabledWlmModeProvider = new NonPluginSettingValuesProvider(disabledSettings, clusterSettings);
+        WlmClusterSettingValuesProvider disabledWlmModeProvider = new WlmClusterSettingValuesProvider(disabledSettings, clusterSettings);
         sut = new RefreshBasedSyncMechanism(
             mockThreadPool,
             disabledSettings,

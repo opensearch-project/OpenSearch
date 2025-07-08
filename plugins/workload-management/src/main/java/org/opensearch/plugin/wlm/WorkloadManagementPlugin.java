@@ -91,7 +91,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     private static FeatureType featureType;
     private static RulePersistenceService rulePersistenceService;
     private static RuleRoutingService ruleRoutingService;
-    private NonPluginSettingValuesProvider nonPluginSettingValuesProvider;
+    private WlmClusterSettingValuesProvider wlmClusterSettingValuesProvider;
     private AutoTaggingActionFilter autoTaggingActionFilter;
 
     /**
@@ -113,7 +113,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        nonPluginSettingValuesProvider = new NonPluginSettingValuesProvider(
+        wlmClusterSettingValuesProvider = new WlmClusterSettingValuesProvider(
             clusterService.getSettings(),
             clusterService.getClusterSettings()
         );
@@ -140,7 +140,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             featureType,
             rulePersistenceService,
             new RuleEventClassifier(Collections.emptySet(), ruleProcessingService),
-            nonPluginSettingValuesProvider
+            wlmClusterSettingValuesProvider
         );
 
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
@@ -184,10 +184,10 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(
-            new RestCreateWorkloadGroupAction(nonPluginSettingValuesProvider),
+            new RestCreateWorkloadGroupAction(wlmClusterSettingValuesProvider),
             new RestGetWorkloadGroupAction(),
-            new RestDeleteWorkloadGroupAction(nonPluginSettingValuesProvider),
-            new RestUpdateWorkloadGroupAction(nonPluginSettingValuesProvider)
+            new RestDeleteWorkloadGroupAction(wlmClusterSettingValuesProvider),
+            new RestUpdateWorkloadGroupAction(wlmClusterSettingValuesProvider)
         );
     }
 

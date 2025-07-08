@@ -14,19 +14,19 @@ import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
 
 /**
- * Central provider for maintaining and supplying the current values of non-plugin cluster settings.
+ * Central provider for maintaining and supplying the current values of wlm cluster settings.
  * This class listens for updates to relevant settings and provides the latest setting values.
  */
-public class NonPluginSettingValuesProvider {
+public class WlmClusterSettingValuesProvider {
 
     private volatile WlmMode wlmMode;
 
     /**
-     * Constructor for NonPluginSettingValuesProvider
+     * Constructor for WlmClusterSettingValuesProvider
      * @param settings OpenSearch settings
      * @param clusterSettings Cluster settings to register update listener
      */
-    public NonPluginSettingValuesProvider(Settings settings, ClusterSettings clusterSettings) {
+    public WlmClusterSettingValuesProvider(Settings settings, ClusterSettings clusterSettings) {
         this.wlmMode = WorkloadManagementSettings.WLM_MODE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(WorkloadManagementSettings.WLM_MODE_SETTING, this::setWlmMode);
     }
@@ -51,7 +51,7 @@ public class NonPluginSettingValuesProvider {
      * Set the latest WLM mode.
      * @param mode The wlm mode to set
      */
-    void setWlmMode(WlmMode mode) {
+    private void setWlmMode(WlmMode mode) {
         this.wlmMode = mode;
     }
 
