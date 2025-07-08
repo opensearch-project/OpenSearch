@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -83,7 +84,11 @@ public class ProfileShardResult implements Writeable {
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
-        this.fetchProfileResult = new FetchProfileShardResult(in);
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+            this.fetchProfileResult = new FetchProfileShardResult(in);
+        } else {
+            this.fetchProfileResult = new FetchProfileShardResult(Collections.emptyList());
+        }
         this.networkTime = new NetworkTime(in);
     }
 
@@ -94,7 +99,9 @@ public class ProfileShardResult implements Writeable {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
-        fetchProfileResult.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            fetchProfileResult.writeTo(out);
+        }
         networkTime.writeTo(out);
     }
 
