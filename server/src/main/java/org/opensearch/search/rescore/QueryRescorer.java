@@ -34,6 +34,7 @@ package org.opensearch.search.rescore;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.index.query.ParsedQuery;
@@ -207,6 +208,11 @@ public final class QueryRescorer implements Rescorer {
 
         public ParsedQuery parsedQuery() {
             return parsedQuery;
+        }
+
+        @Override
+        public List<Query> getQueries() {
+            return parsedQuery != null ? Collections.singletonList(parsedQuery.query()) : Collections.emptyList();
         }
 
         @Override
