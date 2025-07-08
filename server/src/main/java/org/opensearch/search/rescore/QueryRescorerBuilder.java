@@ -42,9 +42,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.search.rescore.QueryRescorer.QueryRescoreContext;
-import org.apache.lucene.search.Query;
 
 import java.io.IOException;
 import java.util.Locale;

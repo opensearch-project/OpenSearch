@@ -68,9 +68,7 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         }
         if (context.rescore() != null) {
             for (RescoreContext rescoreContext : context.rescore()) {
-                if (rescoreContext.parsedQuery() != null) {
-                    namedQueries.putAll(rescoreContext.parsedQuery().namedFilters());
-                }
+                rescoreContext.getParsedQueries().forEach(query -> namedQueries.putAll(query.namedFilters()));
             }
         }
 

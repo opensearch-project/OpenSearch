@@ -34,10 +34,9 @@ package org.opensearch.search.rescore;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-
+import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
 import java.io.IOException;
@@ -192,7 +191,7 @@ public final class QueryRescorer implements Rescorer {
      * @opensearch.internal
      */
     public static class QueryRescoreContext extends RescoreContext {
-        private org.opensearch.index.query.ParsedQuery parsedQuery;
+        private ParsedQuery parsedQuery;
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
         private QueryRescoreMode scoreMode;
@@ -202,17 +201,16 @@ public final class QueryRescorer implements Rescorer {
             this.scoreMode = QueryRescoreMode.Total;
         }
 
-        public void setParsedQuery(org.opensearch.index.query.ParsedQuery parsedQuery) {
+        public void setParsedQuery(ParsedQuery parsedQuery) {
             this.parsedQuery = parsedQuery;
         }
 
-        @Override
-        public org.opensearch.index.query.ParsedQuery parsedQuery() {
+        public ParsedQuery parsedQuery() {
             return parsedQuery;
         }
 
         @Override
-        public List<org.opensearch.index.query.ParsedQuery> getParsedQueries() {
+        public List<ParsedQuery> getParsedQueries() {
             return parsedQuery != null ? Collections.singletonList(parsedQuery) : Collections.emptyList();
         }
 
