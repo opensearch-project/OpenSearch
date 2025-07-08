@@ -193,8 +193,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     public QueryRescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(windowSize);
 
-        ParsedQuery parsedQuery = context.toQuery(queryBuilder);
-        queryRescoreContext.setParsedQuery(parsedQuery);
+        queryRescoreContext.setParsedQuery(context.toQuery(queryBuilder));
 
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
