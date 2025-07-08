@@ -76,7 +76,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
             startedPrimarySupplier,
-            TranslogOperationHelper.EMPTY
+            TranslogOperationHelper.DEFAULT
         );
     }
 

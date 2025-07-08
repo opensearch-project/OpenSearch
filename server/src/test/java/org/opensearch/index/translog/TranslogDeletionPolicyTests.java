@@ -259,7 +259,7 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
                 seqNo -> {},
                 BigArrays.NON_RECYCLING_INSTANCE,
                 null,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             );
             writer = Mockito.spy(writer);
             Mockito.doReturn(now - (numberOfReaders - gen + 1) * 1000).when(writer).getLastModifiedTime();

@@ -201,7 +201,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             persistedSequenceNumberConsumer,
             bigArrays,
             remoteTranslogEnabled,
-            TranslogOperationHelper.EMPTY
+            TranslogOperationHelper.DEFAULT
         );
     }
 

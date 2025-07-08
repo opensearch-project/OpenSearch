@@ -32,7 +32,7 @@ public abstract class TranslogOperationHelper {
 
     private static final Logger logger = LogManager.getLogger(TranslogOperationHelper.class);
 
-    public static final TranslogOperationHelper EMPTY = new TranslogOperationHelper() {
+    public static final TranslogOperationHelper DEFAULT = new TranslogOperationHelper() {
     };
 
     private TranslogOperationHelper() {}
