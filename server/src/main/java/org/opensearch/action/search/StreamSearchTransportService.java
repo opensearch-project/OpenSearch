@@ -8,7 +8,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.StreamChannelActionListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -83,7 +82,7 @@ public class StreamSearchTransportService extends SearchTransportService {
             ThreadPool.Names.SAME,
             ShardSearchRequest::new,
             (request, channel, task) -> {
-                searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
+                searchService.canMatch(request, new StreamChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             }
         );
     }

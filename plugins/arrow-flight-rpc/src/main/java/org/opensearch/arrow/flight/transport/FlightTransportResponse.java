@@ -10,7 +10,6 @@ package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightCallHeaders;
 import org.apache.arrow.flight.FlightClient;
-import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.HeaderCallOption;
 import org.apache.arrow.flight.Ticket;
@@ -27,6 +26,8 @@ import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.REQUEST_ID_KEY;
 
 /**
  * Handles streaming transport responses using Apache Arrow Flight.
@@ -65,7 +66,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         this.reqId = reqId;
         this.statsCollector = statsCollector;
         FlightCallHeaders callHeaders = new FlightCallHeaders();
-        callHeaders.insert("req-id", String.valueOf(reqId));
+        callHeaders.insert(REQUEST_ID_KEY, String.valueOf(reqId));
         HeaderCallOption callOptions = new HeaderCallOption(callHeaders);
         this.flightStream = Objects.requireNonNull(flightClient, "flightClient must not be null")
             .getStream(Objects.requireNonNull(ticket, "ticket must not be null"), callOptions);
@@ -121,11 +122,6 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                 } else {
                     return null;  // No more data
                 }
-            } catch (FlightRuntimeException e) {
-                if (statsCollector != null) {
-                    statsCollector.incrementClientApplicationErrors();
-                }
-                throw e;
             } catch (Exception e) {
                 if (statsCollector != null) {
                     statsCollector.incrementClientTransportErrors();
@@ -188,9 +184,10 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         if (isClosed) {
             return;
         }
-
         try {
             // Cancel the flight stream - this notifies the server to stop producing
+            // TODO - there could be batches on the wire already produced before cancel is invoked.
+            // is it safe to ignore them? or should we drain them here.
             flightStream.cancel(reason, cause);
             logger.debug("Cancelled flight stream: {}", reason);
         } catch (Exception e) {

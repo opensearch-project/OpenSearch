@@ -53,8 +53,27 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     // TODO: revisit this part; if we should add it here or create a new type of TransportResponseHandler
     // for stream transport requests;
+    /**
+     * Handles streaming transport responses for requests that return multiple batches.
+     * <p>
+     * All batches of responses can be fetched using {@link StreamTransportResponse}.
+     * Check {@link StreamTransportResponse} documentation for its correct usage.
+     * <p>
+     * {@link #handleResponse(TransportResponse)} will never be called for streaming handlers when the request is sent to {@link StreamTransportService}.
+     * {@link StreamTransportResponse#nextResponse()} will throw exceptions when error happens in fetching next response. Outside of this scope,
+     * then {@link #handleException(TransportException)} is called, so it must be handled.
+     * ReceiveTimeoutTransportException or error before starting the stream could fall under this category.
+     * In case of timeout on the client side, the best strategy is to call cancel to inform server to cancel the stream and stop producing more data.
+     * <p>
+     * <strong>Important:</strong> Implementations are responsible for closing the stream by calling
+     * {@link StreamTransportResponse#close()} when processing is complete, whether successful or not.
+     * The framework does not automatically close the stream to allow for asynchronous processing.
+     * If early termination is needed, implementations should call {@link StreamTransportResponse#cancel(String, Throwable)}
+     *
+     * @param response the streaming response containing multiple batches - must be closed by the handler
+     */
     default void handleStreamResponse(StreamTransportResponse<T> response) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("Streaming responses not supported by this handler");
     }
 
     void handleException(TransportException exp);
