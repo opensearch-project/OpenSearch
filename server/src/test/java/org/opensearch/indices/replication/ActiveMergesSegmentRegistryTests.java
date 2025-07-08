@@ -32,7 +32,8 @@ public class ActiveMergesSegmentRegistryTests {
     private UploadedSegmentMetadata mockMetadata;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
+        super.setUp();
         registry = ActiveMergesSegmentRegistry.getInstance();
         // Clear registry state before each test
         clearRegistry();
