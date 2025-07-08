@@ -78,6 +78,9 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
             // If the single clause is an ApproximateScoreQuery, set its context
             if (clauseQuery instanceof ApproximateScoreQuery approximateQuery) {
+                if (approximateQuery.getApproximationQuery() instanceof ApproximateBooleanQuery nestedBool) {
+                    return nestedBool.rewrite(indexSearcher);
+                }
                 return approximateQuery;
             }
 
