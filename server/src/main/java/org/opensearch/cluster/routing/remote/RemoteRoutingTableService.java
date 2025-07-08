@@ -14,8 +14,8 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.common.lifecycle.LifecycleComponent;
-import org.opensearch.common.remote.ReadBlobWithMetrics;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,7 +38,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
     void getAsyncIndexRoutingWithMetricsReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<ReadBlobWithMetrics<IndexRoutingTable>> latchedActionListener
+        LatchedActionListener<RemoteReadResultsVerbose<IndexRoutingTable>> latchedActionListener
     );
 
     void getAsyncIndexRoutingTableDiffReadAction(
@@ -50,7 +50,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
     void getAsyncIndexRoutingTableDiffWithMetricsReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<ReadBlobWithMetrics<Diff<RoutingTable>>> latchedActionListener
+        LatchedActionListener<RemoteReadResultsVerbose<Diff<RoutingTable>>> latchedActionListener
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(

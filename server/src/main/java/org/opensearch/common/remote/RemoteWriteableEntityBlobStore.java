@@ -16,6 +16,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
@@ -101,7 +102,8 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         }
     }
 
-    public ReadBlobWithMetrics<T> readWithMetrics(final U entity) throws IOException {
+    public RemoteReadResultsVerbose<T> readWithMetrics(final U entity, final String component, final String componentName)
+        throws IOException {
         assert entity.getFullBlobName() != null;
         final long readStartTimeNS = System.nanoTime();
         try (InputStream inputStream = transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName())) {
@@ -110,7 +112,13 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
             long totalReadTimeMS = Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - readStartTimeNS));
             long serdeTimeMS = Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - deserializeStartTimeNS));
             warnAboutSlowReadIfNeeded(entity, serdeTimeMS, totalReadTimeMS);
-            return new ReadBlobWithMetrics<>(deserializedBlobEntity, serdeTimeMS, totalReadTimeMS - serdeTimeMS);
+            return new RemoteReadResultsVerbose<>(
+                deserializedBlobEntity,
+                component,
+                componentName,
+                totalReadTimeMS - serdeTimeMS,
+                serdeTimeMS
+            );
         }
     }
 
@@ -126,11 +134,16 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
     }
 
     @Override
-    public void readAsyncWithMetrics(final U entity, final ActionListener<ReadBlobWithMetrics<T>> listener) {
+    public void readAsyncWithMetrics(
+        final U entity,
+        final ActionListener<RemoteReadResultsVerbose<T>> listener,
+        final String component,
+        final String componentName
+    ) {
         final long queueStartTimeNS = System.nanoTime();
         executorService.execute(() -> {
             try {
-                ReadBlobWithMetrics<T> result = readWithMetrics(entity);
+                RemoteReadResultsVerbose<T> result = readWithMetrics(entity, component, componentName);
                 listener.onResponse(result);
                 final long executionTimeMS = Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - queueStartTimeNS));
                 if (executionTimeMS > slowReadLoggingThreshold.getMillis()) {
@@ -139,8 +152,8 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
                         entity.getClass().getSimpleName(),
                         entity.getBlobFileName(),
                         executionTimeMS,
-                        result.readMS(),
-                        result.serDeMS()
+                        result.getReadMS(),
+                        result.getSerdeMS()
                     );
                 }
             } catch (Exception e) {

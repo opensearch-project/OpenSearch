@@ -11,7 +11,6 @@ package org.opensearch.gateway.remote;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
-import org.opensearch.common.remote.ReadBlobWithMetrics;
 import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -21,6 +20,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -163,19 +163,15 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
     }
 
     @Override
-    protected ActionListener<ReadBlobWithMetrics<Object>> getWrappedReadListenerForMetrics(
+    protected ActionListener<RemoteReadResultsVerbose<Object>> getWrappedReadListenerForMetrics(
         String component,
         AbstractClusterMetadataWriteableBlobEntity remoteEntity,
-        ActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener
+        ActionListener<RemoteReadResultsVerbose<Object>> listener
     ) {
-        return ActionListener.wrap(response -> {
-            ReadBlobWithMetrics<RemoteReadResult> resultWithMetrics = new ReadBlobWithMetrics<>(
-                new RemoteReadResult(response.blobEntity(), RemoteIndexMetadata.INDEX, component),
-                response.serDeMS(),
-                response.readMS()
-            );
-            listener.onResponse(resultWithMetrics);
-        }, ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex)));
+        return ActionListener.wrap(
+            listener::onResponse,
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
+        );
     }
 
     private void setPathTypeSetting(RemoteStoreEnums.PathType pathType) {

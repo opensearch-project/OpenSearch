@@ -18,7 +18,6 @@ import org.opensearch.cluster.metadata.Metadata.XContentContext;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
-import org.opensearch.common.remote.ReadBlobWithMetrics;
 import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -34,6 +33,7 @@ import org.opensearch.gateway.remote.model.RemoteGlobalMetadata;
 import org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings;
 import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -196,19 +196,15 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
     }
 
     @Override
-    protected ActionListener<ReadBlobWithMetrics<Object>> getWrappedReadListenerForMetrics(
+    protected ActionListener<RemoteReadResultsVerbose<Object>> getWrappedReadListenerForMetrics(
         String component,
         AbstractClusterMetadataWriteableBlobEntity remoteEntity,
-        ActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener
+        ActionListener<RemoteReadResultsVerbose<Object>> listener
     ) {
-        return ActionListener.wrap(response -> {
-            ReadBlobWithMetrics<RemoteReadResult> resultWithMetrics = new ReadBlobWithMetrics<>(
-                new RemoteReadResult(response.blobEntity(), remoteEntity.getType(), component),
-                response.serDeMS(),
-                response.readMS()
-            );
-            listener.onResponse(resultWithMetrics);
-        }, ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex)));
+        return ActionListener.wrap(
+            listener::onResponse,
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
+        );
     }
 
     Metadata getGlobalMetadata(String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {

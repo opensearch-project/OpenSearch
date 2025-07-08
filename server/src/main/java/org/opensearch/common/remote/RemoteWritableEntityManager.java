@@ -11,6 +11,7 @@ package org.opensearch.common.remote;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 
 /**
  * The RemoteWritableEntityManager interface provides async read and write methods for managing remote entities in the remote store
@@ -34,7 +35,7 @@ public interface RemoteWritableEntityManager {
     void readAsyncWithMetrics(
         String component,
         AbstractClusterMetadataWriteableBlobEntity entity,
-        ActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener
+        ActionListener<RemoteReadResultsVerbose<Object>> listener
     );
 
     /**

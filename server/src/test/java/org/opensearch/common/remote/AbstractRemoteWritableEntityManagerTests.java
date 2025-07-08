@@ -11,6 +11,7 @@ package org.opensearch.common.remote;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.mockito.Mockito.mock;
@@ -62,10 +63,10 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
         }
 
         @Override
-        protected ActionListener<ReadBlobWithMetrics<Object>> getWrappedReadListenerForMetrics(
+        protected ActionListener<RemoteReadResultsVerbose<Object>> getWrappedReadListenerForMetrics(
             String component,
             AbstractClusterMetadataWriteableBlobEntity remoteEntity,
-            ActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener
+            ActionListener<RemoteReadResultsVerbose<Object>> listener
         ) {
             return null;
         }

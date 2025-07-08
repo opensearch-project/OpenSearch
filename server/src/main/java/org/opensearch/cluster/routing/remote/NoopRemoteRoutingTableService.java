@@ -15,8 +15,8 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.remote.ReadBlobWithMetrics;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,7 +81,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     public void getAsyncIndexRoutingWithMetricsReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<ReadBlobWithMetrics<IndexRoutingTable>> latchedActionListener
+        LatchedActionListener<RemoteReadResultsVerbose<IndexRoutingTable>> latchedActionListener
     ) {
         // noop
     }
@@ -99,7 +99,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     public void getAsyncIndexRoutingTableDiffWithMetricsReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<ReadBlobWithMetrics<Diff<RoutingTable>>> latchedActionListener
+        LatchedActionListener<RemoteReadResultsVerbose<Diff<RoutingTable>>> latchedActionListener
     ) {
         // noop
     }

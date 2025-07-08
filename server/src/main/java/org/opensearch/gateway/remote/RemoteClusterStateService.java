@@ -36,7 +36,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.remote.ReadBlobWithMetrics;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -57,7 +56,7 @@ import org.opensearch.gateway.remote.model.RemoteDiscoveryNodes;
 import org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
 import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
-import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
 import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
@@ -73,6 +72,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -1213,21 +1213,18 @@ public class RemoteClusterStateService implements Closeable {
             + (readTransientSettingsMetadata ? 1 : 0) + (readHashesOfConsistentSettings ? 1 : 0) + clusterStateCustomToRead.size()
             + indicesRoutingToRead.size() + (readIndexRoutingTableDiff ? 1 : 0);
         CountDownLatch latch = new CountDownLatch(totalReadTasks);
-        List<ReadBlobWithMetrics<RemoteReadResult>> readResults = Collections.synchronizedList(new ArrayList<>());
-        List<ReadBlobWithMetrics<IndexRoutingTable>> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
-        AtomicReference<ReadBlobWithMetrics<Diff<RoutingTable>>> readIndexRoutingTableDiffResults = new AtomicReference<>();
+        List<RemoteReadResultsVerbose<Object>> readResults = Collections.synchronizedList(new ArrayList<>());
+        List<RemoteReadResultsVerbose<IndexRoutingTable>> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<RemoteReadResultsVerbose<Diff<RoutingTable>>> readIndexRoutingTableDiffResults = new AtomicReference<>();
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
 
-        LatchedActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener = new LatchedActionListener<>(
-            ActionListener.wrap(response -> {
-                logger.debug("Successfully read cluster state component from remote");
-                readResults.add(response);
-            }, ex -> {
-                logger.error("Failed to read cluster state from remote", ex);
-                exceptionList.add(ex);
-            }),
-            latch
-        );
+        LatchedActionListener<RemoteReadResultsVerbose<Object>> listener = new LatchedActionListener<>(ActionListener.wrap(response -> {
+            logger.debug("Successfully read cluster state component from remote");
+            readResults.add(response);
+        }, ex -> {
+            logger.error("Failed to read cluster state from remote", ex);
+            exceptionList.add(ex);
+        }), latch);
 
         for (UploadedIndexMetadata indexMetadata : indicesToRead) {
             remoteIndexMetadataManager.readAsyncWithMetrics(
@@ -1242,13 +1239,10 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
 
-        LatchedActionListener<ReadBlobWithMetrics<IndexRoutingTable>> routingTableLatchedActionListener = new LatchedActionListener<>(
+        LatchedActionListener<RemoteReadResultsVerbose<IndexRoutingTable>> routingTableLatchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(response -> {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "Successfully read index-routing for index {}",
-                        response.blobEntity().getIndex().getName()
-                    )
+                    () -> new ParameterizedMessage("Successfully read index-routing for index {}", response.getObj().getIndex().getName())
                 );
                 readIndexRoutingTableResults.add(response);
             }, ex -> {
@@ -1266,16 +1260,14 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
 
-        LatchedActionListener<ReadBlobWithMetrics<Diff<RoutingTable>>> routingTableDiffLatchedActionListener = new LatchedActionListener<>(
-            ActionListener.wrap(response -> {
+        LatchedActionListener<RemoteReadResultsVerbose<Diff<RoutingTable>>> routingTableDiffLatchedActionListener =
+            new LatchedActionListener<>(ActionListener.wrap(response -> {
                 logger.debug("Successfully read routing table diff component from remote");
                 readIndexRoutingTableDiffResults.set(response);
             }, ex -> {
                 logger.error("Failed to read routing table diff from remote", ex);
                 exceptionList.add(ex);
-            }),
-            latch
-        );
+            }), latch);
 
         if (readIndexRoutingTableDiff) {
             remoteRoutingTableService.getAsyncIndexRoutingTableDiffWithMetricsReadAction(
@@ -1418,25 +1410,10 @@ public class RemoteClusterStateService implements Closeable {
                 );
                 int limit = logger.isTraceEnabled() ? Integer.MAX_VALUE : LOG_READ_TASK_DETAILS_LIMIT;
                 // Log time details of read tasks
-                logMetricsDetails(
-                    readResults,
-                    "global-metadata",
-                    limit,
-                    result -> String.format(
-                        Locale.ROOT,
-                        "%s/%s",
-                        result.blobEntity().getComponent(),
-                        result.blobEntity().getComponentName()
-                    )
-                );
-                logMetricsDetails(readIndexRoutingTableResults, "index-routing", limit, result -> result.blobEntity().getIndex().getName());
+                logMetricsDetails(readResults, limit);
+                logMetricsDetails(readIndexRoutingTableResults, limit);
                 if (readIndexRoutingTableDiffResults.get() != null) {
-                    logMetricsDetails(
-                        List.of(readIndexRoutingTableDiffResults.get()),
-                        "index-routing-table-diff",
-                        limit,
-                        result -> "index-routing-table-diff"
-                    );
+                    logMetricsDetails(List.of(readIndexRoutingTableDiffResults.get()), limit);
                 }
                 // Also log the exceptions
                 for (int i = exceptionList.size() - 1; i >= Math.max(0, exceptionList.size() - LOG_READ_TASK_DETAILS_LIMIT); i--) {
@@ -1469,8 +1446,7 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         Map<String, IndexRoutingTable> indicesRouting = new HashMap<>(previousState.routingTable().getIndicesRouting());
 
-        readResults.forEach(readResult -> {
-            RemoteReadResult remoteReadResult = readResult.blobEntity();
+        readResults.forEach(remoteReadResult -> {
             switch (remoteReadResult.getComponent()) {
                 case RemoteIndexMetadata.INDEX:
                     IndexMetadata indexMetadata = (IndexMetadata) remoteReadResult.getObj();
@@ -1521,11 +1497,11 @@ public class RemoteClusterStateService implements Closeable {
         clusterStateBuilder.metadata(metadataBuilder).version(manifest.getStateVersion()).stateUUID(manifest.getStateUUID());
 
         readIndexRoutingTableResults.forEach(
-            readResult -> indicesRouting.put(readResult.blobEntity().getIndex().getName(), readResult.blobEntity())
+            readResult -> indicesRouting.put(readResult.getObj().getIndex().getName(), readResult.getObj())
         );
         Diff<RoutingTable> routingTableDiff = readIndexRoutingTableDiffResults.get() == null
             ? null
-            : readIndexRoutingTableDiffResults.get().blobEntity();
+            : readIndexRoutingTableDiffResults.get().getObj();
         RoutingTable newRoutingTable = new RoutingTable(manifest.getRoutingTableVersion(), indicesRouting);
         if (routingTableDiff != null) {
             newRoutingTable = routingTableDiff.apply(previousState.getRoutingTable());
@@ -2154,24 +2130,22 @@ public class RemoteClusterStateService implements Closeable {
     /**
      * Log details for most time-consuming (reads and de-serializations combined) entities.
      */
-    private synchronized <T> void logMetricsDetails(
-        List<ReadBlobWithMetrics<T>> metrics,
-        String componentName,
-        int limit,
-        Function<ReadBlobWithMetrics<T>, String> entityNameExtractor
-    ) {
-        Collections.sort(metrics);
+    private synchronized <T> void logMetricsDetails(List<RemoteReadResultsVerbose<T>> metrics, int limit) {
         int size = metrics.size();
+        if (size == 0) {
+            return;
+        }
+        metrics.sort(Comparator.comparingLong(m -> m.getReadMS() + m.getSerdeMS()));
         int startIndex = Math.max(0, size - limit);
-        logger.info("Read timeout details for {}: Total entries: {}", componentName, size);
+        logger.info("Read timeout details for {}: Total entries: {}", metrics.get(0).getComponent(), size);
         for (int i = size - 1; i >= startIndex; i--) {
-            ReadBlobWithMetrics<T> result = metrics.get(i);
+            RemoteReadResultsVerbose<T> result = metrics.get(i);
             logger.info(
                 "Component: {}, Entity: {}, Read: {} ms, De-Serialization: {} ms",
-                componentName,
-                entityNameExtractor.apply(result),
-                TimeUnit.NANOSECONDS.toMillis(result.readMS()),
-                TimeUnit.NANOSECONDS.toMillis(result.serDeMS())
+                result.getComponent(),
+                result.getComponentName(),
+                TimeUnit.NANOSECONDS.toMillis(result.getReadMS()),
+                TimeUnit.NANOSECONDS.toMillis(result.getSerdeMS())
             );
         }
     }

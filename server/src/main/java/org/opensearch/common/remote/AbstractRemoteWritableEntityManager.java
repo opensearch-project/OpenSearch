@@ -11,6 +11,7 @@ package org.opensearch.common.remote;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -77,10 +78,10 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
      * @param listener the listener to be notified when the read operation completes
      * @return an ActionListener for handling the read operation
      */
-    protected abstract ActionListener<ReadBlobWithMetrics<Object>> getWrappedReadListenerForMetrics(
+    protected abstract ActionListener<RemoteReadResultsVerbose<Object>> getWrappedReadListenerForMetrics(
         String component,
         AbstractClusterMetadataWriteableBlobEntity remoteEntity,
-        ActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener
+        ActionListener<RemoteReadResultsVerbose<Object>> listener
     );
 
     @Override
@@ -101,8 +102,13 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
     public void readAsyncWithMetrics(
         String component,
         AbstractClusterMetadataWriteableBlobEntity entity,
-        ActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener
+        ActionListener<RemoteReadResultsVerbose<Object>> listener
     ) {
-        getStore(entity).readAsyncWithMetrics(entity, getWrappedReadListenerForMetrics(component, entity, listener));
+        getStore(entity).readAsyncWithMetrics(
+            entity,
+            getWrappedReadListenerForMetrics(component, entity, listener),
+            entity.getType(),
+            component
+        );
     }
 }
