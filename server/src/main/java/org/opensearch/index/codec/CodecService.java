@@ -96,7 +96,7 @@ public class CodecService {
     /**
      * Returns default codec
      */
-    public Codec getDefaultCodec() {
+    public final Codec defaultCodec() {
         return codecs.get(DEFAULT_CODEC);
     }
 
