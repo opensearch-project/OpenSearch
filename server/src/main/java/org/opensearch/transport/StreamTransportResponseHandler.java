@@ -13,31 +13,31 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 /**
- * Marker interface for handlers that are designed specifically for streaming transport responses.
- * This interface doesn't add new methods but provides a clear contract that the handler
- * is intended for streaming operations and will throw UnsupportedOperationException for
- * non-streaming handleResponse calls.
- *
- * <p><strong>Cancellation Contract:</strong></p>
- * <p>Implementations MUST call {@link StreamTransportResponse#cancel(String, Throwable)} on the
- * stream response in the following scenarios:</p>
+ * A handler specialized for streaming transport responses.
+ * <p>
+ * Responsibilities:
  * <ul>
- *   <li>When an exception occurs during stream processing in {@code handleStreamResponse()}</li>
- *   <li>When early termination is needed due to business logic requirements</li>
- *   <li>When client-side timeouts or resource constraints are encountered</li>
+ *   <li>Process streaming responses via {@link #handleStreamResponse(StreamTransportResponse)}.</li>
+ *   <li>Close the stream with {@link StreamTransportResponse#close()} after processing.</li>
+ *   <li>Call {@link StreamTransportResponse#cancel(String, Throwable)} for errors or early termination.</li>
  * </ul>
- * <p>Failure to call cancel() may result in server-side resources processing later batches.</p>
- *
- * <p><strong>Example Usage:</strong></p>
+ * <p>
+ * Non-streaming responses are not supported and will throw an {@link UnsupportedOperationException}.
+ * <p>
+ * Example:
  * <pre>{@code
  * public void handleStreamResponse(StreamTransportResponse<T> response) {
  *     try {
- *         T result = response.nextResponse();
- *         // Process result...
- *         listener.onResponse(result);
+ *         while (true) {
+ *             T result = response.nextResponse();
+ *             if (result == null) break;
+ *             // Process result...
+ *         }
  *     } catch (Exception e) {
  *         response.cancel("Processing error", e);
- *         listener.onFailure(e);
+ *         throw e;
+ *     } finally {
+ *         response.close();
  *     }
  * }
  * }</pre>

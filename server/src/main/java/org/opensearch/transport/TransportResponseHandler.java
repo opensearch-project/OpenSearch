@@ -54,23 +54,38 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
     // TODO: revisit this part; if we should add it here or create a new type of TransportResponseHandler
     // for stream transport requests;
     /**
-     * Handles streaming transport responses for requests that return multiple batches.
+     * Processes a streaming transport response containing multiple batches.
      * <p>
-     * All batches of responses can be fetched using {@link StreamTransportResponse}.
-     * Check {@link StreamTransportResponse} documentation for its correct usage.
+     * Responsibilities:
+     * <ul>
+     *   <li>Iterate over responses using {@link StreamTransportResponse#nextResponse()}.</li>
+     *   <li>Close the stream with {@link StreamTransportResponse#close()} after processing.</li>
+     *   <li>Call {@link StreamTransportResponse#cancel(String, Throwable)} for errors, timeouts, or early termination.</li>
+     * </ul>
      * <p>
-     * {@link #handleResponse(TransportResponse)} will never be called for streaming handlers when the request is sent to {@link StreamTransportService}.
-     * {@link StreamTransportResponse#nextResponse()} will throw exceptions when error happens in fetching next response. Outside of this scope,
-     * then {@link #handleException(TransportException)} is called, so it must be handled.
-     * ReceiveTimeoutTransportException or error before starting the stream could fall under this category.
-     * In case of timeout on the client side, the best strategy is to call cancel to inform server to cancel the stream and stop producing more data.
+     * Exceptions from {@code nextResponse()} are propagated to the caller. Other errors
+     * (e.g., connection issues or timeouts before streaming starts) trigger
+     * {@link #handleException(TransportException)}.
      * <p>
-     * <strong>Important:</strong> Implementations are responsible for closing the stream by calling
-     * {@link StreamTransportResponse#close()} when processing is complete, whether successful or not.
-     * The framework does not automatically close the stream to allow for asynchronous processing.
-     * If early termination is needed, implementations should call {@link StreamTransportResponse#cancel(String, Throwable)}
+     * Example:
+     * <pre>{@code
+     * public void handleStreamResponse(StreamTransportResponse<T> response) {
+     *     try {
+     *         while (true) {
+     *             T result = response.nextResponse();
+     *             if (result == null) break;
+     *             // Process result...
+     *         }
+     *     } catch (Exception e) {
+     *         response.cancel("Processing error", e);
+     *         throw e;
+     *     } finally {
+     *         response.close();
+     *     }
+     * }
+     * }</pre>
      *
-     * @param response the streaming response containing multiple batches - must be closed by the handler
+     * @param response the streaming response, which must be closed by the handler
      */
     default void handleStreamResponse(StreamTransportResponse<T> response) {
         throw new UnsupportedOperationException("Streaming responses not supported by this handler");

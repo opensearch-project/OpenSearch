@@ -68,10 +68,9 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         FlightCallHeaders callHeaders = new FlightCallHeaders();
         callHeaders.insert(REQUEST_ID_KEY, String.valueOf(reqId));
         HeaderCallOption callOptions = new HeaderCallOption(callHeaders);
-        this.flightStream = Objects.requireNonNull(flightClient, "flightClient must not be null")
-            .getStream(Objects.requireNonNull(ticket, "ticket must not be null"), callOptions);
+        this.flightStream = flightClient.getStream(ticket, callOptions);
         this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
-        this.namedWriteableRegistry = Objects.requireNonNull(namedWriteableRegistry, "namedWriteableRegistry must not be null");
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.isClosed = false;
         this.pendingException = null;
         this.pendingRoot = null;
@@ -169,7 +168,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             }
         } catch (Exception e) {
             pendingException = e;
-            logger.warn("Error fetching next batch", e);
+            logger.warn("Error fetching next reponse", e);
             return headerContext.getHeader(reqId);
         }
     }
