@@ -77,6 +77,7 @@ import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.QueryStringQueryParser;
 import org.opensearch.lucene.queries.BlendedTermQuery;
+import org.opensearch.search.approximate.ApproximateBooleanQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
@@ -1448,6 +1449,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         query = new BoolQueryBuilder().should(new QueryStringQueryBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createShardContext());
         expected = new BooleanQuery.Builder().add(new BooleanQuery.Builder().build(), BooleanClause.Occur.SHOULD).build();
+        expected = new ApproximateScoreQuery(expected, new ApproximateBooleanQuery((BooleanQuery) expected));
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
