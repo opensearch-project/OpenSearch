@@ -70,6 +70,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private ClusterService clusterService;
     private RemoteStoreRefreshListener remoteStoreRefreshListener;
     private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+    private RemoteUploaderService remoteUploaderService;
 
     public void setup(boolean primary, int numberOfDocs) throws IOException {
         indexShard = newStartedShard(
@@ -96,11 +97,18 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
         RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
-        remoteStoreRefreshListener = new RemoteStoreRefreshListener(
+        this.remoteUploaderService = new RemoteUploaderService(
             indexShard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             tracker,
             DefaultRemoteStoreSettings.INSTANCE
+        );
+        remoteStoreRefreshListener = new RemoteStoreRefreshListener(
+            indexShard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            tracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            remoteUploaderService
         );
     }
 
@@ -168,7 +176,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             shard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             mock(RemoteSegmentTransferTracker.class),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            remoteUploaderService
         );
         assertTrue(remoteStoreRefreshListener.isLocalOrSnapshotRecoveryOrSeeding());
         assertTrue(remoteStoreRefreshListener.isLowPriorityUpload());
@@ -236,7 +245,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             shard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             mock(RemoteSegmentTransferTracker.class),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            remoteUploaderService
         );
 
         // Validate that the stream of metadata file of remoteMetadataDirectory has been opened only once and the
@@ -832,11 +842,19 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(ActionListener.class), any(Boolean.class));
         }
 
-        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(
+        RemoteUploaderService remoteUploaderService = new RemoteUploaderService(
             shard,
             emptyCheckpointPublisher,
             tracker,
             remoteStoreSettings
+        );
+
+        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(
+            shard,
+            emptyCheckpointPublisher,
+            tracker,
+            remoteStoreSettings,
+            remoteUploaderService
         );
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteStoreStatsTrackerFactory);
