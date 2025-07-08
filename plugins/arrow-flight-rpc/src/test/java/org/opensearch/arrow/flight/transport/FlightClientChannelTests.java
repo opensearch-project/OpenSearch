@@ -209,13 +209,12 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
                 try {
                     while (streamResponse.nextResponse() != null) {
                     }
-                    RuntimeException ex = new RuntimeException("Handler processing failed");
-                    handlerException.set(ex);
-                    handlerLatch.countDown();
-                    throw ex;
                 } catch (RuntimeException e) {
                     handlerException.set(e);
                     handlerLatch.countDown();
+                    try {
+                        streamResponse.close();
+                    } catch (IOException ignored) {}
                     throw e;
                 }
             }
