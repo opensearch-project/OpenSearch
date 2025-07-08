@@ -34,6 +34,7 @@ package org.opensearch.search.rescore;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.index.query.ParsedQuery;
 
 import java.util.Collections;
 import java.util.List;
@@ -88,9 +89,23 @@ public class RescoreContext {
     }
 
     /**
+     * Returns the parsed query for this rescore context, or null if not applicable
+     */
+    public ParsedQuery parsedQuery() {
+        return null;
+    }
+
+    /**
      * Returns queries associated with the rescorer
      */
     public List<Query> getQueries() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns parsed queries associated with the rescorer
+     */
+    public List<ParsedQuery> getParsedQueries() {
         return Collections.emptyList();
     }
 }

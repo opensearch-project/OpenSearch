@@ -206,6 +206,7 @@ public final class QueryRescorer implements Rescorer {
             this.parsedQuery = parsedQuery;
         }
 
+        @Override
         public org.opensearch.index.query.ParsedQuery parsedQuery() {
             return parsedQuery;
         }
@@ -213,6 +214,11 @@ public final class QueryRescorer implements Rescorer {
         @Override
         public List<Query> getQueries() {
             return Collections.singletonList(query());
+        }
+
+        @Override
+        public List<org.opensearch.index.query.ParsedQuery> getParsedQueries() {
+            return parsedQuery != null ? Collections.singletonList(parsedQuery) : Collections.emptyList();
         }
 
         public Query query() {
