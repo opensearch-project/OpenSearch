@@ -33,7 +33,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckpointAction<
@@ -131,18 +130,11 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().length()));
 
         final CountDownLatch latch = new CountDownLatch(segmentsToUpload.size());
-        AtomicBoolean isUploadSuccessful = new AtomicBoolean(true);
-        // TODO: Upload in low priority
-        remoteStoreUploaderService.uploadSegments(segmentsToUpload, segmentsSizeMap, new ActionListener<Void>() {
+        remoteStoreUploaderService.uploadSegments(segmentsToUpload, segmentsSizeMap, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 if (logger.isTraceEnabled() == true) {
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "actionlistener onresponse called: Successfully uploaded segments {} to remote store",
-                            segmentsToUpload
-                        )
-                    );
+                    logger.trace(() -> new ParameterizedMessage("Successfully uploaded segments {} to remote store", segmentsToUpload));
                 }
             }
 
@@ -177,7 +169,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
                     latch.countDown();
                 }
             }
-        });
+        }, true);
         try {
             // TODO: Finalize timeout
             if (latch.await(60, TimeUnit.MINUTES) == false) {
