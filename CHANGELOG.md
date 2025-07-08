@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-core` from 1.55.3 to 1.55.5 ([#18691](https://github.com/opensearch-project/OpenSearch/pull/18691))
 
 ### Deprecated
+- Add deprecation warning for `_cat/snapshots` in favor of `_cat/snapshots/<repository>` ([#9345](https://github.com/opensearch-project/OpenSearch/pull/9345))
 
 ### Removed
 
