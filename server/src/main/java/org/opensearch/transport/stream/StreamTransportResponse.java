@@ -10,37 +10,55 @@ package org.opensearch.transport.stream;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.transport.Header;
 
 import java.io.Closeable;
 
 /**
- * Represents a streaming transport response that allows consuming multiple response batches.
+ * Represents a streaming transport response that yields multiple response batches.
  * <p>
- * This interface extends {@link Closeable} to ensure proper resource cleanup after stream consumption.
- * <strong>Callers are responsible for closing the stream</strong> when processing is complete to prevent
- * resource leaks. The framework does not automatically close streams to allow for asynchronous processing.
+ * Responsibilities:
+ * <ul>
+ *   <li>Iterate over responses using {@link #nextResponse()} until {@code null} is returned.</li>
+ *   <li>Close the stream using {@link #close()} after processing to prevent resource leaks.</li>
+ *   <li>Call {@link #cancel(String, Throwable)} for early termination, client-side errors, or timeouts.</li>
+ * </ul>
  * <p>
- * Implementations should handle both successful completion and error scenarios appropriately.
+ * The framework may call {@code cancel} for internal errors, propagating exceptions to the caller.
  */
 @ExperimentalApi
 public interface StreamTransportResponse<T extends TransportResponse> extends Closeable {
 
     /**
-     * Returns the next response in the stream. This can be a blocking call depending on how many responses
-     * are buffered on the wire by the server. If nothing is buffered, it is a blocking call.
+     * Retrieves the next response in the stream.
      * <p>
-     * If the consumer wants to terminate early, then it should call {@link #cancel(String, Throwable)}.
-     * The framework will call {@link #cancel(String, Throwable)} with the exception if any internal error
-     * happens while fetching the next response and will relay the exception to the caller.
+     * This may block if responses are not buffered on the wire, depending on the server's
+     * backpressure strategy. Returns {@code null} when the stream is exhausted.
+     * <p>
+     * Exceptions during fetching are propagated to the caller. The framework may call
+     * {@link #cancel(String, Throwable)} for internal errors.
      *
-     * @return the next response in the stream, or null if there are no more responses
+     * @return the next response, or {@code null} if the stream is exhausted
      */
     T nextResponse();
 
     /**
-     * Cancels the streaming response due to client-side error, timeout, or early termination.
+     * Cancels the stream due to client-side errors, timeouts, or early termination.
+     * <p>
+     * The {@code reason} should describe the cause (e.g., "Client timeout"), and
+     * {@code cause} may provide additional details (or be {@code null}).
+     *
      * @param reason the reason for cancellation
-     * @param cause the exception that caused cancellation (can be null)
+     * @param cause the underlying exception, if any
      */
     void cancel(String reason, Throwable cause);
+
+    /**
+     * Retrieves the header for the current batch.
+     * <p>
+     * For internal framework use only.
+     *
+     * @return the current header, or {@code null} if unavailable
+     */
+    Header currentHeader();
 }
