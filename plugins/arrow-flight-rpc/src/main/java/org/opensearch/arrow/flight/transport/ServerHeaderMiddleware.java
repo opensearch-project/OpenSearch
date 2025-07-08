@@ -17,6 +17,14 @@ import org.apache.arrow.flight.RequestContext;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 
+import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.RAW_HEADER_KEY;
+import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.REQUEST_ID_KEY;
+
+/**
+ * ServerHeaderMiddleware is created per call to handle the response header
+ * and add it to the outgoing headers. It also adds the request ID to the
+ * outgoing headers, retrieved from the incoming headers.
+ */
 class ServerHeaderMiddleware implements FlightServerMiddleware {
     private ByteBuffer headerBuffer;
     private final String reqId;
@@ -25,7 +33,7 @@ class ServerHeaderMiddleware implements FlightServerMiddleware {
         this.reqId = reqId;
     }
 
-    public void setHeader(ByteBuffer headerBuffer) {
+    void setHeader(ByteBuffer headerBuffer) {
         this.headerBuffer = headerBuffer;
     }
 
@@ -35,12 +43,12 @@ class ServerHeaderMiddleware implements FlightServerMiddleware {
             byte[] headerBytes = new byte[headerBuffer.remaining()];
             headerBuffer.get(headerBytes);
             String encodedHeader = Base64.getEncoder().encodeToString(headerBytes);
-            outgoingHeaders.insert("raw-header", encodedHeader);
-            outgoingHeaders.insert("req-id", reqId);
+            outgoingHeaders.insert(RAW_HEADER_KEY, encodedHeader);
+            outgoingHeaders.insert(REQUEST_ID_KEY, reqId);
             headerBuffer.rewind();
         } else {
-            outgoingHeaders.insert("raw-header", "");
-            outgoingHeaders.insert("req-id", reqId);
+            outgoingHeaders.insert(RAW_HEADER_KEY, "");
+            outgoingHeaders.insert(REQUEST_ID_KEY, reqId);
         }
     }
 
@@ -53,7 +61,7 @@ class ServerHeaderMiddleware implements FlightServerMiddleware {
     public static class Factory implements FlightServerMiddleware.Factory<ServerHeaderMiddleware> {
         @Override
         public ServerHeaderMiddleware onCallStarted(CallInfo callInfo, CallHeaders incomingHeaders, RequestContext context) {
-            String reqId = incomingHeaders.get("req-id");
+            String reqId = incomingHeaders.get(REQUEST_ID_KEY);
             return new ServerHeaderMiddleware(reqId);
         }
     }

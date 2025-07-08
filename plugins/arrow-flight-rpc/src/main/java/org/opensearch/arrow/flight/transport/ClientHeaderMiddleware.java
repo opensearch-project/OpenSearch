@@ -35,8 +35,8 @@ import java.util.Objects;
  */
 class ClientHeaderMiddleware implements FlightClientMiddleware {
     // Header field names used in Arrow Flight communication
-    private static final String RAW_HEADER_KEY = "raw-header";
-    private static final String REQUEST_ID_KEY = "req-id";
+    static final String RAW_HEADER_KEY = "raw-header";
+    static final String REQUEST_ID_KEY = "req-id";
 
     private final HeaderContext context;
     private final Version version;

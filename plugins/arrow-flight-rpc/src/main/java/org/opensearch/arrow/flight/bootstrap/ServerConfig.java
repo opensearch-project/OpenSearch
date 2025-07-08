@@ -94,9 +94,13 @@ public class ServerConfig {
     );
 
     /**
-     * The thread pool name for the Flight server.
+     * The thread pool name for the Flight producer handling
      */
     public static final String FLIGHT_SERVER_THREAD_POOL_NAME = "flight-server";
+    /**
+     * The thread pool name for the Flight grpc executor.
+     */
+    public static final String GRPC_EXECUTOR_THREAD_POOL_NAME = "flight-grpc";
 
     /**
      * The thread pool name for the Flight client.
@@ -148,6 +152,15 @@ public class ServerConfig {
      */
     public static ScalingExecutorBuilder getServerExecutorBuilder() {
         return new ScalingExecutorBuilder(FLIGHT_SERVER_THREAD_POOL_NAME, threadPoolMin, threadPoolMax, keepAlive);
+    }
+
+    /**
+     * Gets the thread pool executor builder configured for the Flight server grpc executor.
+     *
+     * @return The configured ScalingExecutorBuilder instance
+     */
+    public static ScalingExecutorBuilder getGrpcExecutorBuilder() {
+        return new ScalingExecutorBuilder(GRPC_EXECUTOR_THREAD_POOL_NAME, threadPoolMin, threadPoolMax, keepAlive);
     }
 
     /**

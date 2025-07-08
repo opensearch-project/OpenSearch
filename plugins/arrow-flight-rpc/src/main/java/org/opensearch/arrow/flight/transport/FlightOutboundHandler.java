@@ -17,10 +17,8 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
@@ -39,7 +37,7 @@ import java.util.Set;
 
 /**
  * Outbound handler for Arrow Flight streaming responses.
- *
+ * It must invoke messageListener and relay any exception back to the caller and not supress them
  * @opensearch.internal
  */
 class FlightOutboundHandler extends ProtocolOutboundHandler {
@@ -49,22 +47,13 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
     private final String[] features;
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
-    private final FlightStatsCollector statsCollector;
 
-    public FlightOutboundHandler(
-        String nodeName,
-        Version version,
-        String[] features,
-        StatsTracker statsTracker,
-        ThreadPool threadPool,
-        FlightStatsCollector statsCollector
-    ) {
+    public FlightOutboundHandler(String nodeName, Version version, String[] features, StatsTracker statsTracker, ThreadPool threadPool) {
         this.nodeName = nodeName;
         this.version = version;
         this.features = features;
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
-        this.statsCollector = statsCollector;
     }
 
     @Override
@@ -79,7 +68,6 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         boolean compressRequest,
         boolean isHandshake
     ) throws IOException, TransportException {
-        // TODO: Implement request sending if needed
         throw new UnsupportedOperationException("sendRequest not implemented for FlightOutboundHandler");
     }
 
@@ -107,47 +95,20 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         final String action,
         final TransportResponse response,
         final boolean compress,
-        final boolean isHandshake,
-        final ActionListener<Void> listener
-    ) {
+        final boolean isHandshake
+    ) throws IOException {
         if (!(channel instanceof FlightServerChannel flightChannel)) {
             throw new IllegalStateException("Expected FlightServerChannel, got " + channel.getClass().getName());
         }
         try {
-            // Create NativeOutboundMessage for headers
-            NativeOutboundMessage.Response headerMessage = new NativeOutboundMessage.Response(
-                threadPool.getThreadContext(),
-                features,
-                out -> {},
-                Version.min(version, nodeVersion),
-                requestId,
-                isHandshake,
-                compress
-            );
-
-            // Serialize headers
-            ByteBuffer headerBuffer;
-            try (BytesStreamOutput bytesStream = new BytesStreamOutput()) {
-                BytesReference headerBytes = headerMessage.serialize(bytesStream);
-                headerBuffer = ByteBuffer.wrap(headerBytes.toBytesRef().bytes);
-            }
-
             try (VectorStreamOutput out = new VectorStreamOutput(flightChannel.getAllocator(), flightChannel.getRoot())) {
                 response.writeTo(out);
-                flightChannel.sendBatch(headerBuffer, out, listener);
+                flightChannel.sendBatch(getHeaderBuffer(requestId, nodeVersion, features), out);
                 messageListener.onResponseSent(requestId, action, response);
-
-                // Track server outbound response
-                if (statsCollector != null) {
-                    statsCollector.incrementServerBatchesSent();
-                }
             }
         } catch (Exception e) {
-            if (statsCollector != null) {
-                statsCollector.incrementServerTransportErrors();
-            }
-            listener.onFailure(new TransportException("Failed to send response batch for action [" + action + "]", e));
             messageListener.onResponseSent(requestId, action, e);
+            throw e;
         }
     }
 
@@ -156,20 +117,17 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         final Set<String> features,
         final TcpChannel channel,
         final long requestId,
-        final String action,
-        final ActionListener<Void> listener
+        final String action
     ) {
         if (!(channel instanceof FlightServerChannel flightChannel)) {
             throw new IllegalStateException("Expected FlightServerChannel, got " + channel.getClass().getName());
         }
         try {
-            flightChannel.completeStream(listener);
-            // listener.onResponse(null);
-            // TODO - do we need to call onResponseSent() for messageListener; its already called for individual batches
-            // messageListener.onResponseSent(requestId, action, null);
+            flightChannel.completeStream();
+            messageListener.onResponseSent(requestId, action, TransportResponse.Empty.INSTANCE);
         } catch (Exception e) {
-            listener.onFailure(new TransportException("Failed to complete stream for action [" + action + "]", e));
             messageListener.onResponseSent(requestId, action, e);
+            throw e;
         }
     }
 
@@ -182,30 +140,15 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         final String action,
         final Exception error
     ) throws IOException {
-        if (!(channel instanceof FlightServerChannel)) {
+        if (!(channel instanceof FlightServerChannel flightServerChannel)) {
             throw new IllegalStateException("Expected FlightServerChannel, got " + channel.getClass().getName());
         }
-        NativeOutboundMessage.Response headerMessage = new NativeOutboundMessage.Response(
-            threadPool.getThreadContext(),
-            features,
-            out -> {},
-            Version.min(version, nodeVersion),
-            requestId,
-            false,
-            false
-        );
-        // Serialize headers
-        ByteBuffer headerBuffer;
-        try (BytesStreamOutput bytesStream = new BytesStreamOutput()) {
-            BytesReference headerBytes = headerMessage.serialize(bytesStream);
-            headerBuffer = ByteBuffer.wrap(headerBytes.toBytesRef().bytes);
-        }
-        FlightServerChannel flightChannel = (FlightServerChannel) channel;
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
         try {
-            flightChannel.sendError(headerBuffer, error, listener);
+            flightServerChannel.sendError(getHeaderBuffer(requestId, version, features), error);
+            messageListener.onResponseSent(requestId, action, error);
         } catch (Exception e) {
-            listener.onFailure(new TransportException("Failed to send error response for action [" + action + "]", e));
+            messageListener.onResponseSent(requestId, action, e);
+            throw e;
         }
     }
 
@@ -215,6 +158,24 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             messageListener = listener;
         } else {
             throw new IllegalStateException("Cannot set message listener twice");
+        }
+    }
+
+    private ByteBuffer getHeaderBuffer(long requestId, Version nodeVersion, Set<String> features) throws IOException {
+        // Just a way( probably inefficient) to serialize header to reuse existing logic present in
+        // NativeOutboundMessage.Response#writeVariableHeader()
+        NativeOutboundMessage.Response headerMessage = new NativeOutboundMessage.Response(
+            threadPool.getThreadContext(),
+            features,
+            out -> {},
+            Version.min(version, nodeVersion),
+            requestId,
+            false,
+            false
+        );
+        try (BytesStreamOutput bytesStream = new BytesStreamOutput()) {
+            BytesReference headerBytes = headerMessage.serialize(bytesStream);
+            return ByteBuffer.wrap(headerBytes.toBytesRef().bytes);
         }
     }
 }

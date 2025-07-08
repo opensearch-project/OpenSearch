@@ -65,6 +65,8 @@ public class FlightServiceTests extends OpenSearchTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
         when(threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
+        when(threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
+
         networkService = new NetworkService(Collections.emptyList());
     }
 
