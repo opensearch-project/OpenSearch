@@ -72,7 +72,7 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         List<ExecutorBuilder<?>> executorBuilders = plugin.getExecutorBuilders(settings);
         assertNotNull(executorBuilders);
         assertFalse(executorBuilders.isEmpty());
-        assertEquals(2, executorBuilders.size());
+        assertEquals(3, executorBuilders.size());
 
         Optional<StreamManager> streamManager = plugin.getStreamManager();
         assertTrue(streamManager.isPresent());

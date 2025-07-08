@@ -222,7 +222,7 @@ class FlightClientChannel implements TcpChannel {
         try {
             return new FlightTransportResponse<>(
                 requestIdGenerator.incrementAndGet(), // we can't use reqId directly since its already serialized; so generating a new on
-                // for correlation
+                // for header correlation
                 client,
                 headerContext,
                 ticket,
@@ -271,13 +271,10 @@ class FlightClientChannel implements TcpChannel {
         long requestId = header.getRequestId();
         TransportResponseHandler handler = responseHandlers.onResponseReceived(requestId, messageListener);
         if (handler == null) {
-            var t = new IllegalStateException("Missing handler for stream request [" + requestId + "].");
-            streamResponse.cancel("Missing handler for stream request", t);
-            throw t;
+            throw new IllegalStateException("Missing handler for stream request [" + requestId + "].");
         }
         streamResponse.setHandler(handler);
-        executeWithThreadContext(header, handler, streamResponse);
-        logSlowOperation(startTime);
+        executeWithThreadContext(header, handler, streamResponse, startTime);
     }
 
     /**
@@ -289,45 +286,33 @@ class FlightClientChannel implements TcpChannel {
      * @param streamResponse the stream response
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeWithThreadContext(Header header, TransportResponseHandler handler, StreamTransportResponse<?> streamResponse) {
+    private void executeWithThreadContext(
+        Header header,
+        TransportResponseHandler handler,
+        StreamTransportResponse<?> streamResponse,
+        long startTime
+    ) {
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
             threadContext.setHeaders(header.getHeaders());
             String executor = handler.executor();
             if (ThreadPool.Names.SAME.equals(executor)) {
-                executeHandler(handler, streamResponse);
+                handler.handleStreamResponse(streamResponse);
             } else {
                 threadPool.executor(executor).execute(() -> {
                     try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
                         threadContext.setHeaders(header.getHeaders());
-                        executeHandler(handler, streamResponse);
+                        handler.handleStreamResponse(streamResponse);
+                    } catch (Exception e) {
+                        cleanupStreamResponse(streamResponse);
+                        throw e;
                     }
                 });
             }
         } catch (Exception e) {
             cleanupStreamResponse(streamResponse);
+            logSlowOperation(startTime);
             throw e;
-        }
-    }
-
-    /**
-     * Executes the handler and ensures proper cleanup of stream resources.
-     */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeHandler(TransportResponseHandler handler, StreamTransportResponse<?> streamResponse) {
-        try {
-            handler.handleStreamResponse(streamResponse);
-        } catch (Exception e) {
-            logger.error("Handler execution failed", e);
-            // Cancel stream on handler exception to prevent resource leaks
-            try {
-                streamResponse.cancel("Handler exception: " + e.getMessage(), e);
-            } catch (Exception cancelEx) {
-                logger.warn("Failed to cancel stream after handler exception", cancelEx);
-            }
-            throw e; // Re-throw original exception
-        } finally {
-            cleanupStreamResponse(streamResponse);
         }
     }
 
@@ -359,22 +344,19 @@ class FlightClientChannel implements TcpChannel {
     private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception e, long startTime) {
         try {
             logger.error("Exception while handling stream response", e);
-
             // Cancel the stream to notify server and prevent further processing
             try {
                 streamResponse.cancel("Client-side exception: " + e.getMessage(), e);
             } catch (Exception cancelEx) {
                 logger.warn("Failed to cancel stream after exception", cancelEx);
             }
-
-            // Try to notify handler of the exception
             Header header = streamResponse.currentHeader();
             if (header != null) {
                 long requestId = header.getRequestId();
                 TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
                 if (handler != null) {
                     TransportException transportException = new TransportException("Stream processing failed", e);
-                    // Execute handler exception on appropriate thread
+                    // Execute handler exception on the appropriate thread
                     String executor = handler.executor();
                     if (ThreadPool.Names.SAME.equals(executor)) {
                         handler.handleException(transportException);
@@ -388,17 +370,16 @@ class FlightClientChannel implements TcpChannel {
                         });
                     }
                 } else {
-                    logger.error("No handler found for requestId [{}]", requestId);
+                    logger.warn("Unable to notify handler, no handler found for requestId [{}]", requestId);
                 }
             } else {
-                logger.error("Failed to handle stream, no header available", e);
+                logger.warn("Unable to notify handler, no header available to retrieve req-id.", e);
             }
 
             if (statsCollector != null) {
                 statsCollector.incrementClientApplicationErrors();
             }
         } finally {
-            // Always ensure cleanup
             try {
                 streamResponse.close();
             } catch (Exception closeEx) {

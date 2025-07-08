@@ -56,10 +56,24 @@ public interface TransportChannel {
 
     String getChannelType();
 
+    /**
+     * Sends a batch of responses to the request that this channel is associated with.
+     * Call {@link #completeStream()} on a successful completion.
+     * For errors, use {@link #sendResponse(Exception)} and do not call {@link #completeStream()}
+     * Do not use {@link #sendResponse} in conjunction with this method if you are sending a batch of responses.
+     *
+     * @param response the batch of responses to send
+     * @throws org.opensearch.transport.stream.StreamCancellationException if the stream has been canceled.
+     * Do not call this method again or completeStream() once canceled.
+     */
     default void sendResponseBatch(TransportResponse response) {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Call this method on a successful completion the streaming response.
+     * Note: not calling this method on success will result in a memory leak
+     */
     default void completeStream() {
         throw new UnsupportedOperationException();
     }

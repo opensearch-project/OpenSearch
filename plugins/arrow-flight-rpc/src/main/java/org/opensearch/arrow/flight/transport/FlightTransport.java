@@ -90,6 +90,8 @@ class FlightTransport extends TcpTransport {
     private final EventLoopGroup bossEventLoopGroup;
     private final EventLoopGroup workerEventLoopGroup;
     private final ExecutorService serverExecutor;
+    private final ExecutorService clientExecutor;
+
     private final ThreadPool threadPool;
     private BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -122,7 +124,8 @@ class FlightTransport extends TcpTransport {
         this.statsCollector = statsCollector;
         this.bossEventLoopGroup = createEventLoopGroup("os-grpc-boss-ELG", 1);
         this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors() * 2);
-        this.serverExecutor = threadPool.executor(ThreadPool.Names.GENERIC);
+        this.serverExecutor = threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME);
+        this.clientExecutor = threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME);
         this.threadPool = threadPool;
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
@@ -282,7 +285,7 @@ class FlightTransport extends TcpTransport {
                 .channelType(ServerConfig.clientChannelType())
                 .eventLoopGroup(workerEventLoopGroup)
                 .sslContext(sslContextProvider != null ? sslContextProvider.getClientSslContext() : null)
-                .executor(serverExecutor)
+                .executor(clientExecutor)
                 .intercept(factory)
                 .build();
             return new ClientHolder(location, client, context);

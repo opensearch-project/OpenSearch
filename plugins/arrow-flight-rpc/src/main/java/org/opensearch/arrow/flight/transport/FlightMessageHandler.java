@@ -74,7 +74,7 @@ class FlightMessageHandler extends NativeMessageHandler {
         BigArrays bigArrays,
         OutboundHandler outboundHandler
     ) {
-        return new FlightOutboundHandler(nodeName, version, features, statsTracker, threadPool, statsCollector);
+        return new FlightOutboundHandler(nodeName, version, features, statsTracker, threadPool);
     }
 
     @Override
@@ -96,7 +96,8 @@ class FlightMessageHandler extends NativeMessageHandler {
             header.getFeatures(),
             header.isCompressed(),
             header.isHandshake(),
-            breakerRelease
+            breakerRelease,
+            statsCollector
         );
     }
 }

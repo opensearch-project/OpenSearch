@@ -135,6 +135,7 @@ public final class ServerComponents implements AutoCloseable {
     private EventLoopGroup bossEventLoopGroup;
     EventLoopGroup workerEventLoopGroup;
     private ExecutorService serverExecutor;
+    private ExecutorService grpcExecutor;
 
     ServerComponents(Settings settings) {
         this.settings = settings;
@@ -180,7 +181,7 @@ public final class ServerComponents implements AutoCloseable {
             .channelType(ServerConfig.serverChannelType())
             .bossEventLoopGroup(bossEventLoopGroup)
             .workerEventLoopGroup(workerEventLoopGroup)
-            .executor(serverExecutor)
+            .executor(grpcExecutor)
             .build();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
@@ -245,6 +246,7 @@ public final class ServerComponents implements AutoCloseable {
         bossEventLoopGroup = ServerConfig.createELG(GRPC_BOSS_ELG, 1);
         workerEventLoopGroup = ServerConfig.createELG(GRPC_WORKER_ELG, NettyRuntime.availableProcessors() * 2);
         serverExecutor = threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME);
+        grpcExecutor = threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME);
     }
 
     /** {@inheritDoc} */
@@ -256,6 +258,9 @@ public final class ServerComponents implements AutoCloseable {
             gracefullyShutdownELG(workerEventLoopGroup, GRPC_WORKER_ELG);
             if (serverExecutor != null) {
                 serverExecutor.shutdown();
+            }
+            if (grpcExecutor != null) {
+                grpcExecutor.shutdown();
             }
         } catch (Exception e) {
             logger.error("Error while closing server components", e);

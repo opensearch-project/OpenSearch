@@ -76,7 +76,12 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             .put("aux.transport.transport-flight.port", streamPort)
             .build();
         ServerConfig.init(settings);
-        threadPool = new ThreadPool(settings, ServerConfig.getClientExecutorBuilder(), ServerConfig.getServerExecutorBuilder());
+        threadPool = new ThreadPool(
+            settings,
+            ServerConfig.getClientExecutorBuilder(),
+            ServerConfig.getGrpcExecutorBuilder(),
+            ServerConfig.getServerExecutorBuilder()
+        );
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         statsCollector = new FlightStatsCollector();
 
