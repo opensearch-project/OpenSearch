@@ -218,7 +218,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            TranslogOperationHelper.EMPTY
+            TranslogOperationHelper.DEFAULT
         );
         assert config.getIndexSettings().isDerivedSourceEnabled() == false; // For derived source supported index, it is incorrect to use
                                                                             // this constructor
@@ -2127,7 +2127,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             },
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
-            TranslogOperationHelper.EMPTY
+            TranslogOperationHelper.DEFAULT
         );
         writer.close();
         return uuid;

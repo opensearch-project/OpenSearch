@@ -4182,7 +4182,7 @@ public class InternalEngineTests extends EngineTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             seqNo -> {},
-            TranslogOperationHelper.EMPTY
+            TranslogOperationHelper.DEFAULT
         );
         translog.add(new Translog.Index("SomeBogusId", 0, primaryTerm.get(), "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());

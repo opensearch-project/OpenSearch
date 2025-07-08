@@ -202,7 +202,7 @@ public class TranslogOperationHelperTests extends MapperServiceTestCase {
         Translog.Index op1 = new Translog.Index("1", 0, 1, source.toBytesRef().bytes);
         Translog.Index op2 = new Translog.Index("1", 0, 1, source.toBytesRef().bytes);
 
-        assertTrue("Empty helper should compare operations normally", TranslogOperationHelper.EMPTY.hasSameIndexOperation(op1, op2));
+        assertTrue("Empty helper should compare operations normally", TranslogOperationHelper.DEFAULT.hasSameIndexOperation(op1, op2));
     }
 
     public void testDifferentRoutingNormalCase() {

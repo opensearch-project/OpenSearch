@@ -222,7 +222,7 @@ public class TruncateTranslogAction {
                     () -> translogGlobalCheckpoint,
                     () -> primaryTerm,
                     seqNo -> {},
-                    TranslogOperationHelper.EMPTY
+                    TranslogOperationHelper.DEFAULT
                 );
                 Translog.Snapshot snapshot = translog.newSnapshot(0, Long.MAX_VALUE)
             ) {

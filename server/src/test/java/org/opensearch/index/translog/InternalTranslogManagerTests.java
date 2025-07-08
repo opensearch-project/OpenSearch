@@ -50,7 +50,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 () -> {},
                 new InternalTranslogFactory(),
                 () -> Boolean.TRUE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -91,7 +91,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 () -> {},
                 new InternalTranslogFactory(),
                 () -> Boolean.TRUE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -131,7 +131,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 () -> {},
                 new InternalTranslogFactory(),
                 () -> Boolean.TRUE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -162,7 +162,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 () -> {},
                 new InternalTranslogFactory(),
                 () -> Boolean.TRUE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -198,7 +198,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 () -> {},
                 new InternalTranslogFactory(),
                 () -> Boolean.TRUE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -231,7 +231,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 () -> {},
                 new InternalTranslogFactory(),
                 () -> Boolean.TRUE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -281,7 +281,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 () -> {},
                 new InternalTranslogFactory(),
                 () -> Boolean.TRUE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             );
             translogManagerAtomicReference.set(translogManager);
             Engine.Index index = indexForDoc(doc);

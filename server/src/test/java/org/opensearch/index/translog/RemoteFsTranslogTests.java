@@ -201,7 +201,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10),
             DefaultRemoteStoreSettings.INSTANCE,
-            TranslogOperationHelper.EMPTY
+            TranslogOperationHelper.DEFAULT
         );
     }
 
@@ -475,7 +475,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1525,7 +1525,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1636,7 +1636,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
-                TranslogOperationHelper.EMPTY
+                TranslogOperationHelper.DEFAULT
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

@@ -95,7 +95,7 @@ public abstract class TranslogManagerTestCase extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTermSupplier,
             seqNo -> {},
-            TranslogOperationHelper.EMPTY
+            TranslogOperationHelper.DEFAULT
         );
     }
 
