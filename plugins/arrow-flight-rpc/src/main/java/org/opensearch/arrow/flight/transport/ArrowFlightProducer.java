@@ -14,12 +14,15 @@ import org.apache.arrow.flight.FlightServerMiddleware;
 import org.apache.arrow.flight.NoOpFlightProducer;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
+import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.InboundPipeline;
 import org.opensearch.transport.Transport;
+
+import java.util.concurrent.ExecutorService;
 
 /**
  * FlightProducer implementation for handling Arrow Flight requests.
@@ -31,6 +34,7 @@ class ArrowFlightProducer extends NoOpFlightProducer {
     private final Transport.RequestHandlers requestHandlers;
     private final FlightServerMiddleware.Key<ServerHeaderMiddleware> middlewareKey;
     private final FlightStatsCollector statsCollector;
+    private final ExecutorService executor;
 
     public ArrowFlightProducer(
         FlightTransport flightTransport,
@@ -44,60 +48,50 @@ class ArrowFlightProducer extends NoOpFlightProducer {
         this.middlewareKey = middlewareKey;
         this.allocator = allocator;
         this.statsCollector = statsCollector;
+        this.executor = threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME);
     }
 
     @Override
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
-        long startTime = System.nanoTime();
-        try {
-            FlightServerChannel channel = new FlightServerChannel(
-                listener,
-                allocator,
-                context.getMiddleware(middlewareKey),
-                statsCollector
-            );
-            BytesArray buf = new BytesArray(ticket.getBytes());
-
-            // Track server-side inbound request stats
-            if (statsCollector != null) {
-                statsCollector.incrementServerRequestsReceived();
-                statsCollector.incrementServerRequestsCurrent();
-                statsCollector.addBytesReceived(buf.length());
+        ServerHeaderMiddleware middleware = context.getMiddleware(middlewareKey);
+        // thread switch is needed to free up grpc thread without delegating it to request handler to do the thread switch.
+        // It is also necessary for the cancellation from client to work correctly, the grpc thread which started it must be released
+        // https://github.com/apache/arrow/issues/38668
+        executor.execute(() -> {
+            FlightServerChannel channel = new FlightServerChannel(listener, allocator, middleware, statsCollector);
+            try {
+                BytesArray buf = new BytesArray(ticket.getBytes());
+                // TODO: check the feasibility of create InboundPipeline once
+                try (
+                    InboundPipeline pipeline = new InboundPipeline(
+                        flightTransport.getVersion(),
+                        flightTransport.getStatsTracker(),
+                        flightTransport.getPageCacheRecycler(),
+                        threadPool::relativeTimeInMillis,
+                        flightTransport.getInflightBreaker(),
+                        requestHandlers::getHandler,
+                        flightTransport::inboundMessage
+                    );
+                    ReleasableBytesReference reference = ReleasableBytesReference.wrap(buf)
+                ) {
+                    // nothing changes in inbound logic, so reusing native transport inbound pipeline
+                    pipeline.handleBytes(channel, reference);
+                }
+            } catch (FlightRuntimeException ex) {
+                listener.error(ex);
+                // FlightServerChannel is always closed in FlightTransportChannel at the time of release.
+                // we still try to close it here as the FlightServerChannel might not be created when this execution occurs.
+                // other times, the close is redundant and harmless as double close is handled gracefully.
+                channel.close();
+                throw ex;
+            } catch (Exception ex) {
+                FlightRuntimeException fre = CallStatus.INTERNAL.withCause(ex)
+                    .withDescription("Unexpected server error")
+                    .toRuntimeException();
+                listener.error(fre);
+                channel.close();
+                throw fre;
             }
-
-            // TODO: check the feasibility of create InboundPipeline once
-            try (
-                InboundPipeline pipeline = new InboundPipeline(
-                    flightTransport.getVersion(),
-                    flightTransport.getStatsTracker(),
-                    flightTransport.getPageCacheRecycler(),
-                    threadPool::relativeTimeInMillis,
-                    flightTransport.getInflightBreaker(),
-                    requestHandlers::getHandler,
-                    flightTransport::inboundMessage
-                );
-                ReleasableBytesReference reference = ReleasableBytesReference.wrap(buf)
-            ) {
-                // nothing changes in inbound logic, so reusing native transport inbound pipeline
-                pipeline.handleBytes(channel, reference);
-
-                // Request timing is now tracked in FlightServerChannel from start to completion
-            }
-        } catch (FlightRuntimeException ex) {
-            if (statsCollector != null) {
-                statsCollector.incrementServerTransportErrors();
-                statsCollector.decrementServerRequestsCurrent();
-            }
-            listener.error(ex);
-            throw ex;
-        } catch (Exception ex) {
-            if (statsCollector != null) {
-                statsCollector.incrementServerTransportErrors();
-                statsCollector.decrementServerRequestsCurrent();
-            }
-            FlightRuntimeException fre = CallStatus.INTERNAL.withCause(ex).withDescription("Unexpected server error").toRuntimeException();
-            listener.error(fre);
-            throw fre;
-        }
+        });
     }
 }

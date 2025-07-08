@@ -345,7 +345,11 @@ public class FlightStreamPlugin extends Plugin
         if (!isArrowStreamsEnabled && !isStreamTransportEnabled) {
             return Collections.emptyList();
         }
-        return List.of(ServerConfig.getServerExecutorBuilder(), ServerConfig.getClientExecutorBuilder());
+        return List.of(
+            ServerConfig.getServerExecutorBuilder(),
+            ServerConfig.getGrpcExecutorBuilder(),
+            ServerConfig.getClientExecutorBuilder()
+        );
     }
 
     /**

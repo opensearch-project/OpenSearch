@@ -14,11 +14,11 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.ReceiveTimeoutTransportException;
 import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.stream.StreamCancellationException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 import org.junit.After;
 
@@ -105,54 +105,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertEquals("FlightClientChannel is closed", exception.get().getMessage());
     }
 
-    public void testSendMessageFailure() throws InterruptedException {
-        String action = "internal:test/failure";
-        CountDownLatch handlerLatch = new CountDownLatch(1);
-        AtomicReference<Exception> handlerException = new AtomicReference<>();
-
-        streamTransportService.registerRequestHandler(
-            action,
-            ThreadPool.Names.SAME,
-            in -> new TestRequest(in),
-            (request, channel, task) -> {
-                throw new RuntimeException("Simulated transport failure");
-            }
-        );
-
-        TestRequest testRequest = new TestRequest();
-        TransportRequestOptions options = TransportRequestOptions.builder().build();
-
-        TransportResponseHandler<TestResponse> responseHandler = new TransportResponseHandler<TestResponse>() {
-            @Override
-            public void handleResponse(TestResponse response) {
-                handlerLatch.countDown();
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                handlerException.set(exp);
-                handlerLatch.countDown();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            public TestResponse read(StreamInput in) throws IOException {
-                return new TestResponse(in);
-            }
-        };
-
-        streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
-
-        assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
-        assertNotNull(handlerException.get());
-        assertTrue(handlerException.get() instanceof TransportException);
-    }
-
-    public void testStreamResponseProcessingWithValidHandler() throws InterruptedException {
+    public void testStreamResponseProcessingWithValidHandler() throws InterruptedException, IOException {
         channel = createChannel(mockFlightClient);
 
         String action = "internal:test/stream";
@@ -186,18 +139,23 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         TestRequest testRequest = new TestRequest();
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
 
+        AtomicReference<StreamTransportResponse<TestResponse>> streamRef = new AtomicReference<>();
         StreamTransportResponseHandler<TestResponse> responseHandler = new StreamTransportResponseHandler<TestResponse>() {
             @Override
             public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                streamRef.set(streamResponse);
                 try {
                     TestResponse response;
                     while ((response = streamResponse.nextResponse()) != null) {
                         assertEquals("Response " + (Integer.valueOf(responseCount.get()) + 1), response.getData());
                         responseCount.incrementAndGet();
                     }
-                    handlerLatch.countDown();
                 } catch (Exception e) {
                     handlerException.set(e);
+                } finally {
+                    try {
+                        streamResponse.close();
+                    } catch (Exception e) {}
                     handlerLatch.countDown();
                 }
             }
@@ -238,9 +196,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             (request, channel, task) -> {
                 try {
                     channel.sendResponse(new RuntimeException("Simulated handler exception"));
-                } catch (IOException e) {
-                    // Handle IO exception
-                }
+                } catch (IOException e) {}
             }
         );
 
@@ -251,9 +207,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             @Override
             public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
                 try {
-                    TestResponse response;
-                    while ((response = streamResponse.nextResponse()) != null) {
-                        // Process response
+                    while (streamResponse.nextResponse() != null) {
                     }
                     RuntimeException ex = new RuntimeException("Handler processing failed");
                     handlerException.set(ex);
@@ -273,7 +227,6 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
             @Override
             public void handleException(TransportException exp) {
-                handlerException.set(exp);
                 handlerLatch.countDown();
             }
 
@@ -337,53 +290,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertTrue(closeLatch.await(1, TimeUnit.SECONDS));
     }
 
-    public void testErrorInDeserializingResponse() throws InterruptedException {
-        String action = "internal:test/deserialize-error";
-        CountDownLatch handlerLatch = new CountDownLatch(1);
-        AtomicReference<Exception> handlerException = new AtomicReference<>();
-
-        streamTransportService.registerRequestHandler(
-            action,
-            ThreadPool.Names.SAME,
-            in -> new TestRequest(in),
-            (request, channel, task) -> {
-                channel.sendResponseBatch(new TestResponse("valid-response"));
-            }
-        );
-
-        TestRequest testRequest = new TestRequest();
-        TransportRequestOptions options = TransportRequestOptions.builder().build();
-
-        TransportResponseHandler<TestResponse> responseHandler = new TransportResponseHandler<TestResponse>() {
-            @Override
-            public void handleResponse(TestResponse response) {
-                handlerLatch.countDown();
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                handlerException.set(exp);
-                handlerLatch.countDown();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            public TestResponse read(StreamInput in) throws IOException {
-                throw new IOException("Simulated deserialization error");
-            }
-        };
-
-        streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
-
-        assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
-        assertNotNull(handlerException.get());
-    }
-
-    public void testErrorInInterimBatchFromServer() throws InterruptedException {
+    public void testErrorInInterimBatchFromServer() throws InterruptedException, IOException {
         String action = "internal:test/interim-batch-error";
         CountDownLatch handlerLatch = new CountDownLatch(1);
         AtomicReference<Exception> handlerException = new AtomicReference<>();
@@ -398,14 +305,12 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
                     TestResponse response1 = new TestResponse("Response 1");
                     channel.sendResponseBatch(response1);
                     // Add small delay to ensure batch is processed before error
-                    Thread.sleep(50);
+                    Thread.sleep(1000);
                     throw new RuntimeException("Interim batch error");
                 } catch (Exception e) {
                     try {
                         channel.sendResponse(e);
-                    } catch (IOException ioException) {
-                        // Handle IO exception
-                    }
+                    } catch (IOException ioException) {}
                 }
             }
         );
@@ -417,13 +322,15 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             @Override
             public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
                 try {
-                    TestResponse response;
-                    while ((response = streamResponse.nextResponse()) != null) {
+                    while ((streamResponse.nextResponse()) != null) {
                         responseCount.incrementAndGet();
                     }
-                    handlerLatch.countDown();
                 } catch (Exception e) {
                     handlerException.set(e);
+                } finally {
+                    try {
+                        streamResponse.close();
+                    } catch (Exception e) {}
                     handlerLatch.countDown();
                 }
             }
@@ -449,13 +356,11 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         assertTrue(handlerLatch.await(5, TimeUnit.SECONDS));
         // Allow for race condition - response count could be 0 or 1 depending on timing
-        assertTrue(
-            "Response count should be 0 or 1, but was: " + responseCount.get(),
-            responseCount.get() >= 0 && responseCount.get() <= 1
-        );
+        assertTrue("Response count should be 1, but was: " + responseCount.get(), responseCount.get() == 1);
+        assertNotNull(handlerException.get());
     }
 
-    public void testStreamResponseWithCustomExecutor() throws InterruptedException {
+    public void testStreamResponseWithCustomExecutor() throws InterruptedException, IOException {
         channel = createChannel(mockFlightClient);
 
         String action = "internal:test/custom-executor";
@@ -489,13 +394,15 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             @Override
             public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
                 try {
-                    TestResponse response;
-                    while ((response = streamResponse.nextResponse()) != null) {
+                    while ((streamResponse.nextResponse()) != null) {
                         responseCount.incrementAndGet();
                     }
-                    handlerLatch.countDown();
                 } catch (Exception e) {
                     handlerException.set(e);
+                } finally {
+                    try {
+                        streamResponse.close();
+                    } catch (Exception e) {}
                     handlerLatch.countDown();
                 }
             }
@@ -518,16 +425,19 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         };
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
-
         assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
         assertEquals(1, responseCount.get());
         assertNull(handlerException.get());
     }
 
-    public void testRequestWithTimeout() throws InterruptedException {
-        String action = "internal:test/timeout";
+    public void testStreamResponseWithEarlyCancellation() throws InterruptedException {
+        String action = "internal:test/early-cancel";
         CountDownLatch handlerLatch = new CountDownLatch(1);
+        CountDownLatch serverLatch = new CountDownLatch(1);
+        AtomicInteger responseCount = new AtomicInteger(0);
         AtomicReference<Exception> handlerException = new AtomicReference<>();
+        AtomicReference<Exception> serverException = new AtomicReference<>();
+        AtomicBoolean secondBatchCalled = new AtomicBoolean(false);
 
         streamTransportService.registerRequestHandler(
             action,
@@ -535,28 +445,39 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             in -> new TestRequest(in),
             (request, channel, task) -> {
                 try {
-                    Thread.sleep(2000);
-                    channel.sendResponseBatch(new TestResponse("delayed response"));
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException ioException) {
-                        // Handle IO exception
-                    }
+                    TestResponse response1 = new TestResponse("Response 1");
+                    channel.sendResponseBatch(response1);
+                    Thread.sleep(1000); // Allow client to process and cancel
+
+                    TestResponse response2 = new TestResponse("Response 2");
+                    secondBatchCalled.set(true);
+                    channel.sendResponseBatch(response2); // This should throw StreamCancellationException
+                } catch (StreamCancellationException e) {
+                    serverException.set(e);
+                } finally {
+                    serverLatch.countDown();
                 }
             }
         );
 
         TestRequest testRequest = new TestRequest();
-        TransportRequestOptions options = TransportRequestOptions.builder()
-            .withType(TransportRequestOptions.Type.STREAM)
-            .withTimeout(1)
-            .build();
+        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
 
-        TransportResponseHandler<TestResponse> responseHandler = new TransportResponseHandler<TestResponse>() {
+        StreamTransportResponseHandler<TestResponse> responseHandler = new StreamTransportResponseHandler<TestResponse>() {
             @Override
-            public void handleResponse(TestResponse response) {
-                handlerLatch.countDown();
+            public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                try {
+                    TestResponse response = streamResponse.nextResponse();
+                    if (response != null) {
+                        responseCount.incrementAndGet();
+                        // Cancel after first response
+                        streamResponse.cancel("Client early cancellation", null);
+                    }
+                } catch (Exception e) {
+                    handlerException.set(e);
+                } finally {
+                    handlerLatch.countDown();
+                }
             }
 
             @Override
@@ -579,6 +500,15 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
         assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
-        assertTrue(handlerException.get() instanceof ReceiveTimeoutTransportException);
+        assertTrue(serverLatch.await(4, TimeUnit.SECONDS));
+
+        assertEquals(1, responseCount.get());
+        assertNull(handlerException.get());
+
+        assertTrue(secondBatchCalled.get());
+        assertNotNull(
+            "Server should receive StreamCancellationException when calling sendResponseBatch after cancellation",
+            serverException.get()
+        );
     }
 }
