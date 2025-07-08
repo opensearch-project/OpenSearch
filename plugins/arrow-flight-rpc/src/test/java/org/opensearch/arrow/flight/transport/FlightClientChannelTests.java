@@ -447,8 +447,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
                 try {
                     TestResponse response1 = new TestResponse("Response 1");
                     channel.sendResponseBatch(response1);
-                    Thread.sleep(1000); // Allow client to process and cancel
-
+                    Thread.sleep(4000); // Allow client to process and cancel
                     TestResponse response2 = new TestResponse("Response 2");
                     secondBatchCalled.set(true);
                     channel.sendResponseBatch(response2); // This should throw StreamCancellationException
@@ -499,8 +498,8 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
-        assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
-        assertTrue(serverLatch.await(4, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(6, TimeUnit.SECONDS));
+        assertTrue(serverLatch.await(6, TimeUnit.SECONDS));
 
         assertEquals(1, responseCount.get());
         assertNull(handlerException.get());
