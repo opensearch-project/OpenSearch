@@ -36,6 +36,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -43,6 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.AbstractXContentParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 
@@ -264,6 +266,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return false;
     }
 
+    private boolean shouldIgnoreMalformed(IndexSettings is) {
+        if (ignoreMalformed() != null) {
+            return ignoreMalformed().value();
+        }
+
+        if (is == null) {
+            return false;
+        }
+
+        return IGNORE_MALFORMED_SETTING.get(is.getSettings());
+    }
+
     /**
      * Parse the field value using the provided {@link ParseContext}.
      */
@@ -271,8 +285,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             parseCreateField(context);
         } catch (Exception e) {
-            boolean ignore_malformed = false;
-            if (context.indexSettings() != null) ignore_malformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
+
+            boolean ignoreMalformed = shouldIgnoreMalformed(context.indexSettings());
+
             String valuePreview = "";
             try {
                 XContentParser parser = context.parser();
@@ -283,7 +298,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     valuePreview = complexValue.toString();
                 }
             } catch (Exception innerException) {
-                if (ignore_malformed == false) {
+                if (ignoreMalformed == false) {
                     throw new MapperParsingException(
                         "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Could not parse field value preview,",
                         e,
@@ -294,7 +309,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
             }
 
-            if (ignore_malformed == false) {
+            if (ignoreMalformed == false) {
                 throw new MapperParsingException(
                     "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Preview of field's value: '{}'",
                     e,
@@ -573,6 +588,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected abstract String contentType();
+
+    /**
+     * @return null if a mapper doesn't support setting of `ignore_malformed`
+     */
+    protected Explicit<Boolean> ignoreMalformed() {
+        return null;
+    }
 
     /**
      * Method to create derived source generator for this field mapper, it is illegal to enable the
