@@ -166,6 +166,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         private long searchIdleReactivateCount;
 
+        private long starTreeQueryCount;
+        private long starTreeQueryTimeInMillis;
+
         @Nullable
         private RequestStatsLongHolder requestStatsLongHolder;
 
@@ -175,6 +178,55 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         private Stats() {
             // for internal use, initializes all counts to 0
+        }
+
+        // Keeping this constructor for backward compatibility
+        public Stats(
+            long queryCount,
+            long queryTimeInMillis,
+            long queryCurrent,
+            long concurrentQueryCount,
+            long concurrentQueryTimeInMillis,
+            long concurrentQueryCurrent,
+            long queryConcurrency,
+            long fetchCount,
+            long fetchTimeInMillis,
+            long fetchCurrent,
+            long scrollCount,
+            long scrollTimeInMillis,
+            long scrollCurrent,
+            long pitCount,
+            long pitTimeInMillis,
+            long pitCurrent,
+            long suggestCount,
+            long suggestTimeInMillis,
+            long suggestCurrent,
+            long searchIdleReactivateCount
+        ) {
+            this(
+                queryCount,
+                queryTimeInMillis,
+                queryCurrent,
+                concurrentQueryCount,
+                concurrentQueryTimeInMillis,
+                concurrentQueryCurrent,
+                queryConcurrency,
+                fetchCount,
+                fetchTimeInMillis,
+                fetchCurrent,
+                scrollCount,
+                scrollTimeInMillis,
+                scrollCurrent,
+                pitCount,
+                pitTimeInMillis,
+                pitCurrent,
+                suggestCount,
+                suggestTimeInMillis,
+                suggestCurrent,
+                searchIdleReactivateCount,
+                0L,  // starTreeQueryCount
+                0L   // starTreeQueryTimeInMillis
+            );
         }
 
         public Stats(
@@ -197,7 +249,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestCount,
             long suggestTimeInMillis,
             long suggestCurrent,
-            long searchIdleReactivateCount
+            long searchIdleReactivateCount,
+            long starTreeQueryCount,
+            long starTreeQueryTimeInMillis
         ) {
             this.requestStatsLongHolder = new RequestStatsLongHolder();
             this.queryCount = queryCount;
@@ -226,6 +280,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.pitCurrent = pitCurrent;
 
             this.searchIdleReactivateCount = searchIdleReactivateCount;
+
+            this.starTreeQueryCount = starTreeQueryCount;
+            this.starTreeQueryTimeInMillis = starTreeQueryTimeInMillis;
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -265,6 +322,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
                 searchIdleReactivateCount = in.readVLong();
             }
+
+            if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+                starTreeQueryCount = in.readVLong();
+                starTreeQueryTimeInMillis = in.readVLong();
+            }
         }
 
         public void add(Stats stats) {
@@ -294,6 +356,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             pitCurrent += stats.pitCurrent;
 
             searchIdleReactivateCount += stats.searchIdleReactivateCount;
+
+            starTreeQueryCount += stats.starTreeQueryCount;
+            starTreeQueryTimeInMillis += stats.starTreeQueryTimeInMillis;
         }
 
         public void addForClosingShard(Stats stats) {
@@ -320,6 +385,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             queryConcurrency += stats.queryConcurrency;
 
             searchIdleReactivateCount += stats.searchIdleReactivateCount;
+
+            starTreeQueryCount += stats.starTreeQueryCount;
+            starTreeQueryTimeInMillis += stats.starTreeQueryTimeInMillis;
         }
 
         public long getQueryCount() {
@@ -430,6 +498,18 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return searchIdleReactivateCount;
         }
 
+        public long getStarTreeQueryCount() {
+            return starTreeQueryCount;
+        }
+
+        public TimeValue getStarTreeQueryTime() {
+            return new TimeValue(starTreeQueryTimeInMillis);
+        }
+
+        public long getStarTreeQueryTimeInMillis() {
+            return starTreeQueryTimeInMillis;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             return new Stats(in);
         }
@@ -479,6 +559,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
                 out.writeVLong(searchIdleReactivateCount);
             }
+
+            if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+                out.writeVLong(starTreeQueryCount);
+                out.writeVLong(starTreeQueryTimeInMillis);
+            }
         }
 
         @Override
@@ -491,6 +576,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.CONCURRENT_QUERY_TIME_IN_MILLIS, Fields.CONCURRENT_QUERY_TIME, getConcurrentQueryTime());
             builder.field(Fields.CONCURRENT_QUERY_CURRENT, concurrentQueryCurrent);
             builder.field(Fields.CONCURRENT_AVG_SLICE_COUNT, getConcurrentAvgSliceCount());
+
+            builder.field(Fields.STARTREE_QUERY_TOTAL, starTreeQueryCount);
+            builder.humanReadableField(Fields.STARTREE_QUERY_TIME_IN_MILLIS, Fields.STARTREE_QUERY_TIME, getStarTreeQueryTime());
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.humanReadableField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, getFetchTime());
@@ -677,6 +765,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String CONCURRENT_QUERY_TIME_IN_MILLIS = "concurrent_query_time_in_millis";
         static final String CONCURRENT_QUERY_CURRENT = "concurrent_query_current";
         static final String CONCURRENT_AVG_SLICE_COUNT = "concurrent_avg_slice_count";
+        static final String STARTREE_QUERY_TOTAL = "startree_query_total";
+        static final String STARTREE_QUERY_TIME = "startree_query_time";
+        static final String STARTREE_QUERY_TIME_IN_MILLIS = "startree_query_time_in_millis";
         static final String FETCH_TOTAL = "fetch_total";
         static final String FETCH_TIME = "fetch_time";
         static final String FETCH_TIME_IN_MILLIS = "fetch_time_in_millis";

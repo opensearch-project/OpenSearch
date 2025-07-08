@@ -133,6 +133,9 @@ public final class ShardSearchStats implements SearchOperationListener {
                     assert searchContext.searcher().getSlices() != null;
                     statsHolder.queryConcurrencyMetric.inc(searchContext.searcher().getSlices().length);
                 }
+                if (searchContext.getQueryShardContext().getStarTreeQueryContext() != null) {
+                    statsHolder.starTreeQueryMetric.inc(tookInNanos);
+                }
             }
         });
     }
@@ -245,6 +248,7 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric pitCurrent = new CounterMetric();
         final CounterMetric suggestCurrent = new CounterMetric();
         final CounterMetric searchIdleMetric = new CounterMetric();
+        final MeanMetric starTreeQueryMetric = new MeanMetric();
 
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
@@ -267,7 +271,9 @@ public final class ShardSearchStats implements SearchOperationListener {
                 suggestMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
                 suggestCurrent.count(),
-                searchIdleMetric.count()
+                searchIdleMetric.count(),
+                starTreeQueryMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(starTreeQueryMetric.sum())
             );
         }
     }

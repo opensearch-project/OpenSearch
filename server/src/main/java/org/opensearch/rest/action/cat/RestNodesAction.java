@@ -340,6 +340,15 @@ public class RestNodesAction extends AbstractCatAction {
             "alias:scto,searchPointInTimeTotal;default:false;text-align:right;desc:completed point in time contexts"
         );
 
+        table.addCell(
+            "search.startree_query_total",
+            "alias:stqc,startreeQueryTotal;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell(
+            "search.startree_query_time",
+            "alias:stqt,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
+        );
+
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell(
@@ -556,6 +565,8 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getPitCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getPitTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getPitCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryTime());
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());

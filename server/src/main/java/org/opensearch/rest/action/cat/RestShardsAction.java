@@ -249,6 +249,15 @@ public class RestShardsAction extends AbstractListAction {
             "search.concurrent_avg_slice_count",
             "alias:casc,searchConcurrentAvgSliceCount;default:false;text-align:right;desc:average query concurrency"
         );
+        table.addCell(
+            "search.startree_query_total",
+            "alias:stqc,startreeQueryTotal;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell(
+            "search.startree_query_time",
+            "alias:stqt,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
+        );
+
         table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
         table.addCell(
             "search.scroll_time",
@@ -448,6 +457,9 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentAvgSliceCount()));
+
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryTime()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollTime()));
