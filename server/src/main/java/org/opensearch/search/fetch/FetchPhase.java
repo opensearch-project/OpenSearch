@@ -275,7 +275,6 @@ public class FetchPhase {
         }
     }
 
-
     static class DocIdToIndex implements Comparable<DocIdToIndex> {
         final int docId;
         final int index;
