@@ -94,7 +94,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exception = new AtomicReference<>();
 
-        channel.sendMessage(message, ActionListener.wrap(response -> latch.countDown(), ex -> {
+        channel.sendMessage(-1, message, ActionListener.wrap(response -> latch.countDown(), ex -> {
             exception.set(ex);
             latch.countDown();
         }));
@@ -139,11 +139,9 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         TestRequest testRequest = new TestRequest();
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
 
-        AtomicReference<StreamTransportResponse<TestResponse>> streamRef = new AtomicReference<>();
         StreamTransportResponseHandler<TestResponse> responseHandler = new StreamTransportResponseHandler<TestResponse>() {
             @Override
             public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
-                streamRef.set(streamResponse);
                 try {
                     TestResponse response;
                     while ((response = streamResponse.nextResponse()) != null) {
@@ -226,6 +224,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
             @Override
             public void handleException(TransportException exp) {
+                handlerException.set(exp);
                 handlerLatch.countDown();
             }
 
@@ -244,20 +243,19 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
         assertNotNull(handlerException.get());
-        assertTrue(handlerException.get().getMessage().contains("Failed to fetch batch"));
+        assertTrue(handlerException.get().getMessage(), handlerException.get().getMessage().contains("Stream initialization failed"));
     }
 
     public void testThreadPoolExhaustion() throws InterruptedException {
         ThreadPool exhaustedThreadPool = mock(ThreadPool.class);
         when(exhaustedThreadPool.executor(any())).thenThrow(new RejectedExecutionException("Thread pool exhausted"));
-
         FlightClientChannel testChannel = createChannel(mockFlightClient, exhaustedThreadPool);
 
         BytesReference message = new BytesArray("test message");
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exception = new AtomicReference<>();
 
-        testChannel.sendMessage(message, ActionListener.wrap(response -> latch.countDown(), ex -> {
+        testChannel.sendMessage(-1, message, ActionListener.wrap(response -> latch.countDown(), ex -> {
             exception.set(ex);
             latch.countDown();
         }));
@@ -507,6 +505,52 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertNotNull(
             "Server should receive StreamCancellationException when calling sendResponseBatch after cancellation",
             serverException.get()
+        );
+    }
+
+    public void testFrameworkLevelStreamCreationError() throws InterruptedException {
+        String action = "internal:test/unregistered-action";
+        CountDownLatch handlerLatch = new CountDownLatch(1);
+        AtomicReference<Exception> handlerException = new AtomicReference<>();
+
+        // Don't register any handler for this action - this will cause framework-level error
+
+        TestRequest testRequest = new TestRequest();
+        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
+
+        StreamTransportResponseHandler<TestResponse> responseHandler = new StreamTransportResponseHandler<TestResponse>() {
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                try {
+                    while (streamResponse.nextResponse() != null) {
+                    }
+                } catch (Exception e) {
+                    handlerException.set(e);
+                    handlerLatch.countDown();
+                }
+            }
+
+            @Override
+            public void handleException(TransportException exp) {}
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+        };
+
+        streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
+
+        assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
+        assertNotNull(handlerException.get());
+        assertTrue(
+            "Expected TransportException but got: " + handlerException.get().getClass(),
+            handlerException.get() instanceof TransportException
         );
     }
 }
