@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 3.x]
 ### Added
 - Add support for Warm Indices Write Block on Flood Watermark breach ([#18375](https://github.com/opensearch-project/OpenSearch/pull/18375))
+- Add support for custom index name resolver from cluster plugin ([#18593](https://github.com/opensearch-project/OpenSearch/pull/18593))
+- Rename WorkloadGroupTestUtil to WorkloadManagementTestUtil ([#18709](https://github.com/opensearch-project/OpenSearch/pull/18709))
+- Disallow resize for Warm Index, add Parameterized ITs for close in remote store ([#18686](https://github.com/opensearch-project/OpenSearch/pull/18686))
 - Ability to run Code Coverage with Gradle and produce the jacoco reports locally ([#18509](https://github.com/opensearch-project/OpenSearch/issues/18509))
+- [Workload Management] Update logging and Javadoc, rename QueryGroup to WorkloadGroup ([#18711](https://github.com/opensearch-project/OpenSearch/issues/18711))
 - Add NodeResourceUsageStats to ClusterInfo ([#18480](https://github.com/opensearch-project/OpenSearch/issues/18472))
 - Introduce SecureHttpTransportParameters experimental API (to complement SecureTransportParameters counterpart) ([#18572](https://github.com/opensearch-project/OpenSearch/issues/18572))
 - Create equivalents of JSM's AccessController in the java agent ([#18346](https://github.com/opensearch-project/OpenSearch/issues/18346))
@@ -18,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add functionality for plugins to inject QueryCollectorContext during QueryPhase ([#18637](https://github.com/opensearch-project/OpenSearch/pull/18637))
 - Add support for non-timing info in profiler ([#18460](https://github.com/opensearch-project/OpenSearch/issues/18460))
 - Extend Approximation Framework to other numeric types ([#18530](https://github.com/opensearch-project/OpenSearch/issues/18530))
+- Add Semantic Version field type mapper and extensive unit tests([#18454](https://github.com/opensearch-project/OpenSearch/pull/18454))
 - Add a dynamic setting to change skip_cache_factor and min_frequency for querycache ([#18351](https://github.com/opensearch-project/OpenSearch/issues/18351))
 
 ### Changed
@@ -32,13 +37,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.logging.log4j:log4j-core` from 2.24.3 to 2.25.0 ([#18589](https://github.com/opensearch-project/OpenSearch/pull/18589))
 - Bump `com.google.code.gson:gson` from 2.13.0 to 2.13.1 ([#18585](https://github.com/opensearch-project/OpenSearch/pull/18585))
 - Bump `com.azure:azure-core-http-netty` from 1.15.11 to 1.15.12 ([#18586](https://github.com/opensearch-project/OpenSearch/pull/18586))
-- Bump `com.squareup.okio:okio` from 3.13.0 to 3.14.0 ([#18645](https://github.com/opensearch-project/OpenSearch/pull/18645))
+- Bump `com.squareup.okio:okio` from 3.13.0 to 3.15.0 ([#18645](https://github.com/opensearch-project/OpenSearch/pull/18645), [#18689](https://github.com/opensearch-project/OpenSearch/pull/18689))
 - Bump `com.netflix.nebula.ospackage-base` from 11.11.2 to 12.0.0 ([#18646](https://github.com/opensearch-project/OpenSearch/pull/18646))
 - Bump `com.azure:azure-storage-blob` from 12.30.0 to 12.30.1 ([#18644](https://github.com/opensearch-project/OpenSearch/pull/18644))
 - Bump `org.bouncycastle:bctls-fips` from 2.0.19 to 2.0.20 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
 - Bump `org.bouncycastle:bcpkix-fips` from 2.0.7 to 2.0.8 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
 - Bump `org.bouncycastle:bcpg-fips` from 2.0.10 to 2.0.11 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
 - Bump `com.password4j:password4j` from 1.8.2 to 1.8.3 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
+- Bump `com.azure:azure-core` from 1.55.3 to 1.55.5 ([#18691](https://github.com/opensearch-project/OpenSearch/pull/18691))
 
 ### Deprecated
 
@@ -53,6 +59,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix the visit of sub queries for HasParentQuery and HasChildQuery ([#18621](https://github.com/opensearch-project/OpenSearch/pull/18621))
 - Fix the backward compatibility regression with COMPLEMENT for Regexp queries introduced in OpenSearch 3.0 ([#18640](https://github.com/opensearch-project/OpenSearch/pull/18640))
 - Fix Replication lag computation ([#18602](https://github.com/opensearch-project/OpenSearch/pull/18602))
+- Fixed Staggered merge -  load average replace with AverageTrackers, some Default thresholds modified ([#18666](https://github.com/opensearch-project/OpenSearch/pull/18666))
 
 ### Security
 
