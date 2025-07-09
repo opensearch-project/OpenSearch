@@ -213,6 +213,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<List<InternalBucket>> bucketsList = null;
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             InternalFilters filters = (InternalFilters) aggregation;
             if (bucketsList == null) {
                 bucketsList = new ArrayList<>(filters.buckets.size());

@@ -44,6 +44,7 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContextBuilder;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -57,6 +58,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -83,6 +85,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final boolean hasTopDocs;
     private final boolean hasAggs;
     private final boolean performFinalReduce;
+    private final BooleanSupplier isTaskCancelled;
 
     private final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
@@ -99,7 +102,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchProgressListener progressListener,
         NamedWriteableRegistry namedWriteableRegistry,
         int expectedResultSize,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled
     ) {
         super(expectedResultSize);
         this.executor = executor;
@@ -111,6 +115,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.topNSize = SearchPhaseController.getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
+        this.isTaskCancelled = isTaskCancelled;
 
         SearchSourceBuilder source = request.source();
         this.hasTopDocs = source == null || source.size() != 0;
@@ -158,7 +163,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingMerges.numReducePhases,
             false,
             aggReduceContextBuilder,
-            performFinalReduce
+            performFinalReduce,
+            isTaskCancelled
         );
         if (hasAggs) {
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
@@ -219,7 +225,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             for (QuerySearchResult result : toConsume) {
                 aggsList.add(result.consumeAggs().expand());
             }
-            newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
+            InternalAggregation.ReduceContext reduceContext = aggReduceContextBuilder.forPartialReduction();
+            reduceContext.setIsTaskCancelled(isTaskCancelled);
+            newAggs = InternalAggregations.topLevelReduce(aggsList, reduceContext);
         } else {
             newAggs = null;
         }

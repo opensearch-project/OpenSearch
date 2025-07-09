@@ -130,7 +130,8 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
             e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                 curr.addSuppressed(prev);
                 return curr;
-            })
+            }),
+            () -> false
         );
 
         CountDownLatch partialReduceLatch = new CountDownLatch(10);

@@ -675,7 +675,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             task.getProgressListener(),
             writableRegistry(),
             shardsIter.size(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
 
         CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(

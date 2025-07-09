@@ -146,6 +146,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     public AbstractInternalHDRPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         DoubleHistogram merged = null;
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;
             if (merged == null) {
                 merged = new DoubleHistogram(percentiles.state);

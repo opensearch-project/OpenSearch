@@ -814,7 +814,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             task.getProgressListener(),
             writableRegistry(),
             shardsIter.size(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
@@ -869,7 +870,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             task.getProgressListener(),
             writableRegistry(),
             shardsIter.size(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
@@ -926,7 +928,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),
             1,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         return new FetchSearchPhase(
             results,

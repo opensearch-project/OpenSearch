@@ -168,6 +168,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
         for (InternalAggregations aggregations : aggregationsList) {
             for (Aggregation aggregation : aggregations.aggregations) {
+                context.checkCancelled();
                 List<InternalAggregation> aggs = aggByName.computeIfAbsent(
                     aggregation.getName(),
                     k -> new ArrayList<>(aggregationsList.size())

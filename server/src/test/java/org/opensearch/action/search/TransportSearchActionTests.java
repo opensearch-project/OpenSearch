@@ -489,7 +489,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                     searchRequest,
                     () -> null
-                )
+                ),
+                () -> false
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -552,7 +553,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                         searchRequest,
                         () -> null
-                    )
+                    ),
+                    () -> false
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -594,7 +596,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                         searchRequest,
                         () -> null
-                    )
+                    ),
+                    () -> false
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -657,7 +660,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                         searchRequest,
                         () -> null
-                    )
+                    ),
+                    () -> false
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -702,7 +706,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                         searchRequest,
                         () -> null
-                    )
+                    ),
+                    () -> false
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -758,7 +763,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                         searchRequest,
                         () -> null
-                    )
+                    ),
+                    () -> false
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());

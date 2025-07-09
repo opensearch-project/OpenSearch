@@ -215,6 +215,7 @@ public abstract class InternalMultiBucketAggregation<
         for (B bucket : getBuckets()) {
             List<InternalAggregation> aggs = new ArrayList<>();
             for (Aggregation agg : bucket.getAggregations()) {
+                reduceContext.checkCancelled();
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
                 aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
             }

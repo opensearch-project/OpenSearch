@@ -37,6 +37,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.action.search.RestSearchAction;
@@ -52,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -95,6 +97,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         private final ScriptService scriptService;
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
+        private BooleanSupplier isTaskCancelled = () -> false;
 
         private boolean isSliceLevel;
         /**
@@ -210,6 +213,23 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             multiBucketConsumer.accept(size);
         }
 
+        /**
+         * Setter for task cancellation supplier.
+         * @param isTaskCancelled
+         */
+        public void setIsTaskCancelled(BooleanSupplier isTaskCancelled) {
+            this.isTaskCancelled = isTaskCancelled;
+        }
+
+        /**
+         * Will check and throw the exception to terminate the request
+         */
+        public void checkCancelled() {
+            if (isTaskCancelled.getAsBoolean()) {
+                throw new TaskCancelledException("The query has been cancelled");
+            }
+        }
+
     }
 
     protected final String name;
@@ -288,6 +308,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     ) {
         assert reduceContext.isFinalReduce();
         for (PipelineAggregator pipelineAggregator : pipelinesForThisAgg.aggregators()) {
+            reduceContext.checkCancelled();
             reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
         }
         return reducedAggs;

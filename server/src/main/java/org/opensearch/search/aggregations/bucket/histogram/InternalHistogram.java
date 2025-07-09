@@ -313,6 +313,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             }
         };
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             InternalHistogram histogram = (InternalHistogram) aggregation;
             if (histogram.buckets.isEmpty() == false) {
                 pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));

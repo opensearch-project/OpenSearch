@@ -129,6 +129,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     public AbstractInternalTDigestPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
+            reduceContext.checkCancelled();
             final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
             if (merged == null) {
                 merged = new TDigestState(percentiles.state.compression());
