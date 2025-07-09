@@ -9,14 +9,18 @@
 package org.opensearch.search.profile.fetch;
 
 import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetricUtil;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class FetchProfileBreakdown extends AbstractProfileBreakdown<FetchTimingType> {
+import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
+import static org.opensearch.search.profile.Timer.TIMING_TYPE_START_TIME_SUFFIX;
+
+public class FetchProfileBreakdown extends AbstractProfileBreakdown {
     public FetchProfileBreakdown() {
-        super(FetchTimingType.class);
+        super(ProfileMetricUtil.getFetchProfileMetrics());
     }
 
     @Override

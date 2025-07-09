@@ -31,7 +31,6 @@
  */
 package org.opensearch.search.profile.fetch;
 
-import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
@@ -41,6 +40,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
+import static org.opensearch.search.profile.Timer.TIMING_TYPE_START_TIME_SUFFIX;
 
 public class FetchProfilerTests extends OpenSearchTestCase {
 
@@ -76,8 +77,8 @@ public class FetchProfilerTests extends OpenSearchTestCase {
             }
             String key = type.toString();
             assertThat(map.get(key), greaterThan(0L));
-            assertThat(map.get(key + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX), equalTo(1L));
-            assertThat(map.get(key + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX), greaterThan(0L));
+            assertThat(map.get(key + TIMING_TYPE_COUNT_SUFFIX), equalTo(1L));
+            assertThat(map.get(key + TIMING_TYPE_START_TIME_SUFFIX), greaterThan(0L));
             sum += map.get(key);
         }
         assertEquals(sum, profileResult.getTime());
@@ -93,7 +94,7 @@ public class FetchProfilerTests extends OpenSearchTestCase {
         timer.stop();
         Map<String, Long> map = breakdown.toBreakdownMap();
         assertThat(map.get(FetchTimingType.PROCESS.toString()), greaterThan(0L));
-        assertThat(map.get(FetchTimingType.PROCESS + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX), equalTo(2L));
+        assertThat(map.get(FetchTimingType.PROCESS + TIMING_TYPE_COUNT_SUFFIX), equalTo(2L));
         assertThat(breakdown.toNodeTime(), equalTo(map.get(FetchTimingType.PROCESS.toString())));
     }
 }

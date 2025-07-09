@@ -8,7 +8,6 @@
 
 package org.opensearch.search.profile.fetch;
 
-import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -16,6 +15,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
+import static org.opensearch.search.profile.Timer.TIMING_TYPE_START_TIME_SUFFIX;
 
 public class FetchProfileBreakdownTests extends OpenSearchTestCase {
 
@@ -31,8 +32,8 @@ public class FetchProfileBreakdownTests extends OpenSearchTestCase {
         for (FetchTimingType type : FetchTimingType.values()) {
             String key = type.toString();
             assertThat(map.get(key), greaterThan(0L));
-            assertThat(map.get(key + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX), equalTo(1L));
-            assertThat(map.get(key + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX), greaterThan(0L));
+            assertThat(map.get(key + TIMING_TYPE_COUNT_SUFFIX), equalTo(1L));
+            assertThat(map.get(key + TIMING_TYPE_START_TIME_SUFFIX), greaterThan(0L));
         }
         long total = breakdown.toNodeTime();
         long sum = 0;
