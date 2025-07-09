@@ -54,13 +54,19 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 public class IndexStoredRulePersistenceService implements RulePersistenceService {
-    // Default value for max rules count
+    /**
+     * Default value for max rules count
+     */
     public static final int MAX_ALLOWED_RULE_COUNT = 10000;
 
-    // max wlm rules setting name
+    /**
+     *  max wlm rules setting name
+     */
     public static final String MAX_RULES_COUNT_SETTING_NAME = "wlm.autotagging.max_rules";
 
-    // max wlm rules setting
+    /**
+     *  max wlm rules setting
+     */
     public static final Setting<Integer> MAX_WLM_RULES_SETTING = Setting.intSetting(
         MAX_RULES_COUNT_SETTING_NAME,
         MAX_ALLOWED_RULE_COUNT,
@@ -68,9 +74,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    /**
-     * The system index name used for storing rules
-     */
+
     private int maxAllowedRulesCount;
     private final String indexName;
     private final Client client;
