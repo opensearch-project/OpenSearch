@@ -187,10 +187,10 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             }
         }
         NetworkTime networkTime = new NetworkTime(inboundNetworkTime, outboundNetworkTime);
-        searchProfileResults.put(
-            id,
-            new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime)
-        );
+        if (fetchProfileShardResult == null) {
+            fetchProfileShardResult = new FetchProfileShardResult(Collections.emptyList());
+        }
+        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime));
     }
 
     /**
