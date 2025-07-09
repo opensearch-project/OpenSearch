@@ -41,7 +41,6 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -247,12 +246,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     Set<String> getRemoteClusterNames() {
         return this.remoteClusters.keySet();
-    }
-
-    @Override
-    public void listenForUpdates(ClusterSettings clusterSettings) {
-        super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
