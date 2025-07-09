@@ -1012,7 +1012,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.trackScores(true);
         Sort sort = new Sort(new SortField("_score", SortField.Type.SCORE), new SortField("_doc", SortField.Type.DOC));
-        SortAndFormats sortAndFormats = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW});
+        SortAndFormats sortAndFormats = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
         context.sort(sortAndFormats);
         context.parsedQuery(
             new ParsedQuery(
@@ -1028,7 +1028,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
         QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
         assertFalse(Float.isNaN(context.queryResult().getMaxScore()));
         assertEquals(1, context.queryResult().topDocs().topDocs.scoreDocs.length);
-        assertThat(((FieldDoc)context.queryResult().topDocs().topDocs.scoreDocs[0]).fields[0], equalTo(context.queryResult().getMaxScore()));
+        assertThat(
+            ((FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0]).fields[0],
+            equalTo(context.queryResult().getMaxScore())
+        );
 
         reader.close();
         dir.close();
