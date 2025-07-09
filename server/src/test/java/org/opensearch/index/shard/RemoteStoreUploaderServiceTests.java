@@ -474,5 +474,4 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             super(in);
         }
     }
-
 }
