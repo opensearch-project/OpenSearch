@@ -575,7 +575,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
         try {
             final String remoteFileName = getNewRemoteSegmentFilename(src);
-            boolean uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
+            boolean uploaded = context != IOContext.READONCE && remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
                 try {
                     postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
                 } catch (IOException e) {
