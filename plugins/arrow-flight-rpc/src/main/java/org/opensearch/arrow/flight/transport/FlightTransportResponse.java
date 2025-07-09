@@ -30,33 +30,36 @@ import java.util.Objects;
 import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.REQUEST_ID_KEY;
 
 /**
- * Handles streaming transport responses using Apache Arrow Flight.
- * Lazily fetches batches from the server when requested.
+ * Arrow Flight implementation of streaming transport responses.
+ *
+ * <p>Handles streaming responses from Arrow Flight servers with lazy batch processing.
+ * Headers are extracted when first accessed, and responses are deserialized on demand.
  */
 class FlightTransportResponse<T extends TransportResponse> implements StreamTransportResponse<T> {
     private static final Logger logger = LogManager.getLogger(FlightTransportResponse.class);
+
     private final FlightStream flightStream;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final HeaderContext headerContext;
-    private TransportResponseHandler<T> handler;
-    private boolean isClosed;
-    private Throwable pendingException;
-    private VectorSchemaRoot pendingRoot;  // Holds the current batch's root for reuse
-    private Header currentHeader;
     private final long reqId;
     private final FlightStatsCollector statsCollector;
 
+    private final TransportResponseHandler<T> handler;
+    private boolean isClosed;
+
+    // Stream state
+    private VectorSchemaRoot currentRoot;
+    private Header currentHeader;
+    private boolean streamInitialized = false;
+    private boolean streamExhausted = false;
+    private boolean firstResponseConsumed = false;
+    private Exception initializationException;
+
     /**
-     * Constructs a new streaming response. The flight stream is initialized asynchronously
-     * to avoid blocking during construction.
-     *
-     * @param reqId                  the request ID
-     * @param flightClient           the Arrow Flight client
-     * @param headerContext          the context containing header information
-     * @param ticket                 the ticket for fetching the stream
-     * @param namedWriteableRegistry the registry for deserialization
+     * Creates a new Flight transport response.
      */
     public FlightTransportResponse(
+        TransportResponseHandler<T> handler,
         long reqId,
         FlightClient flightClient,
         HeaderContext headerContext,
@@ -64,124 +67,68 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         NamedWriteableRegistry namedWriteableRegistry,
         FlightStatsCollector statsCollector
     ) {
+        this.handler = handler;
         this.reqId = reqId;
+        this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.statsCollector = statsCollector;
+
+        // Initialize Flight stream with request ID header
         FlightCallHeaders callHeaders = new FlightCallHeaders();
         callHeaders.insert(REQUEST_ID_KEY, String.valueOf(reqId));
         HeaderCallOption callOptions = new HeaderCallOption(callHeaders);
         this.flightStream = flightClient.getStream(ticket, callOptions);
-        this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
-        this.namedWriteableRegistry = namedWriteableRegistry;
+
         this.isClosed = false;
-        this.pendingException = null;
-        this.pendingRoot = null;
     }
 
     /**
-     * Sets the handler for deserializing responses.
-     *
-     * @param handler the response handler
-     * @throws IllegalStateException if the handler is already set or the stream is closed
+     * Gets the header for the current batch.
+     * If no batch has been fetched yet, fetches the first batch to extract headers.
      */
-    public void setHandler(TransportResponseHandler<T> handler) {
+    public Header getHeader() {
         ensureOpen();
-        if (this.handler != null) {
-            throw new IllegalStateException("Handler already set");
-        }
-        this.handler = Objects.requireNonNull(handler, "handler must not be null");
+        initializeStreamIfNeeded();
+        return currentHeader;
     }
 
     /**
-     * Retrieves the next response from the stream. This may block if the server
-     * is still producing data, depending on the backpressure strategy.
-     *
-     * @return the next response, or null if no more responses are available
-     * @throws IllegalStateException if the handler is not set or the stream is closed
-     * @throws RuntimeException if an exception occurred during header retrieval or batch fetching
+     * Gets the next response from the stream.
      */
     @Override
     public T nextResponse() {
         ensureOpen();
-        ensureHandlerSet();
+        initializeStreamIfNeeded();
 
-        if (pendingException != null) {
-            Throwable e = pendingException;
-            pendingException = null;
-            throw new TransportException("Failed to fetch batch", e);
+        if (streamExhausted) {
+            if (initializationException != null) {
+                throw new TransportException("Stream initialization failed", initializationException);
+            }
+            return null;
         }
 
-        long batchStartTime = System.nanoTime();
-        VectorSchemaRoot rootToUse;
-        if (pendingRoot != null) {
-            rootToUse = pendingRoot;
-            pendingRoot = null;
-        } else {
-            try {
-                if (flightStream.next()) {
-                    rootToUse = flightStream.getRoot();
-                } else {
-                    return null;  // No more data
-                }
-            } catch (Exception e) {
-                if (statsCollector != null) {
-                    statsCollector.incrementClientTransportErrors();
-                }
-                throw new TransportException("Failed to fetch next batch", e);
-            }
+        if (!firstResponseConsumed) {
+            // First call - use the batch we already fetched during initialization
+            firstResponseConsumed = true;
+            return deserializeResponse();
         }
 
         try {
-            T response = deserializeResponse(rootToUse);
-            if (statsCollector != null) {
-                statsCollector.incrementClientBatchesReceived();
-                // Track full client batch time (fetch + deserialization)
-                long batchTime = (System.nanoTime() - batchStartTime) / 1_000_000;
-                statsCollector.addClientBatchTime(batchTime);
-            }
-            return response;
-        } catch (Exception e) {
-            if (statsCollector != null) {
-                statsCollector.incrementClientTransportErrors();
-            }
-            throw new TransportException("Failed to deserialize response", e);
-        } finally {
-            rootToUse.close();
-        }
-    }
-
-    /**
-     * Retrieves the header for the current batch. Fetches the next batch if not already fetched,
-     * but keeps the root open for reuse in nextResponse().
-     *
-     * @return the header for the current batch, or null if no more data is available
-     */
-    public Header currentHeader() {
-        if (currentHeader != null) {
-            return currentHeader;
-        }
-        synchronized (this) {
-            try {
-                ensureOpen();
-                if (flightStream.next()) {
-                    pendingRoot = flightStream.getRoot();
-                    currentHeader = headerContext.getHeader(reqId);
-                    return currentHeader;
-                } else {
-                    return null;  // No more data
-                }
-            } catch (Exception e) {
-                pendingException = e;
-                logger.warn("Error fetching next reponse", e);
+            if (flightStream.next()) {
                 currentHeader = headerContext.getHeader(reqId);
-                return currentHeader;
+                return deserializeResponse();
+            } else {
+                streamExhausted = true;
+                return null;
             }
+        } catch (Exception e) {
+            streamExhausted = true;
+            throw new TransportException("Failed to fetch next batch", e);
         }
     }
 
     /**
-     * Cancels the flight stream due to client-side error or timeout
-     * @param reason the reason for cancellation
-     * @param cause the exception that caused cancellation (can be null)
+     * Cancels the Flight stream.
      */
     @Override
     public void cancel(String reason, Throwable cause) {
@@ -189,15 +136,9 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             return;
         }
         try {
-            // Cancel the flight stream - this notifies the server to stop producing
-            // TODO - there could be batches on the wire already produced before cancel is invoked.
-            // is it safe to ignore them? or should we drain them here.
             flightStream.cancel(reason, cause);
             logger.debug("Cancelled flight stream: {}", reason);
         } catch (Exception e) {
-            if (statsCollector != null) {
-                statsCollector.incrementClientTransportErrors();
-            }
             logger.warn("Error cancelling flight stream", e);
         } finally {
             close();
@@ -205,63 +146,68 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     }
 
     /**
-     * Closes the underlying flight stream and releases resources, including any pending root.
+     * Closes the Flight stream and releases resources.
      */
     @Override
     public void close() {
         if (isClosed) {
             return;
         }
-        if (pendingRoot != null) {
-            pendingRoot.close();
-            pendingRoot = null;
+        if (currentRoot != null) {
+            currentRoot.close();
+            currentRoot = null;
         }
         try {
             flightStream.close();
         } catch (Exception e) {
-            if (statsCollector != null) {
-                statsCollector.incrementClientTransportErrors();
-            }
             throw new TransportException("Failed to close flight stream", e);
         } finally {
             isClosed = true;
         }
     }
 
+    public TransportResponseHandler<T> getHandler() {
+        return handler;
+    }
+
     /**
-     * Deserializes the response from the given VectorSchemaRoot.
-     *
-     * @param root the root containing the response data
-     * @return the deserialized response
-     * @throws RuntimeException if deserialization fails
+     * Initializes the stream by fetching the first batch to extract headers.
      */
-    private T deserializeResponse(VectorSchemaRoot root) {
-        try (VectorStreamInput input = new VectorStreamInput(root, namedWriteableRegistry)) {
+    private synchronized void initializeStreamIfNeeded() {
+        if (streamInitialized || streamExhausted) {
+            return;
+        }
+        try {
+            if (flightStream.next()) {
+                currentRoot = flightStream.getRoot();
+                currentHeader = headerContext.getHeader(reqId);
+                streamInitialized = true;
+            } else {
+                streamExhausted = true;
+            }
+        } catch (Exception e) {
+            // Try to get headers even if stream failed
+            currentHeader = headerContext.getHeader(reqId);
+            streamExhausted = true;
+            initializationException = e;
+            logger.warn("Stream initialization failed, headers may still be available", e);
+        }
+    }
+
+    /**
+     * Deserializes a response from the current root.
+     */
+    private T deserializeResponse() {
+        try (VectorStreamInput input = new VectorStreamInput(currentRoot, namedWriteableRegistry)) {
             return handler.read(input);
         } catch (IOException e) {
             throw new TransportException("Failed to deserialize response", e);
         }
     }
 
-    /**
-     * Ensures the stream is not closed before performing operations.
-     *
-     * @throws TransportException if the stream is closed
-     */
     private void ensureOpen() {
         if (isClosed) {
             throw new TransportException("Stream is closed");
-        }
-    }
-
-    /**
-     * Ensures the handler is set before attempting to read responses.
-     *
-     * @throws IllegalStateException if the handler is not set
-     */
-    private void ensureHandlerSet() {
-        if (handler == null) {
-            throw new TransportException("Handler must be set before requesting responses");
         }
     }
 }
