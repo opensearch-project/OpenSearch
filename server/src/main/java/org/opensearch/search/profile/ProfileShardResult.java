@@ -84,7 +84,7 @@ public class ProfileShardResult implements Writeable {
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
-        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
             this.fetchProfileResult = new FetchProfileShardResult(in);
         } else {
             this.fetchProfileResult = new FetchProfileShardResult(Collections.emptyList());
@@ -99,7 +99,7 @@ public class ProfileShardResult implements Writeable {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             fetchProfileResult.writeTo(out);
         }
         networkTime.writeTo(out);
