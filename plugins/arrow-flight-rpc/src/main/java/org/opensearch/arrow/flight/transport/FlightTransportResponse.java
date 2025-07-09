@@ -42,6 +42,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private boolean isClosed;
     private Throwable pendingException;
     private VectorSchemaRoot pendingRoot;  // Holds the current batch's root for reuse
+    private Header currentHeader;
     private final long reqId;
     private final FlightStatsCollector statsCollector;
 
@@ -155,21 +156,25 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
      * @return the header for the current batch, or null if no more data is available
      */
     public Header currentHeader() {
-        if (pendingRoot != null) {
-            return headerContext.getHeader(reqId);
+        if (currentHeader != null) {
+            return currentHeader;
         }
-        try {
-            ensureOpen();
-            if (flightStream.next()) {
-                pendingRoot = flightStream.getRoot();
-                return headerContext.getHeader(reqId);
-            } else {
-                return null;  // No more data
+        synchronized (this) {
+            try {
+                ensureOpen();
+                if (flightStream.next()) {
+                    pendingRoot = flightStream.getRoot();
+                    currentHeader = headerContext.getHeader(reqId);
+                    return currentHeader;
+                } else {
+                    return null;  // No more data
+                }
+            } catch (Exception e) {
+                pendingException = e;
+                logger.warn("Error fetching next reponse", e);
+                currentHeader = headerContext.getHeader(reqId);
+                return currentHeader;
             }
-        } catch (Exception e) {
-            pendingException = e;
-            logger.warn("Error fetching next reponse", e);
-            return headerContext.getHeader(reqId);
         }
     }
 
