@@ -75,6 +75,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.opensearch.rule.service.IndexStoredRulePersistenceService.MAX_WLM_RULES_SETTING;
+
 /**
  * Plugin class for WorkloadManagement
  */
@@ -190,7 +192,11 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(WorkloadGroupPersistenceService.MAX_QUERY_GROUP_COUNT, RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING);
+        return List.of(
+            WorkloadGroupPersistenceService.MAX_QUERY_GROUP_COUNT,
+            RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING,
+            MAX_WLM_RULES_SETTING
+        );
     }
 
     @Override
