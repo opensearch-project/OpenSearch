@@ -237,34 +237,30 @@ class FlightClientChannel implements TcpChannel {
     private void processStreamResponseAsync(FlightTransportResponse<?> streamResponse) {
         long startTime = threadPool.relativeTimeInMillis();
         threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME).execute(() -> {
+            TransportResponseHandler<?> handler = null;
             try {
-                handleStreamResponse(streamResponse, startTime);
+                handler = getAndValidateHandler(streamResponse);
+                executeWithThreadContext(streamResponse.currentHeader(), handler, streamResponse, startTime);
             } catch (Exception e) {
-                handleStreamException(streamResponse, e, startTime);
+                handleStreamException(streamResponse, handler, e, startTime);
             }
         });
     }
 
-    /**
-     * Handles the stream response by fetching the header and dispatching to the handler.
-     * It should not break the contract of {@link org.opensearch.transport.StreamTransportResponseHandler} and
-     * {@link StreamTransportResponse}
-     * @param streamResponse the stream response
-     * @param startTime     the start time for logging slow operations
-     */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void handleStreamResponse(FlightTransportResponse<?> streamResponse, long startTime) {
+    private TransportResponseHandler<?> getAndValidateHandler(FlightTransportResponse<?> streamResponse) {
         Header header = streamResponse.currentHeader();
         if (header == null) {
-            throw new IllegalStateException("Missing header for stream");
+            throw new TransportException("Missing header for stream");
         }
+
         long requestId = header.getRequestId();
         TransportResponseHandler handler = responseHandlers.onResponseReceived(requestId, messageListener);
         if (handler == null) {
-            throw new IllegalStateException("Missing handler for stream request [" + requestId + "].");
+            throw new TransportException("Missing handler for stream request [" + requestId + "].");
         }
         streamResponse.setHandler(handler);
-        executeWithThreadContext(header, handler, streamResponse, startTime);
+        return handler;
     }
 
     /**
@@ -331,15 +327,25 @@ class FlightClientChannel implements TcpChannel {
      * Ensures proper resource cleanup and error propagation.
      *
      * @param streamResponse the stream response
+     * @param handler       the handler (may be null if exception occurred before handler retrieval)
      * @param exception     the exception that occurred
      * @param startTime     the start time for logging slow operations
      */
-    private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception exception, long startTime) {
+    private void handleStreamException(
+        FlightTransportResponse<?> streamResponse,
+        TransportResponseHandler<?> handler,
+        Exception exception,
+        long startTime
+    ) {
         logger.error("Exception while handling stream response", exception);
 
         try {
             cancelStream(streamResponse, exception);
-            notifyHandlerOfException(streamResponse, exception);
+            if (handler != null) {
+                notifyHandlerOfException(handler, exception);
+            } else {
+                logger.warn("Cannot notify handler of exception - handler not available");
+            }
         } finally {
             cleanupStreamResponse(streamResponse);
             logSlowOperation(startTime);
@@ -354,20 +360,7 @@ class FlightClientChannel implements TcpChannel {
         }
     }
 
-    private void notifyHandlerOfException(FlightTransportResponse<?> streamResponse, Exception exception) {
-        Header header = streamResponse.currentHeader();
-        if (header == null) {
-            logger.warn("Unable to notify handler, no header available to retrieve request ID");
-            return;
-        }
-
-        long requestId = header.getRequestId();
-        TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
-        if (handler == null) {
-            logger.warn("Unable to notify handler, no handler found for requestId [{}]", requestId);
-            return;
-        }
-
+    private void notifyHandlerOfException(TransportResponseHandler<?> handler, Exception exception) {
         TransportException transportException = new TransportException("Stream processing failed", exception);
         String executor = handler.executor();
 
