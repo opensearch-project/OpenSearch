@@ -418,18 +418,18 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         duelSearch(searchRequest, CCSDuelIT::assertHits);
     }
 
-//    public void testProfile() throws Exception  {
-//        assumeMultiClusterSetup();
-//        SearchRequest searchRequest = initSearchRequest();
-//        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-//        sourceBuilder.profile(true);
-//        sourceBuilder.query(QueryBuilders.matchQuery("tags", "html"));
-//        searchRequest.source(sourceBuilder);
-//        duelSearch(searchRequest, response -> {
-//            assertHits(response);
-//            assertFalse(response.getProfileResults().isEmpty());
-//        });
-//    }
+    public void testProfile() throws Exception  {
+        assumeMultiClusterSetup();
+        SearchRequest searchRequest = initSearchRequest();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.profile(true);
+        sourceBuilder.query(QueryBuilders.matchQuery("tags", "html"));
+        searchRequest.source(sourceBuilder);
+        duelSearch(searchRequest, response -> {
+            assertHits(response);
+            assertFalse(response.getProfileResults().isEmpty());
+        });
+    }
 
     public void testSortByField() throws Exception  {
         assumeMultiClusterSetup();
@@ -831,10 +831,12 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         Map<String, Object> responseMap = org.opensearch.common.xcontent.XContentHelper.convertToMap(bytesReference, false, MediaTypeRegistry.JSON).v2();
         assertNotNull(responseMap.put("took", -1));
         responseMap.remove("num_reduce_phases");
-        Map<String, Object> profile = (Map<String, Object>)responseMap.get("profile");
+        Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
         if (profile != null) {
-            List<Map<String, Object>> shards = (List <Map<String, Object>>)profile.get("shards");
+            List<Map<String, Object>> shards = (List<Map<String, Object>>) profile.get("shards");
             for (Map<String, Object> shard : shards) {
+                // Unconditionally remove the fetch profile to prevent flaky failures
+                shard.remove("fetch");
                 replaceProfileTime(shard);
             }
         }
