@@ -187,7 +187,7 @@ class FlightClientChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+    public void sendMessage(long reqId, BytesReference reference, ActionListener<Void> listener) {
         if (!isOpen()) {
             listener.onFailure(new TransportException("FlightClientChannel is closed"));
             return;
@@ -195,24 +195,9 @@ class FlightClientChannel implements TcpChannel {
         try {
             // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
-            FlightTransportResponse<?> streamResponse = createStreamResponse(ticket);
-            processStreamResponseAsync(streamResponse);
-            listener.onResponse(null);
-        } catch (Exception e) {
-            listener.onFailure(new TransportException("Failed to send message", e));
-        }
-    }
-
-    /**
-     * Creates a new FlightTransportResponse for the given ticket.
-     *
-     * @param ticket the ticket for the stream
-     * @return a new FlightTransportResponse
-     * @throws RuntimeException if stream creation fails
-     */
-    private FlightTransportResponse<?> createStreamResponse(Ticket ticket) {
-        try {
-            return new FlightTransportResponse<>(
+            TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(reqId, messageListener);
+            FlightTransportResponse<?> streamResponse = new FlightTransportResponse<>(
+                handler,
                 requestIdGenerator.incrementAndGet(), // we can't use reqId directly since its already serialized; so generating a new on
                 // for header correlation
                 client,
@@ -221,10 +206,16 @@ class FlightClientChannel implements TcpChannel {
                 namedWriteableRegistry,
                 statsCollector
             );
+            processStreamResponseAsync(streamResponse);
+            listener.onResponse(null);
         } catch (Exception e) {
-            logger.error("Failed to create stream for ticket at [{}]: {}", location, e.getMessage());
-            throw new TransportException("Failed to create stream", e);
+            listener.onFailure(new TransportException("Failed to send message", e));
         }
+    }
+
+    @Override
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        throw new IllegalStateException("sendMessage must be accompanied with reqId for FlightClientChannel, use the right variant.");
     }
 
     /**
@@ -237,70 +228,33 @@ class FlightClientChannel implements TcpChannel {
     private void processStreamResponseAsync(FlightTransportResponse<?> streamResponse) {
         long startTime = threadPool.relativeTimeInMillis();
         threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME).execute(() -> {
-            TransportResponseHandler<?> handler = null;
             try {
-                handler = getAndValidateHandler(streamResponse);
-                executeWithThreadContext(streamResponse.currentHeader(), handler, streamResponse, startTime);
+                executeWithThreadContext(streamResponse, startTime);
             } catch (Exception e) {
-                handleStreamException(streamResponse, handler, e, startTime);
+                handleStreamException(streamResponse, e, startTime);
             }
         });
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private TransportResponseHandler<?> getAndValidateHandler(FlightTransportResponse<?> streamResponse) {
-        Header header = streamResponse.currentHeader();
-        if (header == null) {
-            throw new TransportException("Missing header for stream");
-        }
-
-        long requestId = header.getRequestId();
-        TransportResponseHandler handler = responseHandlers.onResponseReceived(requestId, messageListener);
-        if (handler == null) {
-            throw new TransportException("Missing handler for stream request [" + requestId + "].");
-        }
-        streamResponse.setHandler(handler);
-        return handler;
-    }
-
-    /**
-     * Executes the handler with the appropriate thread context and executor.
-     * Ensures proper resource cleanup even on exceptions.
-     *
-     * @param header        the header for the response
-     * @param handler       the response handler
-     * @param streamResponse the stream response
-     * @param startTime     the start time for performance tracking
-     */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeWithThreadContext(
-        Header header,
-        TransportResponseHandler handler,
-        StreamTransportResponse<?> streamResponse,
-        long startTime
-    ) {
+    private void executeWithThreadContext(FlightTransportResponse<?> streamResponse, long startTime) {
         final ThreadContext threadContext = threadPool.getThreadContext();
-        final String executor = handler.executor();
-
+        final String executor = streamResponse.getHandler().executor();
         if (ThreadPool.Names.SAME.equals(executor)) {
-            executeHandler(threadContext, header, handler, streamResponse, startTime);
+            executeHandler(threadContext, streamResponse, startTime);
         } else {
-            threadPool.executor(executor).execute(() -> executeHandler(threadContext, header, handler, streamResponse, startTime));
+            threadPool.executor(executor).execute(() -> executeHandler(threadContext, streamResponse, startTime));
         }
     }
 
-    /**
-     * Executes the handler with proper thread context management.
-     */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeHandler(
-        ThreadContext threadContext,
-        Header header,
-        TransportResponseHandler handler,
-        StreamTransportResponse<?> streamResponse,
-        long startTime
-    ) {
+    private void executeHandler(ThreadContext threadContext, FlightTransportResponse<?> streamResponse, long startTime) {
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            Header header = streamResponse.getHeader();
+            if (header == null) {
+                throw new TransportException("Header is null");
+            }
+            TransportResponseHandler handler = streamResponse.getHandler();
             threadContext.setHeaders(header.getHeaders());
             handler.handleStreamResponse(streamResponse);
         } catch (Exception e) {
@@ -310,10 +264,6 @@ class FlightClientChannel implements TcpChannel {
         }
     }
 
-    /**
-     * Cleanup stream response resources and update stats.
-     * This method ensures resources are always cleaned up, even if close() fails.
-     */
     private void cleanupStreamResponse(StreamTransportResponse<?> streamResponse) {
         try {
             streamResponse.close();
@@ -322,30 +272,12 @@ class FlightClientChannel implements TcpChannel {
         }
     }
 
-    /**
-     * Handles exceptions during stream processing, notifying the appropriate handler.
-     * Ensures proper resource cleanup and error propagation.
-     *
-     * @param streamResponse the stream response
-     * @param handler       the handler (may be null if exception occurred before handler retrieval)
-     * @param exception     the exception that occurred
-     * @param startTime     the start time for logging slow operations
-     */
-    private void handleStreamException(
-        FlightTransportResponse<?> streamResponse,
-        TransportResponseHandler<?> handler,
-        Exception exception,
-        long startTime
-    ) {
+    private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception exception, long startTime) {
         logger.error("Exception while handling stream response", exception);
-
         try {
             cancelStream(streamResponse, exception);
-            if (handler != null) {
-                notifyHandlerOfException(handler, exception);
-            } else {
-                logger.warn("Cannot notify handler of exception - handler not available");
-            }
+            TransportResponseHandler<?> handler = streamResponse.getHandler();
+            notifyHandlerOfException(handler, exception);
         } finally {
             cleanupStreamResponse(streamResponse);
             logSlowOperation(startTime);
