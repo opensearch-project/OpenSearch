@@ -190,7 +190,10 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         if (fetchProfileShardResult == null) {
             fetchProfileShardResult = new FetchProfileShardResult(Collections.emptyList());
         }
-        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime));
+        searchProfileResults.put(
+            id,
+            new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime)
+        );
     }
 
     /**
