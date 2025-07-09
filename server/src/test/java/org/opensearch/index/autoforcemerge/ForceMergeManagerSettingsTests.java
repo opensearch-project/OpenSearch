@@ -61,12 +61,13 @@ public class ForceMergeManagerSettingsTests extends OpenSearchTestCase {
 
     public void testDefaultSettings() {
         assertEquals(false, forceMergeManagerSettings.isAutoForceMergeFeatureEnabled());
-        assertEquals(forceMergeManagerSettings.getForcemergeDelay(), TimeValue.timeValueSeconds(10));
+        assertEquals(forceMergeManagerSettings.getForcemergeDelay(), TimeValue.timeValueSeconds(15));
         assertEquals(forceMergeManagerSettings.getSchedulerInterval(), TimeValue.timeValueMinutes(30));
         assertEquals(2, (int) forceMergeManagerSettings.getConcurrencyMultiplier());
         assertEquals(1, (int) forceMergeManagerSettings.getSegmentCount());
-        assertEquals(80.0, forceMergeManagerSettings.getCpuThreshold(), 0.0);
+        assertEquals(75.0, forceMergeManagerSettings.getCpuThreshold(), 0.0);
         assertEquals(75.0, forceMergeManagerSettings.getJvmThreshold(), 0.0);
+        assertEquals(85.0, forceMergeManagerSettings.getDiskThreshold(), 0.0);
     }
 
     public void testDynamicSettingsUpdate() {
@@ -100,14 +101,14 @@ public class ForceMergeManagerSettingsTests extends OpenSearchTestCase {
         Settings newSettings = Settings.builder()
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "10m")
             .put(ForceMergeManagerSettings.TRANSLOG_AGE_AUTO_FORCE_MERGE.getKey(), "10m")
-            .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), "15s")
+            .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), "20s")
             .build();
 
         clusterSettings.applySettings(newSettings);
 
         assertEquals(forceMergeManagerSettings.getSchedulerInterval(), TimeValue.timeValueMinutes(10));
         assertEquals(forceMergeManagerSettings.getTranslogAge(), TimeValue.timeValueMinutes(10));
-        assertEquals(forceMergeManagerSettings.getForcemergeDelay(), TimeValue.timeValueSeconds(15));
+        assertEquals(forceMergeManagerSettings.getForcemergeDelay(), TimeValue.timeValueSeconds(20));
     }
 
     public void testThreadSettings() {

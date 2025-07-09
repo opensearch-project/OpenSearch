@@ -7,6 +7,6 @@
  */
 
 /**
- * Package for the rest classes related to query groups in WorkloadManagementPlugin
+ * Package for the rest classes related to workload groups in WorkloadManagementPlugin
  */
 package org.opensearch.plugin.wlm.rest;
