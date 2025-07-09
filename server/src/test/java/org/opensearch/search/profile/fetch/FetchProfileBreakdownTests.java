@@ -13,10 +13,10 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_START_TIME_SUFFIX;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class FetchProfileBreakdownTests extends OpenSearchTestCase {
 
