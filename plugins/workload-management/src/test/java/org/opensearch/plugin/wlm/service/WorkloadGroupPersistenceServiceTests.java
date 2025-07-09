@@ -59,8 +59,8 @@ import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupPersistenceService;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupTwo;
 import static org.opensearch.plugin.wlm.action.WorkloadGroupActionTestUtils.updateWorkloadGroupRequest;
-import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
 import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.SOURCE;
+import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.WORKLOAD_GROUP_COUNT_SETTING_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyString;
@@ -155,7 +155,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             .updatedAt(1690934400000L)
             .build();
         Metadata metadata = Metadata.builder().workloadGroups(Map.of(_ID_ONE, workloadGroupOne, _ID_TWO, workloadGroupTwo)).build();
-        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
+        Settings settings = Settings.builder().put(WORKLOAD_GROUP_COUNT_SETTING_NAME, 2).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
         ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
@@ -174,7 +174,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * Tests the invalid value of {@code node.workload_group.max_count}
      */
     public void testInvalidMaxWorkloadGroupCount() {
-        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
+        Settings settings = Settings.builder().put(WORKLOAD_GROUP_COUNT_SETTING_NAME, 2).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
         ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
@@ -189,7 +189,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * Tests the valid value of {@code node.workload_group.max_count}
      */
     public void testValidMaxSandboxCountSetting() {
-        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 100).build();
+        Settings settings = Settings.builder().put(WORKLOAD_GROUP_COUNT_SETTING_NAME, 100).build();
         ClusterService clusterService = new ClusterService(settings, clusterSettings(), mock(ThreadPool.class));
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,

@@ -31,7 +31,7 @@ import java.util.Set;
  * of a rule. The indexed view may differ in representation.
  * {
  *     "id": "fwehf8302582mglfio349==",
- *     "description": "Assign Query Group for Index Logs123"
+ *     "description": "Assign Workload Group for Index Logs123"
  *     "index_pattern": ["logs123"],
  *     "workload_group": "dev_workload_group_id",
  *     "updated_at": "01-10-2025T21:23:21.456Z"
