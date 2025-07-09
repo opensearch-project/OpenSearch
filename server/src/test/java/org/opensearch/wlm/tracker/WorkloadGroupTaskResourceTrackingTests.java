@@ -50,7 +50,7 @@ public class WorkloadGroupTaskResourceTrackingTests extends OpenSearchTestCase {
         WorkloadGroupTask task = new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>());
         taskResourceTrackingService.startTracking(task);
 
-        // since the query group id is not set we should not track this task
+        // since the workload group id is not set we should not track this task
         Map<String, WorkloadGroupLevelResourceUsageView> resourceUsageViewMap = workloadGroupResourceUsageTrackerService
             .constructWorkloadGroupLevelUsageViews();
         assertTrue(resourceUsageViewMap.isEmpty());

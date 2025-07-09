@@ -53,6 +53,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
@@ -146,6 +147,10 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
         IndexMetadata indexMetadata = state.metadata().index(sourceIndex);
+        if (indexMetadata.getSettings().getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false) == true) {
+            throw new IllegalStateException("cannot resize warm index");
+        }
+
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         if (resizeRequest.getResizeType().equals(ResizeType.SHRINK)
             && state.metadata().isSegmentReplicationEnabled(sourceIndex)

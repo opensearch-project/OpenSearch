@@ -18,6 +18,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -176,7 +177,6 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
     // NodeValidator Tests
     public void testNodeValidatorWithHealthyResources() {
         when(cpu.getPercent()).thenReturn((short) 50);
-        when(cpu.getLoadAverage()).thenReturn(new double[]{0.7 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors});
         when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
         ThreadPoolStats stats = new ThreadPoolStats(
             Arrays.asList(new ThreadPoolStats.Stats(
@@ -191,9 +191,32 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         autoForceMergeManager.close();
     }
 
+    public void testNodeValidatorWithFeatureSwitch() {
+        when(cpu.getPercent()).thenReturn((short) 50);
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
+        ThreadPoolStats stats = new ThreadPoolStats(
+            Arrays.asList(new ThreadPoolStats.Stats(
+                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0
+            ))
+        );
+        when(threadPool.stats()).thenReturn(stats);
+        Settings settings = getConfiguredClusterSettings(false, false, Collections.emptyMap());
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(settings, getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        autoForceMergeManager.start();
+        assertFalse(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
+        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        autoForceMergeManager.close();
+    }
+
     public void testNodeValidatorWithHighCPU() {
-        when(cpu.getPercent()).thenReturn((short) 95);
-        when(cpu.getLoadAverage()).thenReturn(new double[]{0.7 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors});
         DiscoveryNode dataNode1 = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
         DiscoveryNode warmNode1 = getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.WARM_ROLE));
         ClusterState clusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
@@ -207,20 +230,24 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         when(clusterService.state()).thenReturn(clusterState);
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), dataNode1);
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            dataNode1
+        );
         autoForceMergeManager.start();
+        when(cpu.getPercent()).thenReturn((short) 95);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        when(cpu.getPercent()).thenReturn((short) 50);
-        when(cpu.getLoadAverage()).thenReturn(new double[]{0.9 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors});
+        for (int i = 0; i < 10; i++)
+            ResourceTrackerProvider.resourceTrackers.cpuOneMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        when(cpu.getLoadAverage()).thenReturn(new double[]{0.7 * allocatedProcessors, 0.9 * allocatedProcessors, 0.5 * allocatedProcessors});
+        for (int i = 0; i < 10; i++)
+            ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
     }
 
     public void testNodeValidatorWithHighDiskUsage() {
         when(cpu.getPercent()).thenReturn((short) 50);
-        when(cpu.getLoadAverage()).thenReturn(new double[]{0.7 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors});
         when(disk.getAvailable()).thenReturn(new ByteSizeValue(5));
         AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         autoForceMergeManager.start();
@@ -230,17 +257,21 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
 
     public void testNodeValidatorWithHighJVMUsage() {
         when(cpu.getPercent()).thenReturn((short) 50);
-        when(cpu.getLoadAverage()).thenReturn(new double[]{0.7 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors});
-        when(jvm.getHeapUsedPercent()).thenReturn((short) 90);
         AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         autoForceMergeManager.start();
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 90);
+        assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        for(int i = 0; i < 10; i++)
+            ResourceTrackerProvider.resourceTrackers.jvmOneMinute.recordUsage(90);
+        assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        for(int i = 0; i < 10; i++)
+            ResourceTrackerProvider.resourceTrackers.jvmFiveMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
     }
 
     public void testNodeValidatorWithInsufficientForceMergeThreads() {
         when(cpu.getPercent()).thenReturn((short) 50);
-        when(cpu.getLoadAverage()).thenReturn(new double[]{0.7 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors});
         when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
         ThreadPoolStats stats = new ThreadPoolStats(
             Arrays.asList(new ThreadPoolStats.Stats(
@@ -376,9 +407,6 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             .build();
         when(clusterService.state()).thenReturn(clusterState);
         when(cpu.getPercent()).thenReturn((short) 50);
-        when(cpu.getLoadAverage()).thenReturn(
-            new double[] { 0.7 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors }
-        );
         when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
 
         int forceMergeThreads = 4;
@@ -430,9 +458,6 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             .build();
         when(clusterService.state()).thenReturn(clusterState);
         when(cpu.getPercent()).thenReturn((short) 50);
-        when(cpu.getLoadAverage()).thenReturn(
-            new double[] { 0.7 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors }
-        );
         when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
         int forceMergeThreads = 4;
         ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
@@ -488,9 +513,6 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             .build();
         when(clusterService.state()).thenReturn(clusterState);
         when(cpu.getPercent()).thenReturn((short) 50);
-        when(cpu.getLoadAverage()).thenReturn(
-            new double[] { 0.7 * allocatedProcessors, 0.6 * allocatedProcessors, 0.5 * allocatedProcessors }
-        );
         when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
 
         int forceMergeThreads = 4;

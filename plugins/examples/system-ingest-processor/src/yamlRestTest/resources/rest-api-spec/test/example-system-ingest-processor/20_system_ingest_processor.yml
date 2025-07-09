@@ -30,6 +30,28 @@ teardown:
       _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
 
 ---
+"Processor injects a field on indexing a doc to existing index when trigger_setting is true":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index.example_system_ingest_processor_plugin.trigger_setting: true
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          system_ingest_processor_trigger_field: "dummy value"
+        refresh: true
+  - do:
+      get:
+        index: test-index
+        id: 1
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+
+---
 "Processor should not inject a field on indexing a doc to existing index when trigger field is not defined in the index mapping":
   - do:
       indices.create:
@@ -56,6 +78,7 @@ teardown:
   - skip:
       features: allowed_warnings
   - do:
+      # test v1 template
       indices.put_template:
         name: example-template
         body:
@@ -79,7 +102,41 @@ teardown:
         id: 1
   - match:
       _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+  - do:
+      indices.delete_template:
+        name: example-template
+---
 
+"Processor injects field when index is created from matching template where trigger_setting is true":
+  - skip:
+      features: allowed_warnings
+  - do:
+      # test v2 template
+      indices.put_index_template:
+        name: example-template
+        body:
+          index_patterns: ["template-*"]
+          template:
+            settings:
+              index.example_system_ingest_processor_plugin.trigger_setting: true
+  - do:
+      allowed_warnings:
+        - "index [template-index-1] matches multiple legacy templates [example-template, global], composable templates will only match a single template"
+      index:
+        index: template-index-1
+        id: 1
+        body:
+          system_ingest_processor_trigger_field: "dummy value"
+        refresh: true
+  - do:
+      get:
+        index: template-index-1
+        id: 1
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+  - do:
+      indices.delete_index_template:
+        name: example-template
 ---
 "Processor injects field on bulk indexing to existing index":
   - do:
@@ -156,7 +213,9 @@ teardown:
         id: 2
   - match:
       _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
-
+  - do:
+      indices.delete_template:
+        name: bulk-template
 ---
 "Processor injects field on bulk update, upsert on existing/new documents":
   # Temporarily disable system ingest pipelines to insert without triggering the system ingest field

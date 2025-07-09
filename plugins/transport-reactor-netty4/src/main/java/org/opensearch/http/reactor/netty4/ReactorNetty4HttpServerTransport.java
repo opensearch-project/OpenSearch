@@ -243,6 +243,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .runOn(sharedGroup.getLowLevelGroup())
                 .bindAddress(() -> socketAddress)
                 .compress(true)
+                .http2Settings(spec -> spec.maxHeaderListSize(maxHeaderSize.bytesAsInt()))
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                         .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
