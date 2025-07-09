@@ -105,6 +105,10 @@ setup:
 ---
 
 "named queries in rescore":
+  - skip:
+      version: " - 3.1.99"
+      reason: "named queries in rescore is supported in 3.2.0 and above"
+
   - do:
       indices.create:
         index: test
@@ -149,6 +153,10 @@ setup:
 ---
 
 "named queries in rescore with scores":
+  - skip:
+      version: " - 3.1.99"
+      reason: "named queries in rescore is supported in 3.2.0 and above"
+
   - do:
       indices.create:
         index: test
