@@ -8,13 +8,13 @@
 
 package org.opensearch.search.profile.fetch;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractProfiler;
 
 /**
  * Profiler for the fetch phase.
  */
-@ExperimentalApi()
+@PublicApi(since = "3.2.0")
 public class FetchProfiler extends AbstractProfiler<FetchProfileBreakdown, String> {
     /**
      * Creates a new FetchProfiler.

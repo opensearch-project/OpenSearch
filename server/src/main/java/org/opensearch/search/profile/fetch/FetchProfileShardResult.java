@@ -8,7 +8,7 @@
 
 package org.opensearch.search.profile.fetch;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -24,7 +24,10 @@ import java.util.List;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
-@ExperimentalApi()
+/**
+ * Represents the fetch phase profile results for a single shard.
+ */
+@PublicApi(since = "3.2.0")
 public class FetchProfileShardResult implements Writeable, ToXContentFragment {
     public static final String FETCH = "fetch";
 

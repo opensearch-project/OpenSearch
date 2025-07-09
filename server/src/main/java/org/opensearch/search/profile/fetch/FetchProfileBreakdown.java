@@ -18,6 +18,11 @@ import java.util.Map;
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_START_TIME_SUFFIX;
 
+/**
+ * A record of timings for the various operations that may happen during fetch execution.
+ *
+ * @opensearch.internal
+ */
 public class FetchProfileBreakdown extends AbstractProfileBreakdown {
     public FetchProfileBreakdown() {
         super(ProfileMetricUtil.getFetchProfileMetrics());
