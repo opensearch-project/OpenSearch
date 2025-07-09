@@ -185,7 +185,7 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
 
     /**
      * This enum models the different WorkloadGroup resiliency modes
-     * SOFT - means that this query group can consume more than query group resource limits if node is not in duress
+     * SOFT - means that this workload group can consume more than workload group resource limits if node is not in duress
      * ENFORCED - means that it will never breach the assigned limits and will cancel as soon as the limits are breached
      * MONITOR - it will not cause any cancellation but just log the eligible task cancellations
      */

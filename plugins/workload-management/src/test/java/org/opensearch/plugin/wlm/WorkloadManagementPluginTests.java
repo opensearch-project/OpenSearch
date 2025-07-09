@@ -138,7 +138,7 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
         assertEquals("workload_group", featureType.getName());
     }
 
-    public void testGetSettingsIncludesMaxQueryGroupCount() {
+    public void testGetSettingsIncludesMaxWorkloadGroupCount() {
         List<?> settings = plugin.getSettings();
         assertTrue(settings.contains(WorkloadGroupPersistenceService.MAX_QUERY_GROUP_COUNT));
     }
