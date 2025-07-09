@@ -25,7 +25,7 @@ import java.util.List;
 
 import org.mockito.ArgumentCaptor;
 
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.NAME_ONE;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
