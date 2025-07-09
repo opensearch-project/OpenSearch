@@ -28,6 +28,7 @@ import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
+import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.junit.After;
@@ -130,10 +131,18 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
     }
 
     protected FlightClientChannel createChannel(FlightClient flightClient) {
-        return createChannel(flightClient, threadPool);
+        return createChannel(flightClient, threadPool, flightTransport.getResponseHandlers());
     }
 
-    protected FlightClientChannel createChannel(FlightClient flightClient, ThreadPool customThreadPool) {
+    protected FlightClientChannel createChannel(FlightClient flightClient, ThreadPool threadPool) {
+        return createChannel(flightClient, threadPool, flightTransport.getResponseHandlers());
+    }
+
+    protected FlightClientChannel createChannel(
+        FlightClient flightClient,
+        ThreadPool customThreadPool,
+        Transport.ResponseHandlers handlers
+    ) {
         return new FlightClientChannel(
             boundAddress,
             flightClient,
@@ -141,7 +150,7 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             serverLocation,
             headerContext,
             "test-profile",
-            flightTransport.getResponseHandlers(),
+            handlers,
             customThreadPool,
             new TransportMessageListener() {
             },
