@@ -57,7 +57,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     /**
      * Default value for max rules count
      */
-    public static final int MAX_ALLOWED_RULE_COUNT = 10000;
+    public static final int DEFAULT_MAX_ALLOWED_RULE_COUNT = 200;
 
     /**
      *  max wlm rules setting name
@@ -69,8 +69,9 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      */
     public static final Setting<Integer> MAX_WLM_RULES_SETTING = Setting.intSetting(
         MAX_RULES_COUNT_SETTING_NAME,
-        MAX_ALLOWED_RULE_COUNT,
+        DEFAULT_MAX_ALLOWED_RULE_COUNT,
         10,
+        500,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -142,7 +143,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                 new OpenSearchRejectedExecutionException(
                     "This create operation will violate"
                         + " the cardinality limit of "
-                        + MAX_ALLOWED_RULE_COUNT
+                        + DEFAULT_MAX_ALLOWED_RULE_COUNT
                         + ". Please delete some stale or redundant rules first"
                 )
             );
