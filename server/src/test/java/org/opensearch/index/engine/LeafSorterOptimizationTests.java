@@ -70,11 +70,6 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
 
             // Test that the leafSorter is a valid comparator
             assertNotNull("LeafSorter should be a valid comparator", leafSorter);
-
-            // Note: All engine types (ReadOnlyEngine, NoOpEngine, NRTReplicationEngine)
-            // will use this leafSorter when opening DirectoryReader instances.
-            // The leafSorter will be passed through to DirectoryReader.open() calls
-            // in their constructors, enabling timestamp sort optimization.
         }
     }
 }
