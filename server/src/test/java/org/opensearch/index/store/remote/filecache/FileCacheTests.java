@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.breaker.TestCircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -30,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
+import java.util.concurrent.ForkJoinPool;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCacheTests extends OpenSearchTestCase {
@@ -487,6 +489,28 @@ public class FileCacheTests extends OpenSearchTestCase {
         final Path key = createPath(Integer.toString(path));
         cache.put(key, new StubCachedIndexInput(indexInputSize));
         cache.decRef(key);
+    }
+
+    public void testRestoreLatenciesParallel() throws IOException, InterruptedException {
+        String index = "test-index-";
+        String warmIndex = "test-warm-index-";
+        for (int i = 1; i <= 100; i++) {
+            for (int j = 0; j < 10; j++) {
+                createFile(index + i, String.valueOf(j), "_" + j + "_block_" + j);
+                createWarmIndexFile(warmIndex + i, String.valueOf(j), "_" + j + "_block_" + j);
+            }
+        }
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        assertEquals(0, fileCache.size());
+        Path cachePath = path.resolve(NodeEnvironment.CACHE_FOLDER);
+        Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER);
+        long startTime = System.currentTimeMillis();
+        ForkJoinPool pool = ForkJoinPool.commonPool();
+        SetOnce<IOException> exception = new SetOnce<>();
+        pool.invoke(new FileCache.LoadTask(cachePath, fileCache, exception));
+        pool.invoke(new FileCache.LoadTask(indicesPath, fileCache, exception));
+        logger.info("File cache loading latency : {}", System.currentTimeMillis() - startTime);
+        assertEquals(2000, fileCache.size());
     }
 
     public static class StubCachedIndexInput implements CachedIndexInput {
