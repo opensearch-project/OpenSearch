@@ -645,9 +645,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     }
 
     public void onNewMergedSegmentCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
-        logger.debug(
-            () -> new ParameterizedMessage("Replica received new merged segment checkpoint [{}] from primary", receivedCheckpoint)
-        );
+        logger.info(() -> new ParameterizedMessage("Replica received new merged segment checkpoint [{}] from primary", receivedCheckpoint));
         // if the shard is in any state
         if (replicaShard.state().equals(IndexShardState.CLOSED)) {
             // ignore if shard is closed
@@ -714,7 +712,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                     }
                 });
                 try {
-                    latch.await();
+                    latch.await(); // @TODO: add a timeout here:: mergedSegmentTimeout - timeTakenToUpload
                 } catch (InterruptedException e) {
                     logger.warn(
                         () -> new ParameterizedMessage("Interrupted while waiting for pre copy merged segment [{}]", receivedCheckpoint),
