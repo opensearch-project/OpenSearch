@@ -25,6 +25,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     private final int size;
     private final List<BooleanClause> clauses;
     private ApproximateBooleanQuery booleanQuery;
+    public boolean isUnwrapped = false;
 
     public ApproximateBooleanQuery(BooleanQuery boolQuery) {
         this(boolQuery, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
@@ -45,7 +46,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     }
 
     public static Query unwrap(Query unwrapBoolQuery) {
-        Query clauseQuery = unwrapBoolQuery instanceof ApproximateScoreQuery
+        Query clauseQuery = unwrapBoolQuery instanceof ApproximateBooleanQuery
             ? ((ApproximateBooleanQuery) unwrapBoolQuery).getClauseQuery()
             : ((BooleanQuery) unwrapBoolQuery).clauses().get(0).query();
         if (clauseQuery instanceof ApproximateBooleanQuery nestedBool) {
@@ -79,7 +80,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
             // If the clause is already an ApproximateScoreQuery, we can approximate + set context
             if (clauseQuery instanceof ApproximateScoreQuery approximateScoreQuery) {
-                approximateScoreQuery.setContext(context);
+                // approximateScoreQuery.setContext(context);
                 if (approximateScoreQuery.getApproximationQuery() instanceof ApproximateBooleanQuery nestedBool) {
                     return nestedBool.canApproximate(context);
                 }
