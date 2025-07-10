@@ -678,6 +678,18 @@ public class RestIndicesAction extends AbstractListAction {
         table.addCell("pri.search.concurrent_avg_slice_count", "default:false;text-align:right;desc:average query concurrency");
 
         table.addCell(
+            "search.startree_query_total",
+            "sibling:pri;alias:stqc,startreeQueryTotal;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell("pri.startree.query_total", "default:false;text-align:right;desc:total star tree resolved queries");
+
+        table.addCell(
+            "search.startree_query_time",
+            "sibling:pri;alias:stqt,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
+        );
+        table.addCell("pri.startree.query_time", "default:false;text-align:right;desc:time spent in star tree queries");
+
+        table.addCell(
             "search.scroll_current",
             "sibling:pri;alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts"
         );
@@ -1010,6 +1022,12 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentAvgSliceCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentAvgSliceCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryTime());
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());
