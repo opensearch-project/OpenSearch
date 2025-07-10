@@ -8,15 +8,6 @@
 
 package org.opensearch.index.query;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Locale;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
@@ -26,7 +17,6 @@ import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
-
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -36,12 +26,20 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.index.search.MultiMatchQuery;
 import org.opensearch.index.search.QueryParserHelper;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
 /**
- * Combined fields query that treats multiple fields as a 
- * single stream and scores terms as if you had indexed them 
+ * Combined fields query that treats multiple fields as a
+ * single stream and scores terms as if you had indexed them
  * as a single term in a single field.
  *
  * @opensearch.experimental
@@ -53,13 +51,13 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField OPERATOR_FIELD = new ParseField("operator");
-    
+
     private Object queryValue;
     private Map<String, Float> fieldToWeight;
-    private Operator operator =  Operator.OR;
+    private Operator operator = Operator.OR;
 
     /**
-     * Constructor for CombinedFieldsQueryBuilder. 
+     * Constructor for CombinedFieldsQueryBuilder.
      * @param value
      * @param fields
      */
@@ -122,14 +120,14 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             out.writeString(fieldEntry.getKey());
             out.writeFloat(fieldEntry.getValue());
         }
-    
+
         this.operator.writeTo(out);
     }
 
     // ========================
     // FIELD ACCESSORS
     // ========================
-    
+
     /**
      * Returns the query value to be analyzed and matched.
      */
@@ -153,7 +151,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
     /**
      * Sets the operator used to combine terms (AND or OR).
-     * 
+     *
      * @param operator the operator to use
      * @return this query builder for method chaining
      */
@@ -165,7 +163,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     // ========================
     // XCONTENT SERIALIZATION
     // ========================
-    
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -183,9 +181,11 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     // ========================
     // XContent PARSING
     // ========================
-    
-    private static final ConstructingObjectParser<CombinedFieldsQueryBuilder, Void> XCONTENT_PARSER = new ConstructingObjectParser<>(NAME,
-    a -> new CombinedFieldsQueryBuilder(a[0]));
+
+    private static final ConstructingObjectParser<CombinedFieldsQueryBuilder, Void> XCONTENT_PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new CombinedFieldsQueryBuilder(a[0])
+    );
 
     static {
         XCONTENT_PARSER.declareString(ConstructingObjectParser.constructorArg(), QUERY_FIELD);
@@ -208,16 +208,16 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     // ========================
     // ABSTRACT METHOD IMPLEMENTATIONS
     // ========================
-    
+
     @Override
     public String getWriteableName() {
         return NAME;
     }
-    
+
     // ========================
     // CORE QUERY BUILDING LOGIC
     // ========================
-    
+
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
 
@@ -229,20 +229,20 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         List<MappedFieldType> fieldTypes = extractAndValidateMappedFieldTypes(context, mappedFields);
         Analyzer sharedAnalyzer = validateAndGetSharedAnalyzer(fieldTypes);
-        
+
         return buildQuery(mappedFields, sharedAnalyzer);
     }
 
     // ========================
     // HELPER METHODS
     // ========================
- 
+
     /**
      * Builds the list of mapped fields.
      */
     private List<MappedFieldType> extractAndValidateMappedFieldTypes(QueryShardContext context, Map<String, Float> mappedFields) {
         List<MappedFieldType> fields = new ArrayList<>();
-        
+
         for (Map.Entry<String, Float> entry : mappedFields.entrySet()) {
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);
@@ -253,7 +253,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             validateFieldType(fieldType);
             fields.add(fieldType);
         }
-        
+
         return fields;
     }
 
@@ -262,8 +262,15 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      */
     private void validateFieldType(MappedFieldType fieldType) {
         if (fieldType.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Field [%s] of type [%s] does not support [%s] queries",
-                fieldType.name(), fieldType.typeName(), NAME));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Field [%s] of type [%s] does not support [%s] queries",
+                    fieldType.name(),
+                    fieldType.typeName(),
+                    NAME
+                )
+            );
         }
     }
 
@@ -273,15 +280,17 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      */
     private Analyzer validateAndGetSharedAnalyzer(List<MappedFieldType> fieldTypes) {
         Analyzer sharedAnalyzer = null;
-        
+
         for (MappedFieldType fieldType : fieldTypes) {
             Analyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
             if (sharedAnalyzer != null && analyzer.equals(sharedAnalyzer) == false) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT, "All fields in [%s] query must have the same search analyzer", NAME));
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "All fields in [%s] query must have the same search analyzer", NAME)
+                );
             }
             sharedAnalyzer = analyzer;
         }
-        
+
         return sharedAnalyzer;
     }
 
@@ -290,11 +299,11 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      */
     private Query buildQuery(Map<String, Float> mappedFieldToWeight, Analyzer sharedAnalyzer) {
         assert mappedFieldToWeight.isEmpty() == false;
-        
+
         String placeholderFieldName = mappedFieldToWeight.keySet().iterator().next();
         Builder builder = new Builder(mappedFieldToWeight, sharedAnalyzer, this.operator);
         Query query = builder.createBooleanQuery(placeholderFieldName, this.queryValue.toString(), this.operator.toBooleanClauseOccur());
-        
+
         return query == null ? createZeroTermsQuery() : query;
     }
 
@@ -305,7 +314,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     // ========================
     // INNER CLASS
     // ========================
-    
+
     /**
      * Internal builder class that extends Lucene's QueryBuilder to create
      * combined field queries using the BM25F ranking algorithm.
@@ -314,9 +323,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         private final Map<String, Float> mappedFieldToWeight;
         private final Operator operator;
 
-        Builder(Map<String, Float> mappedFieldToWeight,
-         Analyzer analyzer,
-         Operator operator) {
+        Builder(Map<String, Float> mappedFieldToWeight, Analyzer analyzer, Operator operator) {
             super(analyzer);
             this.mappedFieldToWeight = mappedFieldToWeight;
             this.operator = operator;
@@ -336,10 +343,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         protected Query newSynonymQuery(String fieldPlaceholder, TermAndBoost[] terms) {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             BooleanClause.Occur occur = this.operator.toBooleanClauseOccur();
-                        
+
             for (TermAndBoost termAndBoost : terms) {
                 BytesRef term = termAndBoost.term();
-                
+
                 CombinedFieldQuery.Builder combinedFieldBuilder = new CombinedFieldQuery.Builder(term);
                 for (Map.Entry<String, Float> entry : mappedFieldToWeight.entrySet()) {
                     combinedFieldBuilder.addField(entry.getKey(), entry.getValue());
@@ -353,14 +360,14 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         @Override
         protected Query newTermQuery(Term term, float boost) {
             QueryBuilder.TermAndBoost termAndBoost = new QueryBuilder.TermAndBoost(term.bytes(), boost);
-            return newSynonymQuery("", new QueryBuilder.TermAndBoost[]{termAndBoost});
+            return newSynonymQuery("", new QueryBuilder.TermAndBoost[] { termAndBoost });
         }
     }
 
     // ========================
     // STANDARD QUERY BUILDER METHODS
     // ========================
-    
+
     @Override
     protected int doHashCode() {
         return Objects.hash(queryValue, fieldToWeight, operator);
@@ -368,9 +375,9 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
     @Override
     protected boolean doEquals(CombinedFieldsQueryBuilder other) {
-        return Objects.equals(queryValue, other.queryValue) &&
-            Objects.equals(fieldToWeight, other.fieldToWeight) &&
-            Objects.equals(operator, other.operator);
+        return Objects.equals(queryValue, other.queryValue)
+            && Objects.equals(fieldToWeight, other.fieldToWeight)
+            && Objects.equals(operator, other.operator);
     }
 
 }
