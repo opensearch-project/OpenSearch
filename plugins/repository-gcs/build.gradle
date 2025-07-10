@@ -41,6 +41,7 @@ import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
@@ -86,6 +87,11 @@ dependencies {
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
 
+//  fipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+//  fipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+//  fipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+
+  testFipsRuntimeOnly libs.bundles.bouncycastle
   testImplementation project(':test:fixtures:gcs-fixture')
 }
 

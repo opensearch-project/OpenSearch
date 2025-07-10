@@ -448,6 +448,18 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {
+        // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
+        try {
+            Class<?> registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            var approvedOnly = (Boolean) isApprovedOnlyMethod.invoke(null);
+            if (approvedOnly) {
+                throw new SecurityException("Legacy KeyStore formats v1 & v2 are not supported in FIPS JVM");
+            }
+        } catch (Exception e) {
+            // reflection is allowed to fail, if FIPS provider is not installed.
+        }
+
         // v1 and v2 keystores never had passwords actually used, so we always use an empty password
         KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
         Map<String, EntryType> settingTypes = new HashMap<>();

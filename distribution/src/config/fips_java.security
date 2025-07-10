@@ -8,3 +8,5 @@ security.provider.4=SunJGSS
 
 ssl.KeyManagerFactory.algorithm=PKIX
 ssl.TrustManagerFactory.algorithm=PKIX
+
+keystore.type=BCFKS

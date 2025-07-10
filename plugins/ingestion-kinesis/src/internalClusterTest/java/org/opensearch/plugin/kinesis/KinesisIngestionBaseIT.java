@@ -9,6 +9,7 @@
 package org.opensearch.plugin.kinesis;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -30,9 +31,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import org.testcontainers.containers.localstack.LocalStackContainer;
 import org.testcontainers.utility.DockerImageName;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 
 /**
  * Base test class for kinesis ingestion tests
@@ -62,10 +66,13 @@ public class KinesisIngestionBaseIT extends OpenSearchIntegTestCase {
         stopKinesis();
     }
 
+    Supplier<String> passwordSupplier = () -> RandomStrings.randomAsciiLettersOfLengthBetween(getRandom(), 16, 24);
+
     private void setupKinesis() throws InterruptedException {
-        localstack = new LocalStackContainer(DockerImageName.parse("localstack/localstack:latest")).withServices(
-            LocalStackContainer.Service.KINESIS
-        );
+        localstack = new LocalStackContainer(DockerImageName.parse("localstack/localstack:latest")).withEnv(
+            "AWS_ACCESS_KEY_ID",
+            passwordSupplier.get()
+        ).withEnv("AWS_SECRET_ACCESS_KEY", passwordSupplier.get()).withServices(LocalStackContainer.Service.KINESIS);
         localstack.start();
 
         // Initialize AWS Kinesis Client with LocalStack endpoint

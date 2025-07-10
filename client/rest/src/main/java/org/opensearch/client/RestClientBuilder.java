@@ -315,7 +315,7 @@ public final class RestClientBuilder {
 
         try {
             final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
-                .setSslContext(SSLContext.getDefault())
+                .setSslContext(SSLContext.getInstance("TLS"))
                 // See https://issues.apache.org/jira/browse/HTTPCLIENT-2219
                 .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
                     @Override
