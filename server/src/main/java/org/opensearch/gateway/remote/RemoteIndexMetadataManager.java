@@ -20,6 +20,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -92,7 +93,8 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
@@ -156,6 +158,18 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
     ) {
         return ActionListener.wrap(
             response -> listener.onResponse(new RemoteReadResult(response, RemoteIndexMetadata.INDEX, component)),
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
+        );
+    }
+
+    @Override
+    protected ActionListener<RemoteReadResultsVerbose<Object>> getWrappedReadListenerForMetrics(
+        String component,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
+        ActionListener<RemoteReadResultsVerbose<Object>> listener
+    ) {
+        return ActionListener.wrap(
+            listener::onResponse,
             ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
         );
     }
