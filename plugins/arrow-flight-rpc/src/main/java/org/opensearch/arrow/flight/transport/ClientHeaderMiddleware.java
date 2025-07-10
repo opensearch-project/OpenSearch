@@ -29,12 +29,9 @@ import java.util.Objects;
  * from Arrow Flight server responses, extracts transport headers, and stores them in the HeaderContext
  * for later retrieval.
  *
- * <p>It assumes that one request is sent at a time to {@link FlightClientChannel}.</p>
- *
  * @opensearch.internal
  */
 class ClientHeaderMiddleware implements FlightClientMiddleware {
-    // Header field names used in Arrow Flight communication
     static final String RAW_HEADER_KEY = "raw-header";
     static final String REQUEST_ID_KEY = "req-id";
 
@@ -61,11 +58,9 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
      */
     @Override
     public void onHeadersReceived(CallHeaders incomingHeaders) {
-        // Extract header fields
         String encodedHeader = incomingHeaders.get(RAW_HEADER_KEY);
         String reqId = incomingHeaders.get(REQUEST_ID_KEY);
 
-        // Validate required headers
         if (encodedHeader == null) {
             throw new TransportException("Missing required header: " + RAW_HEADER_KEY);
         }
@@ -73,21 +68,16 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
             throw new TransportException("Missing required header: " + REQUEST_ID_KEY);
         }
 
-        // Decode and process the header
         try {
-            // Decode base64 header
             byte[] headerBuffer = Base64.getDecoder().decode(encodedHeader);
             BytesReference headerRef = new BytesArray(headerBuffer);
 
-            // Parse the header
             Header header = InboundDecoder.readHeader(version, headerRef.length(), headerRef);
 
-            // Validate version compatibility
             if (!Version.CURRENT.isCompatible(header.getVersion())) {
                 throw new TransportException("Incompatible version: " + header.getVersion() + ", current: " + Version.CURRENT);
             }
 
-            // Check for transport errors
             if (TransportStatus.isError(header.getStatus())) {
                 throw new TransportException("Received error response with status: " + header.getStatus());
             }
@@ -103,14 +93,10 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
     }
 
     @Override
-    public void onBeforeSendingHeaders(CallHeaders outgoingHeaders) {
-        // No headers to add when sending requests
-    }
+    public void onBeforeSendingHeaders(CallHeaders outgoingHeaders) {}
 
     @Override
-    public void onCallCompleted(CallStatus status) {
-        // No cleanup needed when call completes
-    }
+    public void onCallCompleted(CallStatus status) {}
 
     /**
      * Factory for creating ClientHeaderMiddleware instances.
