@@ -44,19 +44,12 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
         return clauses.get(0).query();
     }
 
-    public static Query unwrapAppx(ApproximateBooleanQuery approxBoolQuery) {
-        Query clauseQuery = approxBoolQuery.getBooleanQuery().getClauseQuery();
+    public static Query unwrap(Query unwrapBoolQuery) {
+        Query clauseQuery = unwrapBoolQuery instanceof ApproximateScoreQuery
+            ? ((ApproximateBooleanQuery) unwrapBoolQuery).getClauseQuery()
+            : ((BooleanQuery) unwrapBoolQuery).clauses().get(0).query();
         if (clauseQuery instanceof ApproximateBooleanQuery nestedBool) {
-            return unwrapAppx(nestedBool);
-        } else {
-            return clauseQuery;
-        }
-    }
-
-    public static Query unwrapReal(BooleanQuery realBoolQuery) {
-        Query clauseQuery = realBoolQuery.clauses().get(0).query();
-        if (clauseQuery instanceof BooleanQuery nestedBool) {
-            return unwrapReal(nestedBool);
+            return unwrap(nestedBool);
         } else {
             return clauseQuery;
         }
