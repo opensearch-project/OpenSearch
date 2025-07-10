@@ -104,6 +104,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
+        public static final String STREAM_SEARCH = "stream_search";
         public static final String SEARCH_THROTTLED = "search_throttled";
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
@@ -181,6 +182,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.WRITE, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
+        map.put(Names.STREAM_SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
@@ -260,6 +262,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(
             Names.SEARCH,
             new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
+        );
+        // TODO: configure the appropriate size and explore use of virtual threads
+        builders.put(
+            Names.STREAM_SEARCH,
+            new ResizableExecutorBuilder(
+                settings,
+                Names.STREAM_SEARCH,
+                searchThreadPoolSize(allocatedProcessors),
+                1000,
+                runnableTaskListener
+            )
         );
         builders.put(Names.SEARCH_THROTTLED, new ResizableExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, runnableTaskListener));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));

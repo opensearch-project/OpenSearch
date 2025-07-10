@@ -120,6 +120,7 @@ public final class MockTransportService extends TransportService {
         return createNewService(settings, version, threadPool, null, tracer);
     }
 
+    // TODO: we need to add support for mock version of StreamTransportService
     public static MockTransportService createNewService(
         Settings settings,
         Version version,
@@ -237,12 +238,47 @@ public final class MockTransportService extends TransportService {
         Set<String> taskHeaders,
         Tracer tracer
     ) {
-        this(settings, new StubbableTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, tracer);
+        this(
+            settings,
+            new StubbableTransport(transport),
+            null,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            taskHeaders,
+            tracer
+        );
+    }
+
+    public MockTransportService(
+        Settings settings,
+        Transport transport,
+        @Nullable Transport streamTransport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders,
+        Tracer tracer
+    ) {
+        this(
+            settings,
+            new StubbableTransport(transport),
+            streamTransport != null ? new StubbableTransport(streamTransport) : null,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            taskHeaders,
+            tracer
+        );
     }
 
     private MockTransportService(
         Settings settings,
         StubbableTransport transport,
+        @Nullable StubbableTransport streamTransport,
         ThreadPool threadPool,
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
@@ -253,6 +289,7 @@ public final class MockTransportService extends TransportService {
         super(
             settings,
             transport,
+            streamTransport,
             threadPool,
             interceptor,
             localNodeFactory,
