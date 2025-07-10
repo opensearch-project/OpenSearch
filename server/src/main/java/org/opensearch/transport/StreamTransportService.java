@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -34,8 +35,14 @@ import static org.opensearch.discovery.HandshakingTransportAddressConnector.PROB
  */
 public class StreamTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(StreamTransportService.class);
-    // TODO make it configurable
-    private static final TimeValue DEFAULT_STREAM_TIMEOUT = TimeValue.timeValueMinutes(5);
+    public static final Setting<TimeValue> STREAM_TRANSPORT_REQ_TIMEOUT_SETTING = Setting.timeSetting(
+        "transport.stream.request_timeout",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private volatile TimeValue streamTransportReqTimeout;
 
     public StreamTransportService(
         Settings settings,
@@ -68,6 +75,11 @@ public class StreamTransportService extends TransportService {
             ),
             tracer
         );
+
+        this.streamTransportReqTimeout = STREAM_TRANSPORT_REQ_TIMEOUT_SETTING.get(settings);
+        if (clusterSettings != null) {
+            clusterSettings.addSettingsUpdateConsumer(STREAM_TRANSPORT_REQ_TIMEOUT_SETTING, this::setStreamTransportReqTimeout);
+        }
     }
 
     @Override
@@ -83,7 +95,7 @@ public class StreamTransportService extends TransportService {
             action,
             request,
             parentTask,
-            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).withTimeout(DEFAULT_STREAM_TIMEOUT).build(),
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).withTimeout(streamTransportReqTimeout).build(),
             handler
         );
     }
@@ -116,5 +128,9 @@ public class StreamTransportService extends TransportService {
             logger.error("Failed to get streaming connection to node [{}]: {}", node, e.getMessage());
             throw new ConnectTransportException(node, "Failed to get streaming connection", e);
         }
+    }
+
+    private void setStreamTransportReqTimeout(TimeValue streamTransportReqTimeout) {
+        this.streamTransportReqTimeout = streamTransportReqTimeout;
     }
 }

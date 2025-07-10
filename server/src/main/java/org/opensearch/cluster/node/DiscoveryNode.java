@@ -352,7 +352,11 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
         this.address = new TransportAddress(in);
-        this.streamAddress = in.readOptionalWriteable(TransportAddress::new);
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            this.streamAddress = in.readOptionalWriteable(TransportAddress::new);
+        } else {
+            streamAddress = null;
+        }
 
         int size = in.readVInt();
         this.attributes = new HashMap<>(size);
@@ -431,7 +435,9 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeOptionalWriteable(streamAddress);
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            out.writeOptionalWriteable(streamAddress);
+        }
     }
 
     private void writeRolesAndVersion(StreamOutput out) throws IOException {

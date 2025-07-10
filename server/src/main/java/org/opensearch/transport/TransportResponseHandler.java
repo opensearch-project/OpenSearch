@@ -51,8 +51,6 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     void handleResponse(T response);
 
-    // TODO: revisit this part; if we should add it here or create a new type of TransportResponseHandler
-    // for stream transport requests;
     /**
      * Processes a streaming transport response containing multiple batches.
      * <p>
