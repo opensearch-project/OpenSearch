@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -64,10 +65,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      */
     public CombinedFieldsQueryBuilder(Object value, String... fields) {
         if (value == null) {
-            throw new IllegalArgumentException(String.format("[%s] requires query value", NAME));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "[%s] requires query value", NAME));
         }
         if (fields == null) {
-            throw new IllegalArgumentException(String.format("[%s] requires field list", NAME));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "[%s] requires field list", NAME));
         }
         this.queryValue = value;
         this.fieldToWeight = QueryParserHelper.parseFieldsAndWeights(Arrays.asList(fields));
@@ -171,7 +172,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         builder.field(QUERY_FIELD.getPreferredName(), queryValue);
         builder.startArray(FIELDS_FIELD.getPreferredName());
         for (Map.Entry<String, Float> fieldEntry : this.fieldToWeight.entrySet()) {
-            builder.value(String.format("%s^%s", fieldEntry.getKey(), fieldEntry.getValue()));
+            builder.value(String.format(Locale.ROOT, "%s^%s", fieldEntry.getKey(), fieldEntry.getValue()));
         }
         builder.endArray();
         builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
@@ -261,7 +262,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      */
     private void validateFieldType(MappedFieldType fieldType) {
         if (fieldType.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false) {
-            throw new IllegalArgumentException(String.format("Field [%s] of type [%s] does not support [%s] queries",
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Field [%s] of type [%s] does not support [%s] queries",
                 fieldType.name(), fieldType.typeName(), NAME));
         }
     }
@@ -276,7 +277,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         for (MappedFieldType fieldType : fieldTypes) {
             Analyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
             if (sharedAnalyzer != null && analyzer.equals(sharedAnalyzer) == false) {
-                throw new IllegalArgumentException(String.format("All fields in [%s] query must have the same search analyzer", NAME));
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "All fields in [%s] query must have the same search analyzer", NAME));
             }
             sharedAnalyzer = analyzer;
         }
