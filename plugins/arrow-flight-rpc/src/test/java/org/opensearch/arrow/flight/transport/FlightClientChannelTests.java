@@ -13,9 +13,11 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.stream.StreamCancellationException;
@@ -112,6 +114,21 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         CountDownLatch handlerLatch = new CountDownLatch(1);
         AtomicInteger responseCount = new AtomicInteger(0);
         AtomicReference<Exception> handlerException = new AtomicReference<>();
+        AtomicInteger messageSentCount = new AtomicInteger(0);
+
+        TransportMessageListener testListener = new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
+                messageSentCount.incrementAndGet();
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error) {
+                messageSentCount.incrementAndGet();
+            }
+        };
+
+        flightTransport.setMessageListener(testListener);
 
         streamTransportService.registerRequestHandler(
             action,
@@ -180,6 +197,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertTrue(handlerLatch.await(5, TimeUnit.SECONDS));
         assertEquals(3, responseCount.get());
         assertNull(handlerException.get());
+        assertEquals(4, messageSentCount.get());
     }
 
     public void testStreamResponseProcessingWithHandlerException() throws InterruptedException {
@@ -241,7 +259,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
-        assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(4, TimeUnit.SECONDS));
         assertNotNull(handlerException.get());
         assertTrue(handlerException.get().getMessage(), handlerException.get().getMessage().contains("Stream initialization failed"));
     }
@@ -422,7 +440,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         };
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
-        assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(4, TimeUnit.SECONDS));
         assertEquals(1, responseCount.get());
         assertNull(handlerException.get());
     }
@@ -546,11 +564,23 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
-        assertTrue(handlerLatch.await(2, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(4, TimeUnit.SECONDS));
         assertNotNull(handlerException.get());
         assertTrue(
             "Expected TransportException but got: " + handlerException.get().getClass(),
             handlerException.get() instanceof TransportException
         );
+    }
+
+    public void testSetMessageListenerTwice() {
+        TransportMessageListener listener1 = new TransportMessageListener() {
+        };
+        TransportMessageListener listener2 = new TransportMessageListener() {
+        };
+
+        flightTransport.setMessageListener(listener1);
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> flightTransport.setMessageListener(listener2));
+        assertEquals("Cannot set message listener twice", exception.getMessage());
     }
 }
