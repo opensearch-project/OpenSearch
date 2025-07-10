@@ -2400,7 +2400,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         NoopMetricsRegistry.INSTANCE,
                         searchRequestOperationsCompositeListenerFactory,
                         NoopTracer.INSTANCE,
-                        new TaskResourceTrackingService(settings, clusterSettings, threadPool)
+                        new TaskResourceTrackingService(settings, clusterSettings, threadPool),
+                        mock(IndicesService.class)
                     )
                 );
                 actions.put(
