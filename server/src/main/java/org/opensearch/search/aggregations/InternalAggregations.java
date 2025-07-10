@@ -86,9 +86,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
-        // TODO: revert; Temp change to test ArrowStreamOutput or maybe this is the correct way
-        final InternalAggregations res = from(in.readNamedWriteableList(InternalAggregation.class));
-        // final InternalAggregations res = from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
+        final InternalAggregations res = from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
         return res;
     }
 
