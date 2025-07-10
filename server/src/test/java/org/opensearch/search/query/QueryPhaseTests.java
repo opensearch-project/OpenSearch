@@ -1010,8 +1010,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         IndexReader reader = DirectoryReader.open(dir);
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
-        context.trackScores(true);
-        Sort sort = new Sort(new SortField("_score", SortField.Type.SCORE), new SortField("_doc", SortField.Type.DOC));
+        context.trackScores(false);
+        Sort sort = new Sort(new SortField(null, SortField.Type.SCORE), new SortField(null, SortField.Type.DOC));
         SortAndFormats sortAndFormats = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
         context.sort(sortAndFormats);
         context.parsedQuery(
