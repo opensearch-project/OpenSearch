@@ -93,6 +93,13 @@ public class CodecService {
         this.codecs = codecs.immutableMap();
     }
 
+    /**
+     * Returns default codec
+     */
+    public final Codec defaultCodec() {
+        return codecs.get(DEFAULT_CODEC);
+    }
+
     public Codec codec(String name) {
         Codec codec = codecs.get(name);
         if (codec == null) {
