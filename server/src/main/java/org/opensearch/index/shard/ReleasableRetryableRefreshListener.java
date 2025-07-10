@@ -49,6 +49,8 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      */
     private final AtomicBoolean retryScheduled = new AtomicBoolean(false);
 
+    private final AtomicBoolean pendingRefresh = new AtomicBoolean(false);
+
     public ReleasableRetryableRefreshListener() {
         this.threadPool = null;
     }
@@ -64,7 +66,21 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
             return;
         }
         runAfterRefreshExactlyOnce(didRefresh);
-        runAfterRefreshWithPermit(didRefresh, () -> {});
+        executePostRefreshOperation(didRefresh);
+    }
+
+    private void executePostRefreshOperation(boolean didRefresh) {
+        if (isClosed()) {
+            return;
+        }
+
+        if (shouldRunAsync()) {
+            getLogger().debug("Using asynchronous processing with didRefresh = {}", didRefresh);
+            this.threadPool.executor(getRemoteRefreshThreadPoolName()).execute(() -> { runAfterRefreshWithPermit(didRefresh, () -> {}); });
+        } else {
+            getLogger().debug("Using synchronous processing for critical operations with didRefresh = {}", didRefresh);
+            runAfterRefreshWithPermit(didRefresh, () -> {});
+        }
     }
 
     /**
@@ -124,7 +140,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
         boolean scheduled = false;
         try {
             this.threadPool.schedule(
-                () -> runAfterRefreshWithPermit(didRefresh, () -> retryScheduled.set(false)),
+                () -> { runAfterRefreshWithPermit(didRefresh, () -> retryScheduled.set(false)); },
                 interval,
                 retryThreadPoolName
             );
@@ -145,6 +161,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
 
     /**
      * This returns if the retry is enabled or not. By default, the retries are not enabled.
+     *
      * @return true if retry is enabled.
      */
     protected boolean isRetryEnabled() {
@@ -161,16 +178,23 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
         if (closed.get()) {
             return;
         }
+        if (!semaphore.tryAcquire()) {
+            pendingRefresh.set(true);
+            return;
+        }
+
         boolean successful;
-        boolean permitAcquired = semaphore.tryAcquire();
         try {
-            successful = permitAcquired && performAfterRefreshWithPermit(didRefresh);
+            do {
+                pendingRefresh.set(false);
+                successful = performAfterRefreshWithPermit(didRefresh);
+            } while (pendingRefresh.compareAndSet(true, false) && closed.get() == false);
+
         } finally {
-            if (permitAcquired) {
-                semaphore.release();
-            }
+            semaphore.release();
             runFinally.run();
         }
+
         scheduleRetry(successful, didRefresh);
     }
 
@@ -216,9 +240,19 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
         }
     }
 
+    /**
+     * By default returns false (synchronous execution).
+     *
+     * @return true if async execution should be used, false otherwise
+     */
+    protected abstract boolean shouldRunAsync();
+
+    protected abstract String getRemoteRefreshThreadPoolName();
+
     protected abstract Logger getLogger();
 
     // Made available for unit testing purpose only
+
     /**
      * Returns the timeout which is used while draining refreshes.
      */
@@ -227,6 +261,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
     }
 
     // Visible for testing
+
     /**
      * Returns if the retry is scheduled or not.
      *

@@ -86,6 +86,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         if (primary) {
             indexDocs(1, numberOfDocs);
             indexShard.refresh("test");
+            indexShard.awaitRemoteStoreSync();
         }
 
         clusterService = ClusterServiceUtils.createClusterService(
@@ -251,6 +252,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void testAfterRefresh() throws IOException {
         setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
+        indexShard.awaitRemoteStoreSync();
 
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
@@ -269,6 +271,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
         flushShard(indexShard);
+        indexShard.waitForLocalCommitToBeUploadedToRemote(TimeValue.timeValueMinutes(1));
 
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
@@ -290,9 +293,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
 
         indexDocs(4, 4);
         indexShard.refresh("test");
+        indexShard.awaitRemoteStoreSync();
 
         indexDocs(8, 4);
         indexShard.refresh("test");
+        indexShard.awaitRemoteStoreSync();
 
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
@@ -315,6 +320,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexDocs(4 * (i + 1), 4);
             flushShard(indexShard);
         }
+
+        indexShard.awaitRemoteStoreSync();
 
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
@@ -555,6 +562,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertBusy(() -> assertNoLag(tracker));
         indexDocs(100, randomIntBetween(100, 200));
         indexShard.refresh("test");
+        indexShard.awaitRemoteStoreSync();
         listener.afterRefresh(true);
         assertBusy(() -> assertNoLag(tracker));
     }
@@ -702,6 +710,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             new InternalEngineFactory()
         );
 
+        indexShard.awaitRemoteStoreSync();
         RemoteSegmentTransferTracker tracker = indexShard.getRemoteStoreStatsTrackerFactory()
             .getRemoteSegmentTransferTracker(indexShard.shardId());
         try {
@@ -839,6 +848,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteStoreSettings
         );
         refreshListener.afterRefresh(true);
+        indexShard.awaitRemoteStoreSync();
         return Tuple.tuple(refreshListener, remoteStoreStatsTrackerFactory);
     }
 
@@ -875,6 +885,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void testRemoteSegmentStoreNotInSync() throws IOException {
         setup(true, 3);
         remoteStoreRefreshListener.afterRefresh(true);
+        indexShard.awaitRemoteStoreSync();
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
                 (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
