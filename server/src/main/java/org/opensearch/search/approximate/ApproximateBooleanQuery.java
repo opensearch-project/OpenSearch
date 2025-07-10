@@ -62,6 +62,9 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             // If the clause is already an ApproximateScoreQuery, we can approximate + set context
             if (clauseQuery instanceof ApproximateScoreQuery approximateScoreQuery) {
                 approximateScoreQuery.setContext(context);
+                if (approximateScoreQuery.getApproximationQuery() instanceof ApproximateBooleanQuery nestedBool) {
+                    return nestedBool.canApproximate(context);
+                }
                 return true;
             }
         }
@@ -78,8 +81,8 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
             // If the single clause is an ApproximateScoreQuery, set its context
             if (clauseQuery instanceof ApproximateScoreQuery approximateQuery) {
-                if (approximateQuery.getApproximationQuery() instanceof ApproximateBooleanQuery nestedBool) {
-                    return nestedBool.rewrite(indexSearcher);
+                if (approximateQuery.getApproximationQuery() instanceof ApproximateBooleanQuery) {
+                    return approximateQuery.rewrite(indexSearcher);
                 }
                 return approximateQuery;
             }
