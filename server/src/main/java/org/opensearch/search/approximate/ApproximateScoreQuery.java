@@ -9,6 +9,7 @@
 package org.opensearch.search.approximate;
 
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -51,13 +52,19 @@ public final class ApproximateScoreQuery extends Query {
         Query rewritten = resolvedQuery.rewrite(indexSearcher);
         if (rewritten != resolvedQuery) {
             // To make sure that query goes through entire rewrite process
-            resolvedQuery = indexSearcher.rewrite(rewritten);
+            resolvedQuery = rewritten;
         }
         return this;
     }
 
     public void setContext(SearchContext context) {
         resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
+        if (resolvedQuery instanceof ApproximateScoreQuery appxScore
+            && appxScore.getApproximationQuery() instanceof ApproximateBooleanQuery appxBoolean) {
+            resolvedQuery = ApproximateBooleanQuery.unwrapAppx(appxBoolean);
+        } else if (resolvedQuery instanceof BooleanQuery) {
+            resolvedQuery = ApproximateBooleanQuery.unwrapReal((BooleanQuery) resolvedQuery);
+        }
     };
 
     @Override
