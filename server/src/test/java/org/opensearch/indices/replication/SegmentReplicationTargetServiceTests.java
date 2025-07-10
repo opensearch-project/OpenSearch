@@ -40,6 +40,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationCollection;
@@ -205,9 +206,18 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     public void testsSuccessfulMergeSegmentReplication_listenerCompletes() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
+        ReplicationCheckpoint replicationCheckpoint = primaryShard.getLatestReplicationCheckpoint();
         sut.startMergedSegmentReplication(
             replicaShard,
-            primaryShard.getLatestReplicationCheckpoint(),
+            new MergeSegmentCheckpoint(
+                replicationCheckpoint.getShardId(),
+                replicationCheckpoint.getPrimaryTerm(),
+                replicationCheckpoint.getSegmentInfosVersion(),
+                replicationCheckpoint.getLength(),
+                replicationCheckpoint.getCodec(),
+                replicationCheckpoint.getMetadataMap(),
+                "mock"
+            ),
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {
