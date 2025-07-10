@@ -26,7 +26,6 @@ import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
-import static org.junit.Assert.assertNotNull;
 
 public class LeafSorterOptimizationTests extends EngineTestCase {
 
