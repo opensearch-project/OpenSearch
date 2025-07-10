@@ -1247,7 +1247,7 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             final Supplier<Transport> streamTransportSupplier = networkModule.getStreamTransportSupplier();
             if (FeatureFlags.isEnabled(STREAM_TRANSPORT) && streamTransportSupplier == null) {
-                throw new IllegalStateException("STREAM_TRANSPORT is enabled but no stream transport supplier is provided");
+                throw new IllegalStateException(STREAM_TRANSPORT + " is enabled but no stream transport supplier is provided");
             }
             final Transport streamTransport = (streamTransportSupplier != null ? streamTransportSupplier.get() : null);
 

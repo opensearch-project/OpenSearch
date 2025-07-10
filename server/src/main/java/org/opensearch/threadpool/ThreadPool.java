@@ -263,6 +263,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.SEARCH,
             new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
         );
+        // TODO: configure the appropriate size and explore use of virtual threads
         builders.put(
             Names.STREAM_SEARCH,
             new ResizableExecutorBuilder(
@@ -273,7 +274,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 runnableTaskListener
             )
         );
-
         builders.put(Names.SEARCH_THROTTLED, new ResizableExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, runnableTaskListener));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
