@@ -140,6 +140,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             indexShard.shardId(),
             PRIMARY_TERM,
             1,
+            1,
             Codec.getDefault().getName(),
             Map.of("testFile", testMetadata),
             "_0"
@@ -198,6 +199,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         final ReplicationCheckpoint checkpoint = new MergeSegmentCheckpoint(
             indexShard.shardId(),
             PRIMARY_TERM,
+            1,
             1,
             Codec.getDefault().getName(),
             Map.of("testFile", testMetadata),

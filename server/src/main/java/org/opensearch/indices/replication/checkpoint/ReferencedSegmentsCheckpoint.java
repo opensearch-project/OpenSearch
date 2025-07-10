@@ -41,65 +41,40 @@ import org.opensearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 
 /**
- * Represents a Pre-copy merged segment which is sent to a replica shard.
+ * Represents referenced segments which is sent to a replica shard.
  * Inherit {@link ReplicationCheckpoint}, but the segmentsGen will not be used.
  *
  * @opensearch.internal
  */
 @ExperimentalApi
-public class MergeSegmentCheckpoint extends ReplicationCheckpoint {
-    private final String segmentName;
+public class ReferencedSegmentsCheckpoint extends ReplicationCheckpoint {
+    private final Set<String> segmentNames;
 
-    public MergeSegmentCheckpoint(
+    public ReferencedSegmentsCheckpoint(
         ShardId shardId,
         long primaryTerm,
-        long segmentInfosVersion,
         long length,
         String codec,
         Map<String, StoreFileMetadata> metadataMap,
-        String segmentName
+        long segmentInfosVersion,
+        Set<String> segmentNames
     ) {
         super(shardId, primaryTerm, SequenceNumbers.NO_OPS_PERFORMED, segmentInfosVersion, length, codec, metadataMap);
-        this.segmentName = segmentName;
+        this.segmentNames = segmentNames;
     }
 
-    public MergeSegmentCheckpoint(StreamInput in) throws IOException {
+    public ReferencedSegmentsCheckpoint(StreamInput in) throws IOException {
         super(in);
-        segmentName = in.readString();
-    }
-
-    /**
-     * The segmentName
-     *
-     * @return the segmentCommitInfo name
-     */
-    public String getSegmentName() {
-        return segmentName;
+        segmentNames = in.readSet(StreamInput::readString);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(segmentName);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MergeSegmentCheckpoint that = (MergeSegmentCheckpoint) o;
-        return getPrimaryTerm() == that.getPrimaryTerm()
-            && segmentName.equals(that.segmentName)
-            && Objects.equals(getShardId(), that.getShardId())
-            && getCodec().equals(that.getCodec());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getShardId(), getPrimaryTerm(), segmentName);
+        out.writeStringCollection(segmentNames);
     }
 
     @Override
@@ -119,8 +94,12 @@ public class MergeSegmentCheckpoint extends ReplicationCheckpoint {
             + getCodec()
             + ", timestamp="
             + getCreatedTimeStamp()
-            + ", segmentName="
-            + segmentName
+            + ", segmentNames="
+            + segmentNames
             + '}';
+    }
+
+    public Set<String> getSegmentNames() {
+        return segmentNames;
     }
 }

@@ -132,6 +132,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
             indexShard.shardId(),
             1,
+            1,
             1111,
             Codec.getDefault().getName(),
             Collections.emptyMap(),
@@ -170,6 +171,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
 
         final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
             indexShard.shardId(),
+            1,
             1,
             1111,
             Codec.getDefault().getName(),
@@ -214,6 +216,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
 
         final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
             indexShard.shardId(),
+            1,
             1,
             1111,
             Codec.getDefault().getName(),
@@ -265,6 +268,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
 
         final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
             indexShard.shardId(),
+            1,
             1,
             1111,
             Codec.getDefault().getName(),

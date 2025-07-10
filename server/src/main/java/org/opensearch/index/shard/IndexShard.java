@@ -40,6 +40,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -106,6 +107,7 @@ import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -203,6 +205,8 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsCheckpoint;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
@@ -383,6 +387,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile AsyncShardRefreshTask refreshTask;
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentPublisher mergedSegmentPublisher;
+    private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
+    private final Set<MergeSegmentCheckpoint> pendingMergeSegmentCheckpoints = Sets.newConcurrentHashSet();
 
     @InternalApi
     public IndexShard(
@@ -422,7 +428,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Supplier<TimeValue> refreshInterval,
         final Object refreshMutex,
         final ClusterApplierService clusterApplierService,
-        @Nullable final MergedSegmentPublisher mergedSegmentPublisher
+        @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
+        @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -531,6 +538,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
         this.clusterApplierService = clusterApplierService;
         this.mergedSegmentPublisher = mergedSegmentPublisher;
+        this.referencedSegmentsPublisher = referencedSegmentsPublisher;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -1765,7 +1773,85 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Optional<NRTReplicationEngine> engineOptional = getReplicationEngine();
         if (engineOptional.isPresent()) {
             engineOptional.get().updateSegments(infos);
+            for (SegmentCommitInfo segmentCommitInfo : infos) {
+                String segmentCommitInfoName = segmentCommitInfo.info.name;
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "segment replication complete, remove segment {} from pending merged segments",
+                        segmentCommitInfoName
+                    )
+                );
+                pendingMergeSegmentCheckpoints.removeIf(s -> s.getSegmentName().equals(segmentCommitInfoName));
+            }
         }
+    }
+
+    /**
+     * The replica shard cleans up redundant pending merged segments based on the referenced segments of the primary shard.
+     * Here, an example of generating redundant pending merged segments will be provided.
+     * At time1, the primary shard merges _1.si and _2.si into segment _3.si. _3.si is pre-copied to the replica shard, which completed at time4.
+     * At time2, the primary shard generated _4.si, and _1.si, _2.si, _4.si were copied to the replica shard via segment replication, which completed at time5.
+     * At time3, the primary shard merges _3.si and _4.si into segment _5.si. _5.si is pre-copied to the replica shard, which completed at time6.
+     * At time4, the replica completed the pre-copy of _3.si, but _3.si is not searchable.
+     * At time5, the reference counts of _1.si and _2.si in the primary shard decreased to 0 and were deleted.
+     * At time6, _5.si on the primary shard becomes searchable. The reference counts of _3.si and _4.si in the primary shard decreased to 0 and were deleted.
+     *           _5.si were copied to the replica shard via segment replication, which completed at time7 (This process is fast because it has already performed pre-copy).
+     * At time7, _5.si on the replica shard becomes searchable. The reference counts of _1.si, _2.si and _4.si in the replica shard decreased to 0 and were deleted.
+     * After time7, _3.si on the replica is the redundant pending merged segment.
+     * ------------------------------------------------------------------------------
+     *       |               primary             |              replica
+     * ------------------------------------------------------------------------------
+     * time1 | _1.si, _2.si, _3.si               |
+     * ------------------------------------------------------------------------------
+     * time2 | _1.si, _2.si, _3.si, _4.si        |
+     * ------------------------------------------------------------------------------
+     * time3 | _1.si, _2.si, _3.si, _4.si, _5.si |
+     * ------------------------------------------------------------------------------
+     * time4 | _1.si, _2.si, _3.si, _4.si, _5.si | _3.si
+     * ------------------------------------------------------------------------------
+     * time5 | _3.si, _4.si, _5.si               | _1.si, _2.si, _3.si, _4.si
+     * ------------------------------------------------------------------------------
+     * time6 | _5.si                             | _1.si, _2.si, _3.si, _4.si, _5.si
+     * ------------------------------------------------------------------------------
+     * time7 | _5.si                             | _3.si, _5.si
+     * ------------------------------------------------------------------------------
+     * Cleanup strategy:
+     * When the following conditions are met, we will consider the pending merge segment to be redundant and can be deleted.
+     * 1. The current primary term of the primary shard is greater than the primary term when the pending merge segment was generated,
+     *    or the primary terms are identical but the segmentInfosVersion of the primary shard is greater than the segmentInfosVersion
+     *    when the pending merge segment was generated.
+     * 2. The pending merge segment no longer exists in the primary shard.
+     *
+     * @param referencedSegmentsCheckpoint primary referenced segments
+     */
+    public void cleanupRedundantPendingMergeSegment(ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint) {
+        List<MergeSegmentCheckpoint> pendingDeleteCheckpoints = new ArrayList<>();
+        for (MergeSegmentCheckpoint mergeSegmentCheckpoint : pendingMergeSegmentCheckpoints) {
+            if (false == referencedSegmentsCheckpoint.getSegmentNames().contains(mergeSegmentCheckpoint.getSegmentName())
+                && referencedSegmentsCheckpoint.isAheadOf(mergeSegmentCheckpoint)) {
+                logger.trace(
+                    "cleanup mergeSegmentCheckpoint [{}] term [{}] segmentInfosVersion [{}], primary shard term [{}] segmentInfosVersion [{}]",
+                    mergeSegmentCheckpoint.getSegmentName(),
+                    mergeSegmentCheckpoint.getPrimaryTerm(),
+                    mergeSegmentCheckpoint.getSegmentInfosVersion(),
+                    referencedSegmentsCheckpoint.getPrimaryTerm(),
+                    referencedSegmentsCheckpoint.getSegmentInfosVersion()
+                );
+                pendingDeleteCheckpoints.add(mergeSegmentCheckpoint);
+            }
+        }
+        for (MergeSegmentCheckpoint mergeSegmentCheckpoint : pendingDeleteCheckpoints) {
+            store.deleteQuiet(mergeSegmentCheckpoint.getMetadataMap().keySet().toArray(new String[0]));
+            pendingMergeSegmentCheckpoints.remove(mergeSegmentCheckpoint);
+        }
+    }
+
+    public void addPendingMergeSegmentCheckpoint(MergeSegmentCheckpoint mergeSegmentCheckpoint) {
+        pendingMergeSegmentCheckpoints.add(mergeSegmentCheckpoint);
+    }
+
+    public Set<MergeSegmentCheckpoint> getPendingMergeSegmentCheckpoints() {
+        return pendingMergeSegmentCheckpoints;
     }
 
     /**
@@ -1858,6 +1944,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return checkpoint;
     }
 
+    public void publishReferencedSegments() throws IOException {
+        assert referencedSegmentsPublisher != null;
+        referencedSegmentsPublisher.publish(this, computeReferencedSegmentsCheckpoint());
+    }
+
+    /**
+     * Compute {@link ReferencedSegmentsCheckpoint}.
+     * This function fetches all segments from the store that comes with an IO cost.
+     *
+     * @return {@link ReferencedSegmentsCheckpoint}.
+     * @throws IOException When there is an error computing referenced segments.
+     */
+    public ReferencedSegmentsCheckpoint computeReferencedSegmentsCheckpoint() throws IOException {
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
+            String[] allFiles = store.directory().listAll();
+            Set<String> segmentNames = Sets.newHashSet();
+            for (String file : allFiles) {
+                if (file.startsWith(IndexFileNames.SEGMENTS) || file.startsWith("extra") || IndexWriter.WRITE_LOCK_NAME.equals(file)) {
+                    continue;
+                }
+                String segmentName = IndexFileNames.parseSegmentName(file);
+                segmentNames.add(segmentName);
+            }
+            return new ReferencedSegmentsCheckpoint(
+                shardId,
+                getOperationPrimaryTerm(),
+                -1,
+                getEngine().config().getCodec().getName(),
+                Collections.emptyMap(),
+                segmentInfosGatedCloseable.get().getVersion(),
+                segmentNames
+            );
+        }
+    }
+
     public void publishMergedSegment(SegmentCommitInfo segmentCommitInfo) throws IOException {
         assert mergedSegmentPublisher != null;
         mergedSegmentPublisher.publish(this, computeMergeSegmentCheckpoint(segmentCommitInfo));
@@ -1873,17 +1994,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public MergeSegmentCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
         // Only need to get the file metadata information in segmentCommitInfo and reuse Store#getSegmentMetadataMap.
-        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
-        segmentInfos.add(segmentCommitInfo);
-        Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
-        return new MergeSegmentCheckpoint(
-            shardId,
-            getOperationPrimaryTerm(),
-            segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
-            getEngine().config().getCodec().getName(),
-            segmentMetadataMap,
-            segmentCommitInfo.info.name
-        );
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
+            SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
+            segmentInfos.add(segmentCommitInfo);
+            Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
+            return new MergeSegmentCheckpoint(
+                shardId,
+                getOperationPrimaryTerm(),
+                segmentInfosGatedCloseable.get().getVersion(),
+                segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+                getEngine().config().getCodec().getName(),
+                segmentMetadataMap,
+                segmentCommitInfo.info.name
+            );
+        }
     }
 
     /**

@@ -25,6 +25,7 @@ public class PublishMergedSegmentRequestTests extends OpenSearchTestCase {
         MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
             new ShardId(new Index("1", "1"), 0),
             0,
+            1,
             0,
             "",
             Collections.emptyMap(),
@@ -40,6 +41,7 @@ public class PublishMergedSegmentRequestTests extends OpenSearchTestCase {
         MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
             new ShardId(new Index("1", "1"), 0),
             0,
+            1,
             0,
             "",
             Collections.emptyMap(),

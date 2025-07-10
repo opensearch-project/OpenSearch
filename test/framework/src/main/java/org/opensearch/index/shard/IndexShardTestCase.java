@@ -143,6 +143,7 @@ import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
@@ -733,7 +734,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 indexSettings::getRefreshInterval,
                 new Object(),
                 clusterService.getClusterApplierService(),
-                MergedSegmentPublisher.EMPTY
+                MergedSegmentPublisher.EMPTY,
+                ReferencedSegmentsPublisher.EMPTY
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
