@@ -50,7 +50,8 @@ public final class ApproximateScoreQuery extends Query {
         }
         Query rewritten = resolvedQuery.rewrite(indexSearcher);
         if (rewritten != resolvedQuery) {
-            resolvedQuery = rewritten;
+            // To make sure that query goes through entire rewrite process
+            resolvedQuery = indexSearcher.rewrite(rewritten);
         }
         return this;
     }
