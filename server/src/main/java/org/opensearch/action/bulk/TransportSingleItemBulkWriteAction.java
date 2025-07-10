@@ -36,10 +36,13 @@ import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.WriteResponse;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
@@ -53,24 +56,34 @@ import org.opensearch.transport.TransportService;
 @Deprecated
 public abstract class TransportSingleItemBulkWriteAction<
     Request extends ReplicatedWriteRequest<Request>,
-    Response extends ReplicationResponse & WriteResponse> extends HandledTransportAction<Request, Response> {
+    Response extends ReplicationResponse & WriteResponse> extends HandledTransportAction<Request, Response>
+    implements
+        TransportIndicesResolvingAction<Request> {
 
     private final TransportBulkAction bulkAction;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     protected TransportSingleItemBulkWriteAction(
         String actionName,
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        TransportBulkAction bulkAction
+        TransportBulkAction bulkAction,
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(actionName, transportService, actionFilters, requestReader);
         this.bulkAction = bulkAction;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
     protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
         bulkAction.execute(task, toSingleItemBulkRequest(request), wrapBulkResponse(listener));
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(Request request) {
+        return ResolvedIndices.of(indexNameExpressionResolver.resolveDateMathExpression(request.index()));
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> wrapBulkResponse(
@@ -97,4 +110,5 @@ public abstract class TransportSingleItemBulkWriteAction<
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         return bulkRequest;
     }
+
 }
