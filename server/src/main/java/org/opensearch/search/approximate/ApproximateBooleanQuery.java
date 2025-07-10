@@ -10,12 +10,10 @@ package org.opensearch.search.approximate;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.opensearch.search.internal.SearchContext;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -26,6 +24,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     public final BooleanQuery boolQuery;
     private final int size;
     private final List<BooleanClause> clauses;
+    private ApproximateBooleanQuery booleanQuery;
 
     public ApproximateBooleanQuery(BooleanQuery boolQuery) {
         this(boolQuery, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
@@ -37,9 +36,35 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
         this.clauses = boolQuery.clauses();
     }
 
+    public ApproximateBooleanQuery getBooleanQuery() {
+        return booleanQuery;
+    }
+
+    public Query getClauseQuery() {
+        return clauses.get(0).query();
+    }
+
+    public static Query unwrapAppx(ApproximateBooleanQuery approxBoolQuery) {
+        Query clauseQuery = approxBoolQuery.getBooleanQuery().getClauseQuery();
+        if (clauseQuery instanceof ApproximateBooleanQuery nestedBool) {
+            return unwrapAppx(nestedBool);
+        } else {
+            return clauseQuery;
+        }
+    }
+
+    public static Query unwrapReal(BooleanQuery realBoolQuery) {
+        Query clauseQuery = realBoolQuery.clauses().get(0).query();
+        if (clauseQuery instanceof BooleanQuery nestedBool) {
+            return unwrapReal(nestedBool);
+        } else {
+            return clauseQuery;
+        }
+    }
+
     @Override
     protected boolean canApproximate(SearchContext context) {
-
+        booleanQuery = this;
         if (context == null) {
             return false;
         }
@@ -70,28 +95,6 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
         }
 
         return false;
-    }
-
-    @Override
-    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        // Handle single clause boolean queries by unwrapping them and applying approximation
-        if (clauses.size() == 1) {
-            BooleanClause singleClause = clauses.get(0);
-            Query clauseQuery = singleClause.query();
-
-            // If the single clause is an ApproximateScoreQuery, set its context
-            if (clauseQuery instanceof ApproximateScoreQuery approximateQuery) {
-                if (approximateQuery.getApproximationQuery() instanceof ApproximateBooleanQuery) {
-                    return approximateQuery.rewrite(indexSearcher);
-                }
-                return approximateQuery;
-            }
-
-            return clauseQuery.rewrite(indexSearcher);
-        }
-
-        // For multi-clause boolean queries, use the default rewrite behavior
-        return boolQuery.rewrite(indexSearcher);
     }
 
     @Override
