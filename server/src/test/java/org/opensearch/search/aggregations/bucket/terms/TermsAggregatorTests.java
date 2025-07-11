@@ -1703,8 +1703,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             assertEquals(20, agg.getBuckets().size());
             for (int i = 0; i < agg.getBuckets().size(); i++) {
                 StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
-                assertThat(bucket.getKey(), equalTo("value" + (50 - i)));
-                assertThat(bucket.getDocCount(), equalTo(50L - i));
+                assertThat(bucket.getKey(), equalTo("value" + (100 - i)));
+                assertThat(bucket.getDocCount(), equalTo(100L - i));
             }
         }, ValueType.STRING);
     }
