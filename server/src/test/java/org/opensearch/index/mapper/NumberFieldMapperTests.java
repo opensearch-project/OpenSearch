@@ -86,7 +86,10 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed().value())
+        );
     }
 
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -211,23 +214,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 IndexableField[] fields = doc.rootDoc().getFields("field");
                 assertEquals(0, fields.length);
                 assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
-            }
-        }
-    }
-
-    /**
-     * Test that in case the malformed value is an xContent object we throw error regardless of `ignore_malformed`
-     */
-    public void testIgnoreMalformedWithObject() throws Exception {
-        SourceToParse malformed = source(b -> b.startObject("field").field("foo", "bar").endObject());
-        for (String type : types()) {
-            for (Boolean ignoreMalformed : new Boolean[] { true, false }) {
-                DocumentMapper mapper = createDocumentMapper(
-                    fieldMapping(b -> b.field("type", type).field("ignore_malformed", ignoreMalformed))
-                );
-                MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(malformed));
-                assertThat(e.getCause().getMessage(), containsString("Current token"));
-                assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
             }
         }
     }

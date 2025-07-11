@@ -91,7 +91,10 @@ public class DateFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("print_format", b -> b.field("print_format", "yyyy-MM-dd"));
         checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((DateFieldMapper) m).getIgnoreMalformed()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((DateFieldMapper) m).ignoreMalformed().value())
+        );
         checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
     }
 
