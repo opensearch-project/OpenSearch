@@ -43,6 +43,7 @@ import org.opensearch.search.profile.fetch.FetchTimingType;
 import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -120,7 +121,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
                 if (includeSource) {
                     String sourceJson = "{\"id\":" + i + ",\"content\":\"test content " + i + "\"}";
-                    doc.add(new org.apache.lucene.document.StoredField("_source", sourceJson.getBytes()));
+                    doc.add(new org.apache.lucene.document.StoredField("_source", sourceJson.getBytes(StandardCharsets.UTF_8)));
                 }
 
                 documents.add(doc);
