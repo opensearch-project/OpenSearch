@@ -108,6 +108,11 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             in.readOptionalString();
         }
         id = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.readBoolean()) {
+                query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
+            }
+        }
         path = in.readString();
         index = in.readString();
         routing = in.readOptionalString();
@@ -115,9 +120,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             store = in.readBoolean();
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            if (in.readBoolean()) {
-                query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
-            }
+            query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
         }
     }
 
@@ -133,7 +136,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeBoolean(store);
         }
-        out.writeOptionalWriteable(query);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(query);
+        }
     }
 
     public String path() {
@@ -236,8 +241,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             builder.field("routing", routing);
         }
         if (query != null) {
-            builder.field("query", query);
-            query.toXContent(builder, params); // Serialize the query field
+            builder.field("query");
+            query.toXContent(builder, params);
         }
         if (store) {
             builder.field("store", true);
