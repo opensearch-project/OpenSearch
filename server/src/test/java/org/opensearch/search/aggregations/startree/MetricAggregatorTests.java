@@ -186,7 +186,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             }
             if (random.nextBoolean()) {
                 val = random.nextInt(50); // Random long between 0 and 49
-                doc.add(new SortedNumericDocValuesField(FIELD_NAME, val));
+                doc.add(SortedNumericDocValuesField.indexedField(FIELD_NAME, val));
             }
             iw.addDocument(doc);
         }
@@ -602,7 +602,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         HALF_FLOAT(new NumericDimensionFieldDataSupplier() {
             @Override
             public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
-                return new SortedNumericDocValuesField(fieldName, HalfFloatPoint.halfFloatToSortableShort((Float) valueSupplier.get()));
+                return SortedNumericDocValuesField.indexedField(
+                    fieldName,
+                    HalfFloatPoint.halfFloatToSortableShort((Float) valueSupplier.get())
+                );
             }
 
             @Override

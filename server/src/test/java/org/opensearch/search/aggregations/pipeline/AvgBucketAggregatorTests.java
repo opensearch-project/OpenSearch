@@ -110,8 +110,8 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
                         indexWriter.commit();
                     }
 
-                    document.add(new SortedNumericDocValuesField(DATE_FIELD, asLong(date)));
-                    document.add(new SortedNumericDocValuesField(VALUE_FIELD, randomInt()));
+                    document.add(SortedNumericDocValuesField.indexedField(DATE_FIELD, asLong(date)));
+                    document.add(SortedNumericDocValuesField.indexedField(VALUE_FIELD, randomInt()));
                     indexWriter.addDocument(document);
                     document.clear();
                 }

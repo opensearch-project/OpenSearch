@@ -1029,7 +1029,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         Document doc = new Document();
         final BigInteger expectedValue = randomUnsignedLong();
-        doc.add(new SortedNumericDocValuesField("ul", expectedValue.longValue()));
+        doc.add(SortedNumericDocValuesField.indexedField("ul", expectedValue.longValue()));
         w.addDocument(doc);
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             final NumberFieldType ft = new NumberFieldType("ul", NumberType.UNSIGNED_LONG);

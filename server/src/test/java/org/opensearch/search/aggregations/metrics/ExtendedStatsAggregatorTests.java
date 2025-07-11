@@ -87,7 +87,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 for (int j = 0; j < numValues; j++) {
                     double value = randomDoubleBetween(-100d, 100d, true);
                     long valueAsLong = NumericUtils.doubleToSortableLong(value);
-                    doc.add(new SortedNumericDocValuesField("field", valueAsLong));
+                    doc.add(SortedNumericDocValuesField.indexedField("field", valueAsLong));
                     expected.add(value);
                 }
                 iw.addDocument(doc);
@@ -151,7 +151,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 Document doc = new Document();
                 double value = 49.95d;
                 long valueAsLong = NumericUtils.doubleToSortableLong(value);
-                doc.add(new SortedNumericDocValuesField("field", valueAsLong));
+                doc.add(SortedNumericDocValuesField.indexedField("field", valueAsLong));
                 expected.add(value);
                 iw.addDocument(doc);
             }
@@ -176,7 +176,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 int numValues = randomIntBetween(1, 5);
                 for (int j = 0; j < numValues; j++) {
                     long value = randomIntBetween(-100, 100);
-                    doc.add(new SortedNumericDocValuesField("field", value));
+                    doc.add(SortedNumericDocValuesField.indexedField("field", value));
                     expected.add(value);
                 }
                 iw.addDocument(doc);
