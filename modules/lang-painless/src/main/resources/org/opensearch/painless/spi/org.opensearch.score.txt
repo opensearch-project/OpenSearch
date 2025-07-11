@@ -39,5 +39,5 @@ static_import {
     double decayDateLinear(String, String, String, double, ZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateLinear
     double decayDateExp(String, String, String, double, ZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateExp
     double decayDateGauss(String, String, String, double, ZonedDateTime) bound_to org.opensearch.script.ScoreScriptUtils$DecayDateGauss
+    double lateInteractionScore(List, String, Map) from_class org.opensearch.painless.functions.PainlessVectorFunctions
 }
-

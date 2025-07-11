@@ -1,0 +1,192 @@
+# Integration tests for lateInteractionScore function in Painless
+---
+"LateInteractionScore function test":
+  - do:
+      indices.create:
+        index: maxsim_test
+        body:
+          mappings:
+            properties:
+              my_vector:
+                type: object
+                enabled: false
+              another_field:
+                type: text
+
+  - do:
+      index:
+        index: maxsim_test
+        id: 1
+        body:
+          my_vector: [
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+            [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+          ]
+          another_field: "document one"
+
+  - do:
+      index:
+        index: maxsim_test
+        id: 2
+        body:
+          my_vector: [
+            [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2],
+            [0.1, 0.3, 0.5, 0.7, 0.9, 0.8, 0.6, 0.4]
+          ]
+          another_field: "document two"
+
+  - do:
+      indices.refresh: {}
+
+  # Test with single query vector
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: maxsim_test
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "lateInteractionScore(params.query_vector, 'my_vector', params._source)"
+                params:
+                  query_vector: [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]]
+
+  - match: { hits.total: 2 }
+  # Document 2 has a higher score due to better overall similarity with the query vector
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+  # Test with multiple query vectors
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: maxsim_test
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "lateInteractionScore(params.query_vector, 'my_vector', params._source)"
+                params:
+                  query_vector: [
+                    [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+                    [0.1, 0.3, 0.5, 0.7, 0.9, 0.8, 0.6, 0.4]
+                  ]
+
+  # Both documents should have high scores, but document 2 should score higher
+  # because it matches both query vectors well
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+---
+"LateInteractionScore with empty vectors":
+  - do:
+      indices.create:
+        index: maxsim_empty_test
+        body:
+          mappings:
+            properties:
+              my_vector:
+                type: object
+                enabled: false
+              another_field:
+                type: text
+
+  - do:
+      index:
+        index: maxsim_empty_test
+        id: 1
+        body:
+          my_vector: []
+          another_field: "empty vector document"
+
+  - do:
+      index:
+        index: maxsim_empty_test
+        id: 2
+        body:
+          another_field: "no vector document"
+
+  - do:
+      indices.refresh: {}
+
+  # Test with empty document vectors
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: maxsim_empty_test
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "lateInteractionScore(params.query_vector, 'my_vector', params._source)"
+                params:
+                  query_vector: [[0.1, 0.2, 0.3, 0.4]]
+
+  # Both documents should return with score 0 since they have no valid vectors
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 0.0 }
+  - match: { hits.hits.1._score: 0.0 }
+
+---
+"LateInteractionScore with dimension mismatch":
+  - do:
+      indices.create:
+        index: maxsim_mismatch_test
+        body:
+          mappings:
+            properties:
+              my_vector:
+                type: object
+                enabled: false
+              another_field:
+                type: text
+
+  - do:
+      index:
+        index: maxsim_mismatch_test
+        id: 1
+        body:
+          my_vector: [
+            [0.1, 0.2, 0.3, 0.4],
+            [0.5, 0.6, 0.7, 0.8]
+          ]
+          another_field: "4-dim document"
+
+  - do:
+      index:
+        index: maxsim_mismatch_test
+        id: 2
+        body:
+          my_vector: [
+            [0.1, 0.2],
+            [0.3, 0.4]
+          ]
+          another_field: "2-dim document"
+
+  - do:
+      indices.refresh: {}
+
+  # Test with dimension mismatch
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: maxsim_mismatch_test
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "lateInteractionScore(params.query_vector, 'my_vector', params._source)"
+                params:
+                  query_vector: [[0.1, 0.2, 0.3]]
+
+  # Both documents should return but with different scores
+  # Document 1 should have score 0 (dimension mismatch)
+  # Document 2 should have score 0 (dimension mismatch)
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._score: 0.0 }
+  - match: { hits.hits.1._score: 0.0 }
