@@ -23,32 +23,24 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.search.profile.ProfileResult;
-import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.Profilers;
-import org.opensearch.search.profile.SearchProfileShardResults;
-import org.opensearch.search.profile.fetch.FetchProfileShardResult;
 import org.opensearch.search.profile.fetch.FetchProfiler;
 import org.opensearch.search.profile.fetch.FetchTimingType;
 import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,15 +48,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -174,16 +162,14 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
             // Verify that the timing was actually executed (count > 0)
             String countKey = timingType.toString() + "_count";
-            assertThat("Timing should have been executed: " + timingType,
-                breakdown.get(countKey), greaterThan(0L));
+            assertThat("Timing should have been executed: " + timingType, breakdown.get(countKey), greaterThan(0L));
 
             return this;
         }
 
         TimingAssertions assertAllTimingsNonNegative() {
             breakdown.forEach((key, value) -> {
-                assertThat("All timing values should be non-negative for key: " + key,
-                    value, greaterThanOrEqualTo(0L));
+                assertThat("All timing values should be non-negative for key: " + key, value, greaterThanOrEqualTo(0L));
             });
             return this;
         }
@@ -354,9 +340,11 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                     @Override
                     public void process(HitContext hitContext) {
                         // Mock implementation - add a simple field
-                        hitContext.hit().setDocumentField("mock_field",
-                            new org.opensearch.common.document.DocumentField("mock_field",
-                                Collections.singletonList("mock_value")));
+                        hitContext.hit()
+                            .setDocumentField(
+                                "mock_field",
+                                new org.opensearch.common.document.DocumentField("mock_field", Collections.singletonList("mock_value"))
+                            );
                     }
                 };
             }
@@ -370,14 +358,11 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
             int[] docIds = indexDocumentsAndGetIds(dir, docs, 2);
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard)
-                    .withStoredFields("id", "content")
-                    .build();
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withStoredFields("id", "content").build();
 
                 ProfileResult profile = executeFetchPhaseAndGetProfile(context, Collections.emptyList());
 
-                new TimingAssertions(profile.getTimeBreakdown())
-                    .assertBreakdownNotEmpty()
+                new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
                     .assertTimingExecuted(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
                     .assertAllTimingsNonNegative();
             }
@@ -391,15 +376,13 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
             int[] docIds = indexDocumentsAndGetIds(dir, docs, 2);
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard)
-                    .withSourceLoading()
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
                     .withStoredFields("_source")
                     .build();
 
                 ProfileResult profile = executeFetchPhaseAndGetProfile(context, Collections.emptyList());
 
-                new TimingAssertions(profile.getTimeBreakdown())
-                    .assertBreakdownNotEmpty()
+                new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
                     .assertTimingExecuted(FetchTimingType.LOAD_SOURCE)
                     .assertTimingExecuted(FetchTimingType.LOAD_STORED_FIELDS)
                     .assertAllTimingsNonNegative();
@@ -414,8 +397,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
             int[] docIds = indexDocumentsAndGetIds(dir, docs, 4);
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard)
-                    .withSourceLoading()
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
                     .withStoredFields("_source", "id", "content")
                     .build();
 
@@ -423,8 +405,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
 
                 // Verify all major timing types are present and executed
-                new TimingAssertions(profile.getTimeBreakdown())
-                    .assertBreakdownNotEmpty()
+                new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
                     .assertTimingExecuted(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
                     .assertTimingExecuted(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
                     .assertTimingExecuted(FetchTimingType.LOAD_STORED_FIELDS)

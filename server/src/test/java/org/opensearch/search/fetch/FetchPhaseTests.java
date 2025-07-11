@@ -170,5 +170,4 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         assertEquals("cancelled task with reason: test reason", ex.getMessage());
     }
 
-
 }
