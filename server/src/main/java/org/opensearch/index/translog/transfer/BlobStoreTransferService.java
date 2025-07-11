@@ -40,7 +40,6 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
@@ -192,7 +191,8 @@ public class BlobStoreTransferService implements TransferService {
                 listener.onFailure(new FileTransferException(fileSnapshot, ex));
             });
 
-            Objects.requireNonNull(fileSnapshot.getChecksum());
+            // Only the first generation doesn't have checksum
+            assert (fileSnapshot.getChecksum() != null || fileSnapshot.getName().contains("-1."));
             uploadBlobAsyncInternal(
                 fileSnapshot.getName(),
                 fileSnapshot.getName(),
@@ -226,7 +226,7 @@ public class BlobStoreTransferService implements TransferService {
         BlobPath blobPath,
         WritePriority writePriority,
         RemoteTransferContainer.OffsetRangeInputStreamSupplier inputStreamSupplier,
-        long expectedChecksum,
+        Long expectedChecksum,
         ActionListener<Void> completionListener,
         Map<String, String> metadata
     ) throws IOException {

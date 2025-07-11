@@ -31,7 +31,7 @@ public class WorkloadGroupsStateAccessor {
     }
 
     /**
-     * returns the query groups state
+     * returns the workload groups state
      */
     public Map<String, WorkloadGroupState> getWorkloadGroupStateMap() {
         return workloadGroupStateMap;
@@ -40,7 +40,7 @@ public class WorkloadGroupsStateAccessor {
     /**
      * return WorkloadGroupState for the given workloadGroupId
      * @param workloadGroupId
-     * @return WorkloadGroupState for the given workloadGroupId, if id is invalid return default query group state
+     * @return WorkloadGroupState for the given workloadGroupId, if id is invalid return default workload group state
      */
     public WorkloadGroupState getWorkloadGroupState(String workloadGroupId) {
         return workloadGroupStateMap.getOrDefault(

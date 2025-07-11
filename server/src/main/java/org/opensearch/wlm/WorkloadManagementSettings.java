@@ -49,13 +49,13 @@ public class WorkloadManagementSettings {
     );
 
     /**
-     * Setting name for Query Group Service run interval
+     * Setting name for Workload Group Service run interval
      */
     public static final String QUERYGROUP_ENFORCEMENT_INTERVAL_SETTING_NAME = "wlm.workload_group.enforcement_interval";
 
     private TimeValue workloadGroupServiceRunInterval;
     /**
-     * Setting to control the run interval of Query Group Service
+     * Setting to control the run interval of Workload Group Service
      */
     public static final Setting<Long> QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING = Setting.longSetting(
         QUERYGROUP_ENFORCEMENT_INTERVAL_SETTING_NAME,

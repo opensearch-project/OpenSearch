@@ -87,7 +87,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
     }
 
     /**
-     * This is a stats holder object which will hold the data for a query group at a point in time
+     * This is a stats holder object which will hold the data for a workload group at a point in time
      * the instance will only be created on demand through stats api
      */
     public static class WorkloadGroupStatsHolder implements ToXContentObject, Writeable {

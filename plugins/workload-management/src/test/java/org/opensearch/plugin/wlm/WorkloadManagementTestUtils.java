@@ -19,10 +19,12 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,7 +40,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class WorkloadGroupTestUtils {
+public class WorkloadManagementTestUtils {
     public static final String NAME_ONE = "workload_group_one";
     public static final String NAME_TWO = "workload_group_two";
     public static final String _ID_ONE = "AgfUO5Ja9yfsYlONlYi3TQ==";
@@ -163,6 +165,18 @@ public class WorkloadGroupTestUtils {
             } else {
                 assertEquals(listOne.get(i), listTwo.get(i));
             }
+        }
+    }
+
+    public static WlmClusterSettingValuesProvider setUpNonPluginSettingValuesProvider(String wlmMode) throws Exception {
+        try (WorkloadManagementPlugin plugin = new WorkloadManagementPlugin()) {
+            Settings settings = Settings.builder()
+                .put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000)
+                .put(WorkloadManagementSettings.WLM_MODE_SETTING_NAME, wlmMode)
+                .build();
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(plugin.getSettings()));
+            clusterSettings.registerSetting(WorkloadManagementSettings.WLM_MODE_SETTING);
+            return new WlmClusterSettingValuesProvider(settings, clusterSettings);
         }
     }
 }

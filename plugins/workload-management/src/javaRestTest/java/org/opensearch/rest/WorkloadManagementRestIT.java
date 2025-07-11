@@ -13,10 +13,17 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Locale;
 
 public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
+
+    @Before
+    public void enableWlmMode() throws Exception {
+        setWlmMode("enabled");
+    }
 
     public void testCreate() throws Exception {
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics", "enforced", 0.4, 0.2));
@@ -129,6 +136,16 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         performOperation("DELETE", "_wlm/workload_group/users3", null);
     }
 
+    public void testOperationWhenWlmDisabled() throws Exception {
+        setWlmMode("disabled");
+        assertThrows(
+            ResponseException.class,
+            () -> performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics", "enforced", 0.4, 0.2))
+        );
+        assertThrows(ResponseException.class, () -> performOperation("DELETE", "_wlm/workload_group/analytics4", null));
+        assertOK(performOperation("GET", "_wlm/workload_group/", null));
+    }
+
     static String getCreateJson(String name, String resiliencyMode, double cpu, double memory) {
         return "{\n"
             + "    \"name\": \""
@@ -170,5 +187,20 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
             request.setJsonEntity(json);
         }
         return client().performRequest(request);
+    }
+
+    private void setWlmMode(String mode) throws Exception {
+        String settingJson = String.format(Locale.ROOT, """
+            {
+              "persistent": {
+                "wlm.workload_group.mode": "%s"
+              }
+            }
+            """, mode);
+
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(settingJson);
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 }

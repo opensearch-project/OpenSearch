@@ -190,7 +190,7 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
                 : rescoreBuilder.windowSize().intValue();
             assertEquals(expectedWindowSize, rescoreContext.getWindowSize());
             Query expectedQuery = Rewriteable.rewrite(rescoreBuilder.getRescoreQuery(), mockShardContext).toQuery(mockShardContext);
-            assertEquals(expectedQuery, rescoreContext.query());
+            assertEquals(expectedQuery, rescoreContext.parsedQuery().query());
             assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());
@@ -200,6 +200,50 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
     public void testRescoreQueryNull() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new QueryRescorerBuilder((QueryBuilder) null));
         assertEquals("rescore_query cannot be null", e.getMessage());
+    }
+
+    /**
+     * Test that named queries from rescore contexts are captured
+     */
+    public void testRescoreNamedQueries() throws IOException {
+        final long nowInMillis = randomNonNegativeLong();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
+
+        QueryShardContext mockShardContext = new QueryShardContext(
+            0,
+            idxSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            namedWriteableRegistry,
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null
+        ) {
+            @Override
+            public MappedFieldType fieldMapper(String name) {
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
+                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
+            }
+        };
+
+        QueryBuilder namedQueryBuilder = new MatchAllQueryBuilder().queryName("test_rescore_query");
+        QueryRescorerBuilder rescoreBuilder = new QueryRescorerBuilder(namedQueryBuilder);
+        QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.buildContext(mockShardContext);
+        assertNotNull(rescoreContext.parsedQuery());
+        assertNotNull(rescoreContext.parsedQuery().namedFilters());
+        assertEquals(1, rescoreContext.parsedQuery().namedFilters().size());
+        assertTrue(rescoreContext.parsedQuery().namedFilters().containsKey("test_rescore_query"));
+        assertNotNull(rescoreContext.parsedQuery().namedFilters().get("test_rescore_query"));
     }
 
     class AlwaysRewriteQueryBuilder extends MatchAllQueryBuilder {

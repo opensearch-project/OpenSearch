@@ -109,5 +109,17 @@ public interface IngestPlugin {
          *  ]
          */
         public static final String INDEX_TEMPLATE_MAPPINGS = "index_template_mappings";
+
+        /**
+         * Use this key to access the settings{@link org.opensearch.common.settings.Settings} of the index from the config.
+         */
+        public static final String INDEX_SETTINGS = "index_settings";
+
+        /**
+         * Use this key to access the settings{@link org.opensearch.common.settings.Settings} of the matched templates
+         * of the index from the config. If there are multiple matched templates the later one can override the setting of the previous one if merge
+         * rules are allowed. So this will be a list of settings.
+         */
+        public static final String INDEX_TEMPLATE_SETTINGS = "index_template_settings";
     }
 }
