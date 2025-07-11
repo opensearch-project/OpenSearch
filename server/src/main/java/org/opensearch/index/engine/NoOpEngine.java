@@ -78,7 +78,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
         super(config, null, null, true, Function.identity(), true);
         this.segmentsStats = new SegmentsStats();
         Directory directory = store.directory();
-        try (DirectoryReader reader = openDirectory(directory, config.getIndexSettings().isSoftDeleteEnabled())) {
+        try (DirectoryReader reader = openDirectory(directory, config.getIndexSettings().isSoftDeleteEnabled(), config.getLeafSorter())) {
             for (LeafReaderContext ctx : reader.getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, true, segmentsStats);
