@@ -32,7 +32,6 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchRequest;
@@ -65,7 +64,9 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
 
@@ -75,11 +76,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, 2000099)
             .put("index.max_terms_count", maxTermsCount)
             .build();
-        IndexMetadata meta = IndexMetadata.builder("test")
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        IndexMetadata meta = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         return new IndexSettings(meta, settings);
     }
 
@@ -172,10 +169,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         TermsLookup termsLookup = new TermsLookup("classes", "103", "enrolled");
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> termsLookup.setQuery(queryBuilder));
-        assertEquals(
-            "[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.",
-            exception.getMessage()
-        );
+        assertEquals("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.", exception.getMessage());
     }
 
     public void testTermsQueryWithComplexQuery() throws Exception {
@@ -214,12 +208,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         assertEquals(Arrays.asList("value1", "value2"), resultTermsQuery.values());
         assertEquals(1.0f, resultTermsQuery.boost(), 0.001f);
 
-        String expectedJson = "{"
-            + "\"terms\":{"
-            + "\"field\":[\"value1\",\"value2\"],"
-            + "\"boost\":1.0"
-            + "}"
-            + "}";
+        String expectedJson = "{" + "\"terms\":{" + "\"field\":[\"value1\",\"value2\"]," + "\"boost\":1.0" + "}" + "}";
 
         XContentParser expectedParser = XContentType.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expectedJson);
@@ -299,14 +288,12 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         when(context.getIndexSettings()).thenReturn(newTestIndexSettings());
         when(context.fieldMapper(any())).thenReturn(mock(MappedFieldType.class));
 
-        Exception exception = expectThrows(IllegalStateException.class, () -> {
-            builder.doToQuery(context);
-        });
+        Exception exception = expectThrows(IllegalStateException.class, () -> { builder.doToQuery(context); });
         assertTrue(exception.getMessage().contains("Terms must be fetched during rewrite phase before query execution."));
     }
 
     public void testDoToQueryBitmapPath() throws Exception {
-        List<Object> values = Arrays.asList(new BytesArray(new byte[]{ 1, 2, 3 }));
+        List<Object> values = Arrays.asList(new BytesArray(new byte[] { 1, 2, 3 }));
         TermsQueryBuilder builder = new TermsQueryBuilder("student_id", values, null);
         builder.valueType(TermsQueryBuilder.ValueType.BITMAP);
 
@@ -334,8 +321,6 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         assertNull(query);
     }
 
-
-
     public void testDoToQueryUnknownFieldType() throws Exception {
         List<Object> values = Arrays.asList("111", "222");
         TermsQueryBuilder builder = new TermsQueryBuilder("student_id", values, null);
@@ -344,9 +329,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         when(context.getIndexSettings()).thenReturn(newTestIndexSettings());
         when(context.fieldMapper("student_id")).thenReturn(null);
 
-        Exception exception = expectThrows(IllegalStateException.class, () -> {
-            builder.doToQuery(context);
-        });
+        Exception exception = expectThrows(IllegalStateException.class, () -> { builder.doToQuery(context); });
         assertTrue(exception.getMessage().contains("Rewrite first"));
     }
 
@@ -363,9 +346,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(context.fieldMapper("student_id")).thenReturn(fieldType);
 
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-            builder.doToQuery(context);
-        });
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> { builder.doToQuery(context); });
         assertTrue(exception.getMessage().contains("has exceeded the allowed maximum"));
     }
 
