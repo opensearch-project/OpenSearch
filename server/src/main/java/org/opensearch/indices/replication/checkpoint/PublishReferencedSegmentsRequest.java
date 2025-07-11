@@ -13,6 +13,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Replication request responsible for publishing referenced segments request to a replica shard.
@@ -36,6 +37,18 @@ public class PublishReferencedSegmentsRequest extends ReplicationRequest<Publish
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         referencedSegments.writeTo(out);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PublishReferencedSegmentsRequest that)) return false;
+        return Objects.equals(referencedSegments, that.referencedSegments);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(referencedSegments);
     }
 
     @Override

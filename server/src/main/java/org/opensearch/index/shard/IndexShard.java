@@ -1970,10 +1970,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return new ReferencedSegmentsCheckpoint(
                 shardId,
                 getOperationPrimaryTerm(),
+                segmentInfosGatedCloseable.get().getVersion(),
                 -1,
                 getEngine().config().getCodec().getName(),
                 Collections.emptyMap(),
-                segmentInfosGatedCloseable.get().getVersion(),
                 segmentNames
             );
         }

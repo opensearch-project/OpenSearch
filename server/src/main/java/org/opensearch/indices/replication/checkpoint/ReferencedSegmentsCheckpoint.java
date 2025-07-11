@@ -41,6 +41,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -56,10 +57,10 @@ public class ReferencedSegmentsCheckpoint extends ReplicationCheckpoint {
     public ReferencedSegmentsCheckpoint(
         ShardId shardId,
         long primaryTerm,
+        long segmentInfosVersion,
         long length,
         String codec,
         Map<String, StoreFileMetadata> metadataMap,
-        long segmentInfosVersion,
         Set<String> segmentNames
     ) {
         super(shardId, primaryTerm, SequenceNumbers.NO_OPS_PERFORMED, segmentInfosVersion, length, codec, metadataMap);
@@ -75,6 +76,23 @@ public class ReferencedSegmentsCheckpoint extends ReplicationCheckpoint {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringCollection(segmentNames);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReferencedSegmentsCheckpoint that = (ReferencedSegmentsCheckpoint) o;
+        return getPrimaryTerm() == that.getPrimaryTerm()
+            && getSegmentInfosVersion() == that.getSegmentInfosVersion()
+            && segmentNames.equals(that.segmentNames)
+            && Objects.equals(getShardId(), that.getShardId())
+            && getCodec().equals(that.getCodec());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getShardId(), getPrimaryTerm(), getSegmentInfosVersion(), segmentNames);
     }
 
     @Override
