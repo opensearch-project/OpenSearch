@@ -514,16 +514,6 @@ public class ReadOnlyEngine extends Engine {
             + getMaxSeqNoOfUpdatesOrDeletes();
     }
 
-    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
-        assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
-        final DirectoryReader reader = DirectoryReader.open(directory);
-        if (wrapSoftDeletes) {
-            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
-        } else {
-            return reader;
-        }
-    }
-
     protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes, Comparator<LeafReader> leafSorter)
         throws IOException {
         assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
