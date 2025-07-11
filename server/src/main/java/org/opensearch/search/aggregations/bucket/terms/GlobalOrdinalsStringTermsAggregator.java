@@ -852,7 +852,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 } else {
                     size = (int) Math.min(maxBucketOrd(), localBucketCountThresholds.getRequiredSize());
                 }
-                if ((valueCount > (size * 3L)) || isKeyOrder(order)) {
+
+                // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
+                if ((size < 0.20 * valueCount) || isKeyOrder(order)) {
                     PriorityQueue<TB> ordered = buildPriorityQueue(size);
                     final int finalOrdIdx = ordIdx;
                     BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
@@ -897,9 +899,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             }
                         }
                     });
-                    if (tot[0] > size & partiallyBuiltBucketComparator != null) {
-                        // quick select topN
-                        // TODO do we need to handle case for SignificantTerm Agg separately
+                    // If total collected buckets greater than request size, use quickSelect to get topN buckets
+                    if (tot[0] > size && partiallyBuiltBucketComparator != null) {
                         ArrayUtil.select(
                             bucketsForOrdArr,
                             0,
