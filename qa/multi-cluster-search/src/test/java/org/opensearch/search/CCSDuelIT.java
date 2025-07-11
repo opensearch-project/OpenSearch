@@ -831,10 +831,12 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         Map<String, Object> responseMap = org.opensearch.common.xcontent.XContentHelper.convertToMap(bytesReference, false, MediaTypeRegistry.JSON).v2();
         assertNotNull(responseMap.put("took", -1));
         responseMap.remove("num_reduce_phases");
-        Map<String, Object> profile = (Map<String, Object>)responseMap.get("profile");
+        Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
         if (profile != null) {
-            List<Map<String, Object>> shards = (List <Map<String, Object>>)profile.get("shards");
+            List<Map<String, Object>> shards = (List<Map<String, Object>>) profile.get("shards");
             for (Map<String, Object> shard : shards) {
+                // Unconditionally remove the fetch profile to prevent flaky failures
+                shard.remove("fetch");
                 replaceProfileTime(shard);
             }
         }
