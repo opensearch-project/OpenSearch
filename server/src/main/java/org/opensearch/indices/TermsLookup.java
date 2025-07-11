@@ -108,11 +108,11 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             in.readOptionalString();
         }
         id = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            if (in.readBoolean()) {
-                query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
-            }
-        }
+        // if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        // if (in.readBoolean()) {
+        // query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
+        // }
+        // }
         path = in.readString();
         index = in.readString();
         routing = in.readOptionalString();
@@ -252,7 +252,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, id, path, routing, store);
+        return Objects.hash(index, id, path, routing, store, query);
     }
 
     @Override
@@ -268,6 +268,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             && Objects.equals(id, other.id)
             && Objects.equals(path, other.path)
             && Objects.equals(routing, other.routing)
-            && Objects.equals(store, other.store);
+            && Objects.equals(store, other.store)
+            && Objects.equals(query, other.query);
     }
 }
