@@ -19,6 +19,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -49,5 +50,15 @@ public class FetchProfileShardResultTests extends OpenSearchTestCase {
             assertNull(parser.nextToken());
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    }
+
+    public void testGetFetchProfileResults() {
+        List<ProfileResult> expected = new ArrayList<>();
+        expected.add(new ProfileResult("type1", "desc1", Map.of("key1", 1L), Map.of(), 10L, List.of()));
+        expected.add(new ProfileResult("type2", "desc2", Map.of("key2", 2L), Map.of(), 20L, List.of()));
+
+        FetchProfileShardResult shardResult = new FetchProfileShardResult(expected);
+
+        assertEquals(expected, shardResult.getFetchProfileResults());
     }
 }

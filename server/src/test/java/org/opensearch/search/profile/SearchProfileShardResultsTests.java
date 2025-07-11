@@ -32,9 +32,12 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResultTests;
@@ -125,6 +128,42 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
 
+    }
+
+    public void testFromXContentWithoutFetchSection() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.startObject(SearchProfileShardResults.PROFILE_FIELD);
+        builder.startArray("shards");
+        builder.startObject();
+        builder.field("id", "shard1");
+        builder.field(SearchProfileShardResults.INBOUND_NETWORK_FIELD, 0);
+        builder.field(SearchProfileShardResults.OUTBOUND_NETWORK_FIELD, 0);
+        builder.startArray("searches");
+        builder.endArray();
+        builder.startArray(AggregationProfileShardResult.AGGREGATIONS);
+        builder.endArray();
+        // no fetch section
+        builder.endObject();
+        builder.endArray();
+        builder.endObject();
+        builder.endObject();
+
+        SearchProfileShardResults parsed;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureFieldName(parser, parser.nextToken(), SearchProfileShardResults.PROFILE_FIELD);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            parsed = SearchProfileShardResults.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertEquals(1, parsed.getShardResults().size());
+        ProfileShardResult shardResult = parsed.getShardResults().get("shard1");
+        assertNotNull(shardResult);
+        assertTrue(shardResult.getFetchProfileResult().getFetchProfileResults().isEmpty());
     }
 
 }
