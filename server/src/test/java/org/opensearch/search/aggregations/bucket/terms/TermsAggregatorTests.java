@@ -52,6 +52,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -1668,6 +1669,71 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         assertEquals(1L, result.getBuckets().get(2).getDocCount());
                     }
                 }
+            }
+        }
+    }
+
+    public void testBuildAggregationsForHeapSort() throws IOException {
+        List<String> dataSet = new ArrayList<>();
+        for (long i = 1; i <= 100; i++) {
+            for (long j = 0; j < i; j++) {
+                dataSet.add("value" + i);
+            }
+        }
+
+        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field("string").size(5), agg -> {
+            assertEquals(5, agg.getBuckets().size());
+            for (int i = 0; i < agg.getBuckets().size(); i++) {
+                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
+                assertThat(bucket.getKey(), equalTo("value" + (100 - i)));
+                assertThat(bucket.getDocCount(), equalTo(100L - i));
+            }
+        }, ValueType.STRING);
+    }
+
+    public void testBuildAggregationsForQuickSelect() throws IOException {
+        List<String> dataSet = new ArrayList<>();
+        for (long i = 1; i <= 100; i++) {
+            for (long j = 0; j < i; j++) {
+                dataSet.add("value" + i);
+            }
+        }
+
+        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field("string").size(20), agg -> {
+            assertEquals(20, agg.getBuckets().size());
+            for (int i = 0; i < agg.getBuckets().size(); i++) {
+                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
+                assertThat(bucket.getKey(), equalTo("value" + (50 - i)));
+                assertThat(bucket.getDocCount(), equalTo(50L - i));
+            }
+        }, ValueType.STRING);
+    }
+
+    private void testSearchCase(
+        Query query,
+        List<String> dataset,
+        Consumer<TermsAggregationBuilder> configure,
+        Consumer<InternalMappedTerms> verify,
+        ValueType valueType
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                for (String value : dataset) {
+                    document.add(new SortedSetDocValuesField("string", new BytesRef(value)));
+                    document.add(new StringField("string", value, Field.Store.NO));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                }
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name");
+                aggregationBuilder.userValueTypeHint(valueType);
+                configure.accept(aggregationBuilder);
+                MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
+                InternalMappedTerms rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                verify.accept(rareTerms);
             }
         }
     }
