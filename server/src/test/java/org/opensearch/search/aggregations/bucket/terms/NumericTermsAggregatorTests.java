@@ -202,20 +202,14 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             dataSet.add(i);
         }
 
-        testSearchCase(
-            new MatchAllDocsQuery(),
-            dataSet,
-            aggregation -> aggregation.field(LONG_FIELD).size(2),
-            agg -> {
-                assertEquals(2, agg.getBuckets().size());
-                for (int i = 0; i < 2; i++) {
-                    LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
-                    assertThat(bucket.getKey(), equalTo((long) i));
-                    assertThat(bucket.getDocCount(), equalTo(1L));
-                }
-            },
-            ValueType.NUMERIC
-        );
+        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(2), agg -> {
+            assertEquals(2, agg.getBuckets().size());
+            for (int i = 0; i < 2; i++) {
+                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
+                assertThat(bucket.getKey(), equalTo((long) i));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }
+        }, ValueType.NUMERIC);
     }
 
     public void testBuildAggregationsForQuickSelect() throws IOException {
