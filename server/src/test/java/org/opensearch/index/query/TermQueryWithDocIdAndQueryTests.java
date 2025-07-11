@@ -56,10 +56,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -139,7 +140,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         when(context.fieldMapper("student_id")).thenReturn(fieldType);
 
         Exception ex = expectThrows(UnsupportedOperationException.class, () -> builder.doToQuery(context));
-        assertTrue(ex.getMessage().toLowerCase().contains("query must be rewritten first"));
+        assertTrue(ex.getMessage().toLowerCase(Locale.ROOT).contains("query must be rewritten first"));
     }
 
     public void testTermsQueryWithInsertedData() throws Exception {
