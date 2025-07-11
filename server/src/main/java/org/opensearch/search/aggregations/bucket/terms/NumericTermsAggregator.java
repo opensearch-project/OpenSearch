@@ -261,8 +261,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
 
-                // Use priority queue approach when request size is smaller than 10% of total buckets,
-                // or when key ordering is required
+                // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
                 if ((size < 0.2 * bucketsInOrd) || isKeyOrder(order)) {
                     PriorityQueue<B> ordered = buildPriorityQueue(size);
                     while (ordsEnum.next()) {
