@@ -45,12 +45,16 @@ public class ServerConfigTests extends OpenSearchTestCase {
         // Verify SSL settings
         assertTrue(ServerConfig.isSslEnabled());
 
-        ScalingExecutorBuilder executorBuilder = ServerConfig.getServerExecutorBuilder();
-        assertNotNull(executorBuilder);
-        assertEquals(3, executorBuilder.getRegisteredSettings().size());
-        assertEquals(1, executorBuilder.getRegisteredSettings().get(0).get(settings)); // min
-        assertEquals(4, executorBuilder.getRegisteredSettings().get(1).get(settings)); // max
-        assertEquals(TimeValue.timeValueMinutes(5), executorBuilder.getRegisteredSettings().get(2).get(settings)); // keep alive
+        ScalingExecutorBuilder serverExecutorBuilder = ServerConfig.getServerExecutorBuilder();
+        ScalingExecutorBuilder flightGrpcExecutorBuilder = ServerConfig.getGrpcExecutorBuilder();
+
+        assertNotNull(serverExecutorBuilder);
+        assertNotNull(flightGrpcExecutorBuilder);
+
+        assertEquals(3, serverExecutorBuilder.getRegisteredSettings().size());
+        assertEquals(1, serverExecutorBuilder.getRegisteredSettings().get(0).get(settings)); // min
+        assertEquals(4, serverExecutorBuilder.getRegisteredSettings().get(1).get(settings)); // max
+        assertEquals(TimeValue.timeValueMinutes(5), serverExecutorBuilder.getRegisteredSettings().get(2).get(settings)); // keep alive
     }
 
     public void testGetSettings() {
