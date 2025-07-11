@@ -50,6 +50,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.approximate.ApproximateBooleanQuery;
 import org.opensearch.search.approximate.ApproximateMatchAllQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -120,8 +121,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 assertThat(query, instanceOf(ApproximateScoreQuery.class));
                 assertThat(((ApproximateScoreQuery) query).getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
             } else if (query instanceof MatchNoDocsQuery == false) {
-                assertThat(query, instanceOf(BooleanQuery.class));
-                BooleanQuery booleanQuery = (BooleanQuery) query;
+                BooleanQuery booleanQuery;
+                if (query instanceof ApproximateScoreQuery) { // true for single clause cases
+                    assertThat(((ApproximateScoreQuery) query).getOriginalQuery(), instanceOf(BooleanQuery.class));
+                    booleanQuery = (BooleanQuery) ((ApproximateScoreQuery) query).getOriginalQuery();
+                } else {
+                    assertThat(query, instanceOf(BooleanQuery.class));
+                    booleanQuery = (BooleanQuery) query;
+                }
                 if (queryBuilder.adjustPureNegative()) {
                     boolean isNegative = true;
                     for (BooleanClause clause : clauses) {
@@ -211,14 +218,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new BoolQueryBuilder().must(new MatchAllQueryBuilder()));
         Query query = boolQueryBuilder.toQuery(createShardContext());
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(((ApproximateScoreQuery) query).getApproximationQuery(), instanceOf(ApproximateBooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) ((ApproximateScoreQuery) query).getOriginalQuery();
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(booleanQuery.clauses().size(), equalTo(1));
         BooleanClause booleanClause = booleanQuery.clauses().get(0);
         assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.FILTER));
-        assertThat(booleanClause.query(), instanceOf(BooleanQuery.class));
-        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.query();
+        assertThat(((ApproximateScoreQuery) booleanClause.query()).getOriginalQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery innerBooleanQuery = (BooleanQuery) ((ApproximateScoreQuery) booleanClause.query()).getOriginalQuery();
         // we didn't set minimum should match initially, there are no should clauses so it should be 0
         assertThat(innerBooleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(innerBooleanQuery.clauses().size(), equalTo(1));
