@@ -263,7 +263,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
                 // Use priority queue approach when request size is smaller than 10% of total buckets,
                 // or when key ordering is required
-                if ((size < 0.1 * bucketsInOrd) || isKeyOrder(order)) {
+                if ((size < 0.2 * bucketsInOrd) || isKeyOrder(order)) {
                     PriorityQueue<B> ordered = buildPriorityQueue(size);
                     while (ordsEnum.next()) {
                         long docCount = bucketDocCount(ordsEnum.ord());

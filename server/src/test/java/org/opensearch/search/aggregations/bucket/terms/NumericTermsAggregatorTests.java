@@ -196,16 +196,16 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testHeapSortForSmallResultSets() throws IOException {
-        List<Long> highCardinalityDataset = new ArrayList<>();
+    public void testBuildAggregationsForHeapSort() throws IOException {
+        List<Long> dataSet = new ArrayList<>();
         for (long i = 0; i < 150; i++) {
-            highCardinalityDataset.add(i);
+            dataSet.add(i);
         }
 
         testSearchCase(
             new MatchAllDocsQuery(),
-            highCardinalityDataset,
-            aggregation -> aggregation.field(LONG_FIELD).size(2), // Small result set
+            dataSet,
+            aggregation -> aggregation.field(LONG_FIELD).size(2),
             agg -> {
                 assertEquals(2, agg.getBuckets().size());
                 for (int i = 0; i < 2; i++) {
@@ -218,13 +218,13 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testQuickSelectForLargeResultSets() throws IOException {
-        List<Long> highCardinalityDataset = new ArrayList<>();
+    public void testBuildAggregationsForQuickSelect() throws IOException {
+        List<Long> dataSet = new ArrayList<>();
         for (long i = 0; i < 150; i++) {
-            highCardinalityDataset.add(i);
+            dataSet.add(i);
         }
 
-        testSearchCase(new MatchAllDocsQuery(), highCardinalityDataset, aggregation -> aggregation.field(LONG_FIELD).size(50), agg -> {
+        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(50), agg -> {
             assertEquals(50, agg.getBuckets().size());
             for (int i = 0; i < agg.getBuckets().size(); i++) {
                 LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
