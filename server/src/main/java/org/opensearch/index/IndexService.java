@@ -449,7 +449,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     // visible for tests
-    AsyncPublishReferencedSegmentsTask getAsyncPublishReferencedSegmentsTask() {
+    AsyncPublishReferencedSegmentsTask getPublishReferencedSegmentsTask() {
         return asyncPublishReferencedSegmentsTask;
     }
 
