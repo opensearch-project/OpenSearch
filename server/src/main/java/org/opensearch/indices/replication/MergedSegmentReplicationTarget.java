@@ -36,6 +36,7 @@ import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationListener;
 
@@ -84,6 +85,7 @@ public class MergedSegmentReplicationTarget extends AbstractSegmentReplicationTa
     @Override
     protected void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws Exception {
         multiFileWriter.renameAllTempFiles();
+        indexShard.addPendingMergeSegmentCheckpoint((MergeSegmentCheckpoint) checkpoint);
     }
 
     @Override

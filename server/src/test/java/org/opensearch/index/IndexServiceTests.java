@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.opensearch.common.util.FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.shard.IndexShardTestCase.getEngine;
 import static org.opensearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -617,6 +618,50 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             .get();
 
         IndexService.AsyncReplicationTask updatedTask = indexService.getReplicationTask();
+        assertNotSame(task, updatedTask);
+        assertFalse(task.isScheduled());
+        assertTrue(task.isClosed());
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertEquals(1000, updatedTask.getInterval().millis());
+    }
+
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    public void testPublishReferencedSegmentsTask() throws Exception {
+        // create with docrep - task should not schedule
+        IndexService indexService = createIndex(
+            "docrep_index",
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build()
+        );
+        final Index index = indexService.index();
+        ensureGreen(index.getName());
+        IndexService.AsyncPublishReferencedSegmentsTask task = indexService.getPublishReferencedSegmentsTask();
+        assertFalse(task.isScheduled());
+        assertFalse(task.mustReschedule());
+
+        // create for segrep - task should schedule
+        indexService = createIndex(
+            "segrep_index",
+            Settings.builder()
+                .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+                .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "5s")
+                .build()
+        );
+        final Index srIndex = indexService.index();
+        ensureGreen(srIndex.getName());
+        task = indexService.getPublishReferencedSegmentsTask();
+        assertTrue(task.isScheduled());
+        assertTrue(task.mustReschedule());
+        assertEquals(5000, task.getInterval().millis());
+
+        // test we can update the interval
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "1s"))
+            .get();
+
+        IndexService.AsyncPublishReferencedSegmentsTask updatedTask = indexService.getPublishReferencedSegmentsTask();
         assertNotSame(task, updatedTask);
         assertFalse(task.isScheduled());
         assertTrue(task.isClosed());

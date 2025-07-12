@@ -12,7 +12,6 @@ import org.apache.lucene.codecs.Codec;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -22,6 +21,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -30,7 +30,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -44,14 +43,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
+public class PublishReferencedSegmentsActionTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private CapturingTransport transport;
@@ -89,7 +86,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    public void testPublishMergedSegment() {
+    public void testPublishReferencedSegments() {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -116,33 +113,30 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         when(indexShard.recoveryState()).thenReturn(recoveryState);
         when(indexShard.getRecoverySettings()).thenReturn(recoverySettings);
 
-        final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
-
-        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
+        final PublishReferencedSegmentsAction action = new PublishReferencedSegmentsAction(
             Settings.EMPTY,
             transportService,
             clusterService,
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            mockTargetService
+            new ActionFilters(Collections.emptySet())
         );
 
-        final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        final ReferencedSegmentsCheckpoint checkpoint = new ReferencedSegmentsCheckpoint(
             indexShard.shardId(),
             1,
             1,
             1111,
             Codec.getDefault().getName(),
             Collections.emptyMap(),
-            "_1"
+            Sets.newHashSet("_1", "_2", "_3")
         );
 
         action.publish(indexShard, checkpoint);
     }
 
-    public void testPublishMergedSegmentActionOnPrimary() {
+    public void testPublishReferencedSegmentsOnPrimary() {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -156,29 +150,26 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
 
-        final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
-
-        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
+        final PublishReferencedSegmentsAction action = new PublishReferencedSegmentsAction(
             Settings.EMPTY,
             transportService,
             clusterService,
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            mockTargetService
+            new ActionFilters(Collections.emptySet())
         );
 
-        final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        final ReferencedSegmentsCheckpoint checkpoint = new ReferencedSegmentsCheckpoint(
             indexShard.shardId(),
             1,
             1,
             1111,
             Codec.getDefault().getName(),
             Collections.emptyMap(),
-            "_1"
+            Sets.newHashSet("_1", "_2", "_3")
         );
-        final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
+        final PublishReferencedSegmentsRequest request = new PublishReferencedSegmentsRequest(checkpoint);
 
         action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             // we should forward the request containing the current publish checkpoint to the replica
@@ -186,7 +177,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         }));
     }
 
-    public void testPublishMergedSegmentActionOnReplica() {
+    public void testPublishReferencedSegmentsActionOnReplica() {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -201,119 +192,39 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         when(indexShard.indexSettings()).thenReturn(
             createIndexSettings(false, Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "SEGMENT").build())
         );
-        final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
-        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
+        final PublishReferencedSegmentsAction action = new PublishReferencedSegmentsAction(
             Settings.EMPTY,
             transportService,
             clusterService,
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            mockTargetService
+            new ActionFilters(Collections.emptySet())
         );
 
-        final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        final ReferencedSegmentsCheckpoint checkpoint = new ReferencedSegmentsCheckpoint(
             indexShard.shardId(),
             1,
             1,
             1111,
             Codec.getDefault().getName(),
             Collections.emptyMap(),
-            "_1"
+            Sets.newHashSet("_1", "_2", "_3")
         );
 
-        final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
+        final PublishReferencedSegmentsRequest request = new PublishReferencedSegmentsRequest(checkpoint);
 
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
         action.shardOperationOnReplica(request, indexShard, listener);
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
 
-        // onNewMergedSegmentCheckpoint should be called on shard with checkpoint request
-        verify(mockTargetService, times(1)).onNewMergedSegmentCheckpoint(checkpoint, indexShard);
+        // cleanupRedundantPendingMergeSegment should be called on replica shard
+        verify(indexShard, times(1)).cleanupRedundantPendingMergeSegment(checkpoint);
 
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
         result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
         assertTrue(success.get());
-
     }
-
-    public void testPublishMergedSegmentActionOnDocrepReplicaDuringMigration() {
-        final IndicesService indicesService = mock(IndicesService.class);
-
-        final Index index = new Index("index", "uuid");
-        final IndexService indexService = mock(IndexService.class);
-        when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
-        final int id = randomIntBetween(0, 4);
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexService.getShard(id)).thenReturn(indexShard);
-
-        final ShardId shardId = new ShardId(index, id);
-        when(indexShard.shardId()).thenReturn(shardId);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
-        final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
-
-        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
-            Settings.EMPTY,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            mockTargetService
-        );
-
-        final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
-            indexShard.shardId(),
-            1,
-            1,
-            1111,
-            Codec.getDefault().getName(),
-            Collections.emptyMap(),
-            "_1"
-        );
-
-        final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
-
-        final PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
-        action.shardOperationOnReplica(request, indexShard, listener);
-        final TransportReplicationAction.ReplicaResult result = listener.actionGet();
-        // no interaction with SegmentReplicationTargetService object
-        verify(mockTargetService, never()).onNewMergedSegmentCheckpoint(any(), any());
-        // the result should indicate success
-        final AtomicBoolean success = new AtomicBoolean();
-        result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
-        assertTrue(success.get());
-    }
-
-    public void testGetReplicationModeWithRemoteTranslog() {
-        final PublishMergedSegmentAction action = createAction();
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
-    }
-
-    public void testGetReplicationModeWithLocalTranslog() {
-        final PublishMergedSegmentAction action = createAction();
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
-    }
-
-    private PublishMergedSegmentAction createAction() {
-        return new PublishMergedSegmentAction(
-            Settings.EMPTY,
-            transportService,
-            clusterService,
-            mock(IndicesService.class),
-            threadPool,
-            shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            mock(SegmentReplicationTargetService.class)
-        );
-    }
-
 }

@@ -52,6 +52,7 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -170,7 +171,8 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
                 null,
                 DiscoveryNodes.builder().add(localNode).build(),
                 new MergedSegmentWarmerFactory(null, null, null),
-                MergedSegmentPublisher.EMPTY
+                MergedSegmentPublisher.EMPTY,
+                ReferencedSegmentsPublisher.EMPTY
             );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
