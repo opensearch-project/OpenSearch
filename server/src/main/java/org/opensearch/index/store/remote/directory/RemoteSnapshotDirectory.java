@@ -15,8 +15,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
@@ -37,8 +35,6 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public final class RemoteSnapshotDirectory extends Directory {
-
-    public static final Version SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION = LegacyESVersion.V_7_2_0;
 
     private static final String VIRTUAL_FILE_PREFIX = BlobStoreRepository.VIRTUAL_DATA_BLOB_PREFIX;
 
