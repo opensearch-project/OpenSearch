@@ -119,13 +119,12 @@ public class IndexingStatsTests extends OpenSearchTestCase {
      */
     public void testMaxLastIndexRequestTimestampAggregation() throws Exception {
         // Use explicit values for all fields except the timestamp
-        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
         long ts1 = randomLongBetween(0, 1000000);
         long ts2 = randomLongBetween(0, 1000000);
         long ts3 = randomLongBetween(0, 1000000);
-        IndexingStats.Stats stats1 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts1);
-        IndexingStats.Stats stats2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts2);
-        IndexingStats.Stats stats3 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts3);
+        IndexingStats.Stats stats1 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, ts1);
+        IndexingStats.Stats stats2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, ts2);
+        IndexingStats.Stats stats3 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, ts3);
 
         // Aggregate stats1 + stats2
         stats1.add(stats2);
@@ -136,20 +135,19 @@ public class IndexingStatsTests extends OpenSearchTestCase {
         assertEquals(Math.max(Math.max(ts1, ts2), ts3), stats1.getMaxLastIndexRequestTimestamp());
 
         // Test with zero and negative values
-        IndexingStats.Stats statsZero = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, 0L);
-        IndexingStats.Stats statsNeg = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, -100L);
+        IndexingStats.Stats statsZero = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, 0L);
+        IndexingStats.Stats statsNeg = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, -100L);
         statsZero.add(statsNeg);
         assertEquals(0L, statsZero.getMaxLastIndexRequestTimestamp());
 
-        IndexingStats.Stats statsNeg2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, -50L);
+        IndexingStats.Stats statsNeg2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, -50L);
         statsNeg.add(statsNeg2);
         assertEquals(-50L, statsNeg.getMaxLastIndexRequestTimestamp());
     }
 
     public void testMaxLastIndexRequestTimestampBackwardCompatibility() throws IOException {
-        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
         long ts = randomLongBetween(0, 1000000);
-        IndexingStats.Stats stats = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts);
+        IndexingStats.Stats stats = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, ts);
 
         // Serialize with V_3_1_0 (should include the field)
         BytesStreamOutput outNew = new BytesStreamOutput();

@@ -116,7 +116,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 noopUpdateCount,
                 isThrottled,
                 throttleTimeInMillis,
-                docStatusStats,
                 0L
             );
         }
