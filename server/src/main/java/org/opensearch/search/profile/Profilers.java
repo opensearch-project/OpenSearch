@@ -46,7 +46,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -61,27 +61,27 @@ public final class Profilers {
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
     private final boolean isConcurrentSegmentSearchEnabled;
-    private final Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics;
+    private final Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(
         ContextIndexSearcher searcher,
         boolean isConcurrentSegmentSearchEnabled,
-        Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics
+        Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics
     ) {
         this.searcher = searcher;
         this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
         this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
-        this.pluginMetrics = pluginMetrics;
+        this.customPluginMetrics = customPluginMetrics;
         addQueryProfiler();
     }
 
     /** Switch to a new profile. */
     public QueryProfiler addQueryProfiler() {
         QueryProfiler profiler = isConcurrentSegmentSearchEnabled
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(pluginMetrics), pluginMetrics)
-            : new QueryProfiler(new InternalQueryProfileTree(pluginMetrics));
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(customPluginMetrics), customPluginMetrics)
+            : new QueryProfiler(new InternalQueryProfileTree(customPluginMetrics));
         searcher.setProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;

@@ -42,7 +42,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
@@ -78,12 +77,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -428,11 +427,10 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testPlugins() throws IOException {
-        Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics = new HashMap<>();
-        pluginMetrics.put(ConstantScoreQuery.class, List.of(() -> new Timer("plugin_timer")));
+        Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics = (query) -> List.of(() -> new Timer("plugin_timer"));
         QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(pluginMetrics), pluginMetrics)
-            : new QueryProfiler(new InternalQueryProfileTree(pluginMetrics));
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(customPluginMetrics), customPluginMetrics)
+            : new QueryProfiler(new InternalQueryProfileTree(customPluginMetrics));
 
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));

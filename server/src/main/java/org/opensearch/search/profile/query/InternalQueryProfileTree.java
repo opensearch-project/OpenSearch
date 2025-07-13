@@ -39,7 +39,7 @@ import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.util.Collection;
-import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -49,18 +49,16 @@ import java.util.function.Supplier;
  */
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
-    private final Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics;
+    private final Function<Query, Collection<Supplier<ProfileMetric>>> customProfileMetrics;
 
-    public InternalQueryProfileTree(Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics) {
-        this.pluginMetrics = pluginMetrics;
+    public InternalQueryProfileTree(Function<Query, Collection<Supplier<ProfileMetric>>> customProfileMetrics) {
+        this.customProfileMetrics = customProfileMetrics;
     }
 
     @Override
     protected ContextualProfileBreakdown createProfileBreakdown(Query query) {
         Collection<Supplier<ProfileMetric>> metricSuppliers = ProfileMetricUtil.getDefaultQueryProfileMetrics();
-        if (pluginMetrics != null && pluginMetrics.containsKey(query.getClass())) {
-            metricSuppliers.addAll(pluginMetrics.get(query.getClass()));
-        }
+        if (customProfileMetrics != null) metricSuppliers.addAll(customProfileMetrics.apply(query));
         return new QueryProfileBreakdown(metricSuppliers);
     }
 }

@@ -19,6 +19,7 @@ import org.opensearch.search.profile.ProfileResult;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -28,18 +29,16 @@ import java.util.function.Supplier;
  */
 public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
-    private Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics;
+    private final Function<Query, Collection<Supplier<ProfileMetric>>> customProfileMetrics;
 
-    public ConcurrentQueryProfileTree(Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics) {
-        this.pluginMetrics = pluginMetrics;
+    public ConcurrentQueryProfileTree(Function<Query, Collection<Supplier<ProfileMetric>>> customProfileMetrics) {
+        this.customProfileMetrics = customProfileMetrics;
     }
 
     @Override
     protected ContextualProfileBreakdown createProfileBreakdown(Query query) {
         Collection<Supplier<ProfileMetric>> metricSuppliers = ProfileMetricUtil.getDefaultQueryProfileMetrics();
-        if (pluginMetrics != null && pluginMetrics.containsKey(query.getClass())) {
-            metricSuppliers.addAll(pluginMetrics.get(query.getClass()));
-        }
+        if (customProfileMetrics != null) metricSuppliers.addAll(customProfileMetrics.apply(query));
         return new ConcurrentQueryProfileBreakdown(metricSuppliers);
     }
 

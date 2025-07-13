@@ -68,6 +68,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.query.QueryCollectorContextSpecFactory;
 import org.opensearch.search.query.QueryPhaseSearcher;
@@ -104,8 +105,8 @@ public interface SearchPlugin {
     /**
      * The plugin provider to be used to get the profilers from plugins.
      */
-    default PluginMetricsProvider getPluginMetricsProvider() {
-        return null;
+    default Optional<ProfileMetricsProvider> getQueryProfileMetricsProvider() {
+        return Optional.empty();
     }
 
     /**
@@ -246,12 +247,12 @@ public interface SearchPlugin {
     /**
      * Plugin Profiler provider
      */
-    interface PluginMetricsProvider {
+    interface ProfileMetricsProvider {
         /**
-         * Provides a profiler instance
-         * @return profiler instance
+         * Provides profiler metrics based on query and aggregation
+         * @return profile metric supplier
          */
-        Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> getPluginMetrics();
+        Collection<Supplier<ProfileMetric>> getQueryProfileMetrics(SearchContext searchContext, Query query);
     }
 
     /**

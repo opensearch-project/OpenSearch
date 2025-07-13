@@ -323,7 +323,7 @@ public class SearchModule {
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
-    private final List<SearchPlugin.PluginMetricsProvider> pluginProfilerProviders;
+    private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilerProviders;
 
     /**
      * Constructs a new SearchModule object
@@ -1307,15 +1307,13 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getCollectorContextSpecFactories, QueryCollectorContextSpecRegistry::registerFactory);
     }
 
-    private List<SearchPlugin.PluginMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
+    private List<SearchPlugin.ProfileMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
 
-        List<SearchPlugin.PluginMetricsProvider> profilerProviders = new ArrayList<>();
+        List<SearchPlugin.ProfileMetricsProvider> profilerProviders = new ArrayList<>();
 
         for (SearchPlugin plugin : plugins) {
-            SearchPlugin.PluginMetricsProvider profilerProvider = plugin.getPluginMetricsProvider();
-            if (profilerProvider != null) {
-                profilerProviders.add(profilerProvider);
-            }
+            Optional<SearchPlugin.ProfileMetricsProvider> profilerProvider = plugin.getQueryProfileMetricsProvider();
+            profilerProvider.ifPresent(profilerProviders::add);
         }
 
         return profilerProviders;
@@ -1333,7 +1331,7 @@ public class SearchModule {
         return (indexSearcherExecutorProvider != null) ? indexSearcherExecutorProvider.getExecutor(pool) : null;
     }
 
-    public List<SearchPlugin.PluginMetricsProvider> getPluginPluginMetricsProviders() {
+    public List<SearchPlugin.ProfileMetricsProvider> getPluginProfileMetricsProviders() {
         return Collections.unmodifiableList(pluginProfilerProviders);
     }
 }

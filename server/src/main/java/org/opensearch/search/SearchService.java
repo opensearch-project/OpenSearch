@@ -167,6 +167,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -419,7 +420,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final Executor indexSearcherExecutor;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
-    private final List<SearchPlugin.PluginMetricsProvider> pluginProfilers;
+    private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilers;
 
     public SearchService(
         ClusterService clusterService,
@@ -434,7 +435,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        List<SearchPlugin.PluginMetricsProvider> pluginProfilers
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -1563,12 +1564,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.evaluateRequestShouldUseConcurrentSearch();
         if (source.profile()) {
-            Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> pluginMetrics = new HashMap<>();
-            for (SearchPlugin.PluginMetricsProvider p : pluginProfilers) {
-                Map<Class<? extends Query>, Collection<Supplier<ProfileMetric>>> metrics = p.getPluginMetrics();
-                pluginMetrics.putAll(metrics);
-            }
-            Profilers profilers = new Profilers(context.searcher(), context.shouldUseConcurrentSearch(), pluginMetrics);
+            final Function<Query, Collection<Supplier<ProfileMetric>>> pluginProfileMetricsSupplier = (query) -> pluginProfilers.stream()
+                .flatMap(p -> p.getQueryProfileMetrics(context, query).stream())
+                .toList();
+            Profilers profilers = new Profilers(context.searcher(), context.shouldUseConcurrentSearch(), pluginProfileMetricsSupplier);
             context.setProfilers(profilers);
         }
 

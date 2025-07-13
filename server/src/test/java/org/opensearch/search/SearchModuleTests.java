@@ -32,7 +32,6 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -424,17 +423,17 @@ public class SearchModuleTests extends OpenSearchTestCase {
         );
     }
 
-    public void testPluginMetricsProvider() {
+    public void testProfileMetricsProvider() {
         SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
             @Override
-            public PluginMetricsProvider getPluginMetricsProvider() {
-                return () -> Map.of(TermQuery.class, List.of(() -> new Timer("plugin_timer")));
+            public Optional<ProfileMetricsProvider> getQueryProfileMetricsProvider() {
+                return Optional.of((searchContext, query) -> List.of(() -> new Timer("plugin_timer")));
             }
         }));
 
-        List<SearchPlugin.PluginMetricsProvider> providers = module.getPluginPluginMetricsProviders();
+        List<SearchPlugin.ProfileMetricsProvider> providers = module.getPluginProfileMetricsProviders();
         assertThat(providers, hasSize(1));
-        assertEquals(providers.getFirst().getPluginMetrics().size(), 1);
+        assertEquals(providers.getFirst().getQueryProfileMetrics(null, null).size(), 1);
     }
 
     public void testDefaultQueryPhaseSearcher() {
