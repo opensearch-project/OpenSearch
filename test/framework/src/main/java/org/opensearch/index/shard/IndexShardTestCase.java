@@ -33,6 +33,7 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -1812,7 +1813,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     replicationCheckpoint.getLength(),
                     replicationCheckpoint.getCodec(),
                     replicationCheckpoint.getMetadataMap(),
-                    "mock"
+                    IndexFileNames.parseSegmentName(replicationCheckpoint.getMetadataMap().keySet().stream().toList().getFirst())
                 ),
                 getMergedSegmentTargetListener(primaryShard, replica, primaryMetadata, countDownLatch)
             );
