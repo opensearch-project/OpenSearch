@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.action.support.GroupedActionListener;
@@ -152,7 +153,8 @@ public final class RemoteStoreFileDownloader {
                         logger.trace("Downloaded file {} of size {}", file, destination.fileLength(file));
                         onFileCompletion.run();
                         if (secondDestination != null) {
-                            secondDestination.copyFrom(destination, file, file, IOContext.DEFAULT);
+                            IOContext ioContext = file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
+                            secondDestination.copyFrom(destination, file, file, ioContext);
                         }
                     });
                 } catch (Exception e) {

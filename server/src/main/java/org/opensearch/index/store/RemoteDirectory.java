@@ -374,6 +374,27 @@ public class RemoteDirectory extends Directory {
         return false;
     }
 
+    @Override
+    public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+        // We don't want to call super.copyFrom() as the implementation may not entirely run on the
+        // current thread (e.g. if we have parallel multipart upload support). Lucene's copyFrom assumes that
+        // we can use IOContext.READONCE on the source file, which will fail if the IndexInput is accessed from
+        // another thread.
+        boolean success = false;
+        try (IndexInput is = from.openInput(src, context); IndexOutput os = createOutput(dest, context)) {
+            os.copyBytes(is, is.length());
+            success = true;
+        } finally {
+            if (!success) {
+                try {
+                    deleteFile(dest);
+                } catch (IOException e) {
+                    // Ignore the exception
+                }
+            }
+        }
+    }
+
     private void uploadBlob(
         Directory from,
         String src,
