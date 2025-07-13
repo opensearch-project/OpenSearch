@@ -57,17 +57,31 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();
         Map<String, Stats> groupStats2 = new HashMap<>();
-        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
-        SearchStats searchStats1 = new SearchStats(
-            new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
-            0,
-            groupStats1
-        );
-        SearchStats searchStats2 = new SearchStats(
-            new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
-            0,
-            groupStats2
-        );
+        Stats.Builder defaultStats = new Stats.Builder().queryCount(1)
+            .queryTimeInMillis(1)
+            .queryCurrent(1)
+            .concurrentQueryCount(1)
+            .concurrentQueryTimeInMillis(1)
+            .concurrentQueryCurrent(1)
+            .queryConcurrency(1)
+            .fetchCount(1)
+            .fetchTimeInMillis(1)
+            .fetchCurrent(1)
+            .scrollCount(1)
+            .scrollTimeInMillis(1)
+            .scrollCurrent(1)
+            .suggestCount(1)
+            .suggestTimeInMillis(1)
+            .suggestCurrent(1)
+            .pitCount(1)
+            .pitTimeInMillis(1)
+            .pitCurrent(1)
+            .searchIdleReactivateCount(1)
+            .starTreeQueryCount(1)
+            .starTreeQueryTimeInMillis(1);
+        groupStats2.put("group1", defaultStats.build());
+        SearchStats searchStats1 = new SearchStats(defaultStats.build(), 0, groupStats1);
+        SearchStats searchStats2 = new SearchStats(defaultStats.build(), 0, groupStats2);
 
         // adding these two search stats and checking group stats are correct
         searchStats1.add(searchStats2);

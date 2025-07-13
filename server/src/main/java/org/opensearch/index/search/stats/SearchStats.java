@@ -180,7 +180,49 @@ public class SearchStats implements Writeable, ToXContentFragment {
             // for internal use, initializes all counts to 0
         }
 
-        // Keeping this constructor for backward compatibility
+        /**
+         * Private constructor that takes a builder.
+         * This is the sole entry point for creating a new Stats object.
+         * @param builder The builder instance containing all the values.
+         */
+        private Stats(Builder builder) {
+            this.requestStatsLongHolder = builder.requestStatsLongHolder;
+            this.queryCount = builder.queryCount;
+            this.queryTimeInMillis = builder.queryTimeInMillis;
+            this.queryCurrent = builder.queryCurrent;
+
+            this.concurrentQueryCount = builder.concurrentQueryCount;
+            this.concurrentQueryTimeInMillis = builder.concurrentQueryTimeInMillis;
+            this.concurrentQueryCurrent = builder.concurrentQueryCurrent;
+            this.queryConcurrency = builder.queryConcurrency;
+
+            this.fetchCount = builder.fetchCount;
+            this.fetchTimeInMillis = builder.fetchTimeInMillis;
+            this.fetchCurrent = builder.fetchCurrent;
+
+            this.scrollCount = builder.scrollCount;
+            this.scrollTimeInMillis = builder.scrollTimeInMillis;
+            this.scrollCurrent = builder.scrollCurrent;
+
+            this.suggestCount = builder.suggestCount;
+            this.suggestTimeInMillis = builder.suggestTimeInMillis;
+            this.suggestCurrent = builder.suggestCurrent;
+
+            this.pitCount = builder.pitCount;
+            this.pitTimeInMillis = builder.pitTimeInMillis;
+            this.pitCurrent = builder.pitCurrent;
+
+            this.searchIdleReactivateCount = builder.searchIdleReactivateCount;
+
+            this.starTreeQueryCount = builder.starTreeQueryCount;
+            this.starTreeQueryTimeInMillis = builder.starTreeQueryTimeInMillis;
+        }
+
+        /**
+         * This constructor will be deprecated in 4.0
+         * Use Builder to create Stats object
+         */
+        @Deprecated
         public Stats(
             long queryCount,
             long queryTimeInMillis,
@@ -202,56 +244,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestTimeInMillis,
             long suggestCurrent,
             long searchIdleReactivateCount
-        ) {
-            this(
-                queryCount,
-                queryTimeInMillis,
-                queryCurrent,
-                concurrentQueryCount,
-                concurrentQueryTimeInMillis,
-                concurrentQueryCurrent,
-                queryConcurrency,
-                fetchCount,
-                fetchTimeInMillis,
-                fetchCurrent,
-                scrollCount,
-                scrollTimeInMillis,
-                scrollCurrent,
-                pitCount,
-                pitTimeInMillis,
-                pitCurrent,
-                suggestCount,
-                suggestTimeInMillis,
-                suggestCurrent,
-                searchIdleReactivateCount,
-                0L,  // starTreeQueryCount
-                0L   // starTreeQueryTimeInMillis
-            );
-        }
-
-        public Stats(
-            long queryCount,
-            long queryTimeInMillis,
-            long queryCurrent,
-            long concurrentQueryCount,
-            long concurrentQueryTimeInMillis,
-            long concurrentQueryCurrent,
-            long queryConcurrency,
-            long fetchCount,
-            long fetchTimeInMillis,
-            long fetchCurrent,
-            long scrollCount,
-            long scrollTimeInMillis,
-            long scrollCurrent,
-            long pitCount,
-            long pitTimeInMillis,
-            long pitCurrent,
-            long suggestCount,
-            long suggestTimeInMillis,
-            long suggestCurrent,
-            long searchIdleReactivateCount,
-            long starTreeQueryCount,
-            long starTreeQueryTimeInMillis
         ) {
             this.requestStatsLongHolder = new RequestStatsLongHolder();
             this.queryCount = queryCount;
@@ -280,9 +272,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.pitCurrent = pitCurrent;
 
             this.searchIdleReactivateCount = searchIdleReactivateCount;
-
-            this.starTreeQueryCount = starTreeQueryCount;
-            this.starTreeQueryTimeInMillis = starTreeQueryTimeInMillis;
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -624,6 +613,162 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 builder.endObject();
             }
             return builder;
+        }
+
+        /**
+         * Builder for the {@link Stats} class.
+         * Provides a fluent API for constructing a Stats object.
+         */
+        public static class Builder {
+            private long queryCount = 0;
+            private long queryTimeInMillis = 0;
+            private long queryCurrent = 0;
+            private long concurrentQueryCount = 0;
+            private long concurrentQueryTimeInMillis = 0;
+            private long concurrentQueryCurrent = 0;
+            private long queryConcurrency = 0;
+            private long fetchCount = 0;
+            private long fetchTimeInMillis = 0;
+            private long fetchCurrent = 0;
+            private long scrollCount = 0;
+            private long scrollTimeInMillis = 0;
+            private long scrollCurrent = 0;
+            private long suggestCount = 0;
+            private long suggestTimeInMillis = 0;
+            private long suggestCurrent = 0;
+            private long pitCount = 0;
+            private long pitTimeInMillis = 0;
+            private long pitCurrent = 0;
+            private long searchIdleReactivateCount = 0;
+            private long starTreeQueryCount = 0;
+            private long starTreeQueryTimeInMillis = 0;
+            @Nullable
+            private RequestStatsLongHolder requestStatsLongHolder = null;
+
+            public Builder() {}
+
+            public Builder queryCount(long count) {
+                this.queryCount = count;
+                return this;
+            }
+
+            public Builder queryTimeInMillis(long time) {
+                this.queryTimeInMillis = time;
+                return this;
+            }
+
+            public Builder queryCurrent(long current) {
+                this.queryCurrent = current;
+                return this;
+            }
+
+            public Builder concurrentQueryCount(long count) {
+                this.concurrentQueryCount = count;
+                return this;
+            }
+
+            public Builder concurrentQueryTimeInMillis(long time) {
+                this.concurrentQueryTimeInMillis = time;
+                return this;
+            }
+
+            public Builder concurrentQueryCurrent(long current) {
+                this.concurrentQueryCurrent = current;
+                return this;
+            }
+
+            public Builder queryConcurrency(long concurrency) {
+                this.queryConcurrency = concurrency;
+                return this;
+            }
+
+            public Builder fetchCount(long count) {
+                this.fetchCount = count;
+                return this;
+            }
+
+            public Builder fetchTimeInMillis(long time) {
+                this.fetchTimeInMillis = time;
+                return this;
+            }
+
+            public Builder fetchCurrent(long current) {
+                this.fetchCurrent = current;
+                return this;
+            }
+
+            public Builder scrollCount(long count) {
+                this.scrollCount = count;
+                return this;
+            }
+
+            public Builder scrollTimeInMillis(long time) {
+                this.scrollTimeInMillis = time;
+                return this;
+            }
+
+            public Builder scrollCurrent(long current) {
+                this.scrollCurrent = current;
+                return this;
+            }
+
+            public Builder suggestCount(long count) {
+                this.suggestCount = count;
+                return this;
+            }
+
+            public Builder suggestTimeInMillis(long time) {
+                this.suggestTimeInMillis = time;
+                return this;
+            }
+
+            public Builder suggestCurrent(long current) {
+                this.suggestCurrent = current;
+                return this;
+            }
+
+            public Builder pitCount(long count) {
+                this.pitCount = count;
+                return this;
+            }
+
+            public Builder pitTimeInMillis(long time) {
+                this.pitTimeInMillis = time;
+                return this;
+            }
+
+            public Builder pitCurrent(long current) {
+                this.pitCurrent = current;
+                return this;
+            }
+
+            public Builder searchIdleReactivateCount(long count) {
+                this.searchIdleReactivateCount = count;
+                return this;
+            }
+
+            public Builder starTreeQueryCount(long count) {
+                this.starTreeQueryCount = count;
+                return this;
+            }
+
+            public Builder starTreeQueryTimeInMillis(long time) {
+                this.starTreeQueryTimeInMillis = time;
+                return this;
+            }
+
+            public Builder requestStatsLongHolder(RequestStatsLongHolder holder) {
+                this.requestStatsLongHolder = holder;
+                return this;
+            }
+
+            /**
+             * Creates a {@link Stats} object from the builder's current state.
+             * @return A new Stats instance.
+             */
+            public Stats build() {
+                return new Stats(this);
+            }
         }
     }
 

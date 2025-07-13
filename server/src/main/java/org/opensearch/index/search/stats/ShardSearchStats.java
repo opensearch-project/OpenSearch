@@ -251,30 +251,29 @@ public final class ShardSearchStats implements SearchOperationListener {
         final MeanMetric starTreeQueryMetric = new MeanMetric();
 
         SearchStats.Stats stats() {
-            return new SearchStats.Stats(
-                queryMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
-                queryCurrent.count(),
-                concurrentQueryMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(concurrentQueryMetric.sum()),
-                concurrentQueryCurrent.count(),
-                queryConcurrencyMetric.count(),
-                fetchMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
-                fetchCurrent.count(),
-                scrollMetric.count(),
-                TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
-                scrollCurrent.count(),
-                pitMetric.count(),
-                TimeUnit.MICROSECONDS.toMillis(pitMetric.sum()),
-                pitCurrent.count(),
-                suggestMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
-                suggestCurrent.count(),
-                searchIdleMetric.count(),
-                starTreeQueryMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(starTreeQueryMetric.sum())
-            );
+            return new SearchStats.Stats.Builder().queryCount(queryMetric.count())
+                .queryTimeInMillis(TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()))
+                .queryCurrent(queryCurrent.count())
+                .concurrentQueryCount(concurrentQueryMetric.count())
+                .concurrentQueryTimeInMillis(TimeUnit.NANOSECONDS.toMillis(concurrentQueryMetric.sum()))
+                .concurrentQueryCurrent(concurrentQueryCurrent.count())
+                .queryConcurrency(queryConcurrencyMetric.count())
+                .fetchCount(fetchMetric.count())
+                .fetchTimeInMillis(TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()))
+                .fetchCurrent(fetchCurrent.count())
+                .scrollCount(scrollMetric.count())
+                .scrollTimeInMillis(TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()))
+                .scrollCurrent(scrollCurrent.count())
+                .pitCount(pitMetric.count())
+                .pitTimeInMillis(TimeUnit.MICROSECONDS.toMillis(pitMetric.sum()))
+                .pitCurrent(pitCurrent.count())
+                .suggestCount(suggestMetric.count())
+                .suggestTimeInMillis(TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()))
+                .suggestCurrent(suggestCurrent.count())
+                .searchIdleReactivateCount(searchIdleMetric.count())
+                .starTreeQueryCount(starTreeQueryMetric.count())
+                .starTreeQueryTimeInMillis(TimeUnit.NANOSECONDS.toMillis(starTreeQueryMetric.sum()))
+                .build();
         }
     }
 }

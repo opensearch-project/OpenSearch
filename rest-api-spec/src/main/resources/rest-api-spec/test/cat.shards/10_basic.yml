@@ -71,7 +71,7 @@
              search.concurrent_query_total    .+   \n
              search.concurrent_avg_slice_count  .+   \n
              search.startree_query_total      .+   \n
-             search.startree_query_time_in_millis       .+   \n
+             search.startree_query_time       .+   \n
              search.scroll_current            .+   \n
              search.scroll_time               .+   \n
              search.scroll_total              .+   \n
