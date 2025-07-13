@@ -82,6 +82,7 @@ import org.opensearch.action.admin.indices.mapping.put.TransportAutoPutMappingAc
 import org.opensearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.opensearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
+import org.opensearch.action.admin.indices.stats.SearchResponseStatusStats;
 import org.opensearch.action.bulk.BulkAction;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
@@ -2253,6 +2254,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings, clusterService);
                 mappingUpdatedAction.setClient(client);
+                final IndicesService mockIndicesService = mock(IndicesService.class);
+                when(mockIndicesService.getSearchResponseStatusStats()).thenReturn(new SearchResponseStatusStats());
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
                     settings,
                     transportService,
@@ -2267,7 +2270,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new SegmentReplicationPressureService(
                         settings,
                         clusterService,
-                        mock(IndicesService.class),
+                        mockIndicesService,
                         mock(ShardStateAction.class),
                         mock(SegmentReplicationStatsTracker.class),
                         mock(ThreadPool.class)
@@ -2300,7 +2303,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         indexNameExpressionResolver,
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
                         new IndexingPressureService(settings, clusterService),
-                        mock(IndicesService.class),
+                        mockIndicesService,
                         new SystemIndices(emptyMap()),
                         NoopTracer.INSTANCE
                     )
@@ -2401,7 +2404,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         searchRequestOperationsCompositeListenerFactory,
                         NoopTracer.INSTANCE,
                         new TaskResourceTrackingService(settings, clusterSettings, threadPool),
-                        mock(IndicesService.class)
+                        mockIndicesService
                     )
                 );
                 actions.put(

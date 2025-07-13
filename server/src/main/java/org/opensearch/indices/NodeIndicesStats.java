@@ -318,6 +318,12 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (statsByShard != null) {
             writeStatsByShards(out);
         }
+
+        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            if (statusCounterStats != null) {
+                statusCounterStats.writeTo(out);
+            }
+        }
     }
 
     private void writeStatsByIndex(StreamOutput out) throws IOException {

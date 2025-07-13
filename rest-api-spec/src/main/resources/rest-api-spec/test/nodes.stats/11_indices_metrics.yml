@@ -25,6 +25,7 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
 
 ---
 "Metric - _all":
@@ -53,6 +54,7 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
 
 ---
 "Metric - indices _all":
@@ -81,6 +83,7 @@
   - is_true:  nodes.$node_id.indices.segments
   - is_true:  nodes.$node_id.indices.translog
   - is_true:  nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
 
 ---
 "Metric - one":
@@ -109,6 +112,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_true:   nodes.$node_id.indices.status_counter
 
 ---
 "Metric - multi":
@@ -137,6 +141,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
+  - is_true:   nodes.$node_id.indices.status_counter
 
 ---
 "Metric - indexing doc_status":
@@ -153,8 +158,7 @@
 
   - is_false: nodes.$node_id.indices.docs
   - is_false: nodes.$node_id.indices.store
-  - is_true: nodes.$node_id.indices.indexing
-  - is_true: nodes.$node_id.indices.indexing.doc_status
+  - is_true:  nodes.$node_id.indices.indexing
   - is_false: nodes.$node_id.indices.get
   - is_false: nodes.$node_id.indices.search
   - is_false: nodes.$node_id.indices.merges
@@ -167,6 +171,39 @@
   - is_false: nodes.$node_id.indices.segments
   - is_false: nodes.$node_id.indices.translog
   - is_false: nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
+  - is_true:  nodes.$node_id.indices.status_counter.doc_status
+
+---
+"Metric - indexing search_response_status":
+  - skip:
+      version: " - 2.10.99"
+      reason: "Doc Status Stats were introduced in v2.11.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: indices, index_metric: indexing }
+
+  - is_false: nodes.$node_id.indices.docs
+  - is_false: nodes.$node_id.indices.store
+  - is_true:  nodes.$node_id.indices.indexing
+  - is_false: nodes.$node_id.indices.get
+  - is_false: nodes.$node_id.indices.search
+  - is_false: nodes.$node_id.indices.merges
+  - is_false: nodes.$node_id.indices.refresh
+  - is_false: nodes.$node_id.indices.flush
+  - is_false: nodes.$node_id.indices.warmer
+  - is_false: nodes.$node_id.indices.query_cache
+  - is_false: nodes.$node_id.indices.fielddata
+  - is_false: nodes.$node_id.indices.completion
+  - is_false: nodes.$node_id.indices.segments
+  - is_false: nodes.$node_id.indices.translog
+  - is_false: nodes.$node_id.indices.recovery
+  - is_true:  nodes.$node_id.indices.status_counter
+  - is_true:  nodes.$node_id.indices.status_counter.search_response_status
 
 ---
 "Metric - recovery":
@@ -195,6 +232,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
+  - is_true:   nodes.$node_id.indices.status_counter
 
 ---
 "Metric - _all include_segment_file_sizes":
