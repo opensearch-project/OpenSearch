@@ -11,15 +11,13 @@ package org.opensearch.plugin.wlm.rule.sync;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEvent;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
-import org.opensearch.rule.InMemoryRuleProcessingService;
-import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
@@ -28,7 +26,6 @@ import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WlmMode;
-import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,12 +62,10 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private long refreshInterval;
     private volatile Scheduler.Cancellable scheduledFuture;
-    private final RuleEntityParser parser;
-    private final InMemoryRuleProcessingService ruleProcessingService;
     private final RulePersistenceService rulePersistenceService;
     private final RuleEventClassifier ruleEventClassifier;
     private final FeatureType featureType;
-    private WlmMode wlmMode;
+    private final WlmClusterSettingValuesProvider nonPluginSettingValuesProvider;
     // This var keeps the Rules which were present during last run of this service
     private Set<Rule> lastRunIndexedRules;
     private static final Logger logger = LogManager.getLogger(RefreshBasedSyncMechanism.class);
@@ -80,33 +75,26 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
      *
      * @param threadPool
      * @param settings
-     * @param clusterSettings
-     * @param parser
-     * @param ruleProcessingService
      * @param featureType
      * @param rulePersistenceService
      * @param ruleEventClassifier
+     * @param nonPluginSettingValuesProvider
      */
     public RefreshBasedSyncMechanism(
         ThreadPool threadPool,
         Settings settings,
-        ClusterSettings clusterSettings,
-        RuleEntityParser parser,
-        InMemoryRuleProcessingService ruleProcessingService,
         FeatureType featureType,
         RulePersistenceService rulePersistenceService,
-        RuleEventClassifier ruleEventClassifier
+        RuleEventClassifier ruleEventClassifier,
+        WlmClusterSettingValuesProvider nonPluginSettingValuesProvider
     ) {
         this.threadPool = threadPool;
         refreshInterval = RULE_SYNC_REFRESH_INTERVAL_SETTING.get(settings);
-        this.parser = parser;
-        this.ruleProcessingService = ruleProcessingService;
         this.featureType = featureType;
         this.rulePersistenceService = rulePersistenceService;
         this.lastRunIndexedRules = new HashSet<>();
         this.ruleEventClassifier = ruleEventClassifier;
-        wlmMode = WorkloadManagementSettings.WLM_MODE_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(WorkloadManagementSettings.WLM_MODE_SETTING, this::setWlmMode);
+        this.nonPluginSettingValuesProvider = nonPluginSettingValuesProvider;
     }
 
     /**
@@ -114,7 +102,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
      * but theoretically possible
      */
     synchronized void doRun() {
-        if (wlmMode != WlmMode.ENABLED) {
+        if (nonPluginSettingValuesProvider.getWlmMode() != WlmMode.ENABLED) {
             return;
         }
 
@@ -160,9 +148,5 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         if (scheduledFuture != null) {
             scheduledFuture.cancel();
         }
-    }
-
-    void setWlmMode(WlmMode mode) {
-        this.wlmMode = mode;
     }
 }
