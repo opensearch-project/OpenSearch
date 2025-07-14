@@ -357,26 +357,23 @@ public class Lucene {
     public static FieldDoc readFieldDoc(StreamInput in) throws IOException {
         Comparable[] cFields = new Comparable[in.readVInt()];
         for (int j = 0; j < cFields.length; j++) {
-            byte type = in.readByte();
-            cFields[j] = switch (type) {
-                case 0 -> null;
-                case 1 -> in.readString();
-                case 2 -> in.readInt();
-                case 3 -> in.readLong();
-                case 4 -> in.readFloat();
-                case 5 -> in.readDouble();
-                case 6 -> in.readByte();
-                case 7 -> in.readShort();
-                case 8 -> in.readBoolean();
-                case 9 -> in.readBytesRef();
-                case 10 -> new BigInteger(in.readString());
-                default -> throw new IOException("Can't match type [" + type + "]");
-            };
+            cFields[j] = readTypedValue(in);
         }
         return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
     }
 
     public static Comparable readSortValue(StreamInput in) throws IOException {
+        return readTypedValue(in);
+    }
+
+    /**
+     * Reads a typed value from the stream based on a type byte prefix.
+     *
+     * @param in the input stream
+     * @return the deserialized Comparable value
+     * @throws IOException if reading fails or type is unknown
+     */
+    private static Comparable readTypedValue(StreamInput in) throws IOException {
         byte type = in.readByte();
         return switch (type) {
             case 0 -> null;
