@@ -154,6 +154,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             pluginDependencies
         );
     }
+
     public PluginInfo(
         String name,
         String description,
@@ -178,6 +179,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             Collections.emptyList()
         );
     }
+
     public PluginInfo(
         String name,
         String description,
