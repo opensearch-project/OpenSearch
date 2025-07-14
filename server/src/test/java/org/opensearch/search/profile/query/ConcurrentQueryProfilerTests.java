@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ConcurrentQueryProfilerTests extends OpenSearchTestCase {
 
     public void testMergeRewriteTimeIntervals() {
-        ConcurrentQueryProfiler profiler = new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(null), null);
+        ConcurrentQueryProfiler profiler = new ConcurrentQueryProfiler();
         List<Timer> timers = new LinkedList<>();
         timers.add(new Timer(217134L, 1L, 1L, 0L, 553074511206907L, "test1"));
         timers.add(new Timer(228954L, 1L, 1L, 0L, 553074509287335L, "test2"));

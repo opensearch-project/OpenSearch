@@ -40,6 +40,10 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
 
     private final Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics;
 
+    public ConcurrentQueryProfiler() {
+        this(new ConcurrentQueryProfileTree(query -> List.of()), query -> List.of());
+    }
+
     public ConcurrentQueryProfiler(
         AbstractQueryProfileTree profileTree,
         Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics

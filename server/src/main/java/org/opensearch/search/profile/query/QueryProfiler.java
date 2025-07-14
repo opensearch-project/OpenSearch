@@ -37,6 +37,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -59,6 +60,10 @@ public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown, 
      * The root Collector used in the search
      */
     private InternalProfileComponent collector;
+
+    public QueryProfiler() {
+        this(new InternalQueryProfileTree(query -> List.of()));
+    }
 
     public QueryProfiler(AbstractQueryProfileTree profileTree) {
         super(profileTree);

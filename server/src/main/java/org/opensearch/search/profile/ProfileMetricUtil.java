@@ -20,6 +20,12 @@ import java.util.function.Supplier;
  */
 public class ProfileMetricUtil {
 
+    public static Collection<Supplier<ProfileMetric>> getQueryProfileMetrics(Collection<Supplier<ProfileMetric>> customProfileMetrics) {
+        Collection<Supplier<ProfileMetric>> metrics = getDefaultQueryProfileMetrics();
+        metrics.addAll(customProfileMetrics);
+        return metrics;
+    }
+
     public static Collection<Supplier<ProfileMetric>> getDefaultQueryProfileMetrics() {
         Collection<Supplier<ProfileMetric>> metrics = new ArrayList<>();
         for (QueryTimingType type : QueryTimingType.values()) {

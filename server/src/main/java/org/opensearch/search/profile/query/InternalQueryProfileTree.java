@@ -57,8 +57,6 @@ public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
     @Override
     protected ContextualProfileBreakdown createProfileBreakdown(Query query) {
-        Collection<Supplier<ProfileMetric>> metricSuppliers = ProfileMetricUtil.getDefaultQueryProfileMetrics();
-        if (customProfileMetrics != null) metricSuppliers.addAll(customProfileMetrics.apply(query));
-        return new QueryProfileBreakdown(metricSuppliers);
+        return new QueryProfileBreakdown(ProfileMetricUtil.getQueryProfileMetrics(customProfileMetrics.apply(query)));
     }
 }

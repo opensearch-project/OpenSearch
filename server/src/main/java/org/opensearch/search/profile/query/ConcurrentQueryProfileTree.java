@@ -37,9 +37,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
     @Override
     protected ContextualProfileBreakdown createProfileBreakdown(Query query) {
-        Collection<Supplier<ProfileMetric>> metricSuppliers = ProfileMetricUtil.getDefaultQueryProfileMetrics();
-        if (customProfileMetrics != null) metricSuppliers.addAll(customProfileMetrics.apply(query));
-        return new ConcurrentQueryProfileBreakdown(metricSuppliers);
+        return new ConcurrentQueryProfileBreakdown(ProfileMetricUtil.getQueryProfileMetrics(customProfileMetrics.apply(query)));
     }
 
     @Override
