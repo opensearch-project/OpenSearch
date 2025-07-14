@@ -298,7 +298,8 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             RepositoryMetadata repositoryMetadata,
             AsyncExecutorContainer urgentExecutorBuilder,
             AsyncExecutorContainer priorityExecutorBuilder,
-            AsyncExecutorContainer normalExecutorBuilder
+            AsyncExecutorContainer normalExecutorBuilder,
+            String asyncHttpClientType
         ) {
             return new AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials.create(asyncClient, asyncClient, asyncClient, null));
         }
@@ -471,7 +472,8 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.getDefault(Settings.EMPTY),
             SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.getDefault(Settings.EMPTY),
             SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.getDefault(Settings.EMPTY),
-            EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY)
+            EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY),
+            AsyncHttpClientFactory.CRT_ASYNC_HTTP_CLIENT_TYPE
         );
     }
 
