@@ -493,18 +493,54 @@ public class InternalEngineTests extends EngineTestCase {
                 createDocumentWithNestedField("2", "Bob", 25),
                 createDocumentWithNestedField("3", "Charlie", 35)
             );
-
             for (ParsedDocument doc : docs) {
                 engine.index(indexForDoc(doc));
             }
-
             engine.refresh("test");
-
             segments = engine.segments(true);
 
             assertThat(segments.size(), equalTo(1));
             assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
 
+        }
+    }
+
+    public void testSegmentsWithNestedFieldIndexSortWithMerge() throws Exception {
+        Sort indexSort = new Sort(new SortedSetSortField("foo1", false));
+        try (
+            Store store = createStore();
+            Engine engine = createEngine(
+                defaultSettings,
+                store,
+                createTempDir(),
+                new TieredMergePolicy(),
+                null,
+                null,
+                null,
+                indexSort,
+                null
+            )
+        ) {
+            List<ParsedDocument> docs = List.of(
+                createDocumentWithNestedField("1", "Alice", 30),
+                createDocumentWithNestedField("2", "Bob", 25),
+                createDocumentWithNestedField("3", "Charlie", 35)
+            );
+            for (ParsedDocument doc : docs) {
+                engine.index(indexForDoc(doc));
+                engine.refresh("test");
+            }
+            List<Segment> preMergeSegments = engine.segments(true);
+            assertThat(preMergeSegments.size(), equalTo(3));
+            for (Segment segment : preMergeSegments) {
+                assertThat(segment.getSegmentSort(), equalTo(indexSort));
+            }
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
+            engine.refresh("test");
+            List<Segment> mergedSegments = engine.segments(true);
+
+            assertThat(mergedSegments.size(), equalTo(1));
+            assertThat(mergedSegments.get(0).getSegmentSort(), equalTo(indexSort));
         }
     }
 
