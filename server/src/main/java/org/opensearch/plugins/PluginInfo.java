@@ -154,7 +154,30 @@ public class PluginInfo implements Writeable, ToXContentObject {
             pluginDependencies
         );
     }
-
+    public PluginInfo(
+        String name,
+        String description,
+        String version,
+        List<SemverRange> opensearchVersionRanges,
+        String javaVersion,
+        String classname,
+        String customFolderName,
+        List<String> extendedPlugins,
+        boolean hasNativeController
+    ) {
+        this(
+            name,
+            description,
+            version,
+            opensearchVersionRanges,
+            javaVersion,
+            classname,
+            customFolderName,
+            extendedPlugins,
+            hasNativeController,
+            Collections.emptyList()
+        );
+    }
     public PluginInfo(
         String name,
         String description,
