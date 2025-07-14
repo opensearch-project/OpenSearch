@@ -288,7 +288,8 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
                         p.getName(),
                         null,
                         Collections.emptyList(),
-                        false
+                        false,
+                        Collections.emptyList()
                     )
                 )
                 .collect(Collectors.toList()),

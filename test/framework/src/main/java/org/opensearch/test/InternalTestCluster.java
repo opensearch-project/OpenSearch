@@ -829,7 +829,8 @@ public final class InternalTestCluster extends TestCluster {
                     p.getName(),
                     null,
                     Collections.emptyList(),
-                    false
+                    false,
+                    Collections.emptyList()
                 )
             )
             .collect(Collectors.toList());

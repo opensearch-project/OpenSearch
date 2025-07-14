@@ -89,6 +89,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     // Optional extended plugins are a subset of extendedPlugins that only contains the optional extended plugins
     private final List<String> optionalExtendedPlugins;
     private final boolean hasNativeController;
+    private final List<String> pluginDependencies;
 
     /**
      * Construct plugin info.
@@ -112,7 +113,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         String customFolderName,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        List<String> pluginDependencies
     ) {
         this(
             name,
@@ -123,7 +125,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            pluginDependencies
         );
     }
 
@@ -136,7 +139,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         String customFolderName,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        List<String> pluginDependencies
     ) {
         this.name = name;
         this.description = description;
@@ -157,6 +161,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .map(s -> s.split(";")[0])
             .collect(Collectors.toUnmodifiableList());
         this.hasNativeController = hasNativeController;
+        this.pluginDependencies = pluginDependencies != null ? pluginDependencies : Collections.emptyList();
     }
 
     /**
@@ -190,7 +195,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             null /* customFolderName */,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            Collections.emptyList()
         );
     }
 
@@ -215,6 +221,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
+        this.pluginDependencies = in.readStringList();
         if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
             this.optionalExtendedPlugins = in.readStringList();
         } else {
@@ -250,6 +257,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+        out.writeStringCollection(pluginDependencies);
         if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
             out.writeStringCollection(optionalExtendedPlugins);
         }
@@ -294,17 +302,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 "Either [opensearch.version] or [dependencies] property must be specified for the plugin [" + name + "]"
             );
         }
-        if (opensearchVersionString != null && dependenciesValue != null) {
-            throw new IllegalArgumentException(
-                "Only one of [opensearch.version] or [dependencies] property can be specified for the plugin [" + name + "]"
-            );
-        }
 
         final List<SemverRange> opensearchVersionRanges = new ArrayList<>();
-        if (opensearchVersionString != null) {
-            opensearchVersionRanges.add(SemverRange.fromString(opensearchVersionString));
-        } else {
-            Map<String, String> dependenciesMap;
+        final List<String> pluginDependencies = new ArrayList<>();
+        Map<String, String> dependenciesMap = Collections.emptyMap();
+        if (dependenciesValue != null) {
             try (
                 final JsonXContentParser parser = new JsonXContentParser(
                     NamedXContentRegistry.EMPTY,
@@ -314,21 +316,40 @@ public class PluginInfo implements Writeable, ToXContentObject {
             ) {
                 dependenciesMap = parser.mapStrings();
             }
-            if (dependenciesMap.size() != 1) {
+        }
+        if (opensearchVersionString != null) {
+            if (dependenciesMap.containsKey("opensearch")) {
                 throw new IllegalArgumentException(
-                    "Exactly one dependency is allowed to be specified in plugin descriptor properties: " + dependenciesMap
+                    "Specify OpenSearch version in only one of [opensearch.version] or [dependencies] for plugin [" + name + "]"
                 );
             }
-            if (dependenciesMap.keySet().stream().noneMatch(s -> s.equals("opensearch"))) {
-                throw new IllegalArgumentException("Only opensearch is allowed to be specified as a plugin dependency: " + dependenciesMap);
+            opensearchVersionRanges.add(SemverRange.fromString(opensearchVersionString));
+        } else {
+
+            if (!dependenciesMap.containsKey("opensearch")) {
+
+                throw new IllegalArgumentException("Missing required dependency on 'opensearch' for plugin [" + name + "]");
             }
-            String[] ranges = dependenciesMap.get("opensearch").split(",");
-            if (ranges.length != 1) {
+
+            String[] opensearchRanges = dependenciesMap.remove("opensearch").split(",");
+            if (opensearchRanges.length != 1) {
                 throw new IllegalArgumentException(
                     "Exactly one range is allowed to be specified in dependencies for the plugin [\" + name + \"]"
                 );
             }
-            opensearchVersionRanges.add(SemverRange.fromString(ranges[0].trim()));
+            opensearchVersionRanges.add(SemverRange.fromString(opensearchRanges[0].trim()));
+            // Validate remaining dependencies
+            for (Map.Entry<String, String> entry : dependenciesMap.entrySet()) {
+                String plugin = entry.getKey();
+                String[] ranges = entry.getValue().split(",");
+                if (ranges.length != 1) {
+                    throw new IllegalArgumentException(
+                        "Exactly one range is allowed to be specified for dependency [" + plugin + "] in plugin [" + name + "]"
+                    );
+                }
+                pluginDependencies.add(plugin);
+            }
+
         }
 
         final String javaVersionString = propsMap.remove("java.version");
@@ -391,8 +412,16 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            pluginDependencies
         );
+    }
+
+    /**
+     * Returns unmodifiable list of plugin dependencies.
+     */
+    public List<String> getPluginDependencies() {
+        return Collections.unmodifiableList(pluginDependencies);
     }
 
     /**
@@ -522,6 +551,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
             builder.field("optional_extended_plugins", optionalExtendedPlugins);
+            builder.field("plugin_dependencies", pluginDependencies);
         }
         builder.endObject();
 
@@ -578,6 +608,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix)
             .append("Native Controller: ")
             .append(hasNativeController)
+            .append("\n")
+            .append(prefix)
+            .append("Plugin Dependencies: ")
+            .append(pluginDependencies)
             .append("\n")
             .append(prefix)
             .append("Extended Plugins: ")

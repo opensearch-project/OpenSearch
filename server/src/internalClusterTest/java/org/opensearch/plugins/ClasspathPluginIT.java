@@ -53,7 +53,8 @@ public class ClasspathPluginIT extends OpenSearchIntegTestCase {
                 SampleExtensiblePlugin.class.getName(),
                 null,
                 Collections.emptyList(),
-                false
+                false,
+                Collections.emptyList()
             ),
             new PluginInfo(
                 SampleExtendingPlugin.class.getName(),
@@ -64,7 +65,8 @@ public class ClasspathPluginIT extends OpenSearchIntegTestCase {
                 SampleExtendingPlugin.class.getName(),
                 null,
                 List.of(SampleExtensiblePlugin.class.getName()),
-                false
+                false,
+                Collections.emptyList()
             )
         );
     }
