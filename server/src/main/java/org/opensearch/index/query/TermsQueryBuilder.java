@@ -40,9 +40,9 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
@@ -76,7 +76,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -98,10 +97,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
     private ValueType valueType = ValueType.DEFAULT;
-    // private final SetOnce<List<Object>> fetchedTerms = new SetOnce<>();
-    // private final AtomicBoolean asyncRegistered = new AtomicBoolean(false);
     private static final Map<String, SetOnce<List<Object>>> fetchedTermsCache = new ConcurrentHashMap<>();
-    private static final Map<String, AtomicBoolean> asyncRegistrationCache = new ConcurrentHashMap<>();
 
     /**
      * Terms query may accept different types of value
@@ -545,12 +541,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // All remote fetching for termsLookup must be completed in the rewrite phase.
         // doToQuery should only use cached results from rewrite, never perform I/O!
-        if (termsLookup != null && termsLookup.query() != null) {
+        if (termsLookup != null && (termsLookup.query() != null || termsLookup.id() != null)) {
             String key = cacheKey();
             SetOnce<List<Object>> fetchedTerms = fetchedTermsCache.get(key);
-            // logger.info("[DO-TO-QUERY] Checking fetchedTerms presence for key: " + cacheKey());
-            // logger.info("[DO-TO-QUERY] fetchedTerms is " + (fetchedTerms == null ? "null" : (fetchedTerms.get() == null ? "not yet set" :
-            // "set with " + fetchedTerms.get().size() + " terms")));
+            logger.info("[DO-TO-QUERY] Checking fetchedTerms presence for key: " + key);
             logger.info(
                 "In doToQuery for field "
                     + fieldName
@@ -563,21 +557,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             if (fetchedTerms == null || fetchedTerms.get() == null) {
                 throw new IllegalStateException("Terms must be fetched during rewrite phase before query execution.");
             }
-            // Use the fetched terms, guaranteed by rewrite to be present
             return context.fieldMapper(fieldName).termsQuery(fetchedTerms.get(), context);
-
-            // Sync/Blocking way to pass get the rewritten query
-            // QueryBuilder rewrittenQuery = termsLookup.query().rewrite(context);
-            //
-            // SearchResponse response = context.getClient()
-            // .search(new SearchRequest(termsLookup.index()).source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true)))
-            // .actionGet();
-            //
-            // List<Object> terms = new ArrayList<>();
-            // for (SearchHit hit : response.getHits().getHits()) {
-            // terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
-            // }
-            // return context.fieldMapper(fieldName).termsQuery(terms, context);
         }
 
         // This section ensures no on-demand fetching for other cases as well
@@ -614,29 +594,96 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
-        GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
-        getRequest.preference("_local").routing(termsLookup.routing());
-        if (termsLookup.store()) {
-            getRequest.storedFields(termsLookup.path());
-        }
-        client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
-            List<Object> terms = new ArrayList<>();
-            if (termsLookup.store()) {
-                List<Object> values = getResponse.getField(termsLookup.path()).getValues();
-                if (values.size() != 1 && valueType == ValueType.BITMAP) {
-                    throw new IllegalArgumentException(
-                        "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
-                    );
+        if (termsLookup.id() != null) {
+            {
+                GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
+                getRequest.preference("_local").routing(termsLookup.routing());
+                if (termsLookup.store()) {
+                    getRequest.storedFields(termsLookup.path());
                 }
-                terms.addAll(values);
-            } else {
-                if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                    List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
-                    terms.addAll(extractedValues);
-                }
+                client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
+                    List<Object> terms = new ArrayList<>();
+                    if (termsLookup.store()) {
+                        List<Object> values = getResponse.getField(termsLookup.path()).getValues();
+                        if (values.size() != 1 && valueType == ValueType.BITMAP) {
+                            throw new IllegalArgumentException(
+                                "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
+                            );
+                        }
+                        terms.addAll(values);
+                    } else {
+                        if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+                            List<Object> extractedValues = XContentMapValues.extractRawValues(
+                                termsLookup.path(),
+                                getResponse.getSourceAsMap()
+                            );
+                            terms.addAll(extractedValues);
+                        }
+                    }
+                    delegatedListener.onResponse(terms);
+                }));
             }
-            delegatedListener.onResponse(terms);
-        }));
+        } else if (termsLookup.query() != null) {
+            client.admin()
+                .indices()
+                .getSettings(
+                    new org.opensearch.action.admin.indices.settings.get.GetSettingsRequest().indices(termsLookup.index()),
+                    ActionListener.wrap(settingsResponse -> {
+                        // Get index-specific settings, fall back to defaults if missing
+                        Settings idxSettings = settingsResponse.getIndexToSettings().getOrDefault(termsLookup.index(), Settings.EMPTY);
+
+                        // Get max_terms_count and max_result_window, fallback to their defaults
+                        int maxTermsCount = idxSettings.getAsInt(
+                            IndexSettings.MAX_TERMS_COUNT_SETTING.getKey(),
+                            IndexSettings.MAX_TERMS_COUNT_SETTING.getDefault(Settings.EMPTY)
+                        );
+                        int maxResultWindow = idxSettings.getAsInt(
+                            "index.max_result_window",
+                            10_000 // OpenSearch/Elasticsearch default
+                        );
+
+                        // The effective size must not exceed max_result_window
+                        int fetchSize = Math.min(maxTermsCount, maxResultWindow);
+
+                        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(termsLookup.query())
+                            .size(fetchSize)
+                            .fetchSource(termsLookup.path(), null);
+
+                        SearchRequest searchRequest = new SearchRequest(termsLookup.index()).source(sourceBuilder);
+
+                        client.search(searchRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, searchResponse) -> {
+                            List<Object> terms = new ArrayList<>();
+                            SearchHit[] hits = searchResponse.getHits().getHits();
+
+                            // Defensive: avoid exceeding maxTermsCount
+                            if (hits.length > maxTermsCount) {
+                                delegatedListener.onFailure(
+                                    new IllegalArgumentException(
+                                        "Terms lookup subquery result count ["
+                                            + hits.length
+                                            + "] exceeds allowed max_terms_count ["
+                                            + maxTermsCount
+                                            + "]"
+                                    )
+                                );
+                                return;
+                            }
+
+                            for (SearchHit hit : hits) {
+                                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                                if (sourceAsMap != null) {
+                                    List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), sourceAsMap);
+                                    terms.addAll(extractedValues);
+                                }
+                            }
+                            delegatedListener.onResponse(terms);
+                        }));
+                    }, actionListener::onFailure)
+                );
+        } else {
+            // No lookup type provided
+            actionListener.onResponse(Collections.emptyList());
+        }
     }
 
     @Override
@@ -655,111 +702,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (termsLookup != null && termsLookup.query() != null) {
-            // New code: rewrite the inner query first
-            QueryBuilder innerQuery = termsLookup.query();
-            QueryBuilder rewrittenInner = innerQuery.rewrite(queryRewriteContext);
-            if (rewrittenInner != innerQuery) {
-                TermsLookup rewrittenLookup = new TermsLookup(
-                    termsLookup.index(),
-                    null, // id is mutually exclusive with query
-                    termsLookup.path(),
-                    rewrittenInner
-                ).routing(termsLookup.routing());
-
-                return new TermsQueryBuilder(fieldName, rewrittenLookup);
-            }
-
-            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-            if (shardContext == null) {
-                // NO CLIENT AVAILABLE! Cannot fetch terms via subquery lookup without shard context.
-                // throw new IllegalStateException("Subquery-based terms lookup requires a shard context and cannot be performed on the
-                // coordinating node.");
-                // logger.info("[REWRITE] Shard Context is : " + shardContext);
-                return this;
-            }
-
-            // Use a class-level cache for fetched terms keyed by the termsLookup params
-            String key = cacheKey();
-            // logger.info("[REWRITE] Cache key: " + key);
-            SetOnce<List<Object>> fetchedTerms = fetchedTermsCache.computeIfAbsent(key, k -> new SetOnce<>());
-            // logger.info("[REWRITE] fetchedTerms present? " + (fetchedTerms.get() != null));
-
-            if (fetchedTerms.get() == null) {
-                // Register async fetch only once
-                AtomicBoolean asyncRegistered = asyncRegistrationCache.computeIfAbsent(key, k -> new AtomicBoolean(false));
-                // logger.info("[REWRITE] asyncRegistered current value: " + asyncRegistered.get());
-                if (asyncRegistered.compareAndSet(false, true)) {
-                    // logger.info("[REWRITE] Registering async fetch for terms from lookup index");
-                    queryRewriteContext.registerAsyncAction((client, listener) -> {
-                        asyncFetchTerms(shardContext, client, fetchedTerms, ActionListener.wrap(unused -> {
-                            // logger.info("[ASYNC-CALLBACK] Async fetch completed successfully");
-                            listener.onResponse(null);
-                        }, e -> {
-                            // logger.error("[ASYNC-CALLBACK] Async fetch failed", e);
-                            listener.onFailure(e);
-                        }));
-                    });
-                } else {
-                    // logger.info("Async fetch already registered, skipping");
-                }
-                // Return this to trigger rewrite again after async fetch completes
-                return this;
-            }
-
-            // Fetched terms are ready, build query directly using them
-            // logger.info("[REWRITE] Using fetchedTerms: " + fetchedTerms.get().size() + " terms for field: " + fieldName);
-            return new TermsQueryBuilder(fieldName, fetchedTerms.get());
-        }
-
-        // Sync/Blocking way to get the rewritten query
-        // }
-        // if (termsLookup != null && termsLookup.query() != null) {
-        // QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-        // if (shardContext == null) {
-        // return this;
-        // }
-        // // Rewrite the subquery using the shard context
-        // QueryBuilder rewrittenQuery = termsLookup.query().rewrite(shardContext);
-        //
-        // SearchResponse response;
-        // try {
-        // response = shardContext.getClient()
-        // .search(
-        // new SearchRequest(termsLookup.index()).source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true))
-        // )
-        // .actionGet();
-        // } catch (Exception e) {
-        // throw new IllegalStateException("Failed to execute subquery: " + e.getMessage(), e);
-        // }
-        // // Extract terms from search hits
-        // List<Object> terms = new ArrayList<>();
-        // for (SearchHit hit : response.getHits().getHits()) {
-        // Map<String, Object> source = hit.getSourceAsMap();
-        // if (source != null) {
-        // try {
-        // List<Object> extracted = XContentMapValues.extractRawValues(termsLookup.path(), source);
-        // terms.addAll(extracted);
-        // } catch (Exception ex) {
-        // throw new IllegalStateException("Failed to execute subquery: " + ex.getMessage(), ex);
-        // }
-        // } else {
-        // throw new IllegalStateException("Source is null for hit: " + hit);
-        // }
-        // }
-        // // Return a new TermsQueryBuilder with the fetched terms
-        // return new TermsQueryBuilder(fieldName, terms);
-        // }
-
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), valueType);
-        } else if (this.termsLookup != null) {
+        }
+        // Support: terms lookup by document id && Support: terms lookup by subquery
+        else if (this.termsLookup != null && (this.termsLookup.id() != null || this.termsLookup.query() != null)) {
             SetOnce<List<?>> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
                 supplier.set(list);
                 return null;
             })));
             return new TermsQueryBuilder(this.fieldName, supplier::get, valueType);
+        }
+        // If values are present, use them directly
+        else if (values != null && !values.isEmpty()) {
+            return this;
         }
 
         if (values == null || values.isEmpty()) {
@@ -787,88 +744,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
 
         return this;
-    }
-
-    private void asyncFetchTerms(
-        QueryShardContext shardContext,
-        Client client,
-        SetOnce<List<Object>> fetchedTerms,
-        ActionListener<Void> listener
-    ) {
-        // logger.info("[ASYNC-FETCH] Starting async fetch for terms with key: " + cacheKey());
-        // logger.info("Starting async fetch for terms");
-        // logger.info("[ASYNC-FETCH] Starting async fetch for terms with key: " + cacheKey());
-        if (shardContext == null) {
-            // logger.error("[ASYNC-FETCH] shardContext is null — cannot fetch");
-            listener.onFailure(new IllegalStateException("Shard context is null"));
-            return;
-        }
-        if (client == null) {
-            // logger.error("[ASYNC-FETCH] client is null — cannot fetch");
-            listener.onFailure(new IllegalStateException("Client is null"));
-            return;
-        }
-        try {
-            // logger.info("[ASYNC-FETCH] Rewriting subquery: " + termsLookup.query());
-            QueryBuilder rewrittenQuery = termsLookup.query().rewrite(shardContext);
-            // logger.info("[ASYNC-FETCH] Rewritten subquery: " + rewrittenQuery);
-            // logger.info("Rewritten subquery: " + rewrittenQuery);
-
-            SearchRequest searchRequest = new SearchRequest(termsLookup.index()).source(
-                new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true)
-            );
-            // logger.info("[ASYNC-FETCH] Sending async search request: " + searchRequest); // **NEW**
-
-            client.search(searchRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse response) {
-                    // logger.info("[ASYNC-FETCH] Received response with hits: " + response.getHits().getHits().length);
-                    // logger.info("Async search response received");
-                    try {
-                        // logger.info("[ASYNC-FETCH] Search response received with hits: " + response.getHits().getHits().length);
-                        List<Object> terms = new ArrayList<>();
-                        for (SearchHit hit : response.getHits().getHits()) {
-                            // logger.info("[ASYNC-FETCH] Processing hit with id: " + hit.getId());
-                            Map<String, Object> source = hit.getSourceAsMap();
-                            if (source != null) {
-
-                                List<Object> extracted = XContentMapValues.extractRawValues(termsLookup.path(), source);
-                                terms.addAll(extracted);
-                            } else {
-                                // logger.error("Hit source is null for hit: " + hit);
-                                listener.onFailure(new IllegalStateException("Source is null for hit: " + hit));
-                                return;
-                            }
-                        }
-                        // logger.info("[ASYNC-FETCH] Extracted " + terms.size() + " total terms");
-                        // logger.info("[ASYNC-FETCH] fetchedTerms set successfully");
-                        fetchedTerms.set(terms);
-                        // logger.info("Fetched terms set successfully: " + terms.size() + " terms");
-                        // logger.info("Calling listener.onResponse(null) with terms size: " + terms.size());
-                        // logger.info("[ASYNC-FETCH] Calling listener.onResponse(null) to signal async completion");
-                        listener.onResponse(null);
-                    } catch (Exception e) {
-                        // logger.error("[ASYNC-FETCH] fetchedTerms already set! Possible duplicate response", e);
-                        // logger.error("Exception during terms extraction", e);
-                        listener.onFailure(new IllegalStateException("Failed to extract terms: " + e.getMessage(), e));
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // logger.error("[ASYNC-FETCH] Search request failed", e);
-                    // logger.error("[ASYNC-FETCH] Async fetch failed with exception: " + e.getMessage(), e);
-                    // logger.error("Async search failed", e);
-                    listener.onFailure(new IllegalStateException("Failed to execute subquery: " + e.getMessage(), e));
-                }
-            });
-            // logger.info("[ASYNC-FETCH] Search request dispatched."); // **NEW**
-        } catch (IOException e) {
-            // logger.error("[ASYNC-FETCH] Rewrite threw IOException: " + e.getMessage(), e);
-            logger.error("Rewrite threw IOException", e);
-            // Rewrite throws IOException, so handle here by failing listener
-            listener.onFailure(e);
-        }
     }
 
     private String cacheKey() {
