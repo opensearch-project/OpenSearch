@@ -329,7 +329,6 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
 import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
-import static org.opensearch.common.util.FeatureFlags.CLUSTERLESS_FLAG;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
@@ -707,8 +706,9 @@ public class Node implements Closeable {
             final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
 
             List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
+            final boolean clusterless = clusterPlugins.stream().anyMatch(ClusterPlugin::isClusterless);
             final ClusterService clusterService;
-            if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG)) {
+            if (clusterless) {
                 clusterService = new LocalClusterService(settings, settingsModule.getClusterSettings(), threadPool, clusterManagerMetrics);
             } else {
                 clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool, clusterManagerMetrics);
@@ -772,7 +772,7 @@ public class Node implements Closeable {
                 snapshotsInfoService,
                 threadPool.getThreadContext(),
                 clusterManagerMetrics,
-                FeatureFlags.isEnabled(CLUSTERLESS_FLAG) ? LocalShardStateAction.class : ShardStateAction.class
+                clusterless ? LocalShardStateAction.class : ShardStateAction.class
             );
             modules.add(clusterModule);
             final List<MapperPlugin> mapperPlugins = pluginsService.filterPlugins(MapperPlugin.class);
@@ -1354,7 +1354,7 @@ public class Node implements Closeable {
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
             final Discovery discovery;
-            if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG)) {
+            if (clusterless) {
                 discovery = new LocalDiscovery(transportService, clusterService.getClusterApplierService());
             } else {
                 discovery = new DiscoveryModule(

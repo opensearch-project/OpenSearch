@@ -68,7 +68,7 @@ public class FeatureFlags {
      * Gates the functionality of warm index having the capability to store data remotely.
      * Once the feature is ready for release, this feature flag can be removed.
      */
-    public static final String WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "writable_warm_index.enabled";
+    public static final String WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG = "opensearch.experimental.feature.writable_warm_index.enabled";
 
     /**
      * Gates the functionality of background task execution.
@@ -79,7 +79,7 @@ public class FeatureFlags {
      * Gates the functionality of merged segment warmer in local/remote segment replication.
      * Once the feature is ready for release, this feature flag can be removed.
      */
-    public static final String MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG = FEATURE_FLAG_PREFIX + "merged_segment_warmer.enabled";
+    public static final String MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG = "opensearch.experimental.feature.merged_segment_warmer.enabled";
 
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
@@ -130,12 +130,6 @@ public class FeatureFlags {
     public static final Setting<Boolean> ARROW_STREAMS_SETTING = Setting.boolSetting(ARROW_STREAMS, false, Property.NodeScope);
 
     /**
-     * Allows the node to run without being part of a cluster. Eventually, we might move this to a normal cluster setting.
-     */
-    public static final String CLUSTERLESS_FLAG = FEATURE_FLAG_PREFIX + "clusterless.enabled";
-    public static final Setting<Boolean> CLUSTERLESS_SETTING = Setting.boolSetting(CLUSTERLESS_FLAG, false, Property.NodeScope);
-
-    /**
      * Underlying implementation for feature flags.
      * All settable feature flags are tracked here in FeatureFlagsImpl.featureFlags.
      * Contains all functionality across test and server use cases.
@@ -145,8 +139,7 @@ public class FeatureFlags {
         private static final String TEST_FLAG = "test.flag.enabled";
         private static final Setting<Boolean> TEST_FLAG_SETTING = Setting.boolSetting(TEST_FLAG, false, Property.NodeScope);
 
-        // Visible for testing
-        final ConcurrentHashMap<Setting<Boolean>, Boolean> featureFlags = new ConcurrentHashMap<>() {
+        private final ConcurrentHashMap<Setting<Boolean>, Boolean> featureFlags = new ConcurrentHashMap<>() {
             {
                 put(TEST_FLAG_SETTING, TEST_FLAG_SETTING.get(Settings.EMPTY));
                 put(REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING, REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
@@ -165,7 +158,6 @@ public class FeatureFlags {
                     SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING.getDefault(Settings.EMPTY)
                 );
                 put(MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING, MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
-                put(CLUSTERLESS_SETTING, CLUSTERLESS_SETTING.getDefault(Settings.EMPTY));
             }
         };
 
