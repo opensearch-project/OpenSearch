@@ -159,7 +159,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             clusterInfoService,
             null,
             threadContext,
-            null
+            null,
+            ShardStateAction.class
         );
         assertTrue(module.getIndexNameExpressionResolver().getExpressionResolvers().contains(customResolver1));
         assertTrue(module.getIndexNameExpressionResolver().getExpressionResolvers().contains(customResolver2));
@@ -176,7 +177,16 @@ public class ClusterModuleTests extends ModuleTestCase {
         });
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new ClusterModule(Settings.EMPTY, clusterService, clusterPlugins, clusterInfoService, null, threadContext, null)
+            () -> new ClusterModule(
+                Settings.EMPTY,
+                clusterService,
+                clusterPlugins,
+                clusterInfoService,
+                null,
+                threadContext,
+                null,
+                ShardStateAction.class
+            )
         );
         assertEquals(
             "Cannot specify expression resolver [org.opensearch.cluster.ClusterModuleTests$FakeExpressionResolver] twice",
