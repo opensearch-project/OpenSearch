@@ -8,21 +8,23 @@
 
 package org.opensearch.repositories.s3;
 
-import io.netty.channel.EventLoopGroup;
-import org.junit.Before;
+import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.test.OpenSearchTestCase;
-import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
-import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Map;
 
+import io.netty.channel.EventLoopGroup;
+
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class NettyAsyncHttpClientTests extends OpenSearchTestCase {
 

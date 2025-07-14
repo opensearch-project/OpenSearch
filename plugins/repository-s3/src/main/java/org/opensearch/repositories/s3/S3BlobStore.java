@@ -193,7 +193,13 @@ public class S3BlobStore implements BlobStore {
     }
 
     public AmazonAsyncS3Reference asyncClientReference() {
-        return s3AsyncService.client(repositoryMetadata, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder, asyncHttpClientType);
+        return s3AsyncService.client(
+            repositoryMetadata,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder,
+            asyncHttpClientType
+        );
     }
 
     int getMaxRetries() {

@@ -175,10 +175,7 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Type of Async client to be used for S3 Uploads.
      * Defaults to crt.
      */
-    static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(
-        "s3_async_client_type",
-        "crt"
-    );
+    static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString("s3_async_client_type", "crt");
 
     /**
      * Maximum size of files that can be uploaded using a single upload request.

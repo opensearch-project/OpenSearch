@@ -8,8 +8,9 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 
 public class AsyncHttpClientFactory {
 

@@ -7,18 +7,16 @@
  */
 package org.opensearch.repositories.s3;
 
-import org.junit.Before;
-import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
 
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
 import java.nio.file.Path;
 import java.util.Map;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CrtAsyncHttpClientTests extends OpenSearchTestCase {
 

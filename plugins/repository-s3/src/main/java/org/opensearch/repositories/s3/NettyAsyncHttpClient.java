@@ -8,11 +8,12 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
 import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
+
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 
 import java.time.Duration;
 

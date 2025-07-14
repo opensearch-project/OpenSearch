@@ -22,10 +22,6 @@ import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
-import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
-import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
-import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
-import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
@@ -45,11 +41,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
-import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -213,8 +207,13 @@ class S3AsyncService implements Closeable {
             builder.forcePathStyle(true);
         }
 
-        AsyncHttpClientFactory clientFactory = new AsyncHttpClientFactory(clientSettings, urgentExecutorBuilder.getAsyncTransferEventLoopGroup());
-        SdkAsyncHttpClient sdkAsyncHttpClient = clientFactory.createClient(AsyncHttpClientFactory.AsyncHttpClientType.valueOf(asyncHttpClientType));
+        AsyncHttpClientFactory clientFactory = new AsyncHttpClientFactory(
+            clientSettings,
+            urgentExecutorBuilder.getAsyncTransferEventLoopGroup()
+        );
+        SdkAsyncHttpClient sdkAsyncHttpClient = clientFactory.createClient(
+            AsyncHttpClientFactory.AsyncHttpClientType.valueOf(asyncHttpClientType)
+        );
 
         builder.httpClient(sdkAsyncHttpClient);
         builder.asyncConfiguration(

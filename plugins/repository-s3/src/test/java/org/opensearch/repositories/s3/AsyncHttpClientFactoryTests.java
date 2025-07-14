@@ -8,12 +8,13 @@
 
 package org.opensearch.repositories.s3;
 
-import org.junit.Before;
-import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import static org.mockito.Mockito.mock;
 
