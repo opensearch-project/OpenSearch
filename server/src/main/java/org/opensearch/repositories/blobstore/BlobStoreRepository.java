@@ -264,6 +264,46 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final long CACHE_DEFAULT_THRESHOLD = calculateDefaultSnapshotRepositoryDataCacheThreshold();
 
+    public static final String MAX_SNAPSHOT_BYTES_PER_SEC = "max_snapshot_bytes_per_sec";
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        MAX_SNAPSHOT_BYTES_PER_SEC,
+        new ByteSizeValue(40, ByteSizeUnit.MB),
+        Setting.Property.NodeScope
+    );
+
+    public static final String MAX_RESTORE_BYTES_PER_SEC = "max_restore_bytes_per_sec";
+
+    public static final Setting<ByteSizeValue> RESTORE_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        MAX_RESTORE_BYTES_PER_SEC,
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final String MAX_REMOTE_UPLOAD_BYTES_PER_SEC = "max_remote_upload_bytes_per_sec";
+
+    public static final Setting<ByteSizeValue> MAX_REMOTE_UPLOAD_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        MAX_REMOTE_UPLOAD_BYTES_PER_SEC,
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final String MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC = "max_remote_low_priority_upload_bytes_per_sec";
+
+    public static final Setting<ByteSizeValue> MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC,
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final String MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC = "max_remote_download_bytes_per_sec";
+
+    public static final Setting<ByteSizeValue> MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC,
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Set to Integer.MAX_VALUE - 8 to prevent OutOfMemoryError due to array header requirements, following the limit used in certain JDK versions.
      * This ensures compatibility across various JDK versions. For a practical usage example,
@@ -326,6 +366,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return userDefinedLimit;
         },
         Setting.Property.NodeScope
+    );
+
+    private static final Set<String> RELOADABLE_SETTINGS = Set.of(
+        MAX_RESTORE_BYTES_PER_SEC,
+        MAX_SNAPSHOT_BYTES_PER_SEC,
+        MAX_REMOTE_UPLOAD_BYTES_PER_SEC,
+        MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC,
+        MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC
     );
 
     public static long calculateDefaultSnapshotRepositoryDataCacheThreshold() {
@@ -592,15 +640,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.metadata = repositoryMetadata;
 
         supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
-        snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
-        restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
-        remoteUploadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_upload_bytes_per_sec", ByteSizeValue.ZERO);
-        remoteUploadLowPriorityRateLimiter = getRateLimiter(
-            metadata.settings(),
-            "max_remote_low_priority_upload_bytes_per_sec",
-            ByteSizeValue.ZERO
-        );
-        remoteDownloadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_download_bytes_per_sec", ByteSizeValue.ZERO);
+        snapshotRateLimiter = getRateLimiter(SNAPSHOT_BYTES_PER_SEC_SETTING, metadata.settings());
+        restoreRateLimiter = getRateLimiter(RESTORE_BYTES_PER_SEC_SETTING, metadata.settings());
+        remoteUploadRateLimiter = getRateLimiter(MAX_REMOTE_UPLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
+        remoteUploadLowPriorityRateLimiter = getRateLimiter(MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
+        remoteDownloadRateLimiter = getRateLimiter(MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
         readOnly = READONLY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
@@ -2891,17 +2935,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Configures RateLimiter based on repository and global settings
      *
-     * @param repositorySettings repository settings
-     * @param setting            setting to use to configure rate limiter
-     * @param defaultRate        default limiting rate
+     * @param bytesPerSecSetting setting to use to configure rate limiter
+     * @param settings        repository settings
      * @return rate limiter or null of no throttling is needed
      */
-    private RateLimiter getRateLimiter(Settings repositorySettings, String setting, ByteSizeValue defaultRate) {
-        ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.getAsBytesSize(setting, defaultRate);
-        if (maxSnapshotBytesPerSec.getBytes() <= 0) {
+    private RateLimiter getRateLimiter(Setting<ByteSizeValue> bytesPerSecSetting, Settings settings) {
+        ByteSizeValue maxByteSize = bytesPerSecSetting.get(settings);
+        if (maxByteSize.getBytes() <= 0) {
             return null;
         } else {
-            return new RateLimiter.SimpleRateLimiter(maxSnapshotBytesPerSec.getMbFrac());
+            return new RateLimiter.SimpleRateLimiter(maxByteSize.getMbFrac());
         }
     }
 
@@ -4326,6 +4369,31 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos, BlobStoreTransferContext.SNAPSHOT);
     }
 
+    // Visible for testing
+    public RateLimiter snapshotRateLimiter() {
+        return snapshotRateLimiter;
+    }
+
+    // Visible for testing
+    public RateLimiter restoreRateLimiter() {
+        return restoreRateLimiter;
+    }
+
+    // Visible for testing
+    public RateLimiter remoteUploadRateLimiter() {
+        return remoteUploadRateLimiter;
+    }
+
+    // Visible for testing
+    public RateLimiter remoteUploadLowPriorityRateLimiter() {
+        return remoteUploadLowPriorityRateLimiter;
+    }
+
+    // Visible for testing
+    public RateLimiter remoteDownloadRateLimiter() {
+        return remoteDownloadRateLimiter;
+    }
+
     @Override
     public List<Setting<?>> getRestrictedSystemRepositorySettings() {
         return Arrays.asList(SYSTEM_REPOSITORY_SETTING, READONLY_SETTING, REMOTE_STORE_INDEX_SHALLOW_COPY);
@@ -4713,6 +4781,31 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return Optional.of(blobName.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blobName.length() - ".dat".length()));
         }
         return Optional.empty();
+    }
+
+    @Override
+    public boolean isReloadableSettings(RepositoryMetadata newRepositoryMetadata) {
+        if (metadata.name().equals(newRepositoryMetadata.name()) == false
+            || metadata.type().equals(newRepositoryMetadata.type()) == false
+            || Objects.equals(metadata.cryptoMetadata(), newRepositoryMetadata.cryptoMetadata()) == false) {
+            return false;
+        }
+        Settings newSettings = newRepositoryMetadata.settings();
+        if (RELOADABLE_SETTINGS.containsAll(newSettings.keySet())) {
+            // the new settings are all contained in RELOADABLE_SETTINGS
+            return true;
+        } else {
+            Settings currentSettings = metadata.settings();
+            // In addition to the settings in RELOADABLE_SETTINGS, all the new settings should be equal to current settings
+            Set<String> allKeys = Stream.concat(newSettings.keySet().stream(), currentSettings.keySet().stream())
+                .filter(key -> !RELOADABLE_SETTINGS.contains(key))
+                .collect(Collectors.toSet());
+            return allKeys.stream().allMatch(key -> isSettingEqual(newSettings, currentSettings, key));
+        }
+    }
+
+    private boolean isSettingEqual(Settings s1, Settings s2, String key) {
+        return Objects.equals(s1.get(key), s2.get(key));
     }
 
     /**
