@@ -80,6 +80,7 @@ import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -876,10 +877,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     });
 
                     // Get the top buckets
-                    topBucketsPerOwningOrd[ordIdx] = buildBuckets(ordered.size());
-                    for (int i = ordered.size() - 1; i >= 0; --i) {
-                        topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
-                        otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                    if (isKeyOrder(order)) {
+                        topBucketsPerOwningOrd[ordIdx] = buildBuckets(ordered.size());
+                        for (int i = ordered.size() - 1; i >= 0; --i) {
+                            topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
+                            otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                        }
+                    } else {
+                        // sorted buckets not needed as they will be sorted by key in buildResult() which is different from
+                        // order in priority queue ordered
+                        Iterator<TB> itr = ordered.iterator();
+                        for (int i = ordered.size() - 1; i >= 0; --i) {
+                            topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(itr.next());
+                            otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                        }
                     }
                 } else {
                     final int finalOrdIdx = ordIdx;
