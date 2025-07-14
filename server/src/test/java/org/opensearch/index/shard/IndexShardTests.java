@@ -1827,6 +1827,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .build()
         );
+        shard.awaitRemoteStoreSync();
         RemoteSegmentTransferTracker remoteSegmentTransferTracker = shard.getRemoteStoreStatsTrackerFactory()
             .getRemoteSegmentTransferTracker(shard.shardId);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = shard.getRemoteStoreStatsTrackerFactory()
@@ -2855,18 +2856,20 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(source, "_doc", "1");
         indexDoc(source, "_doc", "2");
         source.refresh("test");
+        source.awaitRemoteStoreSync();
         assertTrue("At lease one remote sync should have been completed", source.isRemoteSegmentStoreInSync());
         assertDocs(source, "1", "2");
         indexDoc(source, "_doc", "3");
         source.refresh("test");
         flushShard(source);
+        source.awaitRemoteStoreSync();
 
         indexDoc(source, "_doc", "5");
         source.refresh("test");
+        source.awaitRemoteStoreSync();
 
         indexDoc(source, "_doc", "4");
         source.refresh("test");
-
         long primaryTerm;
         long commitGeneration;
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = source.getSegmentInfosSnapshot()) {
@@ -2876,6 +2879,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         Collection<String> lastCommitedSegmentsInSource = SegmentInfos.readLatestCommit(source.store().directory()).files(false);
 
+        source.awaitRemoteStoreSync();
         closeShards(source);
 
         RemoteSegmentStoreDirectory tempRemoteSegmentDirectory = createRemoteSegmentStoreDirectory(
@@ -2940,6 +2944,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(target, "_doc", "1");
         indexDoc(target, "_doc", "2");
         target.refresh("test");
+        target.awaitRemoteStoreSync();
         assertDocs(target, "1", "2");
         if (performFlush) {
             flushShard(target);
@@ -3027,6 +3032,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1");
         indexDoc(primary, "_doc", "2");
         primary.refresh("test");
+        primary.awaitRemoteStoreSync();
         assertDocs(primary, "1", "2");
 
         ShardRouting searchReplicaShardRouting = TestShardRouting.newShardRouting(
@@ -3073,6 +3079,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1");
         indexDoc(primary, "_doc", "2");
         primary.refresh("test");
+        primary.awaitRemoteStoreSync();
         assertDocs(primary, "1", "2");
 
         // Setting the RecoverySource to ExistingStoreRecoverySource to simulate a shard initializing on a new node
@@ -3111,6 +3118,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1");
         indexDoc(primary, "_doc", "2");
         primary.refresh("test");
+        primary.awaitRemoteStoreSync();
         assertDocs(primary, "1", "2");
 
         // start search replica
@@ -3282,6 +3290,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
+        shard.awaitRemoteStoreSync();
 
         try (Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
             assertTrue(getResult.exists());
@@ -3345,8 +3354,10 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(shard);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         shard.refresh("created segment 1");
+        shard.awaitRemoteStoreSync();
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("created segment 2");
+        shard.awaitRemoteStoreSync();
 
         // test global ordinals are evicted
         MappedFieldType foo = shard.mapperService().fieldType("foo");
@@ -3379,6 +3390,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), after.getMemorySizeInBytes());
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
         shard.refresh("test");
+        shard.awaitRemoteStoreSync();
         assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), before.getMemorySizeInBytes());
         assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
 
@@ -3391,6 +3403,7 @@ public class IndexShardTests extends IndexShardTestCase {
         deleteDoc(shard, "0");
         indexDoc(shard, "_doc", "1", "{\"foo\" : \"bar\"}");
         shard.refresh("test");
+        shard.awaitRemoteStoreSync();
 
         final AtomicInteger preIndex = new AtomicInteger();
         final AtomicInteger postIndex = new AtomicInteger();
@@ -3441,6 +3454,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         shard.refresh("test");
+        shard.awaitRemoteStoreSync();
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> { throw new RuntimeException("boom"); };
 
         closeShards(shard);
@@ -3738,6 +3752,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(sourceShard, "_doc", "0", "{\"foo\" : \"bar\"}");
         indexDoc(sourceShard, "_doc", "1", "{\"foo\" : \"bar\"}");
         sourceShard.refresh("test");
+        sourceShard.awaitRemoteStoreSync();
 
         ShardRouting targetRouting = newShardRouting(
             new ShardId("index_1", "index_1", 0),
@@ -3841,6 +3856,7 @@ public class IndexShardTests extends IndexShardTestCase {
             } else {
                 indexShard.flush(new FlushRequest());
             }
+            indexShard.awaitRemoteStoreSync();
             {
                 IndexShard shard = indexShard;
                 assertBusy(() -> {
@@ -3908,6 +3924,7 @@ public class IndexShardTests extends IndexShardTestCase {
             if (randomBoolean()) {
                 indexShard.refresh("test");
             }
+            indexShard.awaitRemoteStoreSync();
             {
                 final DocsStats docStats = indexShard.docStats();
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
@@ -3926,6 +3943,7 @@ public class IndexShardTests extends IndexShardTestCase {
             } else {
                 indexShard.flush(new FlushRequest());
             }
+            indexShard.awaitRemoteStoreSync();
             {
                 final DocsStats docStats = indexShard.docStats();
                 assertThat(docStats.getCount(), equalTo(numDocs));
@@ -3961,6 +3979,7 @@ public class IndexShardTests extends IndexShardTestCase {
             } else {
                 indexShard.refresh("test");
             }
+            indexShard.awaitRemoteStoreSync();
             {
                 final DocsStats docsStats = indexShard.docStats();
                 final StoreStats storeStats = indexShard.storeStats();
@@ -3991,6 +4010,7 @@ public class IndexShardTests extends IndexShardTestCase {
             } else {
                 indexShard.refresh("test");
             }
+            indexShard.awaitRemoteStoreSync();
             {
                 final DocsStats docsStats = indexShard.docStats();
                 final StoreStats storeStats = indexShard.storeStats();
@@ -4021,9 +4041,11 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(indexShard, "_doc", "0", "{}");
         if (randomBoolean()) {
             indexShard.refresh("test");
+            indexShard.awaitRemoteStoreSync();
         }
         indexDoc(indexShard, "_doc", "1", "{}");
         indexShard.flush(new FlushRequest());
+        indexShard.awaitRemoteStoreSync();
         closeShards(indexShard);
 
         final IndexShard newShard = reinitShard(indexShard);
@@ -4253,6 +4275,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(indexShard, "_doc", Long.toString(i), "{}");
             if (randomBoolean()) {
                 indexShard.refresh("test");
+                indexShard.awaitRemoteStoreSync();
             }
         }
         indexShard.flush(new FlushRequest());
@@ -4562,6 +4585,7 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < 3; i++) {
             indexDoc(indexShard, "_doc", "" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
             indexShard.refresh("test"); // produce segments
+            indexShard.awaitRemoteStoreSync();
         }
 
         // check stats on closed and on opened shard
