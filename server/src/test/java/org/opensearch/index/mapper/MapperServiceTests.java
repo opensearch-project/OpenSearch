@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.search.Sort;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
@@ -263,6 +264,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(indexService.getIndexSortSupplier() != null);
         assertEquals("foo", indexService.getIndexSortSupplier().get().getSort()[0].getField());
         assertTrue(indexService.mapperService().getIndexSettings().getIndexSortConfig().hasIndexSort());
+        final Sort oldSort = indexService.getIndexSortSupplier().get();
 
         // adding new nested Field to existing index, index sort should remain same
         CompressedXContent nestedFieldMapping = new CompressedXContent(
@@ -278,7 +280,12 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             )
         );
         indexService.mapperService().merge("t", nestedFieldMapping, updateOrPreflight());
+        final Sort newSort = indexService.getIndexSortSupplier().get();
+
         assertTrue(indexService.getIndexSortSupplier() != null);
+        assertEquals(oldSort, newSort);
+        assertEquals(1, indexService.getIndexSortSupplier().get().getSort().length);
+        assertEquals("foo", indexService.getIndexSortSupplier().get().getSort()[0].getField());
     }
 
     public void testIndexSortWithNestedFieldsValidation() throws IOException {

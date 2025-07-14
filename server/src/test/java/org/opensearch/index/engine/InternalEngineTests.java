@@ -485,7 +485,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSegmentsWithNestedFieldIndexSort() throws Exception {
-        Sort indexSort = new Sort(new SortedSetSortField("contacts.name", false));
+        Sort indexSort = new Sort(new SortedSetSortField("foo1", false));
         try (
             Store store = createStore();
             Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, null, indexSort, null)
@@ -493,27 +493,23 @@ public class InternalEngineTests extends EngineTestCase {
             List<Segment> segments = engine.segments(true);
             assertThat(segments.isEmpty(), equalTo(true));
 
-            ParsedDocument doc1 = createDocumentWithNestedField("1", "Alice", 30);
-            engine.index(indexForDoc(doc1));
-            engine.refresh("test");
+            List<ParsedDocument> docs = List.of(
+                createDocumentWithNestedField("1", "Alice", 30),
+                createDocumentWithNestedField("2", "Bob", 25),
+                createDocumentWithNestedField("3", "Charlie", 35)
+            );
 
-            segments = engine.segments(false);
-            assertThat(segments.size(), equalTo(1));
-            assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
+            for (ParsedDocument doc : docs) {
+                engine.index(indexForDoc(doc));
+            }
 
-            ParsedDocument doc2 = createDocumentWithNestedField("2", "Bob", 25);
-            engine.index(indexForDoc(doc2));
-            engine.refresh("test");
-
-            ParsedDocument doc3 = createDocumentWithNestedField("3", "Charlie", 35);
-            engine.index(indexForDoc(doc3));
             engine.refresh("test");
 
             segments = engine.segments(true);
-            assertThat(segments.size(), equalTo(3));
+
+            assertThat(segments.size(), equalTo(1));
             assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
-            assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
-            assertThat(segments.get(2).getSegmentSort(), equalTo(indexSort));
+
         }
     }
 
@@ -8559,11 +8555,13 @@ public class InternalEngineTests extends EngineTestCase {
             XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("foo", 123)
-                .field("foo1", "value")
-                .startObject("contacts")
+                .field("foo1", contactAge)
+                .startArray("contacts")
+                .startObject()
                 .field("name", contactName)
                 .field("age", contactAge)
                 .endObject()
+                .endArray()
                 .endObject();
             source = BytesReference.bytes(builder);
         } catch (IOException e) {

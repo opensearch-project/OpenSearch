@@ -39,6 +39,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -46,8 +47,14 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -195,8 +202,9 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
     }
 
     public void testIndexSortOnNestedField() throws IOException {
-        SortField regularSort = new SortedNumericSortField("foo", SortField.Type.INT, false);
-        regularSort.setMissingValue(Integer.MAX_VALUE);
+        boolean ascending = randomBoolean();
+        SortField regularSort = new SortedNumericSortField("foo", SortField.Type.INT, !ascending);
+        regularSort.setMissingValue(ascending ? Integer.MAX_VALUE : Integer.MIN_VALUE);
 
         Sort indexSort = new Sort(regularSort);
 
@@ -206,12 +214,22 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
                 .put("index.number_of_shards", "1")
                 .put("index.number_of_replicas", "0")
                 .putList("index.sort.field", "foo")
-                .putList("index.sort.order", "asc")
+                .putList("index.sort.order", ascending ? "asc" : "desc")
         ).setMapping(NESTED_TEST_MAPPING).get();
 
-        addNestedDocuments("1", 30, "", "Alice", 30);
-        addNestedDocuments("2", 40, "", "Charlie", 40);
-        addNestedDocuments("3", 20, "", "Divs", 20);
+        int numDocs = randomIntBetween(10, 30);
+        List<Integer> fooValues = new ArrayList<>(numDocs);
+        List<String> ids = new ArrayList<>(numDocs);
+
+        for (int i = 0; i < numDocs; i++) {
+            String id = String.valueOf(i);
+            int fooValue = randomIntBetween(1, 100);
+            String name = UUID.randomUUID().toString().replace("-", "").substring(0, 5);
+
+            addNestedDocuments(id, fooValue, "", name, fooValue);
+            fooValues.add(fooValue);
+            ids.add(id);
+        }
 
         flushAndRefresh("nested-test-index");
         ensureGreen("nested-test-index");
@@ -219,50 +237,88 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         assertSortedSegments("nested-test-index", indexSort);
 
         SearchResponse response = client().prepareSearch("nested-test-index")
-            .addSort("foo", SortOrder.ASC)
+            .addSort("foo", ascending ? SortOrder.ASC : SortOrder.DESC)
             .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(numDocs)
             .get();
 
-        assertEquals(3, response.getHits().getTotalHits().value());
-        assertEquals("3", response.getHits().getAt(0).getId());
-        assertEquals("1", response.getHits().getAt(1).getId());
-        assertEquals("2", response.getHits().getAt(2).getId());
+        assertEquals(numDocs, response.getHits().getTotalHits().value());
+
+        Map<Integer, String> valueToId = new HashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            valueToId.put(fooValues.get(i), ids.get(i));
+        }
+
+        List<Integer> sortedValues = new ArrayList<>(fooValues);
+        if (ascending) {
+            Collections.sort(sortedValues);
+        } else {
+            sortedValues.sort(Collections.reverseOrder());
+        }
+
+        for (int i = 0; i < numDocs; i++) {
+            int expectedValue = sortedValues.get(i);
+            assertEquals(expectedValue, response.getHits().getAt(i).getSourceAsMap().get("foo"));
+        }
     }
 
     public void testIndexSortWithNestedField_MultiField() throws IOException {
+        boolean ascendingPrimary = randomBoolean();
+        boolean ascendingSecondary = randomBoolean();
         prepareCreate("nested-test-index").setSettings(
             Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", "1")
                 .put("index.number_of_replicas", "0")
                 .putList("index.sort.field", "foo", "foo1")
-                .putList("index.sort.order", "desc", "asc")
+                .putList("index.sort.order", ascendingPrimary ? "asc" : "desc", ascendingSecondary ? "asc" : "desc")
         ).setMapping(NESTED_TEST_MAPPING).get();
 
-        addNestedDocuments("1", 40, "Charlie", "Charlie", 40);
-        addNestedDocuments("2", 30, "Divs", "Divs", 30);
-        addNestedDocuments("3", 30, "Alice", "Alice", 30);
+        int numDocs = randomIntBetween(10, 30);
+        List<Tuple<Integer, String>> docValues = new ArrayList<>(numDocs);
+        List<String> ids = new ArrayList<>(numDocs);
+
+        int duplicateValue = randomIntBetween(30, 50);
+        int numDuplicates = randomIntBetween(3, 5);
+
+        for (int i = 0; i < numDocs; i++) {
+            String id = String.valueOf(i);
+            int fooValue;
+            if (i < numDuplicates) {
+                fooValue = duplicateValue;
+            } else {
+                fooValue = randomIntBetween(1, 100);
+            }
+            String name = UUID.randomUUID().toString().replace("-", "").substring(0, 5);
+            addNestedDocuments(id, fooValue, name, name, fooValue);
+            docValues.add(new Tuple<>(fooValue, name));
+            ids.add(id);
+        }
 
         flushAndRefresh("nested-test-index");
         ensureGreen("nested-test-index");
         SearchResponse response = client().prepareSearch("nested-test-index")
-            .addSort("foo", SortOrder.DESC)
-            .addSort("foo1", SortOrder.ASC)
+            .addSort("foo", ascendingPrimary ? SortOrder.ASC : SortOrder.DESC)
+            .addSort("foo1", ascendingSecondary ? SortOrder.ASC : SortOrder.DESC)
             .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(numDocs)
             .get();
 
-        assertEquals(3, response.getHits().getTotalHits().value());
-        assertEquals(40, response.getHits().getAt(0).getSourceAsMap().get("foo"));
-        assertEquals("Charlie", response.getHits().getAt(0).getSourceAsMap().get("foo1"));
+        assertEquals(numDocs, response.getHits().getTotalHits().value());
 
-        assertEquals(30, response.getHits().getAt(1).getSourceAsMap().get("foo"));
-        assertEquals(30, response.getHits().getAt(2).getSourceAsMap().get("foo"));
+        List<Tuple<Integer, String>> sortedValues = new ArrayList<>(docValues);
+        sortedValues.sort((a, b) -> {
+            int primaryCompare = ascendingPrimary ? Integer.compare(a.v1(), b.v1()) : Integer.compare(b.v1(), a.v1());
+            if (primaryCompare != 0) {
+                return primaryCompare;
+            }
+            return ascendingSecondary ? a.v2().compareTo(b.v2()) : b.v2().compareTo(a.v2());
+        });
 
-        // specifically verify secondary sort on foo1 when foo values are the same
-        // since foo1 sort is asc, "ALice" should come before "Divs"
-        assertEquals("Alice", response.getHits().getAt(1).getSourceAsMap().get("foo1"));
-        assertEquals("Divs", response.getHits().getAt(2).getSourceAsMap().get("foo1"));
-
+        for (int i = 0; i < numDocs; i++) {
+            assertEquals(sortedValues.get(i).v1(), response.getHits().getAt(i).getSourceAsMap().get("foo"));
+            assertEquals(sortedValues.get(i).v2(), response.getHits().getAt(i).getSourceAsMap().get("foo1"));
+        }
     }
 
     public void testIndexSortWithSortFieldInsideDocBlock() {
