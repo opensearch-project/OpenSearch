@@ -172,6 +172,15 @@ class S3Repository extends MeteredBlobStoreRepository {
     });
 
     /**
+     * Type of Async client to be used for S3 Uploads.
+     * Defaults to crt.
+     */
+    static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(
+        "s3_async_client_type",
+        "crt"
+    );
+
+    /**
      * Maximum size of files that can be uploaded using a single upload request.
      */
     static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
@@ -331,6 +340,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     private volatile boolean serverSideEncryptionBucketKey;
     private volatile String serverSideEncryptionEncryptionContext;
     private volatile String expectedBucketOwner;
+    private String asyncHttpClientType;
 
     private volatile String storageClass;
 
@@ -416,7 +426,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.normalPrioritySizeBasedBlockingQ = normalPrioritySizeBasedBlockingQ;
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
         this.genericStatsMetricPublisher = genericStatsMetricPublisher;
-
+        this.asyncHttpClientType = S3_ASYNC_HTTP_CLIENT_TYPE.get(clusterService.getSettings());
         validateRepositoryMetadata(metadata);
         readRepositoryMetadata();
     }
@@ -487,7 +497,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             serverSideEncryptionKmsKey,
             serverSideEncryptionBucketKey,
             serverSideEncryptionEncryptionContext,
-            expectedBucketOwner
+            expectedBucketOwner,
+            asyncHttpClientType
         );
     }
 
