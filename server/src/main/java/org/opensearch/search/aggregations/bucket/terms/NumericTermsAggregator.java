@@ -277,8 +277,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                         spare = ordered.insertWithOverflow(spare);
                     }
                     // Get the top buckets
-                    B[] bucketsForOrd = buildBuckets(ordered.size());
-                    topBucketsPerOrd[ordIdx] = bucketsForOrd;
+                    topBucketsPerOrd[ordIdx] = buildBuckets(ordered.size());
                     if (isKeyOrder(order)) {
                         for (int b = ordered.size() - 1; b >= 0; --b) {
                             topBucketsPerOrd[ordIdx][b] = ordered.pop();

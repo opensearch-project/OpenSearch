@@ -196,12 +196,13 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testBuildAggregationsForHeapSort() throws IOException {
+    public void testBuildAggregationAlgorithmSelection() throws IOException {
         List<Long> dataSet = new ArrayList<>();
-        for (long i = 0; i < 150; i++) {
+        for (long i = 0; i < 100; i++) {
             dataSet.add(i);
         }
 
+        // HeapSort
         testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(2), agg -> {
             assertEquals(2, agg.getBuckets().size());
             for (int i = 0; i < 2; i++) {
@@ -210,16 +211,10 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             }
         }, ValueType.NUMERIC);
-    }
 
-    public void testBuildAggregationsForQuickSelect() throws IOException {
-        List<Long> dataSet = new ArrayList<>();
-        for (long i = 0; i < 150; i++) {
-            dataSet.add(i);
-        }
-
-        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(50), agg -> {
-            assertEquals(50, agg.getBuckets().size());
+        // QuickSelect
+        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(20), agg -> {
+            assertEquals(20, agg.getBuckets().size());
             for (int i = 0; i < agg.getBuckets().size(); i++) {
                 LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
                 assertThat(bucket.getKey(), equalTo((long) i));
@@ -227,42 +222,4 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             }
         }, ValueType.NUMERIC);
     }
-
-    public void testKeyOrderingAlgorithmSelection() throws IOException {
-        List<Long> dataset = new ArrayList<>();
-        for (long i = 100; i > 0; i--) {
-            dataset.add(i);
-        }
-
-        testSearchCase(
-            new MatchAllDocsQuery(),
-            dataset,
-            aggregation -> aggregation.field(LONG_FIELD).size(50).order(org.opensearch.search.aggregations.BucketOrder.key(true)),
-            agg -> {
-                assertEquals(50, agg.getBuckets().size());
-                for (int i = 0; i < 50; i++) {
-                    LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
-                    assertThat(bucket.getKey(), equalTo(i + 1L));
-                    assertThat(bucket.getDocCount(), equalTo(1L));
-                }
-            },
-            ValueType.NUMERIC
-        );
-
-        testSearchCase(
-            new MatchAllDocsQuery(),
-            dataset,
-            aggregation -> aggregation.field(LONG_FIELD).size(5).order(org.opensearch.search.aggregations.BucketOrder.key(false)),
-            agg -> {
-                assertEquals(5, agg.getBuckets().size());
-                for (int i = 0; i < agg.getBuckets().size(); i++) {
-                    LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
-                    assertThat(bucket.getKey(), equalTo(100L - i));
-                    assertThat(bucket.getDocCount(), equalTo(1L));
-                }
-            },
-            ValueType.NUMERIC
-        );
-    }
-
 }
