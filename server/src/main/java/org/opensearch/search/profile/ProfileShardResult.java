@@ -66,13 +66,25 @@ public class ProfileShardResult implements Writeable {
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult,
         FetchProfileShardResult fetchProfileResult,
-
         NetworkTime networkTime
     ) {
         this.aggProfileShardResult = aggProfileShardResult;
         this.fetchProfileResult = fetchProfileResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.networkTime = networkTime;
+    }
+
+    /**
+     * Constructor for backwards compatibility.
+     * @deprecated Use {@link #ProfileShardResult(List, AggregationProfileShardResult, FetchProfileShardResult, NetworkTime)} instead
+     */
+    @Deprecated
+    public ProfileShardResult(
+        List<QueryProfileShardResult> queryProfileResults,
+        AggregationProfileShardResult aggProfileShardResult,
+        NetworkTime networkTime
+    ) {
+        this(queryProfileResults, aggProfileShardResult, new FetchProfileShardResult(Collections.emptyList()), networkTime);
     }
 
     public ProfileShardResult(StreamInput in) throws IOException {
