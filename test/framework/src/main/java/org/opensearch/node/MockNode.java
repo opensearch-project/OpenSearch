@@ -127,8 +127,7 @@ public class MockNode extends Node {
                         p.getName(),
                         null,
                         Collections.emptyList(),
-                        false,
-                        Collections.emptyList()
+                        false
                     )
                 )
                 .collect(Collectors.toList()),

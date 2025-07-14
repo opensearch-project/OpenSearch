@@ -126,8 +126,7 @@ public final class ExternalTestCluster extends TestCluster {
                     clazz.getName(),
                     null,
                     Collections.emptyList(),
-                    false,
-                    Collections.emptyList()
+                    false
                 )
             );
         }
@@ -213,9 +212,7 @@ public final class ExternalTestCluster extends TestCluster {
                         p.getName(),
                         null,
                         Collections.emptyList(),
-                        false,
-                        Collections.emptyList()
-
+                        false
                     )
                 )
                 .collect(Collectors.toList()),
