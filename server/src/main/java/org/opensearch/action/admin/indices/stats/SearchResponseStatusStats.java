@@ -87,7 +87,7 @@ public class SearchResponseStatusStats implements Writeable, ToXContentFragment 
      * @param status {@link RestStatus}
      * @param delta The value to add
      */
-    void add(final RestStatus status, final long delta) {
+    public void add(final RestStatus status, final long delta) {
         searchResponseStatusCounter[status.getStatusFamilyCode() - 1].add(delta);
     }
 
