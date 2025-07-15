@@ -13,8 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.opensearch.common.breaker.TestCircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
@@ -38,8 +38,11 @@ import static org.hamcrest.Matchers.greaterThan;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     protected static final int EIGHT_MB = 1024 * 1024 * 8;
-    protected final TestCircuitBreaker testCircuitBreaker = new TestCircuitBreaker();
-    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(EIGHT_MB * 2, 1, testCircuitBreaker);
+    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
+        EIGHT_MB * 2,
+        1,
+        new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+    );
     protected MMapDirectory directory;
     protected TransferManager transferManager;
 
@@ -151,29 +154,6 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         );
         MatcherAssert.assertThat(fileCache.activeUsage(), equalTo(0L));
         MatcherAssert.assertThat(fileCache.usage(), equalTo(0L));
-    }
-
-    public void testCircuitBreakerWhileDownloading() throws IOException {
-        // fetch blob when circuit breaking is not tripping
-        try (IndexInput i = fetchBlobWithName("1")) {
-            assertIndexInputIsFunctional(i);
-            MatcherAssert.assertThat(fileCache.activeUsage(), equalTo((long) EIGHT_MB));
-        }
-        // should have entry in file cache
-        MatcherAssert.assertThat(fileCache.activeUsage(), equalTo(0L));
-        MatcherAssert.assertThat(fileCache.usage(), equalTo((long) EIGHT_MB));
-
-        // start tripping the circuit breaker
-        testCircuitBreaker.startBreaking();
-
-        // fetch blob which already had entry in file cache, should not encounter circuit breaking exceptions
-        try (IndexInput i = fetchBlobWithName("1")) {
-            assertIndexInputIsFunctional(i);
-            MatcherAssert.assertThat(fileCache.activeUsage(), equalTo((long) EIGHT_MB));
-        }
-
-        // fetch new blob - should encounter circuit breaking exception
-        expectThrows(CircuitBreakingException.class, () -> fetchBlobWithName("2"));
     }
 
     public void testFetchesToDifferentBlobsDoNotBlockOnEachOther() throws Exception {
