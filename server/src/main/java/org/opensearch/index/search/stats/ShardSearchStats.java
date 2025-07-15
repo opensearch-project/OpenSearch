@@ -94,6 +94,9 @@ public final class ShardSearchStats implements SearchOperationListener {
                 if (searchContext.shouldUseConcurrentSearch()) {
                     statsHolder.concurrentQueryCurrent.inc();
                 }
+                if (searchContext.getQueryShardContext().getStarTreeQueryContext() != null) {
+                    statsHolder.starTreeCurrent.inc();
+                }
             }
         });
     }
@@ -110,6 +113,10 @@ public final class ShardSearchStats implements SearchOperationListener {
                 if (searchContext.shouldUseConcurrentSearch()) {
                     statsHolder.concurrentQueryCurrent.dec();
                     assert statsHolder.concurrentQueryCurrent.count() >= 0;
+                }
+                if (searchContext.getQueryShardContext().getStarTreeQueryContext() != null) {
+                    statsHolder.starTreeCurrent.dec();
+                    assert statsHolder.starTreeCurrent.count() >= 0;
                 }
             }
         });
@@ -135,6 +142,8 @@ public final class ShardSearchStats implements SearchOperationListener {
                 }
                 if (searchContext.getQueryShardContext().getStarTreeQueryContext() != null) {
                     statsHolder.starTreeQueryMetric.inc(tookInNanos);
+                    statsHolder.starTreeCurrent.dec();
+                    assert statsHolder.starTreeCurrent.count() >= 0;
                 }
             }
         });
@@ -249,6 +258,7 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric suggestCurrent = new CounterMetric();
         final CounterMetric searchIdleMetric = new CounterMetric();
         final MeanMetric starTreeQueryMetric = new MeanMetric();
+        final CounterMetric starTreeCurrent = new CounterMetric();
 
         SearchStats.Stats stats() {
             return new SearchStats.Stats.Builder().queryCount(queryMetric.count())
@@ -273,6 +283,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 .searchIdleReactivateCount(searchIdleMetric.count())
                 .starTreeQueryCount(starTreeQueryMetric.count())
                 .starTreeQueryTimeInMillis(TimeUnit.NANOSECONDS.toMillis(starTreeQueryMetric.sum()))
+                .starTreeQueryCurrent(starTreeCurrent.count())
                 .build();
         }
     }

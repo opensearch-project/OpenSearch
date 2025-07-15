@@ -168,6 +168,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         private long starTreeQueryCount;
         private long starTreeQueryTimeInMillis;
+        public long starTreeQueryCurrent;
 
         @Nullable
         private RequestStatsLongHolder requestStatsLongHolder;
@@ -216,6 +217,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             this.starTreeQueryCount = builder.starTreeQueryCount;
             this.starTreeQueryTimeInMillis = builder.starTreeQueryTimeInMillis;
+            this.starTreeQueryCurrent = builder.starTreeQueryCurrent;
         }
 
         /**
@@ -312,9 +314,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 searchIdleReactivateCount = in.readVLong();
             }
 
-            if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
                 starTreeQueryCount = in.readVLong();
                 starTreeQueryTimeInMillis = in.readVLong();
+                starTreeQueryCurrent = in.readVLong();
             }
         }
 
@@ -348,6 +351,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             starTreeQueryCount += stats.starTreeQueryCount;
             starTreeQueryTimeInMillis += stats.starTreeQueryTimeInMillis;
+            starTreeQueryCurrent += stats.starTreeQueryCurrent;
         }
 
         public void addForClosingShard(Stats stats) {
@@ -499,6 +503,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return starTreeQueryTimeInMillis;
         }
 
+        public long getStarTreeQueryCurrent() {
+            return starTreeQueryCurrent;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             return new Stats(in);
         }
@@ -549,9 +557,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(searchIdleReactivateCount);
             }
 
-            if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
                 out.writeVLong(starTreeQueryCount);
                 out.writeVLong(starTreeQueryTimeInMillis);
+                out.writeVLong(starTreeQueryCurrent);
             }
         }
 
@@ -568,6 +577,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             builder.field(Fields.STARTREE_QUERY_TOTAL, starTreeQueryCount);
             builder.humanReadableField(Fields.STARTREE_QUERY_TIME_IN_MILLIS, Fields.STARTREE_QUERY_TIME, getStarTreeQueryTime());
+            builder.field(Fields.STARTREE_QUERY_CURRENT, getStarTreeQueryCurrent());
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.humanReadableField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, getFetchTime());
@@ -642,6 +652,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             private long searchIdleReactivateCount = 0;
             private long starTreeQueryCount = 0;
             private long starTreeQueryTimeInMillis = 0;
+            private long starTreeQueryCurrent = 0;
             @Nullable
             private RequestStatsLongHolder requestStatsLongHolder = null;
 
@@ -757,8 +768,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 return this;
             }
 
-            public Builder requestStatsLongHolder(RequestStatsLongHolder holder) {
-                this.requestStatsLongHolder = holder;
+            public Builder starTreeQueryCurrent(long current) {
+                this.starTreeQueryCurrent = current;
                 return this;
             }
 
@@ -913,6 +924,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String STARTREE_QUERY_TOTAL = "startree_query_total";
         static final String STARTREE_QUERY_TIME = "startree_query_time";
         static final String STARTREE_QUERY_TIME_IN_MILLIS = "startree_query_time_in_millis";
+        static final String STARTREE_QUERY_CURRENT = "startree_query_current";
         static final String FETCH_TOTAL = "fetch_total";
         static final String FETCH_TIME = "fetch_time";
         static final String FETCH_TIME_IN_MILLIS = "fetch_time_in_millis";

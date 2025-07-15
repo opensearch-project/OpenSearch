@@ -78,7 +78,9 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
             .pitCurrent(1)
             .searchIdleReactivateCount(1)
             .starTreeQueryCount(1)
-            .starTreeQueryTimeInMillis(1);
+            .starTreeQueryTimeInMillis(1)
+            .starTreeQueryCurrent(1)
+            .starTreeQueryCurrent(1);
         groupStats2.put("group1", defaultStats.build());
         SearchStats searchStats1 = new SearchStats(defaultStats.build(), 0, groupStats1);
         SearchStats searchStats2 = new SearchStats(defaultStats.build(), 0, groupStats2);
@@ -140,6 +142,7 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         assertEquals(equalTo, stats.getConcurrentQueryCurrent());
         assertEquals(equalTo, stats.getStarTreeQueryCount());
         assertEquals(equalTo, stats.getStarTreeQueryTimeInMillis());
+        assertEquals(equalTo, stats.getStarTreeQueryCurrent());
         assertEquals(equalTo, stats.getFetchCount());
         assertEquals(equalTo, stats.getFetchTimeInMillis());
         assertEquals(equalTo, stats.getFetchCurrent());
