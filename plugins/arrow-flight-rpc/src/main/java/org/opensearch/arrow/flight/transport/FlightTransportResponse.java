@@ -1,0 +1,213 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.arrow.flight.transport;
+
+import org.apache.arrow.flight.FlightCallHeaders;
+import org.apache.arrow.flight.FlightClient;
+import org.apache.arrow.flight.FlightStream;
+import org.apache.arrow.flight.HeaderCallOption;
+import org.apache.arrow.flight.Ticket;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.flight.stats.FlightStatsCollector;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.transport.Header;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.stream.StreamTransportResponse;
+
+import java.io.IOException;
+import java.util.Objects;
+
+import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.REQUEST_ID_KEY;
+
+/**
+ * Arrow Flight implementation of streaming transport responses.
+ *
+ * <p>Handles streaming responses from Arrow Flight servers with lazy batch processing.
+ * Headers are extracted when first accessed, and responses are deserialized on demand.
+ */
+class FlightTransportResponse<T extends TransportResponse> implements StreamTransportResponse<T> {
+    private static final Logger logger = LogManager.getLogger(FlightTransportResponse.class);
+
+    private final FlightStream flightStream;
+    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final HeaderContext headerContext;
+    private final long reqId;
+    private final FlightStatsCollector statsCollector;
+
+    private final TransportResponseHandler<T> handler;
+    private boolean isClosed;
+
+    // Stream state
+    private VectorSchemaRoot currentRoot;
+    private Header currentHeader;
+    private boolean streamInitialized = false;
+    private boolean streamExhausted = false;
+    private boolean firstResponseConsumed = false;
+    private Exception initializationException;
+
+    /**
+     * Creates a new Flight transport response.
+     */
+    public FlightTransportResponse(
+        TransportResponseHandler<T> handler,
+        long reqId,
+        FlightClient flightClient,
+        HeaderContext headerContext,
+        Ticket ticket,
+        NamedWriteableRegistry namedWriteableRegistry,
+        FlightStatsCollector statsCollector
+    ) {
+        this.handler = handler;
+        this.reqId = reqId;
+        this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.statsCollector = statsCollector;
+
+        // Initialize Flight stream with request ID header
+        FlightCallHeaders callHeaders = new FlightCallHeaders();
+        callHeaders.insert(REQUEST_ID_KEY, String.valueOf(reqId));
+        HeaderCallOption callOptions = new HeaderCallOption(callHeaders);
+        this.flightStream = flightClient.getStream(ticket, callOptions);
+
+        this.isClosed = false;
+    }
+
+    /**
+     * Gets the header for the current batch.
+     * If no batch has been fetched yet, fetches the first batch to extract headers.
+     */
+    public Header getHeader() {
+        ensureOpen();
+        initializeStreamIfNeeded();
+        return currentHeader;
+    }
+
+    /**
+     * Gets the next response from the stream.
+     */
+    @Override
+    public T nextResponse() {
+        ensureOpen();
+        initializeStreamIfNeeded();
+
+        if (streamExhausted) {
+            if (initializationException != null) {
+                throw new TransportException("Stream initialization failed", initializationException);
+            }
+            return null;
+        }
+
+        if (!firstResponseConsumed) {
+            // First call - use the batch we already fetched during initialization
+            firstResponseConsumed = true;
+            return deserializeResponse();
+        }
+
+        try {
+            if (flightStream.next()) {
+                currentHeader = headerContext.getHeader(reqId);
+                return deserializeResponse();
+            } else {
+                streamExhausted = true;
+                return null;
+            }
+        } catch (Exception e) {
+            streamExhausted = true;
+            throw new TransportException("Failed to fetch next batch", e);
+        }
+    }
+
+    /**
+     * Cancels the Flight stream.
+     */
+    @Override
+    public void cancel(String reason, Throwable cause) {
+        if (isClosed) {
+            return;
+        }
+        try {
+            flightStream.cancel(reason, cause);
+            logger.debug("Cancelled flight stream: {}", reason);
+        } catch (Exception e) {
+            logger.warn("Error cancelling flight stream", e);
+        } finally {
+            close();
+        }
+    }
+
+    /**
+     * Closes the Flight stream and releases resources.
+     */
+    @Override
+    public void close() {
+        if (isClosed) {
+            return;
+        }
+        if (currentRoot != null) {
+            currentRoot.close();
+            currentRoot = null;
+        }
+        try {
+            flightStream.close();
+        } catch (Exception e) {
+            throw new TransportException("Failed to close flight stream", e);
+        } finally {
+            isClosed = true;
+        }
+    }
+
+    public TransportResponseHandler<T> getHandler() {
+        return handler;
+    }
+
+    /**
+     * Initializes the stream by fetching the first batch to extract headers.
+     */
+    private synchronized void initializeStreamIfNeeded() {
+        if (streamInitialized || streamExhausted) {
+            return;
+        }
+        try {
+            if (flightStream.next()) {
+                currentRoot = flightStream.getRoot();
+                currentHeader = headerContext.getHeader(reqId);
+                streamInitialized = true;
+            } else {
+                streamExhausted = true;
+            }
+        } catch (Exception e) {
+            // Try to get headers even if stream failed
+            currentHeader = headerContext.getHeader(reqId);
+            streamExhausted = true;
+            initializationException = e;
+            logger.warn("Stream initialization failed, headers may still be available", e);
+        }
+    }
+
+    /**
+     * Deserializes a response from the current root.
+     */
+    private T deserializeResponse() {
+        try (VectorStreamInput input = new VectorStreamInput(currentRoot, namedWriteableRegistry)) {
+            return handler.read(input);
+        } catch (IOException e) {
+            throw new TransportException("Failed to deserialize response", e);
+        }
+    }
+
+    private void ensureOpen() {
+        if (isClosed) {
+            throw new TransportException("Stream is closed");
+        }
+    }
+}
