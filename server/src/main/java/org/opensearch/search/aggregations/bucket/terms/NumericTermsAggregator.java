@@ -41,6 +41,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -262,7 +263,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
 
                 // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
-                if ((size < 0.2 * bucketsInOrd) || isKeyOrder(order)) {
+                if (!FeatureFlags.isEnabled(FeatureFlags.TERMS_AGGREGATION_OPTIMIZATION_SETTING)
+                    || (size < 0.2 * bucketsInOrd)
+                    || isKeyOrder(order)) {
                     PriorityQueue<B> ordered = buildPriorityQueue(size);
                     while (ordsEnum.next()) {
                         long docCount = bucketDocCount(ordsEnum.ord());
