@@ -56,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-lang3` from 3.17.0 to 3.18.0 ([#18745](https://github.com/opensearch-project/OpenSearch/pull/18745))
 
 ### Deprecated
+- Add deprecation warning for `_cat/snapshots` in favor of `_cat/snapshots/<repository>` ([#9345](https://github.com/opensearch-project/OpenSearch/pull/9345))
 
 ### Removed
 
