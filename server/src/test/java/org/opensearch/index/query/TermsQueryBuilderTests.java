@@ -191,8 +191,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     public void testToQuery() throws IOException {
-        TermsQueryBuilder queryBuilder = doCreateTestQueryBuilder();
+        // Instead of random builder, construct one that always triggers the error
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("some_index", "some_id", "some_path"));
         QueryShardContext context = createShardContext();
+
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
