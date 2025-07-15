@@ -133,12 +133,14 @@ grant codeBase "${codebase.httpcore5}" {
   // httpcore makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
   permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.io.FilePermission "${java.io.tmpdir}${/}-", "delete";
 };
 
 grant codeBase "${codebase.httpclient5}" {
   // httpclient5 makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect,resolve";
   permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.io.FilePermission "${java.io.tmpdir}${/}-", "delete";
 };
 
 grant codeBase "${codebase.httpcore-nio}" {
