@@ -875,8 +875,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     });
 
                     // Get the top buckets
+                    topBucketsPreOrd[ordIdx] = buildBuckets(ordered.size());
                     if (isKeyOrder(order)) {
-                        topBucketsPreOrd[ordIdx] = buildBuckets(ordered.size());
                         for (int i = ordered.size() - 1; i >= 0; --i) {
                             topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
                             otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
