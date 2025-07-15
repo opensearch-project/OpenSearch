@@ -210,9 +210,10 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         tree.set(parent, parentNode);
     }
 
-    public PB getStackTop() {
-        assert stack.isEmpty() == false;
-        return breakdowns.get(stack.peekLast());
+    public PB findProfileBreakdown(E query) {
+        int index = elements.indexOf(query);
+        assert index != -1;
+        return breakdowns.get(index);
     }
 
 }

@@ -410,10 +410,10 @@ public class QueryProfilerTests extends OpenSearchTestCase {
 
         ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
         assertNotNull(profile);
-        assertEquals(profiler.getTopBreakdown(), profile);
+        assertEquals(profiler.getProfileBreakdown(query), profile);
         profiler.getQueryBreakdown(query);
         profiler.pollLastElement();
-        assertEquals(profiler.getTopBreakdown(), profile);
+        assertEquals(profiler.getProfileBreakdown(query), profile);
     }
 
     public void testPlugins() throws IOException {
