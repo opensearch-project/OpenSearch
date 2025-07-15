@@ -11,12 +11,17 @@ package org.opensearch.repositories.s3;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 
 /**
- * Interface for the AsyncHttpClient to be used by S3 for file uploads.
+ * An interface for providing the specific implementation of HTTP client used for s3 client.
+ * <p>
+ * Implementations are responsible implement the asyncHttpClient method and provide the appropriate Http client
+ * to be used by s3 clients.
+ * <p>
+ * Current supported Http clients are "AwsCrtAsyncHttpClient" and "NettyNioAsyncHttpClient"
  */
 public interface AsyncHttpClient {
 
     /**
-     * method to build the appropriate HttpClient implementations
+     * Method to build the appropriate HttpClient implementations
      * @return SdkAsyncHttpClient
      */
     SdkAsyncHttpClient asyncHttpClient();
