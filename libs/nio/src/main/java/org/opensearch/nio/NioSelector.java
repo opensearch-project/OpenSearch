@@ -32,6 +32,8 @@
 
 package org.opensearch.nio;
 
+import org.opensearch.secure_sm.AccessController;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -78,7 +80,13 @@ public class NioSelector implements Closeable {
     private final AtomicBoolean wokenUp = new AtomicBoolean(false);
 
     public NioSelector(EventHandler eventHandler) throws IOException {
-        this(eventHandler, Selector.open());
+        this(eventHandler, AccessController.doPrivileged(() -> {
+            try {
+                return Selector.open();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }));
     }
 
     public NioSelector(EventHandler eventHandler, Selector selector) {
