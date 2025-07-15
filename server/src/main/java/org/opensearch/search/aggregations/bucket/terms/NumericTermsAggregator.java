@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import joptsimple.internal.Strings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -96,6 +97,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
     private final String fieldName;
+    private String resultSelectionStrategy;
 
     public NumericTermsAggregator(
         String name,
@@ -120,6 +122,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         this.fieldName = (this.valuesSource instanceof ValuesSource.Numeric.FieldData)
             ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.resultSelectionStrategy = Strings.EMPTY;
     }
 
     @Override
@@ -241,6 +244,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds.size());
+        add.accept("result_selection_strategy", resultSelectionStrategy);
     }
 
     /**
@@ -263,9 +267,10 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
 
                 // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
-                if (!FeatureFlags.isEnabled(FeatureFlags.TERMS_AGGREGATION_OPTIMIZATION_SETTING)
+                if (!FeatureFlags.isEnabled(FeatureFlags.TERMS_AGGREGATION_OPTIMIZATION_ENABLE_SETTING)
                     || (size < 0.2 * bucketsInOrd)
                     || isKeyOrder(order)) {
+                    resultSelectionStrategy = "priority_queue";
                     PriorityQueue<B> ordered = buildPriorityQueue(size);
                     while (ordsEnum.next()) {
                         long docCount = bucketDocCount(ordsEnum.ord());
@@ -296,6 +301,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                         }
                     }
                 } else {
+                    resultSelectionStrategy = "quick_select";
                     B[] bucketsForOrd = buildBuckets((int) bucketsInOrd);
                     int validBucketCount = 0;
 
