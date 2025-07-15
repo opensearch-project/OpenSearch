@@ -555,7 +555,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             );
             // This should NEVER be null here—rewrite must guarantee terms are fetched!
             if (fetchedTerms == null || fetchedTerms.get() == null) {
-                throw new IllegalStateException("Terms must be fetched during rewrite phase before query execution.");
+                throw new IllegalStateException("Rewrite first");
             }
             return context.fieldMapper(fieldName).termsQuery(fetchedTerms.get(), context);
         }
