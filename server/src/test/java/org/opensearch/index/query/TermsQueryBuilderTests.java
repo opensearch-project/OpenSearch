@@ -409,7 +409,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
     @Override
