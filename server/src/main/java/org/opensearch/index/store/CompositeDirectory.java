@@ -249,10 +249,16 @@ public class CompositeDirectory extends FilterDirectory {
     public void sync(Collection<String> names) throws IOException {
         ensureOpen();
         logger.trace("Composite Directory[{}]: sync() called {}", this::toString, () -> names);
-        Collection<String> remoteFiles = Arrays.asList(getRemoteFiles());
-        Collection<String> filesToSync = names.stream().filter(name -> remoteFiles.contains(name) == false).collect(Collectors.toList());
-        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> filesToSync);
-        localDirectory.sync(filesToSync);
+        Set<String> remoteFiles = Set.of(getRemoteFiles());
+        Set<String> localFilesHavingBlocks = Arrays.stream(listLocalFiles())
+            .filter(FileTypeUtils::isBlockFile)
+            .map(file -> file.substring(0, file.indexOf(BLOCK_FILE_IDENTIFIER)))
+            .collect(Collectors.toSet());
+        Collection<String> fullFilesToSync = names.stream()
+            .filter(name -> (remoteFiles.contains(name) == false) && (localFilesHavingBlocks.contains(name) == false))
+            .collect(Collectors.toList());
+        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> fullFilesToSync);
+        localDirectory.sync(fullFilesToSync);
     }
 
     /**

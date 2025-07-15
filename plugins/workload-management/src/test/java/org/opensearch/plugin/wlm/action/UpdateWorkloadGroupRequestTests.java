@@ -19,8 +19,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_ONE;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.WorkloadManagementTestUtils.workloadGroupOne;
 
 public class UpdateWorkloadGroupRequestTests extends OpenSearchTestCase {
 
