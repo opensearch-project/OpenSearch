@@ -56,11 +56,11 @@ public class PainlessVectorFunctionsTests extends OpenSearchTestCase {
 
         // Calculate expected result
         // Let's calculate all dot products:
-        double qv1dv1 = 0.1*0.1 + 0.2*0.2 + 0.3*0.3 + 0.4*0.4; // = 0.3
-        double qv1dv2 = 0.1*0.5 + 0.2*0.6 + 0.3*0.7 + 0.4*0.8; // = 0.7
-        double qv2dv1 = 0.5*0.1 + 0.6*0.2 + 0.7*0.3 + 0.8*0.4; // = 0.7
-        double qv2dv2 = 0.5*0.5 + 0.6*0.6 + 0.7*0.7 + 0.8*0.8; // = 1.74
-        
+        double qv1dv1 = 0.1 * 0.1 + 0.2 * 0.2 + 0.3 * 0.3 + 0.4 * 0.4; // = 0.3
+        double qv1dv2 = 0.1 * 0.5 + 0.2 * 0.6 + 0.3 * 0.7 + 0.4 * 0.8; // = 0.7
+        double qv2dv1 = 0.5 * 0.1 + 0.6 * 0.2 + 0.7 * 0.3 + 0.8 * 0.4; // = 0.7
+        double qv2dv2 = 0.5 * 0.5 + 0.6 * 0.6 + 0.7 * 0.7 + 0.8 * 0.8; // = 1.74
+
         // For qv1, max similarity is with dv2: 0.7
         // For qv2, max similarity is with dv2: 1.74
         // Total: 0.7 + 1.74 = 2.44

@@ -103,11 +103,8 @@ public final class PainlessModulePlugin extends Plugin implements ScriptPlugin, 
         // Functions used for scoring docs
         List<Allowlist> scoreFn = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
         scoreFn.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.score.txt"));
-  
-        Allowlist vectorFunctions = AllowlistLoader.loadFromResourceFiles(
-            Allowlist.class,
-            "org.opensearch.painless.vector_functions.txt"
-        );
+
+        Allowlist vectorFunctions = AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.painless.vector_functions.txt");
         scoreFn.add(vectorFunctions);
 
         map.put(ScoreScript.CONTEXT, scoreFn);

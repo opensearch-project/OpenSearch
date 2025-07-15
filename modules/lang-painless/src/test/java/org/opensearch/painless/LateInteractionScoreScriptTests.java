@@ -14,7 +14,6 @@ import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.ScriptContext;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,7 +24,7 @@ import java.util.Map;
 public class LateInteractionScoreScriptTests extends ScriptTestCase {
 
     private static final PainlessScriptEngine SCORE_SCRIPT_ENGINE;
-    
+
     static {
         Map<ScriptContext<?>, List<Allowlist>> contexts = new HashMap<>();
         List<Allowlist> allowlists = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
@@ -35,7 +34,7 @@ public class LateInteractionScoreScriptTests extends ScriptTestCase {
         contexts.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, allowlists);
         SCORE_SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
-    
+
     @Override
     protected PainlessScriptEngine getEngine() {
         return SCORE_SCRIPT_ENGINE;
@@ -72,12 +71,12 @@ public class LateInteractionScoreScriptTests extends ScriptTestCase {
 
         // Use PainlessTestScript context instead of ScoreScript for testing
         PainlessExecuteAction.PainlessTestScript.Factory factory = getEngine().compile(
-            "test", 
-            script, 
-            PainlessExecuteAction.PainlessTestScript.CONTEXT, 
+            "test",
+            script,
+            PainlessExecuteAction.PainlessTestScript.CONTEXT,
             Collections.emptyMap()
         );
-        
+
         PainlessExecuteAction.PainlessTestScript testScript = factory.newInstance(params);
         double result = ((Number) testScript.execute()).doubleValue();
 
@@ -151,12 +150,12 @@ public class LateInteractionScoreScriptTests extends ScriptTestCase {
 
         // Use PainlessTestScript context instead of ScoreScript for testing
         PainlessExecuteAction.PainlessTestScript.Factory factory = getEngine().compile(
-            "test", 
-            script, 
-            PainlessExecuteAction.PainlessTestScript.CONTEXT, 
+            "test",
+            script,
+            PainlessExecuteAction.PainlessTestScript.CONTEXT,
             Collections.emptyMap()
         );
-        
+
         PainlessExecuteAction.PainlessTestScript testScript = factory.newInstance(params);
         double result = ((Number) testScript.execute()).doubleValue();
 

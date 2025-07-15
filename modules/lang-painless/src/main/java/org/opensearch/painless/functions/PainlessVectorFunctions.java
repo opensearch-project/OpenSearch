@@ -11,7 +11,13 @@ package org.opensearch.painless.functions;
 import java.util.List;
 import java.util.Map;
 
+import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.VectorOperators;
+import jdk.incubator.vector.VectorSpecies;
+
 public final class PainlessVectorFunctions {
+
+    private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
 
     private PainlessVectorFunctions() {}
 
@@ -43,23 +49,14 @@ public final class PainlessVectorFunctions {
                 continue;
             }
 
-            double maxDocTokenSim = 0.0;  
+            double maxDocTokenSim = 0.0;
 
             for (List<Double> doc_token_vec : docVectors) {
                 if (doc_token_vec == null || doc_token_vec.isEmpty()) {
                     continue;
                 }
 
-                double currentSim = 0.0;
-                if (q_vec.size() == doc_token_vec.size()) {
-                    for (int k = 0; k < q_vec.size(); k++) {
-                        currentSim += q_vec.get(k) * doc_token_vec.get(k);
-                    }
-                } else {
-                    // Handle dimension mismatch, perhaps log a warning or return a specific value
-                    // For now, as per original script, if dimensions mismatch, currentSim remains 0.0
-                    currentSim = 0.0;
-                }
+                double currentSim = dotProduct(q_vec, doc_token_vec);
 
                 if (currentSim > maxDocTokenSim) {
                     maxDocTokenSim = currentSim;
@@ -68,5 +65,24 @@ public final class PainlessVectorFunctions {
             totalMaxSim += maxDocTokenSim;
         }
         return totalMaxSim;
+    }
+
+    private static double dotProduct(List<Double> vec1, List<Double> vec2) {
+        if (vec1 == null || vec2 == null || vec1.size() != vec2.size()) {
+            return 0.0;
+        }
+        double[] a = vec1.stream().mapToDouble(d -> d).toArray();
+        double[] b = vec2.stream().mapToDouble(d -> d).toArray();
+        double res = 0;
+        int i = 0;
+        for (; i < SPECIES.loopBound(a.length); i += SPECIES.length()) {
+            DoubleVector va = DoubleVector.fromArray(SPECIES, a, i);
+            DoubleVector vb = DoubleVector.fromArray(SPECIES, b, i);
+            res += va.mul(vb).reduceLanes(VectorOperators.ADD);
+        }
+        for (; i < a.length; i++) {
+            res += a[i] * b[i];
+        }
+        return res;
     }
 }

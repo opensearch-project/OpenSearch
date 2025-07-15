@@ -73,6 +73,21 @@ restResources {
 tasks.named("test").configure {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
+  jvmArgs '--add-modules', 'jdk.incubator.vector'
+}
+
+tasks.named("forbiddenApisMain").configure {
+  enabled = false
+}
+
+compileJava {
+  options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
+  options.compilerArgs -= '-Werror'
+}
+
+
+tasks.named("javadoc").configure {
+  options.addStringOption('-add-modules', 'jdk.incubator.vector')
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the
@@ -82,6 +97,7 @@ tasks.register("apiJavadoc", Javadoc) {
   classpath = sourceSets.main.runtimeClasspath
   include '**/org/opensearch/painless/api/'
   destinationDir = new File(file(java.docsDir), 'apiJavadoc')
+  options.addStringOption('-add-modules', 'jdk.incubator.vector')
 }
 
 tasks.register("apiJavadocJar", Jar) {
@@ -161,8 +177,7 @@ tasks.register("regenLexer", JavaExec) {
   systemProperty 'user.language', 'en'
   systemProperty 'user.country', 'US'
   systemProperty 'user.variant', ''
-  args '-Werror',
-    '-package', 'org.opensearch.painless.antlr',
+  args '-package', 'org.opensearch.painless.antlr',
     '-o', outputPath,
     "${file(grammarPath)}/PainlessLexer.g4"
 }
@@ -175,8 +190,7 @@ tasks.register("regenParser", JavaExec) {
   systemProperty 'user.language', 'en'
   systemProperty 'user.country', 'US'
   systemProperty 'user.variant', ''
-  args '-Werror',
-    '-package', 'org.opensearch.painless.antlr',
+  args '-package', 'org.opensearch.painless.antlr',
     '-no-listener',
     '-visitor',
     // '-Xlog',
