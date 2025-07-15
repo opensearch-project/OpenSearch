@@ -1217,12 +1217,9 @@ final class DefaultSearchContext extends SearchContext {
         if (terminateAfter != DEFAULT_TERMINATE_AFTER) return;
         if (!(query instanceof BooleanQuery bq)) return;
 
-        // TODO: Ensure we aren't aggregating, paginating, sorting, scrolling ...
         if (aggregations() != null) return;
-        // Check pagination - TODO: Not confident of this !!
         if (from > 0 || searchAfter != null) return;
-        if (sort != null) return; // TODO: If we sort ascending on _doc, we can still apply this optimization; how does this work wrt sort
-                                  // field?
+        if (sort != null) return;
         if (sliceBuilder != null || scrollContext() != null) return;
 
         // TODO: After discussing with Jay, I don't think concurrent segment search should cause any issues so long as user has not
