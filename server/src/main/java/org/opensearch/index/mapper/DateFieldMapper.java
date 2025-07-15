@@ -611,6 +611,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public byte[] encodePoint(Object value, boolean roundUp) {
+            // Use the existing parseToLong method with proper rounding for search_after
+            long longValue = parseToLong(value, roundUp, null, null, () -> System.currentTimeMillis());
+            return encodePoint(longValue);
+        }
+
+        @Override
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);

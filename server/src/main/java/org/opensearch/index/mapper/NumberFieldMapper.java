@@ -284,6 +284,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Float numericValue = parse(value, true);
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return HalfFloatPoint.sortableShortToHalfFloat((short) value);
             }
@@ -460,6 +466,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Float numericValue = parse(value, true);
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return NumericUtils.sortableIntToFloat((int) value);
             }
@@ -627,6 +639,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Double numericValue = parse(value, true);
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return NumericUtils.sortableLongToDouble(value);
             }
@@ -790,6 +808,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Byte numericValue = parse(value, true);
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return objectToDouble(value);
             }
@@ -874,6 +898,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Short numericValue = parse(value, true);
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return (double) value;
             }
@@ -951,6 +981,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[Integer.BYTES];
                 IntPoint.encodeDimension(value.intValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Integer numericValue = parse(value, true);
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -1140,6 +1176,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Long numericValue = parse(value, true);
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return (double) value;
             }
@@ -1279,6 +1321,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[BigIntegerPoint.BYTES];
                 BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false, true), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                BigInteger numericValue = parse(value, true);
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -1849,6 +1897,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public byte[] encodePoint(Number value) {
             return type.encodePoint(value);
+        }
+
+        @Override
+        public byte[] encodePoint(Object value, boolean roundUp) {
+            // Use the existing parse method with coercion for search_after
+            Number numericValue = type.parse(value, true);
+            return encodePoint(numericValue);
         }
 
         @Override
