@@ -15,26 +15,26 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * This class will keep the point in time view of the query group stats
+ * This class will keep the point in time view of the workload group stats
  */
 public class WorkloadGroupState {
     /**
-     * co-ordinator level completions at the query group level, this is a cumulative counter since the Opensearch start time
+     * co-ordinator level completions at the workload group level, this is a cumulative counter since the Opensearch start time
      */
     public final CounterMetric totalCompletions = new CounterMetric();
 
     /**
-     * rejections at the query group level, this is a cumulative counter since the OpenSearch start time
+     * rejections at the workload group level, this is a cumulative counter since the OpenSearch start time
      */
     public final CounterMetric totalRejections = new CounterMetric();
 
     /**
-     * this will track the cumulative failures in a query group
+     * this will track the cumulative failures in a workload group
      */
     public final CounterMetric failures = new CounterMetric();
 
     /**
-     * This will track total number of cancellations in the query group due to all resource type breaches
+     * This will track total number of cancellations in the workload group due to all resource type breaches
      */
     public final CounterMetric totalCancellations = new CounterMetric();
 
@@ -54,7 +54,7 @@ public class WorkloadGroupState {
 
     /**
      *
-     * @return co-ordinator completions in the query group
+     * @return co-ordinator completions in the workload group
      */
     public long getTotalCompletions() {
         return totalCompletions.count();
@@ -62,7 +62,7 @@ public class WorkloadGroupState {
 
     /**
      *
-     * @return rejections in the query group
+     * @return rejections in the workload group
      */
     public long getTotalRejections() {
         return totalRejections.count();
@@ -70,7 +70,7 @@ public class WorkloadGroupState {
 
     /**
      *
-     * @return failures in the query group
+     * @return failures in the workload group
      */
     public long getFailures() {
         return failures.count();
@@ -81,15 +81,15 @@ public class WorkloadGroupState {
     }
 
     /**
-     * getter for query group resource state
-     * @return the query group resource state
+     * getter for workload group resource state
+     * @return the workload group resource state
      */
     public Map<ResourceType, ResourceTypeState> getResourceState() {
         return resourceState;
     }
 
     /**
-     * This class holds the resource level stats for the query group
+     * This class holds the resource level stats for the workload group
      */
     public static class ResourceTypeState {
         public final ResourceType resourceType;
