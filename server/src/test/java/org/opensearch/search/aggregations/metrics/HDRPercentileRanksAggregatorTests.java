@@ -86,7 +86,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (double value : new double[] { 3, 0.2, 10 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                doc.add(SortedNumericDocValuesField.indexedField("field", NumericUtils.doubleToSortableLong(value)));
                 w.addDocument(doc);
             }
 

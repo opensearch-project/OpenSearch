@@ -106,11 +106,11 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             Document doc = new Document();
             if (random.nextBoolean()) {
                 val = random.nextInt(10); // Random int between 0 and 9 for status
-                doc.add(new SortedNumericDocValuesField(STATUS, val));
+                doc.add(SortedNumericDocValuesField.indexedField(STATUS, val));
             }
             if (random.nextBoolean()) {
                 val = NumericUtils.doubleToSortableLong(random.nextInt(100) + 0.5f);
-                doc.add(new SortedNumericDocValuesField(SIZE, val));
+                doc.add(SortedNumericDocValuesField.indexedField(SIZE, val));
             }
             if (random.nextBoolean()) {
                 val = random.nextInt(10); // Random strings for int between 0 and 9 for clientip

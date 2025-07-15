@@ -502,7 +502,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                     List.of(
                         new BinaryDocValuesField("outer", outerRange),
                         new BinaryDocValuesField("inner", innerRange),
-                        new SortedNumericDocValuesField("n", n)
+                        SortedNumericDocValuesField.indexedField("n", n)
                     )
                 );
             }

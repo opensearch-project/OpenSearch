@@ -66,8 +66,8 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
 
     public void testSomeDocs() throws IOException {
         testCase(iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 1)));
         }, (global, min) -> {
             assertEquals(2, global.getDocCount());
             assertEquals(1, min.getValue(), 0);

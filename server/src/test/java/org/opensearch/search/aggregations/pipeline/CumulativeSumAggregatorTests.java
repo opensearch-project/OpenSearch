@@ -309,7 +309,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 }
 
                 long instant = asLong(date);
-                document.add(new SortedNumericDocValuesField(HISTO_FIELD, instant));
+                document.add(SortedNumericDocValuesField.indexedField(HISTO_FIELD, instant));
                 document.add(new NumericDocValuesField(VALUE_FIELD, datasetValues.get(counter)));
                 indexWriter.addDocument(document);
                 document.clear();

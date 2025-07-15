@@ -341,7 +341,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             int numDocs = randomInt(100);
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numDocs; i++) {
-                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                    indexWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", i)));
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -361,7 +361,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             int numDocs = randomInt(100);
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numDocs; i++) {
-                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                    indexWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", i)));
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -384,7 +384,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Integer numDocs = randomInt(100);
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numDocs; i++) {
-                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                    indexWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", i)));
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -410,7 +410,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Integer numDocs = randomInt(100);
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numDocs; i++) {
-                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                    indexWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", i)));
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -436,7 +436,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < 100; i++) {
-                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                    indexWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", i)));
                 }
                 // force a single aggregator
                 indexWriter.forceMerge(1);
@@ -468,7 +468,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < 100; i++) {
-                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                    indexWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", i)));
                 }
             }
 
@@ -496,7 +496,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < 100; i++) {
-                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                    indexWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", i)));
                 }
             }
 
@@ -547,7 +547,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Integer numDocs = randomIntBetween(1, 100);
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numDocs; i++) {
-                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                    indexWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", i)));
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {

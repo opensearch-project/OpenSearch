@@ -171,8 +171,8 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
     public void testNoMatchingField() throws IOException {
         testAggregation(new MatchAllDocsQuery(), ValueType.LONG, iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 1)));
         }, count -> {
             assertEquals(0L, count.getValue());
             assertFalse(AggregationInspectionHelper.hasValue(count));
@@ -181,9 +181,9 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
         testAggregation(new FieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(FIELD_NAME, 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(FIELD_NAME, 1)));
         }, count -> {
             assertEquals(2L, count.getValue());
             assertTrue(AggregationInspectionHelper.hasValue(count));
@@ -309,18 +309,18 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             Document doc = new Document();
-            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
-            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
+            doc.add(SortedNumericDocValuesField.indexedField(FIELD_NAME, 7));
+            doc.add(SortedNumericDocValuesField.indexedField(FIELD_NAME, 7));
             iw.addDocument(doc);
 
             doc = new Document();
-            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 8));
-            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 8));
+            doc.add(SortedNumericDocValuesField.indexedField(FIELD_NAME, 8));
+            doc.add(SortedNumericDocValuesField.indexedField(FIELD_NAME, 8));
             iw.addDocument(doc);
 
             doc = new Document();
-            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 1));
-            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 1));
+            doc.add(SortedNumericDocValuesField.indexedField(FIELD_NAME, 1));
+            doc.add(SortedNumericDocValuesField.indexedField(FIELD_NAME, 1));
             iw.addDocument(doc);
         }, valueCount -> {
             // Note: The field values won't be taken into account. The script will only be called
