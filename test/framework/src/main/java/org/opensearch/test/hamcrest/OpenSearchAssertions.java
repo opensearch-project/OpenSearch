@@ -322,6 +322,23 @@ public class OpenSearchAssertions {
         }
     }
 
+    public static void assertHitCount(SearchResponse countResponse, long expectedHitCount, TotalHits.Relation relation) {
+        final TotalHits totalHits = countResponse.getHits().getTotalHits();
+        if (totalHits.relation() != relation) {
+            fail(
+                "Count relation is "
+                    + totalHits.relation().toString()
+                    + " but "
+                    + relation.toString()
+                    + " was expected. "
+                    + formatShardStatus(countResponse)
+            );
+        }
+        if (totalHits.value() != expectedHitCount) {
+            fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+        }
+    }
+
     public static void assertExists(GetResponse response) {
         String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not", response.getIndex(), response.getId());
         assertThat(message, response.isExists(), is(true));

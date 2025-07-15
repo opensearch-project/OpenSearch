@@ -10,12 +10,12 @@ package org.opensearch.search.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
-import org.opensearch.transport.client.Requests;
+import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,7 +26,10 @@ import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
+import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
@@ -221,54 +224,61 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testFilterEarlyTermination() throws Exception {
-        // TODO: I think this test may flake if we have >1 node, as then it's possible no individual segment has enough hits to allow early termination
         int numDocs = 6_000;
         String intField = "int_field";
-        String termField1 = "term_field1";
-        String termField2 = "term_field2";
-        List<String> termField1Values = List.of("even", "odd");
-        List<String> termField2Values = List.of("A", "B", "C");
+        String textField1 = "term_field1";
+        String textField2 = "term_field2";
+        List<String> textField1Values = List.of("even", "odd");
+        List<String> textField2Values = List.of("A", "B", "C");
+        Client client = client();
+        String indexName = "test";
+        // Set trackTotalHitsUpTo to 500 rather than default 10k, so we have to index fewer docs
+        int trackTotalHitsUpTo = 500;
+
+        // Enforce 1 shard per node, so that no shard has < trackTotalHitsUpTo matching docs and cannot actually terminate early
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setMapping(intField, "type=integer", textField1, "type=text", textField2, "type=text")
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
 
         for (int i = 0; i < numDocs; i++) {
-            String termValue1 = termField1Values.get(i % 2);
-            String termValue2 = termField2Values.get(i % 3);
-            client().prepareIndex("test")
+            String termValue1 = textField1Values.get(i % 2);
+            String termValue2 = textField2Values.get(i % 3);
+            client.prepareIndex(indexName)
                 .setId(Integer.toString(i))
-                .setSource(intField, i, termField1, termValue1, termField2, termValue2)
+                .setSource(intField, i, textField1, termValue1, textField2, termValue2)
                 .get();
         }
         afterIndexing();
 
-        // Set trackTotalHitsUpTo to 500 rather than default 10k, so we have to index fewer docs
-        int trackTotalHitsUpTo = 500;
-
         // A query with only filter or must_not clauses should be able to terminate early
-        /*SearchResponse response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).setQuery(boolQuery().mustNot(termQuery(termField1, "A"))).get();
-        assertTrue(response.isTerminatedEarly());*/
-
-
-        SearchResponse response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).setQuery(
-            boolQuery().mustNot(termQuery(termField1, "even"))
-                .filter(rangeQuery(intField).lte(3000))
-        ).get();
-        if (response.isTerminatedEarly() == null) {
-            int k = 0;
-        }
-        assertTrue(response.isTerminatedEarly()); // TODO: This appears to STILL flake even after force merge to 1 segment
+        SearchResponse response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(3000)))
+            .get();
+        assertTrue(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, EQUAL_TO); // TODO: Seems this actually is EQUAL_TO - is this ok? I think so?
 
         // Queries with other clauses should not terminate early
-        /*response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).setQuery(
-            boolQuery().mustNot(termQuery(termField1, "even"))
-                .must(rangeQuery(intField).lte(3000))
-        ).get();
+        response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).must(rangeQuery(intField).lte(3000)))
+            .get();
         assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
 
-        response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).setQuery(
-            boolQuery()
-                .must(rangeQuery(intField).lte(3000))
-                .should(termQuery(termField2, "A"))
-        ).get();
-        assertNull(response.isTerminatedEarly());*/
+        response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().must(rangeQuery(intField).lte(3000)).should(termQuery(textField2, "A")))
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
 
         // Queries with aggregations shouldn't terminate early
         // TODO
@@ -281,6 +291,8 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         // Scroll queries shouldn't terminate early
         // TODO
+
+        // TODO: Test whatever I decide is correct for concurrent segment search
     }
 
     private String padZeros(int value, int length) {

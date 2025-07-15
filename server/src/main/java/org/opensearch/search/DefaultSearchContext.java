@@ -1221,18 +1221,22 @@ final class DefaultSearchContext extends SearchContext {
         if (aggregations() != null) return;
         // Check pagination - TODO: Not confident of this !!
         if (from > 0 || searchAfter != null) return;
-        if (sort != null) return; // TODO: If we sort ascending on _doc, we can still apply this optimization; how does this work wrt sort field?
+        if (sort != null) return; // TODO: If we sort ascending on _doc, we can still apply this optimization; how does this work wrt sort
+                                  // field?
         if (sliceBuilder != null || scrollContext() != null) return;
 
-        // TODO: There may be an issue with concurrent search: see https://github.com/opensearch-project/OpenSearch/issues/8371
-
+        // TODO: After discussing with Jay, I don't think concurrent segment search should cause any issues so long as user has not
+        // explicitly set terminate_after.
+        // But, need to bmark to determine whether CSS/no CSS is significantly faster with terminate_after of 10k, to decide which to use in
+        // this case.
 
         // We can only set terminateAfter to trackTotalHitsUpTo if we only have filter and must_not clauses
         if (bq.getClauses(Occur.MUST).isEmpty() && bq.getClauses(Occur.SHOULD).isEmpty()) {
             terminateAfter = Math.max(size, trackTotalHitsUpTo);
         }
 
-        // TODO: Per discussion with Harsha + Sawan, this is basically the same as approximate range query framework, and we can do similar things for standalone range queries, any constant score query, etc
+        // TODO: Per discussion with Harsha + Sawan, this is basically the same as approximate range query framework, and we can do similar
+        // things for standalone range queries, any constant score query, etc
 
     }
 }
