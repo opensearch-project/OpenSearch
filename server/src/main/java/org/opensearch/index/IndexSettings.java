@@ -1428,6 +1428,14 @@ public final class IndexSettings {
     }
 
     /**
+     * @deprecated Experimental feature has been removed. Do not use.
+     */
+    @Deprecated
+    public Version getExtendedCompatibilitySnapshotVersion() {
+        throw new UnsupportedOperationException("Experimental feature has been removed");
+    }
+
+    /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
      * index settings and the node settings where node settings are overwritten by index settings.
      */
