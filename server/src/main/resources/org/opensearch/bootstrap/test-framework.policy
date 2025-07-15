@@ -114,6 +114,7 @@ grant codeBase "${codebase.opensearch-core}" {
 grant codeBase "${codebase.opensearch-nio}" {
   // opensearch-nio makes and accepts socket connections
   permission java.net.SocketPermission "*", "accept,resolve,connect";
+  permission java.io.FilePermission "${java.io.tmpdir}${/}-", "delete";
 };
 
 grant codeBase "${codebase.opensearch-rest-client}" {
