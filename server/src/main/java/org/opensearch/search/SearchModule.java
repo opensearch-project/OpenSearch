@@ -286,7 +286,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1308,11 +1307,7 @@ public class SearchModule {
     }
 
     private List<SearchPlugin.ProfileMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
-        return plugins.stream()
-            .map(SearchPlugin::getQueryProfileMetricsProvider)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .toList();
+        return plugins.stream().map(SearchPlugin::getQueryProfileMetricsProvider).filter(Optional::isPresent).map(Optional::get).toList();
     }
 
     public FetchPhase getFetchPhase() {
