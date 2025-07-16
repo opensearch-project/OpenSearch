@@ -443,10 +443,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         Exception exception = assertThrows(Exception.class, () -> client().execute(DeleteRuleAction.INSTANCE, request).get());
 
-        assertTrue(
-            "Expected error message for nonexistent rule ID",
-            exception.getMessage().contains("no such index")
-        );
+        assertTrue("Expected error message for nonexistent rule ID", exception.getMessage().contains("no such index"));
 
         clearWlmModeSetting();
     }
