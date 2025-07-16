@@ -707,7 +707,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
                     remoteStoreSettings
                 );
-            } else if (isRemoteDataAttributePresent(settings) && shardRouting.primary()) {
+            } else if (RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings) && shardRouting.primary()) {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
