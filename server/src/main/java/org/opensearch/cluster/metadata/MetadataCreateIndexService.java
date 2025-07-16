@@ -227,7 +227,7 @@ public class MetadataCreateIndexService {
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
-        remoteStoreCustomMetadataResolver = isRemoteDataAttributePresent(settings)
+        remoteStoreCustomMetadataResolver = RemoteStoreNodeAttribute.isRemoteClusterStateConfigured(settings)
             ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
             : null;
     }
@@ -1178,10 +1178,12 @@ public class MetadataCreateIndexService {
             if (remoteNode.isPresent()) {
                 translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
                 segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
-                if (segmentRepo != null && translogRepo != null) {
+                if (segmentRepo != null) {
                     settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                        .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo)
-                        .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                        .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
+                    if (translogRepo != null) {
+                        settingsBuilder.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                    }
                 } else {
                     ValidationException validationException = new ValidationException();
                     validationException.addValidationErrors(
