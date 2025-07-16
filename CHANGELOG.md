@@ -57,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.jimfs:jimfs` from 1.3.0 to 1.3.1 ([#18743](https://github.com/opensearch-project/OpenSearch/pull/18743)), [#18746](https://github.com/opensearch-project/OpenSearch/pull/18746))
 - Bump `com.azure:azure-storage-common` from 12.29.0 to 12.29.1 ([#18742](https://github.com/opensearch-project/OpenSearch/pull/18742))
 - Bump `org.apache.commons:commons-lang3` from 3.17.0 to 3.18.0 ([#18745](https://github.com/opensearch-project/OpenSearch/pull/18745))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 10.2 to 10.3.1 ([#18759](https://github.com/opensearch-project/OpenSearch/pull/18759))
 
 ### Deprecated
 
