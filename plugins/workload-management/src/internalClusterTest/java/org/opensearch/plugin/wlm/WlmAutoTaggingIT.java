@@ -839,7 +839,8 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         public List<Setting<?>> getSettings() {
             return List.of(
                 WorkloadGroupPersistenceService.MAX_QUERY_GROUP_COUNT,
-                RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING
+                RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING,
+                IndexStoredRulePersistenceService.MAX_WLM_RULES_SETTING
             );
         }
 
