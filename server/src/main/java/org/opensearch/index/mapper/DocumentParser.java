@@ -786,12 +786,18 @@ final class DocumentParser {
             if (parseableAsLong && context.root().numericDetection()) {
                 Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG, dynamic, fullPath);
                 if (builder == null) {
+                    if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                        return null;
+                    }
                     builder = newLongBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
             } else if (parseableAsDouble && context.root().numericDetection()) {
                 Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE, dynamic, fullPath);
                 if (builder == null) {
+                    if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                        return null;
+                    }
                     builder = newFloatBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
@@ -808,6 +814,9 @@ final class DocumentParser {
                     }
                     Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, dateTimeFormatter, dynamic, fullPath);
                     if (builder == null) {
+                        if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                            return null;
+                        }
                         boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
                         builder = new DateFieldMapper.Builder(
                             currentFieldName,
@@ -824,6 +833,9 @@ final class DocumentParser {
 
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING, dynamic, fullPath);
             if (builder == null) {
+                if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                    return null;
+                }
                 builder = new TextFieldMapper.Builder(currentFieldName, context.mapperService().getIndexAnalyzers()).addMultiField(
                     new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
                 );
@@ -836,6 +848,9 @@ final class DocumentParser {
                 || numberType == XContentParser.NumberType.BIG_INTEGER) {
                 Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG, dynamic, fullPath);
                 if (builder == null) {
+                    if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                        return null;
+                    }
                     builder = newLongBuilder(currentFieldName, context.indexSettings().getSettings());
                 }
                 return builder;
@@ -844,6 +859,9 @@ final class DocumentParser {
                 || numberType == XContentParser.NumberType.BIG_DECIMAL) {
                     Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE, dynamic, fullPath);
                     if (builder == null) {
+                        if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                            return null;
+                        }
                         // no templates are defined, we use float by default instead of double
                         // since this is much more space-efficient and should be enough most of
                         // the time
@@ -854,12 +872,18 @@ final class DocumentParser {
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.BOOLEAN, dynamic, fullPath);
             if (builder == null) {
+                if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                    return null;
+                }
                 builder = new BooleanFieldMapper.Builder(currentFieldName);
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.BINARY, dynamic, fullPath);
             if (builder == null) {
+                if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                    return null;
+                }
                 builder = new BinaryFieldMapper.Builder(currentFieldName);
             }
             return builder;
@@ -867,6 +891,9 @@ final class DocumentParser {
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING, dynamic, fullPath);
             if (builder != null) {
                 return builder;
+            }
+            if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
+                return null;
             }
         }
         // TODO how do we identify dynamically that its a binary value?
@@ -888,8 +915,11 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
-        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName, dynamic, parentMapper.fullPath());
+        if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES && builder == null) {
+            return;
+        }
+        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         Mapper mapper = builder.build(builderContext);
         context.addDynamicMapper(mapper);
 
@@ -995,6 +1025,31 @@ final class DocumentParser {
                             context.path()
                         );
                         mapper = (ObjectMapper) builder.build(builderContext);
+                        if (mapper.nested() != ObjectMapper.Nested.NO) {
+                            throw new MapperParsingException(
+                                "It is forbidden to create dynamic nested objects (["
+                                    + context.path().pathAsText(paths[i])
+                                    + "]) through `copy_to` or dots in field names"
+                            );
+                        }
+                        context.addDynamicMapper(mapper);
+                        break;
+                    case FALSE_ALLOW_TEMPLATES:
+                        Mapper.Builder builder = findTemplateBuilder(
+                            context,
+                            paths[i],
+                            XContentFieldType.OBJECT,
+                            dynamic,
+                            parent.fullPath()
+                        );
+                        if (builder == null) {
+                            return new Tuple<>(pathsAdded, parent);
+                        }
+                        Mapper.BuilderContext templateBuilderContext = new Mapper.BuilderContext(
+                            context.indexSettings().getSettings(),
+                            context.path()
+                        );
+                        mapper = (ObjectMapper) builder.build(templateBuilderContext);
                         if (mapper.nested() != ObjectMapper.Nested.NO) {
                             throw new MapperParsingException(
                                 "It is forbidden to create dynamic nested objects (["

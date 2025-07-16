@@ -88,6 +88,55 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertThat(doc.rootDoc().get("field2"), nullValue());
     }
 
+    public void testDynamicFalseAllowTemplates() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("dates");
+                    b.field("match", "date_*");
+                    b.startObject("mapping");
+                    b.field("type", "date");
+                    b.endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            {
+                b.startObject("url");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Test that fields matching templates are created
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.field("url", "https://example.com");
+            b.field("date_timestamp", "2024-01-01T00:00:00Z");
+            b.field("date_timezone", "2024-01-02T00:00:00Z");
+        }));
+
+        assertThat(doc.rootDoc().get("url"), equalTo("https://example.com"));
+        assertThat(doc.rootDoc().get("date_timestamp"), equalTo("2024-01-01T00:00:00Z"));
+        assertThat(doc.rootDoc().get("date_timezone"), equalTo("2024-01-02T00:00:00Z"));
+
+        // Test that fields not matching templates are ignored
+        ParsedDocument doc2 = defaultMapper.parse(source(b -> {
+            b.field("url", "https://example.com");
+            b.field("date_timestamp", "2024-01-01T00:00:00Z");
+            b.field("author", "John Doe"); // This should be ignored
+        }));
+
+        assertThat(doc2.rootDoc().get("url"), equalTo("https://example.com"));
+        assertThat(doc2.rootDoc().get("date_timestamp"), equalTo("2024-01-01T00:00:00Z"));
+        assertThat(doc2.rootDoc().get("author"), nullValue());
+    }
+
     public void testDynamicStrict() throws IOException {
 
         DocumentMapper defaultMapper = createDocumentMapper(
