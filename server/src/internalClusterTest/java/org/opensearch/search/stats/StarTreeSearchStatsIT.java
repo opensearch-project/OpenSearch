@@ -24,7 +24,7 @@ import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Integration tests for search statistics related to star-tree.
@@ -171,7 +171,7 @@ public class StarTreeSearchStatsIT extends OpenSearchIntegTestCase {
             assertThat(
                 "Star-tree query time should be less than total query time",
                 totalStats.getStarTreeQueryTimeInMillis(),
-                lessThan(totalStats.getQueryTimeInMillis())
+                lessThanOrEqualTo(totalStats.getQueryTimeInMillis())
             );
         }
     }

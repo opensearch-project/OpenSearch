@@ -168,7 +168,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         private long starTreeQueryCount;
         private long starTreeQueryTimeInMillis;
-        public long starTreeQueryCurrent;
+        private long starTreeQueryCurrent;
 
         @Nullable
         private RequestStatsLongHolder requestStatsLongHolder;
