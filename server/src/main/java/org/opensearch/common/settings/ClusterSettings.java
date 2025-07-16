@@ -631,6 +631,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING,
                 LeaderChecker.LEADER_CHECK_INTERVAL_SETTING,
                 LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
+                LeaderChecker.LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING,
                 Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
                 TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
                 ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,  // deprecated
