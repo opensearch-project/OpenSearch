@@ -2002,4 +2002,276 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     }
 
+    public void testDynamicFalseAllowTemplatesLongArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false_allow_templates")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0).value(1).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("foo").length);
+
+        DocumentMapper mapperWithTemplate = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "foo");
+                        b.startObject("mapping").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument docWithTemplate = mapperWithTemplate.parse(source(b -> b.startArray("foo").value(0).value(1).endArray()));
+        assertEquals(4, docWithTemplate.rootDoc().getFields("foo").length);
+    }
+
+    public void testDynamicFalseAllowTemplatesObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "test");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            {
+                b.startObject();
+                {
+                    b.startObject("test1");
+                    {
+                        b.field("match", "test1");
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }
+
+        ));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("test").field("test1", "foo").endObject()));
+        assertEquals(2, doc.rootDoc().getFields("test.test1").length);
+    }
+
+    public void testDynamicFalseAllowTemplatesValue() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false_allow_templates")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("bar", "baz")));
+        assertEquals(0, doc.rootDoc().getFields("bar").length);
+
+        DocumentMapper mapperWithTemplate = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "bar");
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument docWithTemplate = mapperWithTemplate.parse(source(b -> b.field("bar", "baz")));
+        assertEquals(2, docWithTemplate.rootDoc().getFields("bar").length);
+    }
+
+    public void testDynamicFalseAllowTemplatesNull() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false_allow_templates")));
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("bar")));
+        assertEquals(0, doc.rootDoc().getFields("bar").length);
+
+        DocumentMapper mapperWithTemplate = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "bar");
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument docWithTemplate = mapperWithTemplate.parse(source(b -> b.nullField("bar")));
+        assertEquals(0, docWithTemplate.rootDoc().getFields("bar").length); // null fields don't create mappings
+    }
+
+    public void testDynamicFalseAllowTemplatesDottedFieldNameLongArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false_allow_templates")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo.bar.baz").value(0).value(1).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("foo.bar.baz").length);
+
+        DocumentMapper mapperWithTemplate = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "foo");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            {
+                b.startObject();
+                {
+                    b.startObject("test1");
+                    {
+                        b.field("match", "bar");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            {
+                b.startObject();
+                {
+                    b.startObject("test2");
+                    {
+                        b.field("path_match", "foo.bar.baz");
+                        b.startObject("mapping").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument docWithTemplate = mapperWithTemplate.parse(source(b -> b.startArray("foo.bar.baz").value(0).value(1).endArray()));
+        assertEquals(4, docWithTemplate.rootDoc().getFields("foo.bar.baz").length);
+    }
+
+    public void testDynamicFalseAllowTemplatesDottedFieldNameLong() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false_allow_templates")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("foo.bar.baz", 0)));
+        assertEquals(0, doc.rootDoc().getFields("foo.bar.baz").length);
+
+        DocumentMapper mapperWithTemplate = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "foo");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            {
+                b.startObject();
+                {
+                    b.startObject("test1");
+                    {
+                        b.field("match", "bar");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            {
+                b.startObject();
+                {
+                    b.startObject("test2");
+                    {
+                        b.field("path_match", "foo.bar.baz");
+                        b.startObject("mapping").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument docWithTemplate = mapperWithTemplate.parse(source(b -> b.field("foo.bar.baz", 0)));
+        assertEquals(2, docWithTemplate.rootDoc().getFields("foo.bar.baz").length);
+    }
+
+    public void testDynamicFalseAllowTemplatesDottedFieldNameObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false_allow_templates")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("foo.bar.baz").field("a", 0).endObject()));
+        assertEquals(0, doc.rootDoc().getFields("foo.bar.baz.a").length);
+
+        DocumentMapper mapperWithTemplate = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "foo");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            {
+                b.startObject();
+                {
+                    b.startObject("test1");
+                    {
+                        b.field("match", "bar");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            {
+                b.startObject();
+                {
+                    b.startObject("test2");
+                    {
+                        b.field("path_match", "foo.bar.baz");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument docWithTemplate = mapperWithTemplate.parse(source(b -> b.startObject("foo.bar.baz").field("a", 0).endObject()));
+        assertEquals(2, docWithTemplate.rootDoc().getFields("foo.bar.baz.a").length);
+    }
+
 }
