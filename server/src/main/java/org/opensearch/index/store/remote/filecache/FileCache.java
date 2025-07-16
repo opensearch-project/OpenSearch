@@ -349,16 +349,16 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         private final Path path;
         private final FileCache fc;
         private final boolean processedDirectory;
-        private final SetOnce<IOException> exception;
+        private final SetOnce<UncheckedIOException> exception;
 
-        public LoadTask(Path path, FileCache fc, SetOnce<IOException> exception) {
+        public LoadTask(Path path, FileCache fc, SetOnce<UncheckedIOException> exception) {
             this.path = path;
             this.fc = fc;
             this.exception = exception;
             this.processedDirectory = false;
         }
 
-        public LoadTask(Path path, FileCache fc, SetOnce<IOException> exception, boolean processedDirectory) {
+        public LoadTask(Path path, FileCache fc, SetOnce<UncheckedIOException> exception, boolean processedDirectory) {
             this.path = path;
             this.fc = fc;
             this.exception = exception;
@@ -386,9 +386,15 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                         }
                     }
                 }
-            } catch (IOException e) {
-                if (exception.get() == null) {
-                    exception.set(e);
+            } catch (IOException | UncheckedIOException e) {
+                try {
+                    if (e instanceof UncheckedIOException) {
+                        exception.set((UncheckedIOException) e);
+                    } else {
+                        exception.set(new UncheckedIOException("Unable to process directories.", (IOException) e));
+                    }
+                } catch (SetOnce.AlreadySetException ignore) {
+
                 }
                 return;
             }

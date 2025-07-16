@@ -299,6 +299,7 @@ import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -2266,7 +2267,7 @@ public class Node implements Closeable {
         this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
         ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
-        SetOnce<IOException> exception = new SetOnce<>();
+        SetOnce<UncheckedIOException> exception = new SetOnce<>();
         if (DiscoveryNode.isDedicatedWarmNode(settings)) {
             pool.submit(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
         }

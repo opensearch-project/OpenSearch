@@ -29,6 +29,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -525,7 +526,7 @@ public class FileCacheTests extends OpenSearchTestCase {
         Path cachePath = path.resolve(NodeEnvironment.CACHE_FOLDER);
         Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER);
         ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
-        SetOnce<IOException> exception = new SetOnce<>();
+        SetOnce<UncheckedIOException> exception = new SetOnce<>();
         pool.submit(new FileCache.LoadTask(indicesPath, fileCache, exception));
         pool.invoke(new FileCache.LoadTask(cachePath, fileCache, exception));
         pool.shutdown();
