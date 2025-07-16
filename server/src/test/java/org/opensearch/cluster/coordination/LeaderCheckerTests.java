@@ -64,7 +64,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
-import static org.opensearch.cluster.coordination.LeaderChecker.*;
+import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_ACTION_NAME;
+import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING;
+import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
+import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
@@ -448,10 +452,10 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
 
         final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
-        final Settings settings = Settings.builder().
-            put(NODE_NAME_SETTING.getKey(), localNode.getId()).
-            put(LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING.getKey(), true).
-            build();
+        final Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), localNode.getId())
+            .put(LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING.getKey(), true)
+            .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {

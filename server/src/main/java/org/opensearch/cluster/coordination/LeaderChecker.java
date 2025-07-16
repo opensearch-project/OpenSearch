@@ -150,7 +150,10 @@ public class LeaderChecker {
         this.nodeHealthService = nodeHealthService;
         this.clusterManagerMetrics = clusterManagerMetrics;
         clusterSettings.addSettingsUpdateConsumer(LEADER_CHECK_TIMEOUT_SETTING, this::setLeaderCheckTimeout);
-        clusterSettings.addSettingsUpdateConsumer(LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING, this::setLeaderCheckFailFastOnStateRejectionSetting);
+        clusterSettings.addSettingsUpdateConsumer(
+            LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING,
+            this::setLeaderCheckFailFastOnStateRejectionSetting
+        );
 
         transportService.registerRequestHandler(
             LEADER_CHECK_ACTION_NAME,
@@ -327,11 +330,14 @@ public class LeaderChecker {
                             logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
                             leaderFailed(new NodeHealthCheckFailureException("node [" + leader + "] failed health checks", exp));
                             return;
-                        } else if (exp.getCause() instanceof CoordinationStateRejectedException && shouldLeaderCheckFailFastOnStateRejection) {
-                            logger.debug(new ParameterizedMessage("leader [{}] rejected coordination state", leader), exp);
-                            leaderFailed(new CoordinationStateRejectedException("node [" + leader + "] rejected coordination state", exp));
-                            return;
-                        }
+                        } else if (exp.getCause() instanceof CoordinationStateRejectedException
+                            && shouldLeaderCheckFailFastOnStateRejection) {
+                                logger.debug(new ParameterizedMessage("leader [{}] rejected coordination state", leader), exp);
+                                leaderFailed(
+                                    new CoordinationStateRejectedException("node [" + leader + "] rejected coordination state", exp)
+                                );
+                                return;
+                            }
                         long failureCount = failureCountSinceLastSuccess.incrementAndGet();
                         if (failureCount >= leaderCheckRetryCount) {
                             logger.debug(
