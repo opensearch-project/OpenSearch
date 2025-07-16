@@ -524,13 +524,7 @@ public class FileCacheTests extends OpenSearchTestCase {
         assertEquals(0, fileCache.size());
         Path cachePath = path.resolve(NodeEnvironment.CACHE_FOLDER);
         Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER);
-        long startTime = System.currentTimeMillis();
-        ForkJoinPool pool = new ForkJoinPool(
-            Runtime.getRuntime().availableProcessors(),
-            Node.CustomForkJoinWorkerThread::new,
-            null,
-            false
-        );
+        ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
         SetOnce<IOException> exception = new SetOnce<>();
         pool.submit(new FileCache.LoadTask(indicesPath, fileCache, exception));
         pool.invoke(new FileCache.LoadTask(cachePath, fileCache, exception));
