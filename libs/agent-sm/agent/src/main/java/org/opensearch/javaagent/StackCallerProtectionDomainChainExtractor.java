@@ -50,6 +50,8 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
     public Collection<ProtectionDomain> apply(Stream<StackFrame> frames) {
         return frames.takeWhile(
             frame -> !(ACCESS_CONTROLLER_CLASSES.contains(frame.getClassName()) && DO_PRIVILEGED_METHODS.contains(frame.getMethodName()))
+                && !("jdk.internal.platform.CgroupSubsystemController".equals(frame.getClassName())
+                    && "getStringValue".equals(frame.getMethodName()))
         )
             .map(StackFrame::getDeclaringClass)
             .map(Class::getProtectionDomain)
