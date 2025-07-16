@@ -2265,12 +2265,7 @@ public class Node implements Closeable {
 
         this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
-        ForkJoinPool pool = new ForkJoinPool(
-            Runtime.getRuntime().availableProcessors(),
-            Node.CustomForkJoinWorkerThread::new,
-            null,
-            false
-        );
+        ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
         SetOnce<IOException> exception = new SetOnce<>();
         if (DiscoveryNode.isDedicatedWarmNode(settings)) {
             pool.submit(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));

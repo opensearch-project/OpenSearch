@@ -387,7 +387,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                     }
                 }
             } catch (IOException e) {
-                if(exception.get() == null){
+                if (exception.get() == null) {
                     exception.set(e);
                 }
                 return;
