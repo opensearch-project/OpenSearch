@@ -769,15 +769,17 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             );
             ruleRoutingService = new WorkloadGroupRuleRoutingService(client, clusterService);
 
+            WlmClusterSettingValuesProvider wlmClusterSettingValuesProvider = new WlmClusterSettingValuesProvider(
+                clusterService.getSettings(),
+                clusterService.getClusterSettings()
+            );
             RefreshBasedSyncMechanism refreshMechanism = new RefreshBasedSyncMechanism(
                 threadPool,
                 clusterService.getSettings(),
-                clusterService.getClusterSettings(),
-                parser,
-                ruleProcessingService,
                 featureType,
                 rulePersistenceService,
-                new RuleEventClassifier(Collections.emptySet(), ruleProcessingService)
+                new RuleEventClassifier(Collections.emptySet(), ruleProcessingService),
+                wlmClusterSettingValuesProvider
             );
 
             autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
@@ -824,11 +826,12 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster
         ) {
+            WlmClusterSettingValuesProvider settingProvider = new WlmClusterSettingValuesProvider(settings, clusterSettings);
             return List.of(
-                new RestCreateWorkloadGroupAction(),
+                new RestCreateWorkloadGroupAction(settingProvider),
                 new RestGetWorkloadGroupAction(),
-                new RestDeleteWorkloadGroupAction(),
-                new RestUpdateWorkloadGroupAction()
+                new RestDeleteWorkloadGroupAction(settingProvider),
+                new RestUpdateWorkloadGroupAction(settingProvider)
             );
         }
 
