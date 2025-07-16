@@ -63,7 +63,12 @@ public final class Profilers {
     private final boolean isConcurrentSegmentSearchEnabled;
     private final Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics;
 
-    /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
+    /** This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
+    public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
+        this(searcher, isConcurrentSegmentSearchEnabled, query -> Collections.emptyList());
+    }
+
+    /** This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(
         ContextIndexSearcher searcher,
         boolean isConcurrentSegmentSearchEnabled,
