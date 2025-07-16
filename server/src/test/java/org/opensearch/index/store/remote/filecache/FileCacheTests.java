@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.breaker.TestCircuitBreaker;
@@ -23,6 +24,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
+import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -491,7 +493,7 @@ public class FileCacheTests extends OpenSearchTestCase {
         cache.decRef(key);
     }
 
-    public void testRestoreLatenciesParallel() throws IOException, InterruptedException {
+    public void testRestore() throws IOException {
         String index = "test-index-";
         String warmIndex = "test-warm-index-";
         for (int i = 1; i <= 100; i++) {
@@ -505,10 +507,20 @@ public class FileCacheTests extends OpenSearchTestCase {
         Path cachePath = path.resolve(NodeEnvironment.CACHE_FOLDER);
         Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER);
         long startTime = System.currentTimeMillis();
-        ForkJoinPool pool = ForkJoinPool.commonPool();
+        ForkJoinPool pool = new ForkJoinPool(
+            Runtime.getRuntime().availableProcessors(),
+            Node.CustomForkJoinWorkerThread::new,
+            null,
+            false
+        );
         SetOnce<IOException> exception = new SetOnce<>();
         pool.invoke(new FileCache.LoadTask(cachePath, fileCache, exception));
         pool.invoke(new FileCache.LoadTask(indicesPath, fileCache, exception));
+        pool.shutdown();
+        if (exception.get() != null) {
+            logger.error("File cache initialization failed.", exception.get());
+            throw new OpenSearchException(exception.get());
+        }
         logger.info("File cache loading latency : {}", System.currentTimeMillis() - startTime);
         assertEquals(2000, fileCache.size());
     }

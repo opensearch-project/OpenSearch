@@ -316,6 +316,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -2253,11 +2254,28 @@ public class Node implements Closeable {
 
         this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
-        ForkJoinPool pool = ForkJoinPool.commonPool();
+        ForkJoinPool pool = new ForkJoinPool(
+            Runtime.getRuntime().availableProcessors(),
+            Node.CustomForkJoinWorkerThread::new,
+            null,
+            false
+        );
         SetOnce<IOException> exception = new SetOnce<>();
         pool.invoke(new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception));
         if (DiscoveryNode.isDedicatedWarmNode(settings)) {
             pool.invoke(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
+        }
+        pool.shutdown();
+        if (exception.get() != null) {
+            logger.error("File cache initialization failed.", exception.get());
+            throw new OpenSearchException(exception.get());
+        }
+    }
+
+    public static class CustomForkJoinWorkerThread extends ForkJoinWorkerThread {
+        public CustomForkJoinWorkerThread(ForkJoinPool pool) {
+            super(pool);
+            setContextClassLoader(Thread.currentThread().getContextClassLoader());
         }
     }
 
