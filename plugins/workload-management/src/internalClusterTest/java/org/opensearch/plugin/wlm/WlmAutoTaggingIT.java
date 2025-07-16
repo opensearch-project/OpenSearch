@@ -90,8 +90,11 @@ import org.opensearch.rule.RuleRoutingService;
 import org.opensearch.rule.RuleRoutingServiceRegistry;
 import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.CreateRuleRequest;
+import org.opensearch.rule.action.DeleteRuleAction;
+import org.opensearch.rule.action.DeleteRuleRequest;
 import org.opensearch.rule.action.UpdateRuleAction;
 import org.opensearch.rule.action.UpdateRuleRequest;
+import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
@@ -126,6 +129,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -315,6 +320,133 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int postUpdateCompletions = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase after rule update", postUpdateCompletions > preUpdateCompletions);
         });
+
+        clearWlmModeSetting();
+    }
+
+    public void testRuleWithNonexistentWorkloadGroupId() throws Exception {
+        String ruleId = "nonexistent_group_rule";
+        String indexName = "logs-nonexistent-index";
+
+        setWlmMode("enabled");
+
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        ExecutionException exception = assertThrows(
+            ExecutionException.class,
+            () -> createRule(ruleId, "test rule", indexName, featureType, "nonexistent_group")
+        );
+
+        assertTrue(
+            "Expected ActionRequestValidationException",
+            exception.getCause() instanceof org.opensearch.action.ActionRequestValidationException
+        );
+        assertTrue(
+            "Expected validation message for nonexistent group",
+            exception.getCause().getMessage().contains("nonexistent_group is not a valid workload group id")
+        );
+
+        clearWlmModeSetting();
+    }
+
+    public void testCreateRuleWithTooManyIndexPatterns() throws Exception {
+        String ruleId = "too_many_patterns_rule";
+        String workloadGroupId = "wlm_group_too_many";
+
+        setWlmMode("enabled");
+        updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("too_many_patterns_group", workloadGroupId));
+
+        // 11 patterns exceeds max allowed
+        Set<String> tooManyPatterns = IntStream.range(0, 11).mapToObj(i -> "pattern_" + i).collect(Collectors.toSet());
+
+        Attribute indexPatternAttr = RuleAttribute.INDEX_PATTERN;
+        Map<Attribute, Set<String>> attributes = Map.of(indexPatternAttr, tooManyPatterns);
+
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+
+        Exception exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new Rule(ruleId, "desc", attributes, featureType, workloadGroupId, Instant.now().toString())
+        );
+
+        assertTrue(
+            "Expected validation error about too many values",
+            exception.getMessage().contains("Each attribute can only have a maximum of 10 values.")
+        );
+
+        clearWlmModeSetting();
+    }
+
+    public void testCreateRuleWithEmptyIndexPatterns() throws Exception {
+        String ruleId = "empty_patterns_rule";
+        String workloadGroupId = "wlm_group_empty";
+
+        setWlmMode("enabled");
+        updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("empty_patterns_group", workloadGroupId));
+
+        // Empty index pattern string
+        Set<String> emptyPattern = Set.of("");
+
+        Attribute indexPatternAttr = RuleAttribute.INDEX_PATTERN;
+        Map<Attribute, Set<String>> attributes = Map.of(indexPatternAttr, emptyPattern);
+
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+
+        Exception exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new Rule(ruleId, "desc", attributes, featureType, workloadGroupId, Instant.now().toString())
+        );
+
+        assertTrue(
+            "Expected validation error about empty index pattern",
+            exception.getMessage().contains("is invalid (empty or exceeds 100 characters)")
+        );
+
+        clearWlmModeSetting();
+    }
+
+    public void testCreateRuleWithLongIndexPatternValue() throws Exception {
+        String ruleId = "long_pattern_rule";
+        String workloadGroupId = "wlm_group_long_pattern";
+
+        setWlmMode("enabled");
+        updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("long_pattern_group", workloadGroupId));
+
+        // Create a pattern longer than the max allowed (e.g., >100 characters)
+        String longPattern = "x".repeat(101);
+        Attribute indexPatternAttr = RuleAttribute.INDEX_PATTERN;
+        Map<Attribute, Set<String>> attributes = Map.of(indexPatternAttr, Set.of(longPattern));
+
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+
+        Exception exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new Rule(ruleId, "desc", attributes, featureType, workloadGroupId, Instant.now().toString())
+        );
+        assertTrue(
+            "Expected validation error about max length",
+            exception.getMessage().contains("is invalid (empty or exceeds 100 characters)")
+        );
+
+        clearWlmModeSetting();
+    }
+
+    public void testDeleteRuleForNonexistentId() throws Exception {
+        String fakeRuleId = "nonexistent_rule_id";
+        String workloadGroupId = "wlm_fake_delete";
+
+        setWlmMode("enabled");
+        updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("fake_delete_group", workloadGroupId));
+
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+
+        DeleteRuleRequest request = new DeleteRuleRequest(fakeRuleId, featureType);
+
+        Exception exception = assertThrows(Exception.class, () -> client().execute(DeleteRuleAction.INSTANCE, request).get());
+
+        assertTrue(
+            "Expected error message for nonexistent rule ID",
+            exception.getMessage().contains("Failed to delete rule: no such index")
+        );
 
         clearWlmModeSetting();
     }
