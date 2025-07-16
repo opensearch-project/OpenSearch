@@ -109,9 +109,12 @@ public class FetchPhase {
 
     public void execute(SearchContext context) {
         FetchProfileBreakdown breakdown = null;
+        FetchProfiler fetchProfiler = null;
         if (context.getProfilers() != null) {
-            breakdown = context.getProfilers().getFetchProfiler().getQueryBreakdown("fetch");
+            fetchProfiler = context.getProfilers().getFetchProfiler();
+            breakdown = fetchProfiler.getQueryBreakdown("fetch");
         }
+
         try {
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("{}", new SearchContextSourcePrinter(context));
@@ -158,7 +161,7 @@ public class FetchPhase {
                         .getFetchProfiler()
                         .getQueryBreakdown(p.v2().getClass().getSimpleName());
                     processorProfiles.put(p.v1(), pb);
-                    context.getProfilers().getFetchProfiler().pollLastElement();
+                    fetchProfiler.pollLastElement();
                 }
             }
 
@@ -237,7 +240,7 @@ public class FetchPhase {
 
         } finally {
             if (breakdown != null) {
-                context.getProfilers().getFetchProfiler().pollLastElement();
+                fetchProfiler.pollLastElement();
             }
         }
     }
