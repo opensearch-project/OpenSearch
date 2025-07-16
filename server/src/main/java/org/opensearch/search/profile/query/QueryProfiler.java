@@ -34,6 +34,7 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 
@@ -112,7 +113,7 @@ public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown, 
     /**
      * Return the top level breakdown for plugins to use
      */
-    public ContextualProfileBreakdown getProfileBreakdown(Query query) {
+    public AbstractProfileBreakdown getProfileBreakdown(Query query) {
         return profileTree.findProfileBreakdown(query);
     }
 
