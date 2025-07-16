@@ -144,6 +144,7 @@ public class ClusterModule extends AbstractModule {
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
     private final ClusterManagerMetrics clusterManagerMetrics;
+    private final Class<? extends ShardStateAction> shardStateActionClass;
 
     public ClusterModule(
         Settings settings,
@@ -152,7 +153,8 @@ public class ClusterModule extends AbstractModule {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ThreadContext threadContext,
-        ClusterManagerMetrics clusterManagerMetrics
+        ClusterManagerMetrics clusterManagerMetrics,
+        Class<? extends ShardStateAction> shardStateActionClass
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -169,6 +171,7 @@ public class ClusterModule extends AbstractModule {
             clusterManagerMetrics
         );
         this.clusterManagerMetrics = clusterManagerMetrics;
+        this.shardStateActionClass = shardStateActionClass;
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -474,7 +477,11 @@ public class ClusterModule extends AbstractModule {
         bind(MetadataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(DelayedAllocationService.class).asEagerSingleton();
-        bind(ShardStateAction.class).asEagerSingleton();
+        if (shardStateActionClass == ShardStateAction.class) {
+            bind(ShardStateAction.class).asEagerSingleton();
+        } else {
+            bind(ShardStateAction.class).to(shardStateActionClass).asEagerSingleton();
+        }
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(TaskResultsService.class).asEagerSingleton();
