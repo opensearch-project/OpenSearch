@@ -112,11 +112,19 @@ public class LeaderChecker {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING = Setting.boolSetting(
+        "cluster.fault_detection.leader_check.fail_fast_on_state_rejection",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Settings settings;
 
     private final TimeValue leaderCheckInterval;
     private TimeValue leaderCheckTimeout;
     private final int leaderCheckRetryCount;
+    private boolean shouldLeaderCheckFailFastOnStateRejection;
     private final TransportService transportService;
     private final Consumer<Exception> onLeaderFailure;
     private final NodeHealthService nodeHealthService;
@@ -136,11 +144,13 @@ public class LeaderChecker {
         leaderCheckInterval = LEADER_CHECK_INTERVAL_SETTING.get(settings);
         leaderCheckTimeout = LEADER_CHECK_TIMEOUT_SETTING.get(settings);
         leaderCheckRetryCount = LEADER_CHECK_RETRY_COUNT_SETTING.get(settings);
+        shouldLeaderCheckFailFastOnStateRejection = LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING.get(settings);
         this.transportService = transportService;
         this.onLeaderFailure = onLeaderFailure;
         this.nodeHealthService = nodeHealthService;
         this.clusterManagerMetrics = clusterManagerMetrics;
         clusterSettings.addSettingsUpdateConsumer(LEADER_CHECK_TIMEOUT_SETTING, this::setLeaderCheckTimeout);
+        clusterSettings.addSettingsUpdateConsumer(LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING, this::setLeaderCheckFailFastOnStateRejectionSetting);
 
         transportService.registerRequestHandler(
             LEADER_CHECK_ACTION_NAME,
@@ -164,6 +174,10 @@ public class LeaderChecker {
 
     private void setLeaderCheckTimeout(TimeValue leaderCheckTimeout) {
         this.leaderCheckTimeout = leaderCheckTimeout;
+    }
+
+    private void setLeaderCheckFailFastOnStateRejectionSetting(boolean shouldLeaderCheckFailFastOnStateRejection) {
+        this.shouldLeaderCheckFailFastOnStateRejection = shouldLeaderCheckFailFastOnStateRejection;
     }
 
     public DiscoveryNode leader() {
@@ -313,7 +327,7 @@ public class LeaderChecker {
                             logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
                             leaderFailed(new NodeHealthCheckFailureException("node [" + leader + "] failed health checks", exp));
                             return;
-                        } else if (exp.getCause() instanceof CoordinationStateRejectedException) {
+                        } else if (exp.getCause() instanceof CoordinationStateRejectedException && shouldLeaderCheckFailFastOnStateRejection) {
                             logger.debug(new ParameterizedMessage("leader [{}] rejected coordination state", leader), exp);
                             leaderFailed(new CoordinationStateRejectedException("node [" + leader + "] rejected coordination state", exp));
                             return;
