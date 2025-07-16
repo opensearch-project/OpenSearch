@@ -716,27 +716,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
         // If values are present, use them directly
         else if (values != null && !values.isEmpty()) {
-            if ("_index".equals(fieldName)) {
-                QueryShardContext context = queryRewriteContext.convertToShardContext();
-                if (context != null) {
-                    String thisIndex = context.getIndexSettings().getIndex().getName();
-                    Set<String> aliases = context.getIndexSettings().getIndexMetadata().getAliases().keySet();
-                    boolean anyMatch = false;
-                    for (Object value : values) {
-                        if (value != null) {
-                            String valStr = value.toString();
-                            if (thisIndex.equals(valStr) || aliases.contains(valStr)) {
-                                anyMatch = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!anyMatch) {
-                        // No value matches this index or its aliases: rewrite to MatchNone!
-                        return new MatchNoneQueryBuilder();
-                    }
-                }
-            }
             return this;
         }
 

@@ -401,7 +401,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
     }
 
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
@@ -409,7 +409,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
     }
 
     @Override
