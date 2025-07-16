@@ -532,14 +532,13 @@ public class FileCacheTests extends OpenSearchTestCase {
             false
         );
         SetOnce<IOException> exception = new SetOnce<>();
+        pool.submit(new FileCache.LoadTask(indicesPath, fileCache, exception));
         pool.invoke(new FileCache.LoadTask(cachePath, fileCache, exception));
-        pool.invoke(new FileCache.LoadTask(indicesPath, fileCache, exception));
         pool.shutdown();
         if (exception.get() != null) {
             logger.error("File cache initialization failed.", exception.get());
             throw new OpenSearchException(exception.get());
         }
-        logger.info("File cache loading latency : {}", System.currentTimeMillis() - startTime);
         assertEquals(2000, fileCache.size());
     }
 

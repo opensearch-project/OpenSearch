@@ -2272,10 +2272,10 @@ public class Node implements Closeable {
             false
         );
         SetOnce<IOException> exception = new SetOnce<>();
-        pool.invoke(new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception));
         if (DiscoveryNode.isDedicatedWarmNode(settings)) {
-            pool.invoke(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
+            pool.submit(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
         }
+        pool.invoke(new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception));
         pool.shutdown();
         if (exception.get() != null) {
             logger.error("File cache initialization failed.", exception.get());
