@@ -74,8 +74,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     @Override
     public CachedIndexInput put(Path filePath, CachedIndexInput indexInput) {
+        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.put(filePath, indexInput);
-        checkParentBreaker(filePath);
         return cachedIndexInput;
     }
 
@@ -84,8 +84,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         Path key,
         BiFunction<? super Path, ? super CachedIndexInput, ? extends CachedIndexInput> remappingFunction
     ) {
+        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.compute(key, remappingFunction);
-        checkParentBreaker(key);
         return cachedIndexInput;
     }
 
@@ -206,13 +206,11 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     /**
      * Ensures that the PARENT breaker is not tripped when an entry is added to the cache
-     * @param filePath the path key for which entry is added
      */
-    private void checkParentBreaker(Path filePath) {
+    private void checkParentBreaker() {
         try {
             circuitBreaker.addEstimateBytesAndMaybeBreak(0, "filecache_entry");
         } catch (CircuitBreakingException ex) {
-            theCache.remove(filePath);
             throw new CircuitBreakingException(
                 "Unable to create file cache entries",
                 ex.getBytesWanted(),
