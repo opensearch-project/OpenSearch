@@ -1308,15 +1308,11 @@ public class SearchModule {
     }
 
     private List<SearchPlugin.ProfileMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
-
-        List<SearchPlugin.ProfileMetricsProvider> profilerProviders = new ArrayList<>();
-
-        for (SearchPlugin plugin : plugins) {
-            Optional<SearchPlugin.ProfileMetricsProvider> profilerProvider = plugin.getQueryProfileMetricsProvider();
-            profilerProvider.ifPresent(profilerProviders::add);
-        }
-
-        return profilerProviders;
+        return plugins.stream()
+            .map(SearchPlugin::getQueryProfileMetricsProvider)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toList();
     }
 
     public FetchPhase getFetchPhase() {
@@ -1332,6 +1328,6 @@ public class SearchModule {
     }
 
     public List<SearchPlugin.ProfileMetricsProvider> getPluginProfileMetricsProviders() {
-        return Collections.unmodifiableList(pluginProfilerProviders);
+        return pluginProfilerProviders;
     }
 }
