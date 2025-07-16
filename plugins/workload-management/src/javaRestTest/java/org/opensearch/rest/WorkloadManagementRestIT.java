@@ -13,37 +13,44 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Locale;
 
 public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
+    @Before
+    public void enableWlmMode() throws Exception {
+        setWlmMode("enabled");
+    }
+
     public void testCreate() throws Exception {
-        Response response = performOperation("PUT", "_wlm/query_group", getCreateJson("analytics", "enforced", 0.4, 0.2));
+        Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
-        performOperation("DELETE", "_wlm/query_group/analytics", null);
+        performOperation("DELETE", "_wlm/workload_group/analytics", null);
     }
 
     public void testMultipleCreate() throws Exception {
-        Response response = performOperation("PUT", "_wlm/query_group", getCreateJson("analytics2", "enforced", 0.4, 0.2));
+        Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics2", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
-        Response response2 = performOperation("PUT", "_wlm/query_group", getCreateJson("users", "soft", 0.2, 0.1));
+        Response response2 = performOperation("PUT", "_wlm/workload_group", getCreateJson("users", "soft", 0.2, 0.1));
         assertEquals(response2.getStatusLine().getStatusCode(), 200);
 
         assertThrows(
             ResponseException.class,
-            () -> performOperation("PUT", "_wlm/query_group", getCreateJson("users2", "soft", 0.41, 0.71))
+            () -> performOperation("PUT", "_wlm/workload_group", getCreateJson("users2", "soft", 0.41, 0.71))
         );
-        performOperation("DELETE", "_wlm/query_group/analytics2", null);
-        performOperation("DELETE", "_wlm/query_group/users", null);
+        performOperation("DELETE", "_wlm/workload_group/analytics2", null);
+        performOperation("DELETE", "_wlm/workload_group/users", null);
     }
 
     public void testGet() throws Exception {
-        Response response = performOperation("PUT", "_wlm/query_group", getCreateJson("analytics3", "enforced", 0.4, 0.2));
+        Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics3", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
-        Response response2 = performOperation("GET", "_wlm/query_group/analytics3", null);
+        Response response2 = performOperation("GET", "_wlm/workload_group/analytics3", null);
         assertEquals(response2.getStatusLine().getStatusCode(), 200);
         String responseBody2 = EntityUtils.toString(response2.getEntity());
         assertTrue(responseBody2.contains("\"name\":\"analytics3\""));
@@ -51,26 +58,26 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         assertTrue(responseBody2.contains("\"cpu\":0.4"));
         assertTrue(responseBody2.contains("\"memory\":0.2"));
 
-        assertThrows(ResponseException.class, () -> performOperation("GET", "_wlm/query_group/analytics97", null));
-        performOperation("DELETE", "_wlm/query_group/analytics3", null);
+        assertThrows(ResponseException.class, () -> performOperation("GET", "_wlm/workload_group/analytics97", null));
+        performOperation("DELETE", "_wlm/workload_group/analytics3", null);
     }
 
     public void testDelete() throws Exception {
-        Response response = performOperation("PUT", "_wlm/query_group", getCreateJson("analytics4", "enforced", 0.4, 0.2));
+        Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics4", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
-        Response response2 = performOperation("DELETE", "_wlm/query_group/analytics4", null);
+        Response response2 = performOperation("DELETE", "_wlm/workload_group/analytics4", null);
         assertEquals(response2.getStatusLine().getStatusCode(), 200);
         assertTrue(EntityUtils.toString(response2.getEntity()).contains("\"acknowledged\":true"));
 
-        assertThrows(ResponseException.class, () -> performOperation("DELETE", "_wlm/query_group/analytics99", null));
+        assertThrows(ResponseException.class, () -> performOperation("DELETE", "_wlm/workload_group/analytics99", null));
     }
 
     public void testUpdate() throws Exception {
-        Response response = performOperation("PUT", "_wlm/query_group", getCreateJson("analytics5", "enforced", 0.4, 0.2));
+        Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics5", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
-        Response response2 = performOperation("PUT", "_wlm/query_group/analytics5", getUpdateJson("monitor", 0.41, 0.21));
+        Response response2 = performOperation("PUT", "_wlm/workload_group/analytics5", getUpdateJson("monitor", 0.41, 0.21));
         assertEquals(response2.getStatusLine().getStatusCode(), 200);
         String responseBody2 = EntityUtils.toString(response2.getEntity());
         assertTrue(responseBody2.contains("\"name\":\"analytics5\""));
@@ -84,22 +91,22 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
             + "        \"memory\" : -0.1\n"
             + "    }\n"
             + "}'";
-        assertThrows(ResponseException.class, () -> performOperation("PUT", "_wlm/query_group/analytics5", json));
+        assertThrows(ResponseException.class, () -> performOperation("PUT", "_wlm/workload_group/analytics5", json));
         assertThrows(
             ResponseException.class,
-            () -> performOperation("PUT", "_wlm/query_group/analytics98", getUpdateJson("monitor", 0.43, 0.23))
+            () -> performOperation("PUT", "_wlm/workload_group/analytics98", getUpdateJson("monitor", 0.43, 0.23))
         );
-        performOperation("DELETE", "_wlm/query_group/analytics5", null);
+        performOperation("DELETE", "_wlm/workload_group/analytics5", null);
     }
 
     public void testCRUD() throws Exception {
-        Response response = performOperation("PUT", "_wlm/query_group", getCreateJson("analytics6", "enforced", 0.4, 0.2));
+        Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics6", "enforced", 0.4, 0.2));
         assertEquals(response.getStatusLine().getStatusCode(), 200);
 
-        Response response1 = performOperation("PUT", "_wlm/query_group/analytics6", getUpdateJson("monitor", 0.41, 0.21));
+        Response response1 = performOperation("PUT", "_wlm/workload_group/analytics6", getUpdateJson("monitor", 0.41, 0.21));
         assertEquals(response1.getStatusLine().getStatusCode(), 200);
 
-        Response response2 = performOperation("GET", "_wlm/query_group/analytics6", null);
+        Response response2 = performOperation("GET", "_wlm/workload_group/analytics6", null);
         assertEquals(response2.getStatusLine().getStatusCode(), 200);
         String responseBody2 = EntityUtils.toString(response2.getEntity());
         assertTrue(responseBody2.contains("\"name\":\"analytics6\""));
@@ -109,24 +116,34 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
         assertThrows(
             ResponseException.class,
-            () -> performOperation("PUT", "_wlm/query_group", getCreateJson("users3", "monitor", 0.6, 0.8))
+            () -> performOperation("PUT", "_wlm/workload_group", getCreateJson("users3", "monitor", 0.6, 0.8))
         );
 
-        Response response4 = performOperation("PUT", "_wlm/query_group", getCreateJson("users3", "monitor", 0.59, 0.79));
+        Response response4 = performOperation("PUT", "_wlm/workload_group", getCreateJson("users3", "monitor", 0.59, 0.79));
         assertEquals(response4.getStatusLine().getStatusCode(), 200);
 
-        Response response5 = performOperation("DELETE", "_wlm/query_group/analytics6", null);
+        Response response5 = performOperation("DELETE", "_wlm/workload_group/analytics6", null);
         assertEquals(response5.getStatusLine().getStatusCode(), 200);
         String responseBody5 = EntityUtils.toString(response5.getEntity());
         assertTrue(responseBody5.contains("\"acknowledged\":true"));
 
-        Response response6 = performOperation("GET", "_wlm/query_group", null);
+        Response response6 = performOperation("GET", "_wlm/workload_group", null);
         assertEquals(response6.getStatusLine().getStatusCode(), 200);
         String responseBody6 = EntityUtils.toString(response6.getEntity());
-        assertTrue(responseBody6.contains("\"query_groups\""));
+        assertTrue(responseBody6.contains("\"workload_groups\""));
         assertTrue(responseBody6.contains("\"users3\""));
         assertFalse(responseBody6.contains("\"analytics6\""));
-        performOperation("DELETE", "_wlm/query_group/users3", null);
+        performOperation("DELETE", "_wlm/workload_group/users3", null);
+    }
+
+    public void testOperationWhenWlmDisabled() throws Exception {
+        setWlmMode("disabled");
+        assertThrows(
+            ResponseException.class,
+            () -> performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics", "enforced", 0.4, 0.2))
+        );
+        assertThrows(ResponseException.class, () -> performOperation("DELETE", "_wlm/workload_group/analytics4", null));
+        assertOK(performOperation("GET", "_wlm/workload_group/", null));
     }
 
     static String getCreateJson(String name, String resiliencyMode, double cpu, double memory) {
@@ -170,5 +187,20 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
             request.setJsonEntity(json);
         }
         return client().performRequest(request);
+    }
+
+    private void setWlmMode(String mode) throws Exception {
+        String settingJson = String.format(Locale.ROOT, """
+            {
+              "persistent": {
+                "wlm.workload_group.mode": "%s"
+              }
+            }
+            """, mode);
+
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(settingJson);
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 }

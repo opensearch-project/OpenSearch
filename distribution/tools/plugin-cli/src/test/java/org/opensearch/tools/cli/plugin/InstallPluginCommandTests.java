@@ -111,6 +111,7 @@ import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -138,6 +139,12 @@ import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallPluginCommandTests extends OpenSearchTestCase {
+
+    static {
+        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(new BouncyCastleFipsProvider());
+        }
+    }
 
     private InstallPluginCommand skipJarHellCommand;
     private InstallPluginCommand defaultCommand;
@@ -1362,8 +1369,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             null,
             null,
             new JcaPGPContentSignerBuilder(pkp.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA256),
-            new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.AES_192, sha1Calc).setProvider(new BouncyCastleFipsProvider())
-                .build("passphrase".toCharArray())
+            new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.AES_192, sha1Calc).setProvider("BCFIPS").build("passphrase".toCharArray())
         );
     }
 

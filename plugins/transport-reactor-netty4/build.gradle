@@ -18,6 +18,7 @@ import org.opensearch.gradle.test.InternalClusterTestPlugin
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 // The transport-reactor-netty4 plugin is published to maven
 apply plugin: 'opensearch.publish'
@@ -37,6 +38,9 @@ dependencies {
   testImplementation libs.log4jslf4jimpl
   javaRestTestImplementation libs.reactor.test
   testImplementation project(":modules:transport-netty4")
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 restResources {
@@ -226,7 +230,23 @@ thirdPartyAudit {
     'io.micrometer.tracing.handler.DefaultTracingObservationHandler',
     'io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler',
     'io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler',
-    'io.micrometer.tracing.propagation.Propagator'
+    'io.micrometer.tracing.propagation.Propagator',
+    // from reactor_netty
+    'io.netty.incubator.codec.http3.Http3',
+    'io.netty.incubator.codec.http3.Http3ClientConnectionHandler',
+    'io.netty.incubator.codec.http3.Http3DataFrame',
+    'io.netty.incubator.codec.http3.Http3Headers',
+    'io.netty.incubator.codec.http3.Http3HeadersFrame',
+    'io.netty.incubator.codec.quic.QuicChannel',
+    'io.netty.incubator.codec.quic.QuicChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicClientCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicSslContext',
+    'io.netty.incubator.codec.quic.QuicSslContextBuilder',
+    'io.netty.incubator.codec.quic.QuicSslEngine',
+    'io.netty.incubator.codec.quic.QuicStreamChannel',
+    'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicTokenHandler',
   )
 
   ignoreViolations(

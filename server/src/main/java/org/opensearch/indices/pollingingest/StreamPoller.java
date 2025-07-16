@@ -8,6 +8,9 @@
 
 package org.opensearch.indices.pollingingest;
 
+import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.Closeable;
@@ -15,7 +18,7 @@ import java.io.Closeable;
 /**
  * A poller for reading messages from an ingestion shard. This is used in the ingestion engine.
  */
-public interface StreamPoller extends Closeable {
+public interface StreamPoller extends Closeable, ClusterStateListener {
 
     String BATCH_START = "batch_start";
 
@@ -40,17 +43,40 @@ public interface StreamPoller extends Closeable {
     boolean isPaused();
 
     /**
-     * check if the poller is closed
+     * Check if the poller is closed
      */
     boolean isClosed();
 
     /**
-     * get the pointer to the start of the current batch of messages.
+     * Get the pointer to the start of the current batch of messages.
      */
     IngestionShardPointer getBatchStartPointer();
 
+    PollingIngestStats getStats();
+
+    IngestionErrorStrategy getErrorStrategy();
+
+    State getState();
+
     /**
-     * a state to indicate the current state of the poller
+     * Update the error strategy for the poller.
+     */
+    void updateErrorStrategy(IngestionErrorStrategy errorStrategy);
+
+    /**
+     * Returns if write block is active for the poller.
+     */
+    boolean isWriteBlockEnabled();
+
+    /**
+     * Sets write block status for the poller.
+     */
+    void setWriteBlockEnabled(boolean isWriteBlockEnabled);
+
+    IngestionShardConsumer getConsumer();
+
+    /**
+     * A state to indicate the current state of the poller
      */
     enum State {
         NONE,
@@ -61,11 +87,14 @@ public interface StreamPoller extends Closeable {
     }
 
     /**
-     *  a reset state to indicate how to reset the pointer
+     *  A reset state to indicate how to reset the pointer
      */
+    @ExperimentalApi
     enum ResetState {
         EARLIEST,
         LATEST,
+        RESET_BY_OFFSET,
+        RESET_BY_TIMESTAMP,
         NONE,
     }
 }

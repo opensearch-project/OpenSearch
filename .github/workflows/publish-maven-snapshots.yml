@@ -25,16 +25,16 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Load secret
+        uses: 1password/load-secrets-action@v2
         with:
-          role-to-assume: ${{ secrets.PUBLISH_SNAPSHOTS_ROLE }}
-          aws-region: us-east-1
+          # Export loaded secrets as environment variables
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          SONATYPE_USERNAME: op://opensearch-infra-secrets/maven-central-portal-credentials/username
+          SONATYPE_PASSWORD: op://opensearch-infra-secrets/maven-central-portal-credentials/password
 
       - name: Publish snapshots to maven
         run: |
-          export SONATYPE_USERNAME=$(aws secretsmanager get-secret-value --secret-id maven-snapshots-username --query SecretString --output text)
-          export SONATYPE_PASSWORD=$(aws secretsmanager get-secret-value --secret-id maven-snapshots-password --query SecretString --output text)
-          echo "::add-mask::$SONATYPE_USERNAME"
-          echo "::add-mask::$SONATYPE_PASSWORD"
-          ./gradlew publishNebulaPublicationToSnapshotsRepository -Dbuild.version_qualifier=alpha1
+          ./gradlew publishNebulaPublicationToSnapshotsRepository

@@ -32,7 +32,9 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -43,7 +45,13 @@ import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -53,12 +61,17 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.NonCollectingAggregator;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.filterrewrite.RangeAggregatorBridge;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,16 +83,18 @@ import java.util.function.Function;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.search.aggregations.bucket.filterrewrite.AggregatorBridge.segmentMatchAll;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs that match given ranges.
  *
  * @opensearch.internal
  */
-public class RangeAggregator extends BucketsAggregator {
+public class RangeAggregator extends BucketsAggregator implements StarTreePreComputeCollector {
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
+    public final String fieldName;
 
     /**
      * Range for the range aggregator
@@ -298,6 +313,9 @@ public class RangeAggregator extends BucketsAggregator {
             }
         };
         filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
+        this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
+            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
+            : null;
     }
 
     @Override
@@ -310,15 +328,18 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        if (segmentMatchAll(context, ctx)) {
-            return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            preComputeWithStarTree(ctx, supportedStarTree);
+            return true;
         }
-        return false;
+
+        return segmentMatchAll(context, ctx)
+            && filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, true, collectableSubAggregators);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -333,52 +354,104 @@ public class RangeAggregator extends BucketsAggregator {
             }
 
             private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
-                int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
-                int mid = (lo + hi) >>> 1;
-                while (lo <= hi) {
-                    if (value < ranges[mid].from) {
-                        hi = mid - 1;
-                    } else if (value >= maxTo[mid]) {
-                        lo = mid + 1;
-                    } else {
-                        break;
-                    }
-                    mid = (lo + hi) >>> 1;
-                }
-                if (lo > hi) return lo; // no potential candidate
-
-                // binary search the lower bound
-                int startLo = lo, startHi = mid;
-                while (startLo <= startHi) {
-                    final int startMid = (startLo + startHi) >>> 1;
-                    if (value >= maxTo[startMid]) {
-                        startLo = startMid + 1;
-                    } else {
-                        startHi = startMid - 1;
-                    }
-                }
-
-                // binary search the upper bound
-                int endLo = mid, endHi = hi;
-                while (endLo <= endHi) {
-                    final int endMid = (endLo + endHi) >>> 1;
-                    if (value < ranges[endMid].from) {
-                        endHi = endMid - 1;
-                    } else {
-                        endLo = endMid + 1;
-                    }
-                }
-
-                assert startLo == lowBound || value >= maxTo[startLo - 1];
-                assert endHi == ranges.length - 1 || value < ranges[endHi + 1].from;
-
-                for (int i = startLo; i <= endHi; ++i) {
+                MatchedRange range = new MatchedRange(ranges, lowBound, value, maxTo);
+                for (int i = range.startLo; i <= range.endHi; ++i) {
                     if (ranges[i].matches(value)) {
                         collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
                     }
                 }
+                return range.endHi + 1;
+            }
+        };
+    }
 
-                return endHi + 1;
+    private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
+        FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
+
+        int numBits = matchingDocsBitSet.length();
+
+        if (numBits > 0) {
+            for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
+                ? matchingDocsBitSet.nextSetBit(bit + 1)
+                : DocIdSetIterator.NO_MORE_DOCS) {
+                starTreeBucketCollector.collectStarTreeEntry(bit, 0);
+            }
+        }
+    }
+
+    @Override
+    public List<DimensionFilter> getDimensionFilters() {
+        return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
+    }
+
+    @Override
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+
+        // TODO: Evaluate optimizing StarTree traversal filter with specific ranges instead of MATCH_ALL_DEFAULT
+        return new StarTreeBucketCollector(
+            starTreeValues,
+            parentCollector == null ? StarTreeQueryHelper.getStarTreeResult(starTreeValues, context, getDimensionFilters()) : null
+        ) {
+            @Override
+            public void setSubCollectors() throws IOException {
+                for (Aggregator aggregator : subAggregators) {
+                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
+                }
+            }
+
+            SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getDimensionValuesIterator(fieldName);
+
+            String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                "_doc_count",
+                MetricStat.DOC_COUNT.getTypeName()
+            );
+
+            SortedNumericStarTreeValuesIterator docCountsIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(metricName);
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
+                if (!valuesIterator.advanceExact(starTreeEntry)) {
+                    return;
+                }
+
+                for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
+                    long dimensionLongValue = valuesIterator.nextValue();
+                    double dimensionValue;
+
+                    // Only numeric & floating points are supported as of now in star-tree
+                    // TODO: Add support for isBigInteger() when it gets supported in star-tree
+                    if (valuesSource.isFloatingPoint()) {
+                        dimensionValue = ((NumberFieldMapper.NumberFieldType) context.mapperService().fieldType(fieldName)).toDoubleValue(
+                            dimensionLongValue
+                        );
+                    } else {
+                        dimensionValue = dimensionLongValue;
+                    }
+
+                    MatchedRange matchedRange = new MatchedRange(ranges, 0, dimensionValue, maxTo);
+                    if (matchedRange.startLo > matchedRange.endHi) {
+                        continue; // No matching range
+                    }
+
+                    if (docCountsIterator.advanceExact(starTreeEntry)) {
+                        long metricValue = docCountsIterator.nextValue();
+                        for (int j = matchedRange.startLo; j <= matchedRange.endHi; ++j) {
+                            if (ranges[j].matches(dimensionValue)) {
+                                long bucketOrd = subBucketOrdinal(owningBucketOrd, j);
+                                collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
+                            }
+                        }
+                    }
+                }
             }
         };
     }
@@ -393,6 +466,7 @@ public class RangeAggregator extends BucketsAggregator {
             owningBucketOrds,
             ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
+                checkCancelled();
                 Range range = ranges[offsetInOwningOrd];
                 return rangeFactory.createBucket(range.key, range.from, range.to, docCount, subAggregationResults, keyed, format);
             },
@@ -419,6 +493,63 @@ public class RangeAggregator extends BucketsAggregator {
         }
         // value source can be null in the case of unmapped fields
         return rangeFactory.create(name, buckets, format, keyed, metadata());
+    }
+
+    static class MatchedRange {
+        int startLo, endHi;
+
+        MatchedRange(RangeAggregator.Range[] ranges, int lowBound, double value, double[] maxTo) {
+            computeMatchingRange(ranges, lowBound, value, maxTo);
+        }
+
+        private void computeMatchingRange(RangeAggregator.Range[] ranges, int lowBound, double value, double[] maxTo) {
+            int lo = lowBound, hi = ranges.length - 1;
+            int mid = (lo + hi) >>> 1;
+
+            while (lo <= hi) {
+                if (value < ranges[mid].from) {
+                    hi = mid - 1;
+                } else if (value >= maxTo[mid]) {
+                    lo = mid + 1;
+                } else {
+                    break;
+                }
+                mid = (lo + hi) >>> 1;
+            }
+            if (lo > hi) {
+                this.startLo = lo;
+                this.endHi = lo - 1;
+                return;
+            }
+
+            // binary search the lower bound
+            int startLo = lo, startHi = mid;
+            while (startLo <= startHi) {
+                int startMid = (startLo + startHi) >>> 1;
+                if (value >= maxTo[startMid]) {
+                    startLo = startMid + 1;
+                } else {
+                    startHi = startMid - 1;
+                }
+            }
+
+            // binary search the upper bound
+            int endLo = mid, endHi = hi;
+            while (endLo <= endHi) {
+                int endMid = (endLo + endHi) >>> 1;
+                if (value < ranges[endMid].from) {
+                    endHi = endMid - 1;
+                } else {
+                    endLo = endMid + 1;
+                }
+            }
+
+            assert startLo == lowBound || value >= maxTo[startLo - 1];
+            assert endHi == ranges.length - 1 || value < ranges[endHi + 1].from;
+
+            this.startLo = startLo;
+            this.endHi = endHi;
+        }
     }
 
     /**
@@ -456,7 +587,7 @@ public class RangeAggregator extends BucketsAggregator {
         public InternalAggregation buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.opensearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
-            for (RangeAggregator.Range range : ranges) {
+            for (Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format));
             }
             return factory.create(name, buckets, format, keyed, metadata());

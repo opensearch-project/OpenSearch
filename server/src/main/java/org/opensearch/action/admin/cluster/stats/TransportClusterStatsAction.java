@@ -56,6 +56,7 @@ import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.node.NodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
@@ -210,15 +211,18 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                         CommitStats commitStats;
                         SeqNoStats seqNoStats;
                         RetentionLeaseStats retentionLeaseStats;
+                        PollingIngestStats pollingIngestStats;
                         try {
                             commitStats = indexShard.commitStats();
                             seqNoStats = indexShard.seqNoStats();
                             retentionLeaseStats = indexShard.getRetentionLeaseStats();
+                            pollingIngestStats = indexShard.pollingIngestStats();
                         } catch (final AlreadyClosedException e) {
                             // shard is closed - no stats is fine
                             commitStats = null;
                             seqNoStats = null;
                             retentionLeaseStats = null;
+                            pollingIngestStats = null;
                         }
                         shardsStats.add(
                             new ShardStats(
@@ -227,7 +231,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                                 new CommonStats(indicesService.getIndicesQueryCache(), indexShard, commonStatsFlags),
                                 commitStats,
                                 seqNoStats,
-                                retentionLeaseStats
+                                retentionLeaseStats,
+                                pollingIngestStats
                             )
                         );
                     }

@@ -19,7 +19,9 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
+import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
@@ -39,12 +41,21 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
     private FSDirectory localDirectory;
     private CompositeDirectory compositeDirectory;
 
-    private final static String[] LOCAL_FILES = new String[] { "_1.cfe", "_2.cfe", "_0.cfe_block_7", "_0.cfs_block_7", "temp_file.tmp" };
+    private final static String[] LOCAL_FILES = new String[] {
+        "_1.cfe",
+        "_1.cfe_block_0",
+        "_1.cfe_block_1",
+        "_2.cfe",
+        "_0.cfe_block_7",
+        "_0.cfs_block_7",
+        "temp_file.tmp" };
     private final static String FILE_PRESENT_LOCALLY = "_1.cfe";
+    private final static String BLOCK_FILE_PRESENT_LOCALLY = "_1.cfe_block_0";
     private final static String FILE_PRESENT_IN_REMOTE_ONLY = "_0.si";
     private final static String NON_EXISTENT_FILE = "non_existent_file";
     private final static String NEW_FILE = "new_file";
     private final static String TEMP_FILE = "temp_file.tmp";
+    private final static String LOCAL_SEGMENT_FILE = "segments_2";
     private final static int FILE_CACHE_CAPACITY = 10000;
 
     @Before
@@ -65,13 +76,28 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         assertArrayEquals(expectedFileNames, actualFileNames);
     }
 
+    public void testListAll_withLocalSegmentFiles() throws IOException {
+        addFilesToDirectory(new String[] { LOCAL_SEGMENT_FILE });
+        String[] actualFileNames = compositeDirectory.listAll();
+        String[] expectedFileNames = new String[] { "_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_2", "temp_file.tmp" };
+        assertArrayEquals(expectedFileNames, actualFileNames);
+    }
+
     public void testDeleteFile() throws IOException {
         assertTrue(existsInCompositeDirectory(FILE_PRESENT_LOCALLY));
+        assertTrue(existsInLocalDirectory(BLOCK_FILE_PRESENT_LOCALLY));
         // Delete the file and assert that it no more is a part of the directory
         compositeDirectory.deleteFile(FILE_PRESENT_LOCALLY);
         assertFalse(existsInCompositeDirectory(FILE_PRESENT_LOCALLY));
-        // Reading deleted file from directory should result in NoSuchFileException
-        assertThrows(NoSuchFileException.class, () -> compositeDirectory.openInput(FILE_PRESENT_LOCALLY, IOContext.DEFAULT));
+        assertFalse(existsInCompositeDirectory(BLOCK_FILE_PRESENT_LOCALLY));
+        // Deletion of non-existent file should fail silently without throwing any error
+        Exception exception = null;
+        try {
+            compositeDirectory.deleteFile(NON_EXISTENT_FILE);
+        } catch (Exception e) {
+            exception = e;
+        }
+        assertNull(exception);
     }
 
     public void testFileLength() throws IOException {
@@ -106,6 +132,12 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         // All the files in the below list are present either locally or on remote, so sync should work as expected
         Collection<String> names = List.of("_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_1");
         compositeDirectory.sync(names);
+        // Deleting file _1.cfe and then adding its blocks locally so that full file is not present but block files are present in local
+        // State of _1.cfe file after these operations - not present in remote, full file not present locally but blocks present in local
+        compositeDirectory.deleteFile("_1.cfe");
+        addFilesToDirectory(new String[] { "_1.cfe_block_0", "_1.cfe_block_2" });
+        // Sync should work as expected since blocks are present in local
+        compositeDirectory.sync(List.of("_1.cfe"));
         // Below list contains a non-existent file, hence will throw an error
         Collection<String> names1 = List.of("_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_1", "non_existent_file");
         assertThrows(NoSuchFileException.class, () -> compositeDirectory.sync(names1));
@@ -164,6 +196,54 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         assertFalse(existsInLocalDirectory(FILE_PRESENT_LOCALLY));
         // Asserting file is not present in FileCache
         assertNull(fileCache.get(getFilePath(FILE_PRESENT_LOCALLY)));
+    }
+
+    public void testOpenInputWithClosedCachedInput() throws Exception {
+        // Setup: Create a file and get it into cache
+        try (IndexOutput indexOutput = compositeDirectory.createOutput(NEW_FILE, IOContext.DEFAULT)) {
+            indexOutput.writeString("test data");
+        }
+
+        // Get the cached input and close it
+        Path key = getFilePath(NEW_FILE);
+        RestoredCachedIndexInput restoredCachedIndexInput = new RestoredCachedIndexInput(0);
+        CachedIndexInput cachedInput = fileCache.get(key);
+        cachedInput.close();
+        // replace the original index input with RestoredCachedIndexInput
+        fileCache.put(key, restoredCachedIndexInput);
+
+        // Verify that we can still open the file and get a valid input
+        IndexInput input = compositeDirectory.openInput(NEW_FILE, IOContext.DEFAULT);
+        assertNotNull(input);
+        assertTrue(input instanceof FileCachedIndexInput);
+        input.close();
+    }
+
+    public void testOpenInputAfterFileCacheEviction() throws IOException {
+        // First create and cache the file locally
+        try (IndexOutput indexOutput = compositeDirectory.createOutput(FILE_PRESENT_IN_REMOTE_ONLY, IOContext.DEFAULT)) {
+            indexOutput.writeString("test data");
+        }
+
+        // Clear the file cache
+        fileCache.clear();
+
+        // Should still be able to open input, now from remote
+        IndexInput input = compositeDirectory.openInput(FILE_PRESENT_IN_REMOTE_ONLY, IOContext.DEFAULT);
+        assertNotNull(input);
+        assertTrue(input instanceof OnDemandBlockSnapshotIndexInput);
+        input.close();
+    }
+
+    public void testOpenInputThrowsIOException() throws IOException {
+        // Use FILE_PRESENT_LOCALLY ("_1.cfe") which is already set up locally
+        // Corrupt the local file to cause IOException
+        Path filePath = getFilePath(NEW_FILE);
+        try (IndexOutput output = localDirectory.createOutput(NEW_FILE, IOContext.DEFAULT)) {
+            output.writeString("corrupted data");
+        }
+
+        assertThrows(IOException.class, () -> compositeDirectory.openInput(NEW_FILE, IOContext.DEFAULT));
     }
 
     private void addFilesToDirectory(String[] files) throws IOException {

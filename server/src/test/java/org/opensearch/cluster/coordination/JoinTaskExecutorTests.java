@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -52,7 +51,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -138,7 +136,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final DiscoveryNode tooLowJoiningNode = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
-            LegacyESVersion.fromString("6.7.0")
+            Version.fromString("6.7.0")
         );
         expectThrows(IllegalStateException.class, () -> {
             if (randomBoolean()) {
@@ -958,6 +956,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         validateRepositoryMetadata(result.resultingState, clusterManagerNode, 2);
     }
 
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
     public void testUpdatesRepoRemoteNodeJoinPublicationCluster() throws Exception {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
@@ -1005,8 +1004,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
             .build();
-        final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
 
         ClusterState currentState = ClusterState.builder(result.resultingState).metadata(metadata).build();
@@ -1029,6 +1026,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         validateRepositoriesMetadata(resultAfterRemoteNodeJoin.resultingState, remoteStoreNode, clusterManagerNode);
     }
 
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
     public void testUpdatesRepoPublicationNodeJoinRemoteCluster() throws Exception {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
@@ -1071,8 +1069,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
             .build();
-        final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
 
         ClusterState currentState = ClusterState.builder(result.resultingState).metadata(metadata).build();
@@ -1309,6 +1305,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
     public void testRemoteRoutingTableNodeJoinNodeWithRemoteAndRoutingRepoDifferenceMixedMode() {
         Map<String, String> attr = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
         attr.putAll(remoteRoutingTableAttributes(ROUTING_TABLE_REPO));
@@ -1332,8 +1329,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
             .build();
-        final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(existingNode2).add(existingNode).localNodeId(existingNode.getId()).build())
@@ -1344,6 +1339,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
     public void testJoinRemoteStoreClusterWithRemotePublicationNodeInMixedMode() {
         final DiscoveryNode remoteStoreNode = new DiscoveryNode(
             UUIDs.base64UUID(),
@@ -1365,8 +1361,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
             .build();
-        final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(remoteStoreNode).add(nonRemoteStoreNode).localNodeId(remoteStoreNode.getId()).build())

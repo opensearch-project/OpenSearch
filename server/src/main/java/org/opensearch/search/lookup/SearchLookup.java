@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -77,10 +78,10 @@ public class SearchLookup {
      */
     private final Set<String> fieldChain;
     private final DocLookup docMap;
-    private final SourceLookup sourceLookup;
     private final FieldsLookup fieldsLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
     private final int shardId;
+    private final ConcurrentHashMap<Long, SourceLookup> sourceLookupMap = new ConcurrentHashMap<>();
 
     /**
      * Constructor for backwards compatibility. Use the one with explicit shardId argument.
@@ -102,13 +103,21 @@ public class SearchLookup {
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
         int shardId
     ) {
+        this(mapperService, fieldDataLookup, shardId, new FieldsLookup(mapperService));
+    }
+
+    public SearchLookup(
+        MapperService mapperService,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
+        int shardId,
+        FieldsLookup fieldsLookup
+    ) {
         this.fieldChain = Collections.emptySet();
         docMap = new DocLookup(
             mapperService,
             fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()))
         );
-        sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(mapperService);
+        this.fieldsLookup = fieldsLookup;
         this.fieldDataLookup = fieldDataLookup;
         this.shardId = shardId;
     }
@@ -126,7 +135,6 @@ public class SearchLookup {
             searchLookup.docMap.mapperService(),
             fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()))
         );
-        this.sourceLookup = searchLookup.sourceLookup;
         this.fieldsLookup = searchLookup.fieldsLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
         this.shardId = searchLookup.shardId;
@@ -160,7 +168,7 @@ public class SearchLookup {
         return new LeafSearchLookup(
             context,
             docMap.getLeafDocLookup(context),
-            new SourceLookup(),
+            sourceLookupMap.computeIfAbsent(Thread.currentThread().threadId(), K -> new SourceLookup()),
             fieldsLookup.getLeafFieldsLookup(context)
         );
     }
@@ -173,7 +181,7 @@ public class SearchLookup {
      * Returned SourceLookup will be unrelated to any created LeafSearchLookups. Instead, use {@link LeafSearchLookup#source()} to access the related {@link SearchLookup}.
      */
     public SourceLookup source() {
-        return sourceLookup;
+        return sourceLookupMap.computeIfAbsent(Thread.currentThread().threadId(), K -> new SourceLookup());
     }
 
     public int shardId() {

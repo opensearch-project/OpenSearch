@@ -81,7 +81,8 @@ public class CopyStateTests extends IndexShardTestCase {
             0L,
             0L,
             Codec.getDefault().getName(),
-            SI_SNAPSHOT.asMap()
+            SI_SNAPSHOT.asMap(),
+            0L
         );
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> gatedCloseableReplicationCheckpointTuple = new Tuple<>(
             new GatedCloseable<>(testSegmentInfos, () -> {}),

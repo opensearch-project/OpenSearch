@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -19,6 +20,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
@@ -27,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Converts a {@link QueryBuilder} into a {@link StarTreeFilter} by generating the appropriate @{@link org.opensearch.search.startree.filter.DimensionFilter}
+ * Converts a {@link QueryBuilder} into a {@link StarTreeFilter} by generating the appropriate @{@link DimensionFilter}
  * for the fields provided in the user query.
  */
 @ExperimentalApi
@@ -59,7 +61,9 @@ public interface StarTreeFilterProvider {
             TermsQueryBuilder.NAME,
             new TermsStarTreeFilterProvider(),
             RangeQueryBuilder.NAME,
-            new RangeStarTreeFilterProvider()
+            new RangeStarTreeFilterProvider(),
+            BoolQueryBuilder.NAME,
+            new BoolStarTreeFilterProvider()
         );
 
         public static StarTreeFilterProvider getProvider(QueryBuilder query) {
@@ -82,16 +86,14 @@ public interface StarTreeFilterProvider {
             String field = termQueryBuilder.fieldName();
             MappedFieldType mappedFieldType = context.mapperService().fieldType(field);
             DimensionFilterMapper dimensionFilterMapper = mappedFieldType != null
-                ? DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType)
+                ? DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType, context)
                 : null;
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
             if (matchedDimension == null || mappedFieldType == null || dimensionFilterMapper == null) {
                 return null; // Indicates Aggregators to fallback to default implementation.
-            } else {
-                return new StarTreeFilter(
-                    Map.of(field, List.of(dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(termQueryBuilder.value()))))
-                );
             }
+            DimensionFilter dimensionFilter = dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(termQueryBuilder.value()));
+            return (dimensionFilter == null) ? null : new StarTreeFilter(Map.of(field, List.of(dimensionFilter)));
         }
     }
 
@@ -107,15 +109,13 @@ public interface StarTreeFilterProvider {
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
             MappedFieldType mappedFieldType = context.mapperService().fieldType(field);
             DimensionFilterMapper dimensionFilterMapper = mappedFieldType != null
-                ? DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType)
+                ? DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType, context)
                 : null;
             if (matchedDimension == null || mappedFieldType == null || dimensionFilterMapper == null) {
                 return null; // Indicates Aggregators to fallback to default implementation.
-            } else {
-                return new StarTreeFilter(
-                    Map.of(field, List.of(dimensionFilterMapper.getExactMatchFilter(mappedFieldType, termsQueryBuilder.values())))
-                );
             }
+            DimensionFilter dimensionFilter = dimensionFilterMapper.getExactMatchFilter(mappedFieldType, termsQueryBuilder.values());
+            return (dimensionFilter == null) ? null : new StarTreeFilter(Map.of(field, List.of(dimensionFilter)));
         }
     }
 
@@ -127,33 +127,21 @@ public interface StarTreeFilterProvider {
         @Override
         public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
             throws IOException {
-            RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) rawFilter;
-            String field = rangeQueryBuilder.fieldName();
+            StarTreeRangeQuery rangeQuery = new StarTreeRangeQuery(rawFilter);
+            String field = rangeQuery.fieldName();
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
             MappedFieldType mappedFieldType = context.mapperService().fieldType(field);
             DimensionFilterMapper dimensionFilterMapper = mappedFieldType == null
                 ? null
-                : DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType);
+                : DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType, context);
             if (matchedDimension == null || mappedFieldType == null || dimensionFilterMapper == null) {
                 return null;
-            } else {
-                return new StarTreeFilter(
-                    Map.of(
-                        field,
-                        List.of(
-                            dimensionFilterMapper.getRangeMatchFilter(
-                                mappedFieldType,
-                                rangeQueryBuilder.from(),
-                                rangeQueryBuilder.to(),
-                                rangeQueryBuilder.includeLower(),
-                                rangeQueryBuilder.includeUpper()
-                            )
-                        )
-                    )
-                );
             }
+            DimensionFilter dimensionFilter = dimensionFilterMapper.getRangeMatchFilter(mappedFieldType, rangeQuery);
+            if (dimensionFilter == null) {
+                return null;
+            }
+            return new StarTreeFilter(Map.of(field, List.of(dimensionFilter)));
         }
-
     }
-
 }

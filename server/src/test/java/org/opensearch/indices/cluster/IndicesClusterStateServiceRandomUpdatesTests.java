@@ -68,6 +68,7 @@ import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -584,7 +585,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             primaryReplicaSyncer,
             s -> {},
             RetentionLeaseSyncer.EMPTY,
-            null
+            null,
+            null,
+            MergedSegmentPublisher.EMPTY
         );
     }
 

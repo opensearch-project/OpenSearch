@@ -55,6 +55,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
@@ -63,6 +64,7 @@ import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
@@ -80,8 +82,8 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -160,7 +162,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final Map<String, Supplier<NetworkPlugin.AuxTransport>> transportAuxFactories = new HashMap<>();
+    private final Map<String, Supplier<AuxTransport>> transportAuxFactories = new HashMap<>();
 
     private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
@@ -210,6 +212,18 @@ public final class NetworkModule {
             );
         }
 
+        final Collection<SecureAuxTransportSettingsProvider> secureAuxTransportSettingsProviders = secureSettingsFactories.stream()
+            .map(p -> p.getSecureAuxTransportSettingsProvider(settings))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+
+        if (secureAuxTransportSettingsProviders.size() > 1) {
+            throw new IllegalArgumentException(
+                "there is more than one secure auxiliary transport settings provider: " + secureAuxTransportSettingsProviders
+            );
+        }
+
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -227,7 +241,7 @@ public final class NetworkModule {
                 registerHttpTransport(entry.getKey(), entry.getValue());
             }
 
-            Map<String, Supplier<NetworkPlugin.AuxTransport>> auxTransportFactory = plugin.getAuxTransports(
+            Map<String, Supplier<AuxTransport>> auxTransportFactory = plugin.getAuxTransports(
                 settings,
                 threadPool,
                 circuitBreakerService,
@@ -235,7 +249,7 @@ public final class NetworkModule {
                 clusterSettings,
                 tracer
             );
-            for (Map.Entry<String, Supplier<NetworkPlugin.AuxTransport>> entry : auxTransportFactory.entrySet()) {
+            for (Map.Entry<String, Supplier<AuxTransport>> entry : auxTransportFactory.entrySet()) {
                 registerAuxTransport(entry.getKey(), entry.getValue());
             }
 
@@ -271,6 +285,24 @@ public final class NetworkModule {
                 );
                 for (Map.Entry<String, Supplier<HttpServerTransport>> entry : secureHttpTransportFactory.entrySet()) {
                     registerHttpTransport(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // Register any secure auxiliary transports if available
+            if (secureAuxTransportSettingsProviders.isEmpty() == false) {
+                final SecureAuxTransportSettingsProvider secureSettingProvider = secureAuxTransportSettingsProviders.iterator().next();
+
+                final Map<String, Supplier<AuxTransport>> secureAuxTransportFactory = plugin.getSecureAuxTransports(
+                    settings,
+                    threadPool,
+                    circuitBreakerService,
+                    networkService,
+                    clusterSettings,
+                    secureSettingProvider,
+                    tracer
+                );
+                for (Map.Entry<String, Supplier<AuxTransport>> entry : secureAuxTransportFactory.entrySet()) {
+                    registerAuxTransport(entry.getKey(), entry.getValue());
                 }
             }
 
@@ -322,7 +354,7 @@ public final class NetworkModule {
         }
     }
 
-    private void registerAuxTransport(String key, Supplier<NetworkPlugin.AuxTransport> factory) {
+    private void registerAuxTransport(String key, Supplier<AuxTransport> factory) {
         if (transportAuxFactories.putIfAbsent(key, factory) != null) {
             throw new IllegalArgumentException("transport for name: " + key + " is already registered");
         }
@@ -374,11 +406,11 @@ public final class NetworkModule {
      * Multiple transport types can be registered and enabled via AUX_TRANSPORT_TYPES_SETTING.
      * An IllegalStateException is thrown if a transport type is enabled not registered.
      */
-    public List<NetworkPlugin.AuxTransport> getAuxServerTransportList() {
-        List<NetworkPlugin.AuxTransport> serverTransportSuppliers = new ArrayList<>();
+    public List<AuxTransport> getAuxServerTransportList() {
+        List<AuxTransport> serverTransportSuppliers = new ArrayList<>();
 
         for (String transportType : AUX_TRANSPORT_TYPES_SETTING.get(settings)) {
-            final Supplier<NetworkPlugin.AuxTransport> factory = transportAuxFactories.get(transportType);
+            final Supplier<AuxTransport> factory = transportAuxFactories.get(transportType);
             if (factory == null) {
                 throw new IllegalStateException("Unsupported " + AUX_TRANSPORT_TYPES_KEY + " [" + transportType + "]");
             }

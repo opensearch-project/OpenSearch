@@ -47,7 +47,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.lucene.BytesRefs;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -69,12 +68,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.apache.lucene.document.LongPoint.pack;
-import static org.junit.Assume.assumeThat;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
     @Override
@@ -190,11 +187,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
                 assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
             } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
-                assumeThat(
-                    "Using Approximate Range Query as default",
-                    FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-                    is(true)
-                );
                 assertThat(query, instanceOf(ApproximateScoreQuery.class));
                 Query approximationQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
                 assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
@@ -205,7 +197,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 final Long fromInMillis;
                 final Long toInMillis;
                 // we have to normalize the incoming value into milliseconds since it could be literally anything
-                if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+                if (mappedFieldType != null && mappedFieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
                     fromInMillis = queryBuilder.from() == null
                         ? null
                         : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(
@@ -258,19 +250,19 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                             DATE_FIELD_NAME,
                             pack(new long[] { minLong }).bytes,
                             pack(new long[] { maxLong }).bytes,
-                            new long[] { minLong }.length
-                        ) {
-                            @Override
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        }
+                            new long[] { minLong }.length,
+                            ApproximatePointRangeQuery.LONG_FORMAT
+                        )
                     ),
                     query
                 );
             } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                Query approximationQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
+                assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
+                Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
+                assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
+                query = ((IndexOrDocValuesQuery) originalQuery).getIndexQuery();
                 assertThat(query, instanceOf(PointRangeQuery.class));
                 Integer min = (Integer) queryBuilder.from();
                 Integer max = (Integer) queryBuilder.to();
@@ -311,6 +303,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testToQueryNumericField() throws IOException {
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
+        if (parsedQuery instanceof ApproximateScoreQuery) {
+            parsedQuery = ((ApproximateScoreQuery) parsedQuery).getOriginalQuery();
+        }
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
@@ -332,11 +327,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
-        );
         assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
         Query approximationQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
         assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
@@ -354,13 +344,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
                     pack(new long[] { upper }).bytes,
-                    new long[] { lower }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             ),
             parsedQuery
         );
@@ -392,11 +378,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
-        );
         assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
 
         long lower = DateTime.parse("2014-11-01T00:00:00.000+00").getMillis();
@@ -411,13 +392,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
                     pack(new long[] { upper }).bytes,
-                    new long[] { lower }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             )
 
             ,
@@ -448,13 +425,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
                     pack(new long[] { upper }).bytes,
-                    new long[] { lower }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             )
 
             ,
@@ -478,11 +451,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         Query parsedQuery = parseQuery(query).toQuery(context);
         assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
         parsedQuery = ((DateRangeIncludingNowQuery) parsedQuery).getQuery();
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
-        );
         assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
         parsedQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
         assertThat(parsedQuery, instanceOf(ApproximateQuery.class));

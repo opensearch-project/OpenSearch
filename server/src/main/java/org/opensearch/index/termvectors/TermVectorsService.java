@@ -202,7 +202,7 @@ public class TermVectorsService {
 
     private static boolean isValidField(MappedFieldType fieldType) {
         // must be a string
-        if (fieldType instanceof StringFieldType == false) {
+        if (fieldType == null || fieldType.unwrap() instanceof StringFieldType == false) {
             return false;
         }
         // and must be indexed

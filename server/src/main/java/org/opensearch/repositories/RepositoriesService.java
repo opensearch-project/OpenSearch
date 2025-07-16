@@ -55,7 +55,6 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
@@ -87,6 +86,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_REPOSITORY;
+import static org.opensearch.cluster.service.ClusterManagerTask.PUT_REPOSITORY;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHALLOW_SNAPSHOT_V2;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
@@ -157,8 +158,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool::relativeTimeInMillis
         );
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        putRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_REPOSITORY_KEY, true);
-        deleteRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_REPOSITORY_KEY, true);
+        putRepositoryTaskKey = clusterService.registerClusterManagerTask(PUT_REPOSITORY, true);
+        deleteRepositoryTaskKey = clusterService.registerClusterManagerTask(DELETE_REPOSITORY, true);
     }
 
     /**
@@ -173,7 +174,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void registerOrUpdateRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
-        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+        RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
             request.name(),
             request.type(),
             request.settings(),
@@ -205,14 +206,32 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             registrationListener = listener;
         }
 
-        // Trying to create the new repository on cluster-manager to make sure it works
-        try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
-        } catch (Exception e) {
-            registrationListener.onFailure(e);
-            return;
+        Repository currentRepository = repositories.get(request.name());
+        boolean isReloadableSettings = currentRepository != null && currentRepository.isReloadableSettings(newRepositoryMetadata);
+
+        if (isReloadableSettings) {
+            // We are reloading the repository, so we need to preserve the old settings in the new repository metadata
+            Settings updatedSettings = Settings.builder()
+                .put(currentRepository.getMetadata().settings())
+                .put(newRepositoryMetadata.settings())
+                .build();
+            newRepositoryMetadata = new RepositoryMetadata(
+                newRepositoryMetadata.name(),
+                newRepositoryMetadata.type(),
+                updatedSettings,
+                newRepositoryMetadata.cryptoMetadata()
+            );
+        } else {
+            // Trying to create the new repository on cluster-manager to make sure it works
+            try {
+                closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
+            } catch (Exception e) {
+                registrationListener.onFailure(e);
+                return;
+            }
         }
 
+        final RepositoryMetadata finalRepositoryMetadata = newRepositoryMetadata;
         clusterService.submitStateUpdateTask(
             "put_repository [" + request.name() + "]",
             new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
@@ -223,7 +242,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    ensureRepositoryNotInUse(currentState, request.name());
+                    if (isReloadableSettings == false) {
+                        ensureRepositoryNotInUse(currentState, request.name());
+                    }
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                     RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
@@ -244,17 +265,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
 
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                            RepositoryMetadata updatedRepositoryMetadata = newRepositoryMetadata;
+                            RepositoryMetadata updatedRepositoryMetadata = finalRepositoryMetadata;
                             if (isSystemRepositorySettingPresent(repositoryMetadata.settings())) {
                                 Settings updatedSettings = Settings.builder()
-                                    .put(newRepositoryMetadata.settings())
+                                    .put(finalRepositoryMetadata.settings())
                                     .put(SYSTEM_REPOSITORY_SETTING.getKey(), true)
                                     .build();
                                 updatedRepositoryMetadata = new RepositoryMetadata(
-                                    newRepositoryMetadata.name(),
-                                    newRepositoryMetadata.type(),
+                                    finalRepositoryMetadata.name(),
+                                    finalRepositoryMetadata.type(),
                                     updatedSettings,
-                                    newRepositoryMetadata.cryptoMetadata()
+                                    finalRepositoryMetadata.cryptoMetadata()
                                 );
                             }
                             if (repositoryMetadata.name().equals(updatedRepositoryMetadata.name())) {
@@ -480,7 +501,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         if (previousMetadata.type().equals(repositoryMetadata.type()) == false
                             || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
                             // Previous version is different from the version in settings
-                            if (repository.isSystemRepository() && repository.isReloadable()) {
+                            if ((repository.isSystemRepository() && repository.isReloadable())
+                                || repository.isReloadableSettings(repositoryMetadata)) {
                                 logger.debug(
                                     "updating repository [{}] in-place to use new metadata [{}]",
                                     repositoryMetadata.name(),

@@ -155,6 +155,8 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.cluster
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.common.util.FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_MERGE_POLICY;
@@ -246,8 +248,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        // clear any FeatureFlags needed for individual tests
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
         clusterSettings = null;
     }
 
@@ -1599,9 +1599,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         }));
     }
 
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
     public void testNewIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build());
-
         // non-remote cluster manager node
         DiscoveryNode nonRemoteClusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -2313,40 +2312,41 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testCreateIndexWithContextDisabled() throws Exception {
         // Explicitly disable the FF
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build());
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
-        withTemporaryClusterService((clusterService, threadPool) -> {
-            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-                Settings.EMPTY,
-                clusterService,
-                indicesServices,
-                null,
-                null,
-                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-                mock(Environment.class),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                threadPool,
-                null,
-                new SystemIndices(Collections.emptyMap()),
-                false,
-                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE,
-                repositoriesServiceSupplier
-            );
-            CountDownLatch counter = new CountDownLatch(1);
-            InvalidIndexContextException exception = expectThrows(
-                InvalidIndexContextException.class,
-                () -> checkerService.validateContext(request)
-            );
-            assertTrue(
-                "Invalid exception message." + exception.getMessage(),
-                exception.getMessage().contains("index specifies a context which cannot be used without enabling")
-            );
+        FeatureFlags.TestUtils.with(APPLICATION_BASED_CONFIGURATION_TEMPLATES, false, () -> {
+            request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
+            withTemporaryClusterService((clusterService, threadPool) -> {
+                MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                    Settings.EMPTY,
+                    clusterService,
+                    indicesServices,
+                    null,
+                    null,
+                    createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                    mock(Environment.class),
+                    IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                    threadPool,
+                    null,
+                    new SystemIndices(Collections.emptyMap()),
+                    false,
+                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    repositoriesServiceSupplier
+                );
+                CountDownLatch counter = new CountDownLatch(1);
+                InvalidIndexContextException exception = expectThrows(
+                    InvalidIndexContextException.class,
+                    () -> checkerService.validateContext(request)
+                );
+                assertTrue(
+                    "Invalid exception message." + exception.getMessage(),
+                    exception.getMessage().contains("index specifies a context which cannot be used without enabling")
+                );
+            });
         });
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testCreateIndexWithContextAbsent() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
         withTemporaryClusterService((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
@@ -2378,8 +2378,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         });
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testApplyContext() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
 
         final Map<String, Object> mappings = new HashMap<>();
@@ -2475,8 +2475,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         });
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testApplyContextWithSettingsOverlap() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
         Settings.Builder settingsBuilder = Settings.builder().put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), "30s");
         String templateContent = "{\n"
@@ -2546,6 +2546,96 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                     .contains("Cannot apply context template as user provide settings have overlap with the included context template")
             );
         });
+    }
+
+    public void testIndexTotalPrimaryShardsPerNodeSettingValidationWithRemoteStore() {
+        // Test case where setting is used with remote store enabled (should succeed)
+        Settings settings = Settings.builder().build();
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+
+        final Settings.Builder requestSettings = Settings.builder()
+            // Enable remote store
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            // Set primary shards per node to valid value
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+
+        request.settings(requestSettings.build());
+
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        // Verify that the value is the same as set earlier and validation was successful
+        assertEquals(Integer.valueOf(2), INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings));
+    }
+
+    public void testIndexTotalPrimaryShardsPerNodeSettingValidationWithoutRemoteStore() {
+        // Test case where setting is used without remote store (should fail)
+        Settings settings = Settings.builder().build();
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+
+        final Settings.Builder requestSettings = Settings.builder()
+            // Remote store not enabled
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+
+        request.settings(requestSettings.build());
+
+        // Expect IllegalArgumentException
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                settings,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet(),
+                clusterSettings
+            )
+        );
+
+        // Verify error message
+        assertEquals(
+            "Setting [index.routing.allocation.total_primary_shards_per_node] can only be used with remote store enabled clusters",
+            exception.getMessage()
+        );
+    }
+
+    public void testIndexTotalPrimaryShardsPerNodeSettingValidationWithDefaultValue() {
+        // Test case with default value (-1) without remote store (should succeed)
+        Settings settings = Settings.builder().build();
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+
+        final Settings.Builder requestSettings = Settings.builder().put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1);
+
+        request.settings(requestSettings.build());
+
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        // Verify that default value passes validation
+        assertEquals(Integer.valueOf(-1), INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

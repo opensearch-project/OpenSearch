@@ -55,6 +55,7 @@ plugins {
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.25.0" apply false
+  id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -65,17 +66,9 @@ apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
-apply from: 'gradle/fips.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
-
-// Disable unconditional publishing of build scans
-develocity {
-  buildScan {
-    publishing.onlyIf { false }
-  }
-}
 
 // common maven publishing configuration
 allprojects {
@@ -125,7 +118,7 @@ subprojects {
         }
         maven {
           name = 'Snapshots'
-          url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
+          url = 'https://central.sonatype.com/repository/maven-snapshots/'
           credentials {
             username = "$System.env.SONATYPE_USERNAME"
             password = "$System.env.SONATYPE_PASSWORD"
@@ -433,11 +426,18 @@ gradle.projectsEvaluated {
 
     project.tasks.withType(Test) { task ->
       if (task != null) {
-        if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
-          task.jvmArgs += ["-Djava.security.manager=allow"]
+        task.jvmArgs += [
+            "--add-modules=jdk.incubator.vector",
+            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED"
+        ]
+
+        // Add Java Agent for security sandboxing
+        if (!(project.path in [':build-tools', ":libs:agent-sm:bootstrap", ":libs:agent-sm:agent"])) {
+          dependsOn(project(':libs:agent-sm:agent').prepareAgent)
+          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
-        if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
-          task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
+        if (BuildParams.inFipsJvm) {
+          task.jvmArgs += ["-Dorg.bouncycastle.fips.approved_only=true"]
         }
       }
     }
@@ -474,8 +474,9 @@ gradle.projectsEvaluated {
 
 // test retry configuration
 subprojects {
+  apply plugin: "org.gradle.test-retry"
   tasks.withType(Test).configureEach {
-    develocity.testRetry {
+    retry {
       if (BuildParams.isCi()) {
         maxRetries = 3
         maxFailures = 10
@@ -555,7 +556,6 @@ subprojects {
         includeClasses.add("org.opensearch.snapshots.SnapshotStatusApisIT")
         includeClasses.add("org.opensearch.test.rest.ClientYamlTestSuiteIT")
         includeClasses.add("org.opensearch.upgrade.DetectEsInstallationTaskTests")
-        includeClasses.add("org.opensearch.cluster.MinimumClusterManagerNodesIT")
       }
     }
   }
@@ -708,6 +708,14 @@ allprojects {
   plugins.withId('lifecycle-base') {
     checkPart1.configure { dependsOn 'check' }
   }
+
+  plugins.withId('opensearch.testclusters') {
+    testClusters.configureEach {
+      if (BuildParams.inFipsJvm) {
+        keystorePassword 'notarealpasswordphrase'
+      }
+    }
+  }
 }
 
 subprojects {
@@ -721,7 +729,7 @@ subprojects {
 reporting {
   reports {
     testAggregateTestReport(AggregateTestReport) {
-      testType = TestSuiteType.UNIT_TEST
+      testSuiteName = "test"
     }
   }
 }

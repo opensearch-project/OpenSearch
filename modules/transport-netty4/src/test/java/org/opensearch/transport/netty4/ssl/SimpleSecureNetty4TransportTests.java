@@ -83,7 +83,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                         "password".toCharArray()
                     );
 
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
                     keyManagerFactory.init(keyStore, "password".toCharArray());
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)

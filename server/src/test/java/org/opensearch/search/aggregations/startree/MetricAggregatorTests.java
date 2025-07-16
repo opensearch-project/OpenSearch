@@ -34,7 +34,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -52,6 +51,7 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -74,10 +74,9 @@ import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -91,6 +90,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.objectToUnsignedLong;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -101,20 +101,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetricAggregatorTests extends AggregatorTestCase {
-
     private static final String FIELD_NAME = "field";
     private static final NumberFieldMapper.NumberType DEFAULT_FIELD_TYPE = NumberFieldMapper.NumberType.LONG;
     private static final MappedFieldType DEFAULT_MAPPED_FIELD = new NumberFieldMapper.NumberFieldType(FIELD_NAME, DEFAULT_FIELD_TYPE);
-
-    @Before
-    public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
-    }
-
-    @After
-    public void teardown() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
-    }
 
     protected Codec getCodec(
         Supplier<Integer> maxLeafDocsSupplier,
@@ -146,7 +135,14 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             new DimensionFieldData("long_field", () -> random().nextInt(50), DimensionTypes.LONG),
             new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT),
             new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT),
-            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE)
+            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE),
+            new DimensionFieldData("unsigned_long_field", () -> {
+                long queryValue = randomBoolean()
+                    ? 9223372036854775807L - random().nextInt(100000)
+                    : -9223372036854775808L + random().nextInt(100000);
+
+                return objectToUnsignedLong(asUnsignedDecimalString(queryValue), false);
+            }, DimensionTypes.UNSIGNED_LONG)
         );
         for (Supplier<Integer> maxLeafDocsSupplier : MAX_LEAF_DOC_VARIATIONS) {
             testStarTreeDocValuesInternal(
@@ -245,7 +241,9 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         for (int cases = 0; cases < 15; cases++) {
             // Get all types of queries (Term/Terms/Range) for all the given dimensions.
             List<QueryBuilder> allFieldQueries = dimensionFieldData.stream()
-                .flatMap(x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder()))
+                .flatMap(
+                    x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder(), x.getBoolQueryBuilder())
+                )
                 .toList();
 
             for (QueryBuilder qb : allFieldQueries) {
@@ -547,6 +545,31 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 .includeUpper(randomBoolean());
         }
 
+        public QueryBuilder getBoolQueryBuilder() {
+            // MUST only
+            BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder());
+            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
+                mustOnly.must(getTermQueryBuilder());
+            } else {
+                mustOnly.must(getRangeQueryBuilder());
+            }
+
+            // MUST with nested SHOULD on same dimension
+            BoolQueryBuilder mustWithShould = new BoolQueryBuilder().must(getTermQueryBuilder())
+                .must(new BoolQueryBuilder().should(getTermQueryBuilder()).should(getTermQueryBuilder()));
+
+            // SHOULD only on same dimension
+            BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(getTermQueryBuilder());
+
+            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
+                shouldOnly.should(getTermQueryBuilder());
+            } else {
+                shouldOnly.should(getRangeQueryBuilder());
+            }
+
+            return randomFrom(mustOnly, mustWithShould, shouldOnly);
+        }
+
         public String getFieldType() {
             return fieldType;
         }
@@ -624,6 +647,17 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             public Dimension getDimension(String fieldName) {
                 return new OrdinalDimension(fieldName);
             }
+        }),
+        UNSIGNED_LONG(new NumericDimensionFieldDataSupplier() {
+            @Override
+            NumberFieldMapper.NumberType numberType() {
+                return NumberFieldMapper.NumberType.UNSIGNED_LONG;
+            }
+
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                return new BigIntegerField(fieldName, (BigInteger) valueSupplier.get(), Field.Store.YES);
+            }
         });
 
         private final DimensionFieldDataSupplier dimensionFieldDataSupplier;
@@ -636,6 +670,14 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             return dimensionFieldDataSupplier;
         }
 
+    }
+
+    private String asUnsignedDecimalString(long l) {
+        BigInteger b = BigInteger.valueOf(l);
+        if (b.signum() < 0) {
+            b = b.add(BigInteger.ONE.shiftLeft(64));
+        }
+        return b.toString();
     }
 
 }

@@ -93,6 +93,7 @@ import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -944,6 +945,13 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
         writerSegmentStats(stats);
         return stats;
+    }
+
+    /**
+     * @return Stats for pull-based ingestion.
+     */
+    public PollingIngestStats pollingIngestStats() {
+        return null;
     }
 
     protected TranslogDeletionPolicy getTranslogDeletionPolicy(EngineConfig engineConfig) {

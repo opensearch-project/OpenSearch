@@ -388,8 +388,8 @@ public final class NodeEnvironment implements Closeable {
                 ensureNoShardData(nodePaths);
             }
 
-            if (DiscoveryNode.isSearchNode(settings) == false) {
-                ensureNoFileCacheData(fileCacheNodePath);
+            if (DiscoveryNode.isWarmNode(settings) == false) {
+                ensureNoFileCacheData(fileCacheNodePath, settings);
             }
 
             this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
@@ -1202,15 +1202,15 @@ public final class NodeEnvironment implements Closeable {
     }
 
     /**
-     * Throws an exception if cache exists on a non-search node.
+     * Throws an exception if cache exists on a non-warm node.
      */
-    private void ensureNoFileCacheData(final NodePath fileCacheNodePath) throws IOException {
-        List<Path> cacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
+    private void ensureNoFileCacheData(final NodePath fileCacheNodePath, final Settings settings) throws IOException {
+        List<Path> cacheDataPaths = collectFileCacheDataPath(fileCacheNodePath, settings);
         if (cacheDataPaths.isEmpty() == false) {
             final String message = String.format(
                 Locale.ROOT,
-                "node does not have the %s role but has data within node search cache: %s. Use 'opensearch-node repurpose' tool to clean up",
-                DiscoveryNodeRole.SEARCH_ROLE.roleName(),
+                "node does not have the %s role but has data within node warm cache: %s. Use 'opensearch-node repurpose' tool to clean up",
+                DiscoveryNodeRole.WARM_ROLE.roleName(),
                 cacheDataPaths
             );
             throw new IllegalStateException(message);
@@ -1278,12 +1278,27 @@ public final class NodeEnvironment implements Closeable {
      * Collect the path containing cache data in the indicated cache node path.
      * The returned paths will point to the shard data folder.
      */
-    public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
+    public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath, Settings settings) throws IOException {
         // Structure is: <file cache path>/<index uuid>/<shard id>/...
         List<Path> indexSubPaths = new ArrayList<>();
-        Path fileCachePath = fileCacheNodePath.fileCachePath;
-        if (Files.isDirectory(fileCachePath)) {
-            try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(fileCachePath)) {
+        // Process file cache path
+        processDirectory(fileCacheNodePath.fileCachePath, indexSubPaths);
+        if (DiscoveryNode.isDedicatedWarmNode(settings)) {
+            // Process <indices>/... path only for warm nodes.
+            processDirectory(fileCacheNodePath.indicesPath, indexSubPaths);
+        }
+
+        return indexSubPaths;
+    }
+
+    @Deprecated(forRemoval = true)
+    public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
+        return collectFileCacheDataPath(fileCacheNodePath, Settings.EMPTY);
+    }
+
+    private static void processDirectory(Path directoryPath, List<Path> indexSubPaths) throws IOException {
+        if (Files.isDirectory(directoryPath)) {
+            try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(directoryPath)) {
                 for (Path indexPath : indexStream) {
                     if (Files.isDirectory(indexPath)) {
                         try (Stream<Path> shardStream = Files.list(indexPath)) {
@@ -1293,8 +1308,6 @@ public final class NodeEnvironment implements Closeable {
                 }
             }
         }
-
-        return indexSubPaths;
     }
 
     /**

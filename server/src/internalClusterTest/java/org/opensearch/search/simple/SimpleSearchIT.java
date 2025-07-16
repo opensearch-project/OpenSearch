@@ -49,6 +49,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.RegexpFlag;
+import org.opensearch.index.query.RegexpQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortOrder;
@@ -59,7 +61,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -439,8 +443,14 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         doTestSimpleTerminateAfterTrackTotalHitsUpTo(0);
     }
 
-    public void testSimpleTerminateAfterTrackTotalHitsUpToSize() throws Exception {
-        doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(1, 29));
+    // Tests scenario where size <= track_total_hits_up_to (5)
+    public void testSimpleTerminateAfterTrackTotalHitsUpToSmallSize() throws Exception {
+        doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(1, 5));
+    }
+
+    // Tests scenario where size > track_total_hits_up_to (5)
+    public void testSimpleTerminateAfterTrackTotalHitsUpToLargeSize() throws Exception {
+        doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(6, 29));
     }
 
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
@@ -756,5 +766,20 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 "This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."
             )
         );
+    }
+
+    public void testRegexQueryWithComplementFlag() {
+        createIndex("test_regex");
+        client().prepareIndex("test_regex").setId("1").setSource("text", "abc").get();
+        client().prepareIndex("test_regex").setId("2").setSource("text", "adc").get();
+        client().prepareIndex("test_regex").setId("3").setSource("text", "acc").get();
+        refresh();
+        RegexpQueryBuilder query = new RegexpQueryBuilder("text.keyword", "a~bc");
+        query.flags(RegexpFlag.COMPLEMENT);
+        SearchResponse response = client().prepareSearch("test_regex").setQuery(query).get();
+        assertEquals("COMPLEMENT should match 2 documents", 2L, response.getHits().getTotalHits().value());
+        Set<String> matchedIds = Arrays.stream(response.getHits().getHits()).map(hit -> hit.getId()).collect(Collectors.toSet());
+        assertEquals("Should match exactly 2 documents", 2, matchedIds.size());
+        assertTrue("Should match documents 2 and 3", matchedIds.containsAll(Arrays.asList("2", "3")));
     }
 }

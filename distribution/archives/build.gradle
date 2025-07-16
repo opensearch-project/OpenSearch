@@ -38,6 +38,9 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       into('lib') {
         with libFiles()
       }
+      into('agent') {
+        with agentFiles()
+      }
       into('config') {
         dirPermissions {
           unix 0750
@@ -205,6 +208,20 @@ distribution_archives {
     }
   }
 
+  linuxRiscv64Tar {
+    archiveClassifier = 'linux-riscv64'
+    content {
+      archiveFiles(modulesFiles('linux-riscv64'), 'tar', 'linux', 'riscv64', JavaPackageType.JDK)
+    }
+  }
+
+  noJdkLinuxRiscv64Tar {
+    archiveClassifier = 'no-jdk-linux-riscv64'
+    content {
+      archiveFiles(modulesFiles('linux-riscv64'), 'tar', 'linux', 'riscv64', JavaPackageType.NONE)
+    }
+  }
+
   windowsZip {
     archiveClassifier = 'windows-x64'
     content {
@@ -225,4 +242,10 @@ subprojects {
   apply plugin: 'opensearch.internal-distribution-archive-check'
 
   group = "org.opensearch.distribution"
+}
+
+tasks.each {
+  if (it.name.startsWith("build")) {
+    it.dependsOn project(':libs:agent-sm:agent').assemble
+  }
 }

@@ -39,6 +39,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitResponse;
@@ -53,6 +54,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -126,7 +128,6 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchRequest;
@@ -278,7 +279,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<String> CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
         "search.concurrent_segment_search.mode",
-        CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
+        CONCURRENT_SEGMENT_SEARCH_MODE_AUTO,
         value -> {
             switch (value) {
                 case CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
@@ -296,22 +297,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     // settings to configure maximum slice created per search request using OS custom slice computation mechanism. Default lucene
     // mechanism will not be used if this setting is set with value > 0
-    public static final String CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY = "search.concurrent.max_slice_count";
-    public static final int CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE = 0;
+    public static final String CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY = "search.concurrent.max_slice_count";
+    public static final int CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE = computeDefaultSliceCount();
+    public static final int CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE = 0;
 
     // value == 0 means lucene slice computation will be used
     public static final Setting<Integer> CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING = Setting.intSetting(
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY,
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
+        CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY,
+        CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
+        CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    // value 0 means rewrite filters optimization in aggregations will be disabled
+    @ExperimentalApi
+    public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
+        "search.max_aggregation_rewrite_filters",
+        3000,
+        0,
         Property.Dynamic,
         Property.NodeScope
     );
 
-    // value 0 means rewrite filters optimization in aggregations will be disabled
-    public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
-        "search.max_aggregation_rewrite_filters",
-        3000,
+    // only do optimization when there's enough docs per range at segment level and sub agg exists
+    @ExperimentalApi
+    public static final Setting<Integer> AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD = Setting.intSetting(
+        "search.aggregation_rewrite_filters.segment_threshold.docs_per_bucket",
+        1000,
         0,
         Property.Dynamic,
         Property.NodeScope
@@ -1545,9 +1557,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
         }
 
-        if (this.indicesService.getCompositeIndexSettings() != null
-            && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
-            && StarTreeQueryHelper.isStarTreeSupported(context)) {
+        if (context.getStarTreeIndexEnabled() && StarTreeQueryHelper.isStarTreeSupported(context)) {
             StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
             boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
             if (consolidated) {
@@ -1771,17 +1781,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
+     * Returns a new {@link QueryCoordinatorContext} with the given {@code now} provider and {@link IndicesRequest searchRequest}
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, PipelinedRequest searchRequest) {
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest searchRequest) {
         return new QueryCoordinatorContext(indicesService.getRewriteContext(nowInMillis), searchRequest);
     }
 
     /**
-     * Returns a new {@link QueryRewriteContext} for query validation with the given {@code now} provider
+     * Returns a new {@link QueryCoordinatorContext} with the given {@code now} provider and {@link IndicesRequest searchRequest}
      */
-    public QueryRewriteContext getValidationRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getValidationRewriteContext(nowInMillis);
+    public QueryRewriteContext getValidationRewriteContext(LongSupplier nowInMillis, IndicesRequest searchRequest) {
+        return new QueryCoordinatorContext(indicesService.getValidationRewriteContext(nowInMillis), searchRequest);
     }
 
     public IndicesService getIndicesService() {
@@ -1857,6 +1867,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         public MinAndMax<?> estimatedMinAndMax() {
             return estimatedMinAndMax;
         }
+    }
+
+    /**
+     * Computes the default maximum number of slices for concurrent segment search.
+     * <p>
+     * This value is dynamically calculated as:
+     * <pre>
+     *     min(availableProcessors / 2, 4)
+     * </pre>
+     * This ensures that:
+     * <ul>
+     *   <li>On small machines, it avoids over-threading.</li>
+     *   <li>On larger machines, it caps the concurrency to a reasonable level (4 slices).</li>
+     * </ul>
+     * This default is used when the user does not explicitly set the
+     * {@code search.concurrent.max_slice_count} cluster setting.
+     *
+     * @return the computed default slice count
+     */
+    private static int computeDefaultSliceCount() {
+        return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
     }
 
     /**

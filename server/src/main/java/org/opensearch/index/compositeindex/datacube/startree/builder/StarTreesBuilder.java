@@ -47,7 +47,7 @@ public class StarTreesBuilder implements Closeable {
     public StarTreesBuilder(SegmentWriteState segmentWriteState, MapperService mapperService, AtomicInteger fieldNumberAcrossStarTrees) {
         List<StarTreeField> starTreeFields = new ArrayList<>();
         for (CompositeMappedFieldType compositeMappedFieldType : mapperService.getCompositeFieldTypes()) {
-            if (compositeMappedFieldType instanceof StarTreeMapper.StarTreeFieldType) {
+            if (compositeMappedFieldType != null && compositeMappedFieldType.unwrap() instanceof StarTreeMapper.StarTreeFieldType) {
                 StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) compositeMappedFieldType;
                 starTreeFields.add(
                     new StarTreeField(

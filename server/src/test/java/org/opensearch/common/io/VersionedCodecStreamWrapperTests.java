@@ -38,16 +38,19 @@ public class VersionedCodecStreamWrapperTests extends OpenSearchTestCase {
     private static final int VERSION = 1;
 
     IndexIOStreamHandler<DummyObject> ioStreamHandler;
+    IndexIOStreamHandlerFactory<DummyObject> ioStreamHandlerFactory;
     VersionedCodecStreamWrapper<DummyObject> versionedCodecStreamWrapper;
 
     @Before
     public void setup() throws IOException {
+        ioStreamHandlerFactory = mock(IndexIOStreamHandlerFactory.class);
         ioStreamHandler = mock(IndexIOStreamHandler.class);
-        versionedCodecStreamWrapper = new VersionedCodecStreamWrapper(ioStreamHandler, VERSION, CODEC);
+        versionedCodecStreamWrapper = new VersionedCodecStreamWrapper(ioStreamHandlerFactory, VERSION, VERSION, CODEC);
     }
 
     public void testReadStream() throws IOException {
         DummyObject expectedObject = new DummyObject("test read");
+        when(ioStreamHandlerFactory.getHandler(VERSION)).thenReturn(ioStreamHandler);
         when(ioStreamHandler.readContent(any())).thenReturn(expectedObject);
         DummyObject readData = versionedCodecStreamWrapper.readStream(createHeaderFooterBytes(CODEC, VERSION, true, true));
         assertEquals(readData, expectedObject);
@@ -55,6 +58,7 @@ public class VersionedCodecStreamWrapperTests extends OpenSearchTestCase {
 
     public void testReadWithOldVersionThrowsException() throws IOException {
         DummyObject expectedObject = new DummyObject("test read");
+        when(ioStreamHandlerFactory.getHandler(VERSION)).thenReturn(ioStreamHandler);
         when(ioStreamHandler.readContent(any())).thenReturn(expectedObject);
         assertThrows(
             IndexFormatTooOldException.class,
@@ -64,6 +68,7 @@ public class VersionedCodecStreamWrapperTests extends OpenSearchTestCase {
 
     public void testReadWithNewVersionThrowsException() throws IOException {
         DummyObject expectedObject = new DummyObject("test read");
+        when(ioStreamHandlerFactory.getHandler(VERSION)).thenReturn(ioStreamHandler);
         when(ioStreamHandler.readContent(any())).thenReturn(expectedObject);
         assertThrows(
             IndexFormatTooNewException.class,
@@ -73,6 +78,7 @@ public class VersionedCodecStreamWrapperTests extends OpenSearchTestCase {
 
     public void testReadWithUnexpectedCodecThrowsException() throws IOException {
         DummyObject expectedObject = new DummyObject("test read");
+        when(ioStreamHandlerFactory.getHandler(VERSION)).thenReturn(ioStreamHandler);
         when(ioStreamHandler.readContent(any())).thenReturn(expectedObject);
         assertThrows(
             CorruptIndexException.class,
@@ -82,6 +88,7 @@ public class VersionedCodecStreamWrapperTests extends OpenSearchTestCase {
 
     public void testReadWithNoHeaderThrowsException() throws IOException {
         DummyObject expectedObject = new DummyObject("test read");
+        when(ioStreamHandlerFactory.getHandler(VERSION)).thenReturn(ioStreamHandler);
         when(ioStreamHandler.readContent(any())).thenReturn(expectedObject);
         assertThrows(
             CorruptIndexException.class,
@@ -91,6 +98,7 @@ public class VersionedCodecStreamWrapperTests extends OpenSearchTestCase {
 
     public void testReadWithNoFooterThrowsException() throws IOException {
         DummyObject expectedObject = new DummyObject("test read");
+        when(ioStreamHandlerFactory.getHandler(VERSION)).thenReturn(ioStreamHandler);
         when(ioStreamHandler.readContent(any())).thenReturn(expectedObject);
         assertThrows(
             CorruptIndexException.class,
@@ -102,6 +110,7 @@ public class VersionedCodecStreamWrapperTests extends OpenSearchTestCase {
         DummyObject expectedObject = new DummyObject("test read");
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("dummy bytes", "dummy stream", output, 4096);
+        when(ioStreamHandlerFactory.getHandler(VERSION)).thenReturn(ioStreamHandler);
         doAnswer(invocation -> {
             IndexOutput io = invocation.getArgument(0);
             io.writeString("test write");

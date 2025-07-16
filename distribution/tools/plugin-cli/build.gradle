@@ -37,10 +37,11 @@ base {
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:opensearch-cli")
-  api "org.bouncycastle:bcpg-fips:2.0.9"
-  api "org.bouncycastle:bc-fips:2.0.0"
+  api project(":libs:agent-sm:agent-policy")
+  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  api "org.bouncycastle:bcpg-fips:${versions.bouncycastle_pg}"
   testImplementation project(":test:framework")
-  testImplementation 'com.google.jimfs:jimfs:1.3.0'
+  testImplementation 'com.google.jimfs:jimfs:1.3.1'
   testRuntimeOnly("com.google.guava:guava:${versions.guava}") {
     transitive = false
   }

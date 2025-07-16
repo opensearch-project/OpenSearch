@@ -1,8 +1,6 @@
 name: "Detect Breaking Changes"
 on:
-  pull_request:
-    branches-ignore:
-      - main # This branch represents a to-be-released version of OpenSearch where breaking changes are allowed
+  pull_request
 
 jobs:
   detect-breaking-change:
@@ -17,7 +15,7 @@ jobs:
       with:
         cache-disabled: true
         arguments: japicmp
-        gradle-version: 8.11
+        gradle-version: 8.14
         build-root-directory: server
     - if: failure()
       run: cat server/build/reports/java-compatibility/report.txt
@@ -26,4 +24,3 @@ jobs:
       with:
         name: java-compatibility-report.html
         path: ${{ github.workspace }}/server/build/reports/java-compatibility/report.html
-  

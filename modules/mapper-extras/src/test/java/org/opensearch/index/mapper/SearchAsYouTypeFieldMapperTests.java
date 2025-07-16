@@ -577,7 +577,10 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         Query actual = new QueryStringQueryBuilder("field:*").toQuery(queryShardContext);
         Query expected = new ConstantScoreQuery(
-            new BooleanQuery.Builder().add(new FieldExistsQuery("field.nested_field"), BooleanClause.Occur.SHOULD).build()
+            new BooleanQuery.Builder().add(new FieldExistsQuery("field.nested_field"), BooleanClause.Occur.SHOULD)
+                .add(new FieldExistsQuery("field.nested_field._2gram"), BooleanClause.Occur.SHOULD)
+                .add(new FieldExistsQuery("field.nested_field._3gram"), BooleanClause.Occur.SHOULD)
+                .build()
         );
         assertEquals(expected, actual);
     }

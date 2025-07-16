@@ -28,8 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -50,8 +48,6 @@ import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregat
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,16 +73,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         FIELD_NAME,
         NumberFieldMapper.NumberType.LONG
     );
-
-    @Before
-    public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
-    }
-
-    @After
-    public void teardown() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
-    }
 
     protected Codec getCodec() {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
@@ -162,7 +148,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
         supportedDimensions.put(
             new NumericDimension(SIZE),
-            new NumberFieldMapper.NumberFieldType(STATUS, NumberFieldMapper.NumberType.INTEGER)
+            new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.INTEGER)
         );
         supportedDimensions.put(
             new DateDimension(
@@ -324,7 +310,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             b.startObject("properties");
             b.startObject("@timestamp");
             b.field("type", "date");
-            b.field("format", "strict_date_optional_time||epoch_second");
+            b.field("format", "strict_date_optional_time||epoch_millis");
             b.endObject();
             b.startObject("message");
             b.field("type", "keyword");

@@ -41,11 +41,15 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
+
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
 
@@ -89,7 +93,8 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     @Override
     protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder innerQuery = queryBuilder.rewrite(createShardContext());
+        // Must rewrite recursively so innerQuery matches query
+        QueryBuilder innerQuery = Rewriteable.rewrite(queryBuilder, createShardContext());
         Query expected = rewrite(innerQuery.toQuery(context));
         assertEquals(rewrite(query), expected);
     }
@@ -171,7 +176,10 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), qb.rewrite(shardContext).toQuery(shardContext));
 
         qb = new WrapperQueryBuilder(new BoolQueryBuilder().toString());
-        assertEquals(new MatchAllDocsQuery(), qb.rewrite(shardContext).toQuery(shardContext));
+        assertThat(qb.rewrite(shardContext).toQuery(shardContext), instanceOf(ApproximateScoreQuery.class));
+        ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) qb.rewrite(shardContext).toQuery(shardContext);
+        assertThat(approxQuery.getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
+        assertThat(approxQuery.getApproximationQuery(), instanceOf(ApproximateMatchAllQuery.class));
     }
 
     @Override

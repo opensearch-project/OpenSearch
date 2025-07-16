@@ -14,10 +14,12 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
-import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.AggregateRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.IRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.RefCountedCacheStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -26,8 +28,10 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
+import static org.opensearch.index.store.remote.utils.FileTypeUtils.INDICES_FOLDER_IDENTIFIER;
 
 /**
  * File Cache (FC) is introduced to solve the problem that the local disk cannot hold
@@ -65,8 +69,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     @Override
     public CachedIndexInput put(Path filePath, CachedIndexInput indexInput) {
+        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.put(filePath, indexInput);
-        checkParentBreaker(filePath);
         return cachedIndexInput;
     }
 
@@ -75,8 +79,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         Path key,
         BiFunction<? super Path, ? super CachedIndexInput, ? extends CachedIndexInput> remappingFunction
     ) {
+        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.compute(key, remappingFunction);
-        checkParentBreaker(key);
         return cachedIndexInput;
     }
 
@@ -122,6 +126,31 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         theCache.decRef(key);
     }
 
+    /**
+     * Pins the key in the cache, preventing it from being evicted.
+     *
+     * @param key
+     */
+    @Override
+    public void pin(Path key) {
+        theCache.pin(key);
+    }
+
+    /**
+     * Unpins the key in the cache, allowing it to be evicted.
+     *
+     * @param key
+     */
+    @Override
+    public void unpin(Path key) {
+        theCache.unpin(key);
+    }
+
+    @Override
+    public Integer getRef(Path key) {
+        return theCache.getRef(key);
+    }
+
     @Override
     public long prune() {
         return theCache.prune();
@@ -133,32 +162,50 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     @Override
-    public CacheUsage usage() {
+    public long usage() {
         return theCache.usage();
     }
 
     @Override
-    public CacheStats stats() {
+    public long activeUsage() {
+        return theCache.activeUsage();
+    }
+
+    /**
+     * Returns the pinned usage of this cache.
+     *
+     * @return the combined pinned weight of the values in this cache.
+     */
+    @Override
+    public long pinnedUsage() {
+        return theCache.pinnedUsage();
+    }
+
+    @Override
+    public IRefCountedCacheStats stats() {
         return theCache.stats();
     }
 
     // To be used only for debugging purposes
     public void logCurrentState() {
         logger.trace("CURRENT STATE OF FILE CACHE \n");
-        CacheUsage cacheUsage = theCache.usage();
-        logger.trace("Total Usage: " + cacheUsage.usage() + " , Active Usage: " + cacheUsage.activeUsage());
+        long cacheUsage = theCache.usage();
+        logger.trace("Total Usage: " + cacheUsage + " , Active Usage: " + theCache.activeUsage());
         theCache.logCurrentState();
+    }
+
+    // To be used only in testing framework.
+    public void closeIndexInputReferences() {
+        theCache.closeIndexInputReferences();
     }
 
     /**
      * Ensures that the PARENT breaker is not tripped when an entry is added to the cache
-     * @param filePath the path key for which entry is added
      */
-    private void checkParentBreaker(Path filePath) {
+    private void checkParentBreaker() {
         try {
             circuitBreaker.addEstimateBytesAndMaybeBreak(0, "filecache_entry");
         } catch (CircuitBreakingException ex) {
-            theCache.remove(filePath);
             throw new CircuitBreakingException(
                 "Unable to create file cache entries",
                 ex.getBytesWanted(),
@@ -174,48 +221,83 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
      * directory within the provided file cache path.
      */
     public void restoreFromDirectory(List<Path> fileCacheDataPaths) {
-        fileCacheDataPaths.stream()
-            .filter(Files::isDirectory)
-            .map(path -> path.resolve(LOCAL_STORE_LOCATION))
-            .filter(Files::isDirectory)
-            .flatMap(dir -> {
-                try {
-                    return Files.list(dir);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(
-                        "Unable to process file cache directory. Please clear the file cache for node startup.",
-                        e
-                    );
-                }
-            })
-            .filter(Files::isRegularFile)
-            .forEach(path -> {
-                try {
-                    put(path.toAbsolutePath(), new RestoredCachedIndexInput(Files.size(path)));
-                    decRef(path.toAbsolutePath());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(
-                        "Unable to retrieve cache file details. Please clear the file cache for node startup.",
-                        e
-                    );
-                }
-            });
+        Stream.concat(
+            fileCacheDataPaths.stream()
+                .filter(Files::isDirectory)
+                .map(path -> path.resolve(LOCAL_STORE_LOCATION))
+                .filter(Files::isDirectory),
+            fileCacheDataPaths.stream()
+                .filter(Files::isDirectory)
+                .map(path -> path.resolve(INDICES_FOLDER_IDENTIFIER))
+                .filter(Files::isDirectory)
+        ).flatMap(dir -> {
+            try {
+                return Files.list(dir);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to process file cache directory. Please clear the file cache for node startup.", e);
+            }
+        }).filter(Files::isRegularFile).forEach(path -> {
+            try {
+                put(path.toAbsolutePath(), new RestoredCachedIndexInput(Files.size(path)));
+                decRef(path.toAbsolutePath());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to retrieve cache file details. Please clear the file cache for node startup.", e);
+            }
+        });
     }
 
     /**
-     * Returns the current {@link FileCacheStats}
+     * Returns the current {@link AggregateFileCacheStats}
      */
-    public FileCacheStats fileCacheStats() {
-        CacheStats stats = stats();
-        CacheUsage usage = usage();
-        return new FileCacheStats(
+    public AggregateFileCacheStats fileCacheStats() {
+        final AggregateRefCountedCacheStats stats = (AggregateRefCountedCacheStats) stats();
+
+        final RefCountedCacheStats overallCacheStats = stats.getOverallCacheStats();
+        final RefCountedCacheStats fullFileCacheStats = stats.getFullFileCacheStats();
+        final RefCountedCacheStats blockFileCacheStats = stats.getBlockFileCacheStats();
+        final RefCountedCacheStats pinnedFileCacheStats = stats.getPinnedFileCacheStats();
+        return new AggregateFileCacheStats(
             System.currentTimeMillis(),
-            usage.activeUsage(),
-            capacity(),
-            usage.usage(),
-            stats.evictionWeight(),
-            stats.hitCount(),
-            stats.missCount()
+            new FileCacheStats(
+                overallCacheStats.activeUsage(),
+                capacity(),
+                overallCacheStats.usage(),
+                overallCacheStats.pinnedUsage(),
+                overallCacheStats.evictionWeight(),
+                overallCacheStats.hitCount(),
+                overallCacheStats.missCount(),
+                FileCacheStatsType.OVER_ALL_STATS
+            ),
+            new FileCacheStats(
+                fullFileCacheStats.activeUsage(),
+                capacity(),
+                fullFileCacheStats.usage(),
+                fullFileCacheStats.pinnedUsage(),
+                fullFileCacheStats.evictionWeight(),
+                fullFileCacheStats.hitCount(),
+                fullFileCacheStats.missCount(),
+                FileCacheStatsType.FULL_FILE_STATS
+            ),
+            new FileCacheStats(
+                blockFileCacheStats.activeUsage(),
+                capacity(),
+                blockFileCacheStats.usage(),
+                blockFileCacheStats.pinnedUsage(),
+                blockFileCacheStats.evictionWeight(),
+                blockFileCacheStats.hitCount(),
+                blockFileCacheStats.missCount(),
+                FileCacheStatsType.BLOCK_FILE_STATS
+            ),
+            new FileCacheStats(
+                pinnedFileCacheStats.activeUsage(),
+                capacity(),
+                pinnedFileCacheStats.usage(),
+                pinnedFileCacheStats.pinnedUsage(),
+                pinnedFileCacheStats.evictionWeight(),
+                pinnedFileCacheStats.hitCount(),
+                pinnedFileCacheStats.missCount(),
+                FileCacheStatsType.PINNED_FILE_STATS
+            )
         );
     }
 
@@ -228,10 +310,10 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
      * These entries are eligible for eviction so if nothing needs to reference
      * them they will be deleted when the disk-based local cache fills up.
      */
-    private static class RestoredCachedIndexInput implements CachedIndexInput {
+    public static class RestoredCachedIndexInput implements CachedIndexInput {
         private final long length;
 
-        private RestoredCachedIndexInput(long length) {
+        public RestoredCachedIndexInput(long length) {
             this.length = length;
         }
 

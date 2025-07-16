@@ -63,7 +63,7 @@ import java.util.function.Function;
 /**
  * A container for settings used to create an S3 client.
  */
-final class S3ClientSettings {
+public final class S3ClientSettings {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(S3ClientSettings.class);
 

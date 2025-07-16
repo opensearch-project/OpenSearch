@@ -44,6 +44,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -190,6 +191,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        if (original instanceof ApproximateScoreQuery) {
+            ((ApproximateScoreQuery) original).setContext(searchContext);
+        }
         if (profiler != null) {
             profiler.startRewriteTime();
         }
@@ -209,7 +213,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            ContextualProfileBreakdown<QueryTimingType> profile = profiler.getQueryBreakdown(query);
+            ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
             Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;
@@ -220,9 +224,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
-        } else if (query instanceof ApproximateScoreQuery) {
-            ((ApproximateScoreQuery) query).setContext(searchContext);
-            return super.createWeight(query, scoreMode, boost);
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
@@ -257,8 +258,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(Query query, Collector collector) throws IOException {
-        super.search(query, collector);
-        searchContext.bucketCollectorProcessor().processPostCollection(collector);
+        // TODO : Remove when switching to use the @org.apache.lucene.search.IndexSearcher#search(Query, CollectorManager) variant from
+        // @org.opensearch.search.query.QueryPhase#searchWithCollector which then calls the overridden
+        // search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector)
+        query = collector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
+        Weight weight = createWeight(query, collector.scoreMode(), 1);
+        LeafReaderContextPartition[] partitions = (getLeafContexts() == null)
+            ? new LeafReaderContextPartition[0]
+            : getLeafContexts().stream().map(LeafReaderContextPartition::createForEntireSegment).toArray(LeafReaderContextPartition[]::new);
+        search(partitions, weight, collector);
     }
 
     public void search(
@@ -297,6 +305,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     searchLeaf(partition.ctx, partition.minDocId, partition.maxDocId, weight, collector);
                 }
             }
+            // TODO : Make this a responsibility for the callers rather than implicitly getting it done here ?
             searchContext.bucketCollectorProcessor().processPostCollection(collector);
         } catch (Throwable t) {
             searchContext.indexShard().getSearchOperationListener().onFailedSliceExecution(searchContext);

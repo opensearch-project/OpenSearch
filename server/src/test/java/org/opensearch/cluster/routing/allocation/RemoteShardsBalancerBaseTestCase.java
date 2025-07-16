@@ -35,6 +35,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
@@ -55,12 +56,12 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
         DiscoveryNodeRole.DATA_ROLE
     );
-    protected static final Set<DiscoveryNodeRole> SEARCH_DATA_ROLES = Set.of(
+    protected static final Set<DiscoveryNodeRole> WARM_DATA_ROLES = Set.of(
         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
         DiscoveryNodeRole.DATA_ROLE,
-        DiscoveryNodeRole.SEARCH_ROLE
+        DiscoveryNodeRole.WARM_ROLE
     );
-    protected static final Set<DiscoveryNodeRole> SEARCH_ONLY_ROLE = Set.of(DiscoveryNodeRole.SEARCH_ROLE);
+    protected static final Set<DiscoveryNodeRole> WARM_ONLY_ROLE = Set.of(DiscoveryNodeRole.WARM_ROLE);
 
     protected static final int PRIMARIES = 5;
     protected static final int REPLICAS = 1;
@@ -102,10 +103,17 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
     }
 
     public ClusterState createInitialCluster(int localOnlyNodes, int remoteNodes, int localIndices, int remoteIndices) {
-        return createInitialCluster(localOnlyNodes, remoteNodes, false, localIndices, remoteIndices);
+        return createInitialCluster(localOnlyNodes, remoteNodes, false, localIndices, remoteIndices, false);
     }
 
-    public ClusterState createInitialCluster(int localOnlyNodes, int remoteNodes, boolean remoteOnly, int localIndices, int remoteIndices) {
+    public ClusterState createInitialCluster(
+        int localOnlyNodes,
+        int remoteNodes,
+        boolean remoteRoleOnly,
+        int localIndices,
+        int remoteIndices,
+        boolean remoteIndexIsWarm
+    ) {
         Metadata.Builder mb = Metadata.builder();
         for (int i = 0; i < localIndices; i++) {
             mb.put(
@@ -117,15 +125,27 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         }
 
         for (int i = 0; i < remoteIndices; i++) {
-            mb.put(
-                IndexMetadata.builder(getIndexName(i, true))
-                    .settings(
-                        settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0")
-                            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                    )
-                    .numberOfShards(PRIMARIES)
-                    .numberOfReplicas(REPLICAS)
-            );
+            if (remoteIndexIsWarm == false) {
+                mb.put(
+                    IndexMetadata.builder(getIndexName(i, true))
+                        .settings(
+                            settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0")
+                                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                        )
+                        .numberOfShards(PRIMARIES)
+                        .numberOfReplicas(REPLICAS)
+                );
+            } else {
+                mb.put(
+                    IndexMetadata.builder(getIndexName(i, true))
+                        .settings(
+                            settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0")
+                                .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+                        )
+                        .numberOfShards(PRIMARIES)
+                        .numberOfReplicas(REPLICAS)
+                );
+            }
         }
         Metadata metadata = mb.build();
 
@@ -143,15 +163,15 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
             String name = getNodeId(i, false);
             nb.add(newNode(name, name, MANAGER_DATA_ROLES));
         }
-        if (remoteOnly) {
+        if (remoteRoleOnly) {
             for (int i = 0; i < remoteNodes; i++) {
                 String name = getNodeId(i, true);
-                nb.add(newNode(name, name, SEARCH_ONLY_ROLE));
+                nb.add(newNode(name, name, WARM_ONLY_ROLE));
             }
         } else {
             for (int i = 0; i < remoteNodes; i++) {
                 String name = getNodeId(i, true);
-                nb.add(newNode(name, name, SEARCH_DATA_ROLES));
+                nb.add(newNode(name, name, WARM_DATA_ROLES));
             }
         }
         DiscoveryNodes nodes = nb.build();
@@ -275,9 +295,10 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         public DevNullClusterInfo(
             final Map<String, DiskUsage> leastAvailableSpaceUsage,
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, NodeResourceUsageStats> nodeResourceUsages,
             final Map<String, Long> shardSizes
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of());
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of(), nodeResourceUsages);
         }
 
         @Override

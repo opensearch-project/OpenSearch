@@ -56,6 +56,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.Fuzziness;
@@ -348,7 +349,9 @@ public class QueryStringQueryParser extends XQueryParser {
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
                 }
                 // if we are querying a single date field, we also create a range query that leverages the time zone setting
-                if (context.fieldMapper(field) instanceof DateFieldType && this.timeZone != null) {
+                if (context.fieldMapper(field) != null
+                    && context.fieldMapper(field).unwrap() instanceof DateFieldType
+                    && this.timeZone != null) {
                     return getRangeQuery(field, queryText, queryText, true, true);
                 }
             }
@@ -785,8 +788,12 @@ public class QueryStringQueryParser extends XQueryParser {
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(getSearchAnalyzer(currentFieldType));
-            return super.getRegexpQuery(field, termStr);
+            if (forceAnalyzer != null) {
+                setAnalyzer(forceAnalyzer);
+            }
+            // query string query normalizes search value
+            termStr = getAnalyzer().normalize(currentFieldType.name(), termStr).utf8ToString();
+            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getDeterminizeWorkLimit(), getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);

@@ -86,6 +86,10 @@ import org.opensearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataAction;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequest;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
@@ -268,6 +272,7 @@ import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.scale.searchonly.ScaleIndexRequestBuilder;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -293,6 +298,15 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionAction;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionAction;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -941,6 +955,24 @@ public abstract class AbstractClient implements Client {
                 remoteStoreStatsRequestBuilder.setShards(shardId);
             }
             return remoteStoreStatsRequestBuilder;
+        }
+
+        @Override
+        public void remoteStoreMetadata(
+            final RemoteStoreMetadataRequest request,
+            final ActionListener<RemoteStoreMetadataResponse> listener
+        ) {
+            execute(RemoteStoreMetadataAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public RemoteStoreMetadataRequestBuilder prepareRemoteStoreMetadata(String index, String shardId) {
+            RemoteStoreMetadataRequestBuilder builder = new RemoteStoreMetadataRequestBuilder(this, RemoteStoreMetadataAction.INSTANCE)
+                .setIndices(index);
+            if (shardId != null) {
+                builder.setShards(shardId);
+            }
+            return builder;
         }
 
         @Override
@@ -2141,9 +2173,49 @@ public abstract class AbstractClient implements Client {
             execute(UpdateViewAction.INSTANCE, request, listener);
         }
 
+        public ScaleIndexRequestBuilder prepareScaleSearchOnly(String index, boolean searchOnly) {
+            return new ScaleIndexRequestBuilder(this, searchOnly, index);
+        }
+
         /** Create a view */
         public ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request) {
             return execute(UpdateViewAction.INSTANCE, request);
+        }
+
+        /** Pause ingestion */
+        @Override
+        public ActionFuture<PauseIngestionResponse> pauseIngestion(final PauseIngestionRequest request) {
+            return execute(PauseIngestionAction.INSTANCE, request);
+        }
+
+        /** Pause ingestion */
+        @Override
+        public void pauseIngestion(final PauseIngestionRequest request, final ActionListener<PauseIngestionResponse> listener) {
+            execute(PauseIngestionAction.INSTANCE, request, listener);
+        }
+
+        /** Resume ingestion */
+        @Override
+        public ActionFuture<ResumeIngestionResponse> resumeIngestion(final ResumeIngestionRequest request) {
+            return execute(ResumeIngestionAction.INSTANCE, request);
+        }
+
+        /** Resume ingestion */
+        @Override
+        public void resumeIngestion(final ResumeIngestionRequest request, final ActionListener<ResumeIngestionResponse> listener) {
+            execute(ResumeIngestionAction.INSTANCE, request, listener);
+        }
+
+        /** Get ingestion state */
+        @Override
+        public ActionFuture<GetIngestionStateResponse> getIngestionState(final GetIngestionStateRequest request) {
+            return execute(GetIngestionStateAction.INSTANCE, request);
+        }
+
+        /** Get ingestion state */
+        @Override
+        public void getIngestionState(final GetIngestionStateRequest request, final ActionListener<GetIngestionStateResponse> listener) {
+            execute(GetIngestionStateAction.INSTANCE, request, listener);
         }
     }
 

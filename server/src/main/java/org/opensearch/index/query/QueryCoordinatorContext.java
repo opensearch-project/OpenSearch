@@ -8,6 +8,8 @@
 
 package org.opensearch.index.query;
 
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -15,6 +17,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.transport.client.Client;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -31,9 +34,10 @@ import java.util.function.BiConsumer;
 @PublicApi(since = "2.19.0")
 public class QueryCoordinatorContext implements QueryRewriteContext {
     private final QueryRewriteContext rewriteContext;
-    private final PipelinedRequest searchRequest;
+    private final IndicesRequest searchRequest;
 
-    public QueryCoordinatorContext(QueryRewriteContext rewriteContext, PipelinedRequest searchRequest) {
+    @InternalApi
+    public QueryCoordinatorContext(QueryRewriteContext rewriteContext, IndicesRequest searchRequest) {
         this.rewriteContext = rewriteContext;
         this.searchRequest = searchRequest;
     }
@@ -84,10 +88,14 @@ public class QueryCoordinatorContext implements QueryRewriteContext {
     }
 
     public Map<String, Object> getContextVariables() {
+        if (searchRequest instanceof PipelinedRequest) {
+            return new HashMap<>(((PipelinedRequest) searchRequest).getPipelineProcessingContext().getAttributes());
+        } else {
+            return Collections.emptyMap();
+        }
+    }
 
-        // Read from pipeline context
-        Map<String, Object> contextVariables = new HashMap<>(searchRequest.getPipelineProcessingContext().getAttributes());
-
-        return contextVariables;
+    public IndicesRequest getSearchRequest() {
+        return searchRequest;
     }
 }

@@ -76,7 +76,7 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 #### JDK
 
-OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-23 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`. 
+OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-24 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`. 
 
 Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11). 
 
@@ -87,11 +87,11 @@ In addition, certain backward compatibility tests check out and compile the prev
 ./gradlew check -Dorg.gradle.warning.mode=none
 ```
 
-By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 23 (non-LTS).
+By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 24 (non-LTS).
 
 ```
 bundled_jdk_vendor = adoptium
-bundled_jdk = 23.0.1+11
+bundled_jdk = 24.0.1+9
 ```
 
 #### Custom Runtime JDK
@@ -127,7 +127,7 @@ All distributions built will be under `distributions/archives`.
 #### Generated Code
 
 OpenSearch uses code generators like [Protobuf](https://protobuf.dev/).
-OpenSearch build system already takes a dependency of generating code from protobuf, incase you run into compilation errors, run:
+OpenSearch build system already takes a dependency of generating code from protobuf, if you run into compilation errors, run:
 
 ```
 ./gradlew generateProto
@@ -189,7 +189,9 @@ It's typically easier to wait until the console stops scrolling, and then run `c
 
 ```bash
 curl localhost:9200
-
+```
+The expected reponse should be
+```
 {
   "name" : "runTask-0",
   "cluster_name" : "runTask",
@@ -594,7 +596,8 @@ Rapidly developing new features often benefit from several release cycles before
 uses an Experimental Development process leveraging [Feature Flags](https://featureflags.io/feature-flags/). This allows a feature to be developed using the same process as
 a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
 release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with `@ExperimentalApi` (or documented as
-`@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+`@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines. When writing tests for
+functionality gated behind a feature flag please refer to `FeatureFlags.TestUtils` and the `@LockFeatureFlag` annotation.
 
 #### API Compatibility Checks
 

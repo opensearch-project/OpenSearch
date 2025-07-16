@@ -38,7 +38,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.threadpool.ThreadPool;
@@ -52,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -104,7 +105,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
 
     private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
-        new RemoteSegmentMetadataHandler(),
+        new RemoteSegmentMetadataHandlerFactory(),
+        RemoteSegmentMetadata.VERSION_ONE,
         RemoteSegmentMetadata.CURRENT_VERSION,
         RemoteSegmentMetadata.METADATA_CODEC
     );
@@ -256,6 +258,34 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
         }
+    }
+
+    /**
+     * Reads the latest N segment metadata files from remote store along with filenames.
+     *
+     * @param count Number of recent metadata files to read (sorted by lexicographic order).
+     * @return Map from filename to parsed RemoteSegmentMetadata
+     * @throws IOException if reading any metadata file fails
+     */
+    public Map<String, RemoteSegmentMetadata> readLatestNMetadataFiles(int count) throws IOException {
+        Map<String, RemoteSegmentMetadata> metadataMap = new LinkedHashMap<>();
+
+        List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+            MetadataFilenameUtils.METADATA_PREFIX,
+            count
+        );
+
+        for (String file : metadataFiles) {
+            try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(file)) {
+                byte[] bytes = inputStream.readAllBytes();
+                RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(new ByteArrayIndexInput(file, bytes));
+                metadataMap.put(file, metadata);
+            } catch (Exception e) {
+                logger.error("Failed to parse segment metadata file", e);
+            }
+        }
+
+        return metadataMap;
     }
 
     /**

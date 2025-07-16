@@ -75,6 +75,8 @@ import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.opensearch.search.query.BitmapIndexQuery;
 import org.junit.Before;
@@ -96,6 +98,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.apache.lucene.document.LongPoint.pack;
 
 public class NumberFieldTypeTests extends FieldTypeTestCase {
 
@@ -392,9 +395,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testLongRangeQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        Query expected = new IndexOrDocValuesQuery(
-            LongPoint.newRangeQuery("field", 1, 3),
-            SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3)
+        Query expected = new ApproximateScoreQuery(
+            new IndexOrDocValuesQuery(LongPoint.newRangeQuery("field", 1, 3), SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3)),
+            new ApproximatePointRangeQuery("field", pack(1).bytes, pack(3).bytes, 1, ApproximatePointRangeQuery.LONG_FORMAT)
         );
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
 
@@ -408,9 +411,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testUnsignedLongRangeQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
-        Query expected = new IndexOrDocValuesQuery(
+        Query indexOrDvQuery = new IndexOrDocValuesQuery(
             BigIntegerPoint.newRangeQuery("field", BigInteger.valueOf(1), BigInteger.valueOf(3)),
             SortedUnsignedLongDocValuesRangeQuery.newSlowRangeQuery("field", BigInteger.valueOf(1), BigInteger.valueOf(3))
+        );
+        Query expected = new ApproximateScoreQuery(
+            indexOrDvQuery,
+            new ApproximatePointRangeQuery(
+                "field",
+                NumberType.UNSIGNED_LONG.encodePoint(BigInteger.valueOf(1)),
+                NumberType.UNSIGNED_LONG.encodePoint(BigInteger.valueOf(3)),
+                1,
+                ApproximatePointRangeQuery.UNSIGNED_LONG_FORMAT
+            )
         );
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
 
@@ -440,12 +453,22 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testDoubleRangeQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
-        Query expected = new IndexOrDocValuesQuery(
+        Query indexOrDvQuery = new IndexOrDocValuesQuery(
             DoublePoint.newRangeQuery("field", 1d, 3d),
             SortedNumericDocValuesField.newSlowRangeQuery(
                 "field",
                 NumericUtils.doubleToSortableLong(1),
                 NumericUtils.doubleToSortableLong(3)
+            )
+        );
+        Query expected = new ApproximateScoreQuery(
+            indexOrDvQuery,
+            new ApproximatePointRangeQuery(
+                "field",
+                DoublePoint.pack(new double[] { 1d }).bytes,
+                DoublePoint.pack(new double[] { 3d }).bytes,
+                1,
+                ApproximatePointRangeQuery.DOUBLE_FORMAT
             )
         );
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
@@ -681,7 +704,11 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 MOCK_QSC
             );
-            assertThat(query, either(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+            assertThat(
+                query,
+                either(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
+                    .or(instanceOf(ApproximateScoreQuery.class))
+            );
             if (query instanceof IndexOrDocValuesQuery) {
                 IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
                 assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
@@ -764,10 +791,20 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 context
             );
-            assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
+            assertThat(
+                query,
+                either(instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class)).or(instanceOf(ApproximateScoreQuery.class))
+            );
 
-            Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
-            assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));
+            Query fallbackQuery;
+            if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
+                fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+                assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));
+            } else {
+                fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) ((ApproximateScoreQuery) query).getOriginalQuery())
+                    .getFallbackQuery();
+                assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));
+            }
 
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) fallbackQuery;
             assertEquals(searcher.count(query), searcher.count(indexOrDvQuery.getIndexQuery()));

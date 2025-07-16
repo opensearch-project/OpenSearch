@@ -48,27 +48,23 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.routing.RoutingPool.REMOTE_CAPABLE;
 import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
 import static org.opensearch.cluster.routing.RoutingPool.getShardPool;
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.ENABLE_FOR_SINGLE_DATA_NODE;
 
 /**
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
@@ -101,21 +97,13 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
-    public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE = Setting.boolSetting(
-        "cluster.routing.allocation.disk.watermark.enable_for_single_data_node",
-        false,
-        Setting.Property.NodeScope
-    );
-
     private final DiskThresholdSettings diskThresholdSettings;
     private final boolean enableForSingleDataNode;
-    private final FileCacheSettings fileCacheSettings;
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";
         this.enableForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
-        this.fileCacheSettings = new FileCacheSettings(settings, clusterSettings);
     }
 
     /**
@@ -176,44 +164,9 @@ public class DiskThresholdDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
 
-        /*
-         The following block enables allocation for remote shards within safeguard limits of the filecache.
-         */
+        // For this case WarmDiskThresholdDecider Decider will take decision
         if (REMOTE_CAPABLE.equals(getNodePool(node)) && REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
-            final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
-            // we don't need to check the ratio
-            if (dataToFileCacheSizeRatio <= 0.1f) {
-                return Decision.YES;
-            }
-
-            final List<ShardRouting> remoteShardsOnNode = StreamSupport.stream(node.spliterator(), false)
-                .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getShardPool(shard, allocation)))
-                .collect(Collectors.toList());
-            final long currentNodeRemoteShardSize = remoteShardsOnNode.stream()
-                .map(ShardRouting::getExpectedShardSize)
-                .mapToLong(Long::longValue)
-                .sum();
-
-            final long shardSize = getExpectedShardSize(
-                shardRouting,
-                0L,
-                allocation.clusterInfo(),
-                allocation.snapshotShardSizeInfo(),
-                allocation.metadata(),
-                allocation.routingTable()
-            );
-
-            final FileCacheStats fileCacheStats = clusterInfo.getNodeFileCacheStats().getOrDefault(node.nodeId(), null);
-            final long nodeCacheSize = fileCacheStats != null ? fileCacheStats.getTotal().getBytes() : 0;
-            final long totalNodeRemoteShardSize = currentNodeRemoteShardSize + shardSize;
-            if (dataToFileCacheSizeRatio > 0.0f && totalNodeRemoteShardSize > dataToFileCacheSizeRatio * nodeCacheSize) {
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "file cache limit reached - remote shard size will exceed configured safeguard ratio"
-                );
-            }
-            return Decision.YES;
+            return Decision.ALWAYS;
         } else if (REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
             return Decision.NO;
         }
@@ -481,12 +434,11 @@ public class DiskThresholdDecider extends AllocationDecider {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
 
-        /*
-         The following block prevents movement for remote shards since they do not use the local storage as
-         the primary source of data storage.
-         */
+        // For this case WarmDiskThresholdDecider Decider will take decision
         if (REMOTE_CAPABLE.equals(getNodePool(node)) && REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
             return Decision.ALWAYS;
+        } else if (REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
+            return Decision.NO;
         }
 
         final ClusterInfo clusterInfo = allocation.clusterInfo();

@@ -71,6 +71,8 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             () -> Boolean.TRUE,
             new InternalTranslogFactory(),
             null,
+            null,
+            null,
             null
         );
 
@@ -151,6 +153,8 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             false,
             () -> Boolean.TRUE,
             new InternalTranslogFactory(),
+            null,
+            null,
             null,
             null
         );

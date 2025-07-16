@@ -445,14 +445,6 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
-  - directory: /distribution/tools/upgrade-cli/
-    open-pull-requests-limit: 1
-    package-ecosystem: gradle
-    schedule:
-      interval: weekly
-    labels:
-      - "dependabot"
-      - "dependencies"
   - directory: /doc-tools/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
@@ -1396,14 +1388,6 @@ updates:
       - "dependabot"
       - "dependencies"
   - directory: /test/fixtures/minio-fixture/
-    open-pull-requests-limit: 1
-    package-ecosystem: gradle
-    schedule:
-      interval: weekly
-    labels:
-      - "dependabot"
-      - "dependencies"
-  - directory: /test/fixtures/old-elasticsearch/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:

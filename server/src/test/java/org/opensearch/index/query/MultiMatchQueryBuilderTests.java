@@ -36,6 +36,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -54,6 +55,7 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.query.MultiMatchQueryBuilder.Type;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.lucene.queries.ExtendedCommonTermsQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -197,7 +199,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     instanceOf(PhraseQuery.class),
                     instanceOf(PointRangeQuery.class),
                     instanceOf(IndexOrDocValuesQuery.class),
-                    instanceOf(PrefixQuery.class)
+                    instanceOf(PrefixQuery.class),
+                    instanceOf(ApproximateScoreQuery.class)
                 )
             )
         );
@@ -242,7 +245,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             .tieBreaker(1.0f)
             .toQuery(createShardContext());
         Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
+            List.of(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "test")))
+            ),
             1
         );
         assertEquals(expected, query);
@@ -251,7 +257,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
         Query query = multiMatchQuery("test").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).toQuery(createShardContext());
         Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
+            List.of(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "test")))
+            ),
             0
         );
         assertEquals(expected, query);
@@ -260,7 +269,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     public void testToQueryFieldsWildcard() throws Exception {
         Query query = multiMatchQuery("test").field("mapped_str*").tieBreaker(1.0f).toQuery(createShardContext());
         Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
+            List.of(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "test")))
+            ),
             1
         );
         assertEquals(expected, query);
@@ -459,7 +471,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
                 Arrays.asList(
                     new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
+                    new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello"))), 5.0f)
                 ),
                 0.0f
             );
@@ -487,7 +499,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 Arrays.asList(
                     new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]"),
                     new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
+                    new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello"))), 5.0f)
                 ),
                 0.0f
             );
@@ -531,9 +543,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
                     .add(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
                     .build(),
-                new BooleanQuery.Builder().add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
-                    .add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
-                    .build()
+                new BooleanQuery.Builder().add(
+                    new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick"))),
+                    BooleanClause.Occur.SHOULD
+                ).add(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox"))), BooleanClause.Occur.SHOULD).build()
             ),
             0f
         );
@@ -588,7 +601,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(9, noMatchNoDocsQueries);
         assertThat(
             disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            hasItems(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            )
         );
     }
 

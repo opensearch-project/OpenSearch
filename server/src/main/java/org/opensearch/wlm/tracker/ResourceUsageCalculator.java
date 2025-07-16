@@ -9,26 +9,26 @@
 package org.opensearch.wlm.tracker;
 
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.List;
 
 /**
- * This class is used to track query group level resource usage
+ * This class is used to track workload group level resource usage
  */
 @PublicApi(since = "2.18.0")
 public abstract class ResourceUsageCalculator {
     /**
-     * calculates the current resource usage for the query group
+     * calculates the current resource usage for the workload group
      *
-     * @param tasks        list of tasks in the query group
+     * @param tasks        list of tasks in the workload group
      */
-    public abstract double calculateResourceUsage(List<QueryGroupTask> tasks);
+    public abstract double calculateResourceUsage(List<WorkloadGroupTask> tasks);
 
     /**
      * calculates the task level resource usage
-     * @param task         QueryGroupTask
+     * @param task         WorkloadGroupTask
      * @return task level resource usage
      */
-    public abstract double calculateTaskResourceUsage(QueryGroupTask task);
+    public abstract double calculateTaskResourceUsage(WorkloadGroupTask task);
 }

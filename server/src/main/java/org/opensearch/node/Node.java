@@ -56,6 +56,7 @@ import org.opensearch.action.search.SearchTaskRequestOperationsListener;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
+import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterInfoService;
@@ -67,6 +68,8 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.action.shard.LocalShardStateAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
@@ -85,6 +88,7 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.LocalClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.cache.module.CacheModule;
@@ -129,6 +133,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.crypto.CryptoHandlerRegistry;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.discovery.LocalDiscovery;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
@@ -151,11 +156,15 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.autoforcemerge.AutoForceMergeManager;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -181,6 +190,7 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicator;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
+import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsProbe;
@@ -212,12 +222,14 @@ import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SecureSettingsFactory;
+import org.opensearch.plugins.StreamManagerPlugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TaskManagerClientPlugin;
 import org.opensearch.plugins.TelemetryAwarePlugin;
@@ -264,6 +276,7 @@ import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -272,14 +285,14 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.opensearch.wlm.QueryGroupService;
-import org.opensearch.wlm.QueryGroupsStateAccessor;
+import org.opensearch.wlm.WorkloadGroupService;
+import org.opensearch.wlm.WorkloadGroupsStateAccessor;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
 import org.opensearch.wlm.cancellation.MaximumResourceTaskSelectionStrategy;
-import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
-import org.opensearch.wlm.listeners.QueryGroupRequestOperationListener;
-import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
+import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
+import org.opensearch.wlm.listeners.WorkloadGroupRequestOperationListener;
+import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
 
 import javax.net.ssl.SNIHostName;
 
@@ -314,6 +327,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
 import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
@@ -361,7 +375,6 @@ public class Node implements Closeable {
      * Note that this does not control whether the node stores actual indices (see
      * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
      * and {@link #NODE_MASTER_SETTING} must also be false.
-     *
      */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
         "node.local_storage",
@@ -401,7 +414,7 @@ public class Node implements Closeable {
 
     public static final Setting<String> NODE_SEARCH_CACHE_SIZE_SETTING = new Setting<>(
         "node.search.cache.size",
-        s -> (DiscoveryNode.isDedicatedSearchNode(s)) ? "80%" : ZERO,
+        s -> (DiscoveryNode.isDedicatedWarmNode(s)) ? "80%" : ZERO,
         Node::validateFileCacheSize,
         Property.NodeScope
     );
@@ -443,12 +456,13 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     private final Tracer tracer;
-
+    private final AutoForceMergeManager autoForceMergeManager;
     private final MetricsRegistry metricsRegistry;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     private FileCache fileCache;
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+    private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -462,11 +476,7 @@ public class Node implements Closeable {
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
-    protected Node(
-        final Environment initialEnvironment,
-        Collection<Class<? extends Plugin>> classpathPlugins,
-        boolean forbidPrivateIndexSettings
-    ) {
+    protected Node(final Environment initialEnvironment, Collection<PluginInfo> classpathPlugins, boolean forbidPrivateIndexSettings) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
@@ -520,6 +530,9 @@ public class Node implements Closeable {
                 );
             }
 
+            // Ensure feature flags from opensearch.yml are valid during plugin initialization.
+            FeatureFlags.initializeFeatureFlags(tmpSettings);
+
             this.pluginsService = new PluginsService(
                 tmpSettings,
                 initialEnvironment.configDir(),
@@ -529,9 +542,6 @@ public class Node implements Closeable {
             );
 
             final Settings settings = pluginsService.updatedSettings();
-
-            // Ensure to initialize Feature Flags via the settings from opensearch.yml
-            FeatureFlags.initializeFeatureFlags(settings);
 
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
             identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
@@ -556,8 +566,8 @@ public class Node implements Closeable {
                 .map(IndexStorePlugin::getIndexStoreListener)
                 .filter(Optional::isPresent)
                 .map(Optional::get);
-            // FileCache is only initialized on search nodes, so we only create FileCacheCleaner on search nodes as well
-            if (DiscoveryNode.isSearchNode(settings) == false) {
+            // FileCache is only initialized on warm nodes, so we only create FileCacheCleaner on warm nodes as well
+            if (DiscoveryNode.isWarmNode(settings) == false) {
                 nodeEnvironment = new NodeEnvironment(
                     settings,
                     environment,
@@ -696,12 +706,13 @@ public class Node implements Closeable {
             final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
 
             List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
-            final ClusterService clusterService = new ClusterService(
-                settings,
-                settingsModule.getClusterSettings(),
-                threadPool,
-                clusterManagerMetrics
-            );
+            final boolean clusterless = clusterPlugins.stream().anyMatch(ClusterPlugin::isClusterless);
+            final ClusterService clusterService;
+            if (clusterless) {
+                clusterService = new LocalClusterService(settings, settingsModule.getClusterSettings(), threadPool, clusterManagerMetrics);
+            } else {
+                clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool, clusterManagerMetrics);
+            }
             clusterService.addStateApplier(scriptService);
             resourcesToClose.add(clusterService);
             final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
@@ -732,7 +743,8 @@ public class Node implements Closeable {
                 settings,
                 clusterService.getClusterSettings(),
                 threadPool,
-                nodeEnvironment
+                nodeEnvironment,
+                metricsRegistry
             );
             final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
             final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
@@ -759,10 +771,12 @@ public class Node implements Closeable {
                 clusterInfoService,
                 snapshotsInfoService,
                 threadPool.getThreadContext(),
-                clusterManagerMetrics
+                clusterManagerMetrics,
+                clusterless ? LocalShardStateAction.class : ShardStateAction.class
             );
             modules.add(clusterModule);
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            final List<MapperPlugin> mapperPlugins = pluginsService.filterPlugins(MapperPlugin.class);
+            IndicesModule indicesModule = new IndicesModule(mapperPlugins);
             modules.add(indicesModule);
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
@@ -887,6 +901,22 @@ public class Node implements Closeable {
                 });
             directoryFactories.putAll(builtInDirectoryFactories);
 
+            final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories = new HashMap<>();
+            pluginsService.filterPlugins(IndexStorePlugin.class)
+                .stream()
+                .map(IndexStorePlugin::getCompositeDirectoryFactories)
+                .flatMap(m -> m.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                .forEach((k, v) -> {
+                    if (k.equals("default")) {
+                        throw new IllegalStateException(
+                            "registered composite index store type [" + k + "] conflicts with a built-in default type"
+                        );
+                    }
+                    compositeDirectoryFactories.put(k, v);
+                });
+            compositeDirectoryFactories.put("default", new DefaultCompositeDirectoryFactory());
+
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
                 IndexStorePlugin.class
             )
@@ -945,6 +975,7 @@ public class Node implements Closeable {
                 metaStateService,
                 engineFactoryProviders,
                 Map.copyOf(directoryFactories),
+                Map.copyOf(compositeDirectoryFactories),
                 searchModule.getValuesSourceRegistry(),
                 recoveryStateFactories,
                 remoteDirectoryFactory,
@@ -957,7 +988,8 @@ public class Node implements Closeable {
                 remoteStoreSettings,
                 fileCache,
                 compositeIndexSettings,
-                segmentReplicator::startReplication
+                segmentReplicator::startReplication,
+                segmentReplicator::getSegmentReplicationStats
             );
 
             final IngestService ingestService = new IngestService(
@@ -968,7 +1000,9 @@ public class Node implements Closeable {
                 analysisModule.getAnalysisRegistry(),
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
-                indicesService
+                indicesService,
+                xContentRegistry,
+                new SystemIngestPipelineCache()
             );
 
             final AliasValidator aliasValidator = new AliasValidator();
@@ -1054,32 +1088,31 @@ public class Node implements Closeable {
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
-            final QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(
-                taskResourceTrackingService
-            );
+            final WorkloadGroupResourceUsageTrackerService workloadGroupResourceUsageTrackerService =
+                new WorkloadGroupResourceUsageTrackerService(taskResourceTrackingService);
             final WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(
                 settings,
                 settingsModule.getClusterSettings()
             );
 
-            final QueryGroupsStateAccessor queryGroupsStateAccessor = new QueryGroupsStateAccessor();
+            final WorkloadGroupsStateAccessor workloadGroupsStateAccessor = new WorkloadGroupsStateAccessor();
 
-            final QueryGroupService queryGroupService = new QueryGroupService(
-                new QueryGroupTaskCancellationService(
+            final WorkloadGroupService workloadGroupService = new WorkloadGroupService(
+                new WorkloadGroupTaskCancellationService(
                     workloadManagementSettings,
                     new MaximumResourceTaskSelectionStrategy(),
-                    queryGroupResourceUsageTrackerService,
-                    queryGroupsStateAccessor
+                    workloadGroupResourceUsageTrackerService,
+                    workloadGroupsStateAccessor
                 ),
                 clusterService,
                 threadPool,
                 workloadManagementSettings,
-                queryGroupsStateAccessor
+                workloadGroupsStateAccessor
             );
-            taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
+            taskResourceTrackingService.addTaskCompletionListener(workloadGroupService);
 
-            final QueryGroupRequestOperationListener queryGroupRequestOperationListener = new QueryGroupRequestOperationListener(
-                queryGroupService,
+            final WorkloadGroupRequestOperationListener workloadGroupRequestOperationListener = new WorkloadGroupRequestOperationListener(
+                workloadGroupService,
                 threadPool
             );
 
@@ -1091,7 +1124,7 @@ public class Node implements Closeable {
                             searchRequestStats,
                             searchRequestSlowLog,
                             searchTaskRequestOperationsListener,
-                            queryGroupRequestOperationListener
+                            workloadGroupRequestOperationListener
                         ),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
@@ -1143,8 +1176,10 @@ public class Node implements Closeable {
 
             WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
                 threadPool,
-                queryGroupService
+                workloadGroupService
             );
+
+            this.autoForceMergeManager = new AutoForceMergeManager(threadPool, monitorService, indicesService, clusterService);
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1242,7 +1277,7 @@ public class Node implements Closeable {
                 taskResourceTrackingService,
                 threadPool,
                 transportService.getTaskManager(),
-                queryGroupService
+                workloadGroupService
             );
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
@@ -1313,30 +1348,36 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 client,
                 threadPool::relativeTimeInMillis,
-                rerouteService
+                rerouteService,
+                new FileCacheSettings(settings, clusterService.getClusterSettings())::getRemoteDataRatio
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            final DiscoveryModule discoveryModule = new DiscoveryModule(
-                settings,
-                threadPool,
-                transportService,
-                namedWriteableRegistry,
-                networkService,
-                clusterService.getClusterManagerService(),
-                clusterService.getClusterApplierService(),
-                clusterService.getClusterSettings(),
-                pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(),
-                environment.configDir(),
-                gatewayMetaState,
-                rerouteService,
-                fsHealthService,
-                persistedStateRegistry,
-                remoteStoreNodeService,
-                clusterManagerMetrics,
-                remoteClusterStateService
-            );
+            final Discovery discovery;
+            if (clusterless) {
+                discovery = new LocalDiscovery(transportService, clusterService.getClusterApplierService());
+            } else {
+                discovery = new DiscoveryModule(
+                    settings,
+                    threadPool,
+                    transportService,
+                    namedWriteableRegistry,
+                    networkService,
+                    clusterService.getClusterManagerService(),
+                    clusterService.getClusterApplierService(),
+                    clusterService.getClusterSettings(),
+                    pluginsService.filterPlugins(DiscoveryPlugin.class),
+                    clusterModule.getAllocationService(),
+                    environment.configDir(),
+                    gatewayMetaState,
+                    rerouteService,
+                    fsHealthService,
+                    persistedStateRegistry,
+                    remoteStoreNodeService,
+                    clusterManagerMetrics,
+                    remoteClusterStateService
+                ).getDiscovery();
+            }
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,
                 threadPool,
@@ -1357,11 +1398,12 @@ public class Node implements Closeable {
                 transportService.getTaskManager(),
                 taskCancellationMonitoringSettings
             );
+
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
                 monitorService,
-                discoveryModule.getDiscovery(),
+                discovery,
                 transportService,
                 indicesService,
                 pluginsService,
@@ -1385,6 +1427,25 @@ public class Node implements Closeable {
                 admissionControlService,
                 cacheService
             );
+
+            if (FeatureFlags.isEnabled(ARROW_STREAMS_SETTING)) {
+                final List<StreamManagerPlugin> streamManagerPlugins = pluginsService.filterPlugins(StreamManagerPlugin.class);
+
+                final List<StreamManager> streamManagers = streamManagerPlugins.stream()
+                    .map(StreamManagerPlugin::getStreamManager)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .toList();
+
+                if (streamManagers.size() > 1) {
+                    throw new IllegalStateException(
+                        String.format(Locale.ROOT, "Only one StreamManagerPlugin can be installed. Found: %d", streamManagerPlugins.size())
+                    );
+                } else if (streamManagers.isEmpty() == false) {
+                    StreamManager streamManager = streamManagers.getFirst();
+                    streamManagerPlugins.forEach(plugin -> plugin.onStreamManagerInitialized(streamManager));
+                }
+            }
 
             final SearchService searchService = newSearchService(
                 clusterService,
@@ -1432,6 +1493,10 @@ public class Node implements Closeable {
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
+            mergedSegmentWarmerFactory = new MergedSegmentWarmerFactory(transportService, recoverySettings, clusterService);
+
+            final MappingTransformerRegistry mappingTransformerRegistry = new MappingTransformerRegistry(mapperPlugins, xContentRegistry);
+
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
@@ -1454,7 +1519,7 @@ public class Node implements Closeable {
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
-                b.bind(QueryGroupService.class).toInstance(queryGroupService);
+                b.bind(WorkloadGroupService.class).toInstance(workloadGroupService);
                 b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
@@ -1481,7 +1546,7 @@ public class Node implements Closeable {
                 b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                 b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
-                b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
+                b.bind(Discovery.class).toInstance(discovery);
                 b.bind(RemoteStoreSettings.class).toInstance(remoteStoreSettings);
                 {
                     b.bind(PeerRecoverySourceService.class)
@@ -1533,6 +1598,9 @@ public class Node implements Closeable {
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
                 b.bind(SegmentReplicator.class).toInstance(segmentReplicator);
+                b.bind(MergedSegmentWarmerFactory.class).toInstance(mergedSegmentWarmerFactory);
+                b.bind(MappingTransformerRegistry.class).toInstance(mappingTransformerRegistry);
+                b.bind(AutoForceMergeManager.class).toInstance(autoForceMergeManager);
 
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
@@ -1648,7 +1716,7 @@ public class Node implements Closeable {
         nodeService.getMonitorService().start();
         nodeService.getSearchBackpressureService().start();
         nodeService.getTaskCancellationMonitoringService().start();
-        injector.getInstance(QueryGroupService.class).start();
+        injector.getInstance(WorkloadGroupService.class).start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -1659,7 +1727,7 @@ public class Node implements Closeable {
         injector.getInstance(GatewayService.class).start();
         Discovery discovery = injector.getInstance(Discovery.class);
         discovery.setNodeConnectionsService(nodeConnectionsService);
-        clusterService.getClusterManagerService().setClusterStatePublisher(discovery::publish);
+        clusterService.getClusterManagerService().setClusterStatePublisher(discovery);
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
@@ -1735,6 +1803,7 @@ public class Node implements Closeable {
         // start after transport service so the local disco is known
         discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
         clusterService.start();
+        this.autoForceMergeManager.start();
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
@@ -1822,14 +1891,14 @@ public class Node implements Closeable {
         injector.getInstance(FsHealthService.class).stop();
         injector.getInstance(NodeResourceUsageTracker.class).stop();
         injector.getInstance(ResourceUsageCollectorService.class).stop();
-        injector.getInstance(QueryGroupService.class).stop();
+        injector.getInstance(WorkloadGroupService.class).stop();
         nodeService.getMonitorService().stop();
         nodeService.getSearchBackpressureService().stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
         nodeService.getTaskCancellationMonitoringService().stop();
-
+        autoForceMergeManager.stop();
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
@@ -1929,7 +1998,7 @@ public class Node implements Closeable {
         if (logger.isTraceEnabled()) {
             toClose.add(() -> logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint()));
         }
-
+        autoForceMergeManager.stop();
         IOUtils.close(toClose);
         logger.info("closed");
     }
@@ -2124,7 +2193,7 @@ public class Node implements Closeable {
         return networkModule.getHttpServerTransportSupplier().get();
     }
 
-    protected List<NetworkPlugin.AuxTransport> newAuxTransports(NetworkModule networkModule) {
+    protected List<AuxTransport> newAuxTransports(NetworkModule networkModule) {
         return networkModule.getAuxServerTransportList();
     }
 
@@ -2163,13 +2232,13 @@ public class Node implements Closeable {
     }
 
     /**
-     * Initializes the search cache with a defined capacity.
+     * Initializes the warm cache with a defined capacity.
      * The capacity of the cache is based on user configuration for {@link Node#NODE_SEARCH_CACHE_SIZE_SETTING}.
-     * If the user doesn't configure the cache size, it fails if the node is a data + search node.
-     * Else it configures the size to 80% of total capacity for a dedicated search node, if not explicitly defined.
+     * If the user doesn't configure the cache size, it fails if the node is a data + warm node.
+     * Else it configures the size to 80% of total capacity for a dedicated warm node, if not explicitly defined.
      */
     private void initializeFileCache(Settings settings, CircuitBreaker circuitBreaker) throws IOException {
-        if (DiscoveryNode.isSearchNode(settings) == false) {
+        if (DiscoveryNode.isWarmNode(settings) == false) {
             return;
         }
 
@@ -2178,7 +2247,7 @@ public class Node implements Closeable {
         if (capacityRaw.equals(ZERO)) {
             throw new SettingsException(
                 "Unable to initialize the "
-                    + DiscoveryNodeRole.SEARCH_ROLE.roleName()
+                    + DiscoveryNodeRole.WARM_ROLE.roleName()
                     + "-"
                     + DiscoveryNodeRole.DATA_ROLE.roleName()
                     + " node: Missing value for configuration "
@@ -2195,7 +2264,7 @@ public class Node implements Closeable {
 
         this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
-        List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
+        List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath, settings);
         this.fileCache.restoreFromDirectory(fileCacheDataPaths);
     }
 
@@ -2219,7 +2288,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Returns the {@link FileCache} instance for remote search node
+     * Returns the {@link FileCache} instance for remote warm node
      * Note: Visible for testing
      */
     public FileCache fileCache() {

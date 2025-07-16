@@ -128,10 +128,10 @@ public class MultiOrdinalsTests extends OpenSearchTestCase {
                     assertThat((long) singleOrds.ordValue(), equalTo(docOrds.get(0)));
 
                     assertTrue(docs.advanceExact(docId));
+                    assertEquals(docOrds.size(), docs.docValueCount());
                     for (Long ord : docOrds) {
                         assertThat(docs.nextOrd(), equalTo(ord));
                     }
-                    assertEquals(SortedSetDocValues.NO_MORE_DOCS, docs.nextOrd());
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
                     assertFalse(singleOrds.advanceExact(i));
@@ -277,10 +277,10 @@ public class MultiOrdinalsTests extends OpenSearchTestCase {
             long[] ords = ordinalPlan[doc];
             assertEquals(ords.length > 0, docs.advanceExact(doc));
             if (ords.length > 0) {
+                assertEquals(ords.length, docs.docValueCount());
                 for (long ord : ords) {
                     assertThat(docs.nextOrd(), equalTo(ord));
                 }
-                assertThat(docs.nextOrd(), equalTo((long) SortedSetDocValues.NO_MORE_DOCS));
             }
         }
     }

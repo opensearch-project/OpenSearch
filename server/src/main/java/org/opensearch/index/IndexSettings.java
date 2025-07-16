@@ -78,10 +78,11 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOC
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
-import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -726,8 +727,8 @@ public final class IndexSettings {
 
     public static final Setting<Integer> INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT = Setting.intSetting(
         "index.search.concurrent.max_slice_count",
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
+        CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
+        CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -782,6 +783,13 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_AUTO_FORCE_MERGES_ENABLED = Setting.boolSetting(
+        "index.auto_force_merge.enabled",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -790,11 +798,13 @@ public final class IndexSettings {
     private final int numberOfShards;
     private final ReplicationType replicationType;
     private volatile boolean isRemoteStoreEnabled;
-    private final boolean isStoreLocalityPartial;
+    // For warm index we would partially store files in local.
+    private final boolean isWarmIndex;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
+    private boolean autoForcemergeEnabled;
     private Version extendedCompatibilitySnapshotVersion;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -912,7 +922,15 @@ public final class IndexSettings {
      */
     private volatile double docIdFuzzySetFalsePositiveProbability;
 
+    /**
+     * Denotes whether this is a composite index i.e star-tree index etc
+     */
     private final boolean isCompositeIndex;
+
+    /**
+     * Denotes whether search via star tree index is enabled for this index
+     */
+    private volatile boolean isStarTreeIndexEnabled;
 
     /**
      * Returns the default search fields for this index.
@@ -969,7 +987,7 @@ public final class IndexSettings {
      * while index level settings will overwrite node settings.
      *
      * @param indexMetadata the index metadata this settings object is associated with
-     * @param nodeSettings the nodes settings this index is allocated on.
+     * @param nodeSettings  the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings) {
         this(indexMetadata, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
@@ -980,7 +998,7 @@ public final class IndexSettings {
      * while index level settings will overwrite node settings.
      *
      * @param indexMetadata the index metadata this settings object is associated with
-     * @param nodeSettings the nodes settings this index is allocated on.
+     * @param nodeSettings  the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
@@ -994,10 +1012,9 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        isStoreLocalityPartial = settings.get(
-            IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(),
-            IndexModule.DataLocalityType.FULL.toString()
-        ).equalsIgnoreCase(IndexModule.DataLocalityType.PARTIAL.toString());
+
+        isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
+
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
@@ -1078,6 +1095,7 @@ public final class IndexSettings {
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
         isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
+        isStarTreeIndexEnabled = scopedSettings.get(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1095,8 +1113,8 @@ public final class IndexSettings {
             tieredMergePolicyProvider::setFloorSegmentSetting
         );
         scopedSettings.addSettingsUpdateConsumer(
-            TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
-            tieredMergePolicyProvider::setMaxMergesAtOnce
+            this::updateMaxMergesAtOnce,
+            List.of(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING)
         );
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
@@ -1185,6 +1203,8 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
+        this.autoForcemergeEnabled = scopedSettings.get(INDEX_AUTO_FORCE_MERGES_ENABLED);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_AUTO_FORCE_MERGES_ENABLED, this::setAutoForcemergeEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
@@ -1200,6 +1220,7 @@ public final class IndexSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             this::setRemoteStoreTranslogRepository
         );
+        scopedSettings.addSettingsUpdateConsumer(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING, this::setStarTreeIndexEnabled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1251,6 +1272,33 @@ public final class IndexSettings {
     }
 
     /**
+     * Update the default maxMergesAtOnce
+     * 1. sets the new default in {@code TieredMergePolicyProvider}
+     * 2. sets the maxMergesAtOnce on the actual TieredMergePolicy used by the engine if no index level override exists
+     */
+    void setDefaultMaxMergesAtOnce(int newDefaultMaxMergesAtOnce) {
+        tieredMergePolicyProvider.setDefaultMaxMergesAtOnce(newDefaultMaxMergesAtOnce);
+        if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(getSettings()) == false) {
+            tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
+        }
+    }
+
+    /**
+     * Updates the maxMergesAtOnce for actual TieredMergePolicy used by the engine.
+     * Sets it to default maxMergesAtOnce if index level settings is being removed
+     */
+    void updateMaxMergesAtOnce(Settings updatedSettings) {
+        if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(updatedSettings) == false) {
+            logger.debug("Resetting maxMergesAtOnce to cluster default");
+            tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
+        } else {
+            tieredMergePolicyProvider.setMaxMergesAtOnce(
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.get(updatedSettings)
+            );
+        }
+    }
+
+    /**
      * Returns the settings for this index. These settings contain the node and index level settings where
      * settings that are specified on both index and node level are overwritten by the index settings.
      */
@@ -1288,6 +1336,7 @@ public final class IndexSettings {
 
     /**
      * Returns the version the index was created on.
+     *
      * @see IndexMetadata#indexCreated(Settings)
      */
     public Version getIndexVersionCreated() {
@@ -1328,7 +1377,7 @@ public final class IndexSettings {
 
     /**
      * Returns true if segment replication is enabled on the index.
-     *
+     * <p>
      * Every shard on a remote node would also have SegRep enabled even without
      * proper index setting during the migration.
      */
@@ -1338,6 +1387,10 @@ public final class IndexSettings {
 
     public boolean isSegRepLocalEnabled() {
         return ReplicationType.SEGMENT.equals(replicationType) && !isRemoteStoreEnabled();
+    }
+
+    public boolean isDocumentReplication() {
+        return ReplicationType.DOCUMENT.equals(replicationType);
     }
 
     /**
@@ -1372,10 +1425,10 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns true if the store locality is partial
+     * Returns true if the index is writable warm index and has partial store locality.
      */
-    public boolean isStoreLocalityPartial() {
-        return isStoreLocalityPartial;
+    public boolean isWarmIndex() {
+        return isWarmIndex;
     }
 
     /**
@@ -1487,6 +1540,7 @@ public final class IndexSettings {
     /**
      * Returns the translog sync/upload buffer interval when remote translog store is enabled and index setting
      * {@code index.translog.durability} is set as {@code request}.
+     *
      * @return the buffer interval.
      */
     public TimeValue getRemoteTranslogUploadBufferInterval() {
@@ -1510,6 +1564,14 @@ public final class IndexSettings {
 
     public void setRemoteTranslogKeepExtraGen(int extraGen) {
         this.remoteTranslogKeepExtraGen = extraGen;
+    }
+
+    public void setAutoForcemergeEnabled(boolean autoForcemergeEnabled) {
+        this.autoForcemergeEnabled = autoForcemergeEnabled;
+    }
+
+    public boolean isAutoForcemergeEnabled() {
+        return this.autoForcemergeEnabled;
     }
 
     /**
@@ -1606,6 +1668,7 @@ public final class IndexSettings {
 
     /**
      * Returns the max number of filters in adjacency_matrix aggregation search requests
+     *
      * @deprecated This setting will be removed in 8.0
      */
     @Deprecated
@@ -1678,7 +1741,7 @@ public final class IndexSettings {
     }
 
     /**
-     *  Returns the maximum number of chars that will be analyzed in a highlight request
+     * Returns the maximum number of chars that will be analyzed in a highlight request
      */
     public int getHighlightMaxAnalyzedOffset() {
         return this.maxAnalyzedOffset;
@@ -1689,7 +1752,7 @@ public final class IndexSettings {
     }
 
     /**
-     *  Returns the maximum number of terms that can be used in a Terms Query request
+     * Returns the maximum number of terms that can be used in a Terms Query request
      */
     public int getMaxTermsCount() {
         return this.maxTermsCount;
@@ -1728,8 +1791,17 @@ public final class IndexSettings {
         return gcDeletesInMillis;
     }
 
+    public void setStarTreeIndexEnabled(boolean value) {
+        this.isStarTreeIndexEnabled = value;
+    }
+
+    public boolean getStarTreeIndexEnabled() {
+        return isStarTreeIndexEnabled;
+    }
+
     /**
      * Returns the merge policy that should be used for this index.
+     *
      * @param isTimeSeriesIndex true if index contains @timestamp field
      */
     public MergePolicy getMergePolicy(boolean isTimeSeriesIndex) {
@@ -1890,7 +1962,6 @@ public final class IndexSettings {
 
     /**
      * Returns true if unreferenced files should be cleaned up on merge failure for this index.
-     *
      */
     public boolean shouldCleanupUnreferencedFiles() {
         return shouldCleanupUnreferencedFiles;
@@ -1993,6 +2064,7 @@ public final class IndexSettings {
 
     /**
      * Returns true if we need to maintain backward compatibility for index sorted indices created prior to version 2.7
+     *
      * @return boolean
      */
     public boolean shouldWidenIndexSortType() {

@@ -10,6 +10,7 @@ package org.opensearch.index.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
@@ -24,18 +25,24 @@ import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.opensearch.index.store.remote.utils.FileTypeUtils.BLOCK_FILE_IDENTIFIER;
+import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
 
 /**
  * Composite Directory will contain both local and remote directory
@@ -48,10 +55,10 @@ import java.util.stream.Collectors;
 @ExperimentalApi
 public class CompositeDirectory extends FilterDirectory {
     private static final Logger logger = LogManager.getLogger(CompositeDirectory.class);
-    private final FSDirectory localDirectory;
-    private final RemoteSegmentStoreDirectory remoteDirectory;
-    private final FileCache fileCache;
-    private final TransferManager transferManager;
+    protected final FSDirectory localDirectory;
+    protected final RemoteSegmentStoreDirectory remoteDirectory;
+    protected final FileCache fileCache;
+    protected final TransferManager transferManager;
 
     /**
      * Constructor to initialise the composite directory
@@ -75,21 +82,66 @@ public class CompositeDirectory extends FilterDirectory {
     }
 
     /**
+     * Returns names of all files stored in local directory
+     * @throws IOException in case of I/O error
+     */
+    private String[] listLocalFiles() throws IOException {
+        ensureOpen();
+        logger.trace("Composite Directory[{}]: listLocalOnly() called", this::toString);
+        return localDirectory.listAll();
+    }
+
+    /**
+     * Returns a list of names of all block files stored in the local directory for a given file,
+     * including the original file itself if present.
+     *
+     * @param fileName The name of the file to search for, along with its associated block files.
+     * @return A list of file names, including the original file (if present) and all its block files.
+     * @throws IOException in case of I/O error while listing files.
+     */
+    protected List<String> listBlockFiles(String fileName) throws IOException {
+        return Stream.of(listLocalFiles())
+            .filter(file -> file.equals(fileName) || file.startsWith(fileName + FileTypeUtils.BLOCK_FILE_IDENTIFIER))
+            .collect(Collectors.toList());
+    }
+
+    /**
      * Returns names of all files stored in this directory in sorted order
      * Does not include locally stored block files (having _block_ in their names) and files pending deletion
      *
      * @throws IOException in case of I/O error
      */
+    // TODO: https://github.com/opensearch-project/OpenSearch/issues/17527
     @Override
     public String[] listAll() throws IOException {
         ensureOpen();
         logger.trace("Composite Directory[{}]: listAll() called", this::toString);
         String[] localFiles = localDirectory.listAll();
-        Set<String> allFiles = new HashSet<>(Arrays.asList(localFiles));
-        String[] remoteFiles = getRemoteFiles();
-        allFiles.addAll(Arrays.asList(remoteFiles));
+        String[] remoteFiles;
+
+        // Check if local directory has any segments_n files
+        boolean hasLocalSegments = Arrays.stream(localFiles).anyMatch(fileName -> fileName.startsWith(IndexFileNames.SEGMENTS));
+
+        try {
+            if (hasLocalSegments) {
+                // If local has segments_n, filter out segments_n from remote
+                remoteFiles = Arrays.stream(remoteDirectory.listAll())
+                    .filter(fileName -> !fileName.startsWith(IndexFileNames.SEGMENTS))
+                    .toArray(String[]::new);
+            } else {
+                // If local doesn't have segments_n, include all remote files
+                remoteFiles = remoteDirectory.listAll();
+            }
+        } catch (NullPointerException e) {
+            remoteFiles = new String[] {};
+        }
+
         logger.trace("Composite Directory[{}]: Local Directory files - {}", this::toString, () -> Arrays.toString(localFiles));
-        logger.trace("Composite Directory[{}]: Remote Directory files - {}", this::toString, () -> Arrays.toString(remoteFiles));
+        String[] finalRemoteFiles = remoteFiles;
+        logger.trace("Composite Directory[{}]: Remote Directory files - {}", this::toString, () -> Arrays.toString(finalRemoteFiles));
+        Set<String> allFiles = Stream.concat(Arrays.stream(localFiles), Arrays.stream(remoteFiles))
+            .map(s -> s.contains(BLOCK_FILE_IDENTIFIER) ? s.substring(0, s.indexOf(BLOCK_FILE_IDENTIFIER)) : s)
+            .collect(Collectors.toSet());
         Set<String> nonBlockLuceneFiles = allFiles.stream()
             .filter(file -> !FileTypeUtils.isBlockFile(file))
             .collect(Collectors.toUnmodifiableSet());
@@ -105,6 +157,7 @@ public class CompositeDirectory extends FilterDirectory {
      * Currently deleting only from local directory as files from remote should not be deleted as that is taken care by garbage collection logic of remote directory
      * @param name the name of an existing file.
      * @throws IOException in case of I/O error
+     * @throws NoSuchFileException when file does not exist in the directory
      */
     @Override
     public void deleteFile(String name) throws IOException {
@@ -113,9 +166,28 @@ public class CompositeDirectory extends FilterDirectory {
         if (FileTypeUtils.isTempFile(name)) {
             localDirectory.deleteFile(name);
         } else if (Arrays.asList(listAll()).contains(name) == false) {
-            throw new NoSuchFileException("File " + name + " not found in directory");
+            /*
+             We can run into scenarios where stale files are evicted locally (zero refCount in FileCache) and
+             not present in remote as well (due to metadata refresh). In such scenarios listAll() of composite directory
+             will not show the file. Hence, we need to silently fail deleteFile operation for such files.
+             */
+            return;
         } else {
-            fileCache.remove(getFilePath(name));
+            List<String> blockFiles = listBlockFiles(name);
+            if (blockFiles.isEmpty()) {
+                // Remove this condition when this issue is addressed.
+                // TODO: https://github.com/opensearch-project/OpenSearch/issues/17526
+                logger.debug("The file [{}] or its block files do not exist in local directory", name);
+            } else {
+                for (String blockFile : blockFiles) {
+                    if (fileCache.get(getFilePath(blockFile)) == null) {
+                        logger.debug("The file [{}] exists in local but not part of FileCache, deleting it from local", blockFile);
+                        localDirectory.deleteFile(blockFile);
+                    } else {
+                        fileCache.remove(getFilePath(blockFile));
+                    }
+                }
+            }
         }
     }
 
@@ -177,10 +249,16 @@ public class CompositeDirectory extends FilterDirectory {
     public void sync(Collection<String> names) throws IOException {
         ensureOpen();
         logger.trace("Composite Directory[{}]: sync() called {}", this::toString, () -> names);
-        Collection<String> remoteFiles = Arrays.asList(getRemoteFiles());
-        Collection<String> filesToSync = names.stream().filter(name -> remoteFiles.contains(name) == false).collect(Collectors.toList());
-        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> filesToSync);
-        localDirectory.sync(filesToSync);
+        Set<String> remoteFiles = Set.of(getRemoteFiles());
+        Set<String> localFilesHavingBlocks = Arrays.stream(listLocalFiles())
+            .filter(FileTypeUtils::isBlockFile)
+            .map(file -> file.substring(0, file.indexOf(BLOCK_FILE_IDENTIFIER)))
+            .collect(Collectors.toSet());
+        Collection<String> fullFilesToSync = names.stream()
+            .filter(name -> (remoteFiles.contains(name) == false) && (localFilesHavingBlocks.contains(name) == false))
+            .collect(Collectors.toList());
+        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> fullFilesToSync);
+        localDirectory.sync(fullFilesToSync);
     }
 
     /**
@@ -215,7 +293,27 @@ public class CompositeDirectory extends FilterDirectory {
         }
         // Return directly from the FileCache (via TransferManager) if complete file is present
         Path key = getFilePath(name);
-        CachedIndexInput indexInput = fileCache.get(key);
+
+        CachedIndexInput indexInput = fileCache.compute(key, (path, cachedIndexInput) -> {
+            // If entry exists and is not closed, use it
+            if (cachedIndexInput != null && cachedIndexInput.isClosed() == false) {
+                return cachedIndexInput;
+            }
+
+            // If entry is closed but file exists locally, create new IndexInput from local
+            if (cachedIndexInput != null && cachedIndexInput.isClosed() && Files.exists(key)) {
+                try {
+                    assert cachedIndexInput instanceof RestoredCachedIndexInput;
+                    return new CachedFullFileIndexInput(fileCache, key, localDirectory.openInput(name, IOContext.DEFAULT));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // Return null to fall back to remote store block download/existing block reuse.
+            return null;
+        });
+
         if (indexInput != null) {
             logger.trace("Composite Directory[{}]: Complete file {} found in FileCache", this::toString, () -> name);
             try {
@@ -236,7 +334,8 @@ public class CompositeDirectory extends FilterDirectory {
             if (uploadedSegmentMetadata == null) {
                 throw new NoSuchFileException("File " + name + " not found in directory");
             }
-            // TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot specific
+            // TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot
+            // specific
             BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
                 name,
                 new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(), uploadedSegmentMetadata.getChecksum(), Version.LATEST),
@@ -254,6 +353,14 @@ public class CompositeDirectory extends FilterDirectory {
     public void close() throws IOException {
         ensureOpen();
         logger.trace("Composite Directory[{}]: close() called", this::toString);
+        String[] localFiles = listLocalFiles();
+        for (String localFile : localFiles) {
+            // Delete segments_N file with ref count 1 created during index creation on replica shards
+            // TODO: https://github.com/opensearch-project/OpenSearch/issues/17534
+            if (localFile.startsWith(SEGMENTS)) {
+                fileCache.remove(getFilePath(localFile));
+            }
+        }
         localDirectory.close();
     }
 
@@ -269,19 +376,15 @@ public class CompositeDirectory extends FilterDirectory {
      */
     public void afterSyncToRemote(String file) {
         ensureOpen();
-        /*
-        Decrementing the refCount here for the path so that it becomes eligible for eviction
-        This is a temporary solution until pinning support is added
-        TODO - Unpin the files here from FileCache so that they become eligible for eviction, once pinning/unpinning support is added in FileCache
-        Uncomment the below commented line(to remove the file from cache once uploaded) to test block based functionality
-         */
+
         logger.trace(
             "Composite Directory[{}]: File {} uploaded to Remote Store and now can be eligible for eviction in FileCache",
             this::toString,
             () -> file
         );
-        fileCache.decRef(getFilePath(file));
-        // fileCache.remove(getFilePath(fileName));
+        final Path filePath = getFilePath(file);
+        fileCache.unpin(filePath);
+        // fileCache.remove(filePath);
     }
 
     // Visibility public since we need it in IT tests
@@ -330,14 +433,12 @@ public class CompositeDirectory extends FilterDirectory {
         return remoteFiles;
     }
 
-    private void cacheFile(String name) throws IOException {
+    protected void cacheFile(String name) throws IOException {
         Path filePath = getFilePath(name);
-        // put will increase the refCount for the path, making sure it is not evicted, will decrease the ref after it is uploaded to Remote
-        // so that it can be evicted after that
-        // this is just a temporary solution, will pin the file once support for that is added in FileCache
-        // TODO : Pin the above filePath in the file cache once pinning support is added so that it cannot be evicted unless it has been
-        // successfully uploaded to Remote
+
         fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
+        fileCache.pin(filePath);
+        fileCache.decRef(filePath);
     }
 
 }

@@ -45,7 +45,7 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
     }
 
     @Override
-    public ContextualProfileBreakdown<QueryTimingType> getQueryBreakdown(Query query) {
+    public ContextualProfileBreakdown getQueryBreakdown(Query query) {
         ConcurrentQueryProfileTree profileTree = threadToProfileTree.computeIfAbsent(
             getCurrentThreadId(),
             k -> new ConcurrentQueryProfileTree()
@@ -81,7 +81,7 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
      */
     @Override
     public void startRewriteTime() {
-        Timer rewriteTimer = new Timer();
+        Timer rewriteTimer = new Timer("rewrite_timer");
         threadToRewriteTimers.computeIfAbsent(getCurrentThreadId(), k -> new LinkedList<>()).add(rewriteTimer);
         rewriteTimer.start();
     }
@@ -129,6 +129,6 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
     }
 
     private long getCurrentThreadId() {
-        return Thread.currentThread().getId();
+        return Thread.currentThread().threadId();
     }
 }
