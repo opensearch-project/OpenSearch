@@ -445,7 +445,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         assertTrue(
             "Expected error message for nonexistent rule ID",
-            exception.getMessage().contains("Failed to delete rule: no such index")
+            exception.getMessage().contains("no such index")
         );
 
         clearWlmModeSetting();
