@@ -154,7 +154,6 @@ public class LeaderChecker {
             LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING,
             this::setLeaderCheckFailFastOnStateRejectionSetting
         );
-
         transportService.registerRequestHandler(
             LEADER_CHECK_ACTION_NAME,
             Names.SAME,
