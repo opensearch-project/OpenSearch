@@ -39,6 +39,7 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.geometry.Geometry;
+import org.opensearch.index.query.CombinedFieldsQueryBuilder;
 import org.opensearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -116,10 +117,10 @@ public final class QueryBuilders {
      *
      * @param value   The query value (to be analyzed).
      * @param fields  The target field names.
-     * @return a {@link org.opensearch.index.query.CombinedFieldsQueryBuilder} instance.
+     * @return a {@link CombinedFieldsQueryBuilder} instance.
      */
-    public static org.opensearch.index.query.CombinedFieldsQueryBuilder combinedFieldsQuery(Object value, String... fields) {
-        return new org.opensearch.index.query.CombinedFieldsQueryBuilder(value, fields);
+    public static CombinedFieldsQueryBuilder combinedFieldsQuery(Object value, String... fields) {
+        return new CombinedFieldsQueryBuilder(value, fields);
     }
 
     /**

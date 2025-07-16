@@ -22,6 +22,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -51,10 +52,12 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField OPERATOR_FIELD = new ParseField("operator");
+    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
 
     private Object queryValue;
     private Map<String, Float> fieldToWeight;
     private Operator operator = Operator.OR;
+    private String minimumShouldMatch;
 
     /**
      * Constructor for CombinedFieldsQueryBuilder.
@@ -81,6 +84,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      * - numFields of fieldToWeight map (var int)
      * - repeated field name and weight pairs (string, float)
      * - operator (enum)
+     * - minimumShouldMatch (string)
      * @param in
      * @throws IOException
      */
@@ -99,6 +103,8 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
 
         this.operator = Operator.readFromStream(in);
+
+        this.minimumShouldMatch = in.readOptionalString();
     }
 
     /*
@@ -110,6 +116,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      * - numFields of fieldToWeight map (var int)
      * - repeated field name and weight pairs (string, float)
      * - operator (enum)
+     * - minimumShouldMatch (string)
      */
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
@@ -122,6 +129,8 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
 
         this.operator.writeTo(out);
+
+        out.writeOptionalString(minimumShouldMatch);
     }
 
     // ========================
@@ -160,6 +169,15 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         return this;
     }
 
+    public CombinedFieldsQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    public String minimumShouldMatch() {
+        return this.minimumShouldMatch;
+    }
+
     // ========================
     // XCONTENT SERIALIZATION
     // ========================
@@ -174,6 +192,9 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
         builder.endArray();
         builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        if (minimumShouldMatch != null) {
+            builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -199,6 +220,12 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         XCONTENT_PARSER.declareFloat(CombinedFieldsQueryBuilder::boost, BOOST_FIELD);
         XCONTENT_PARSER.declareString(CombinedFieldsQueryBuilder::queryName, NAME_FIELD);
+        XCONTENT_PARSER.declareField(
+            CombinedFieldsQueryBuilder::minimumShouldMatch,
+            (p, c) -> p.textOrNull(),
+            MINIMUM_SHOULD_MATCH_FIELD,
+            ObjectParser.ValueType.VALUE
+        );
     }
 
     public static CombinedFieldsQueryBuilder fromXContent(XContentParser parser) throws IOException {
@@ -301,10 +328,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         assert mappedFieldToWeight.isEmpty() == false;
 
         String placeholderFieldName = mappedFieldToWeight.keySet().iterator().next();
-        Builder builder = new Builder(mappedFieldToWeight, sharedAnalyzer, this.operator);
+        Builder builder = new Builder(mappedFieldToWeight, sharedAnalyzer, this.operator, this.minimumShouldMatch);
         Query query = builder.createBooleanQuery(placeholderFieldName, this.queryValue.toString(), this.operator.toBooleanClauseOccur());
 
-        return query == null ? createZeroTermsQuery() : query;
+        return query == null ? createZeroTermsQuery() : Queries.maybeApplyMinimumShouldMatch(query, this.minimumShouldMatch);
     }
 
     private Query createZeroTermsQuery() {
@@ -322,11 +349,13 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     private static class Builder extends QueryBuilder {
         private final Map<String, Float> mappedFieldToWeight;
         private final Operator operator;
+        private final String minimumShouldMatch;
 
-        Builder(Map<String, Float> mappedFieldToWeight, Analyzer analyzer, Operator operator) {
+        Builder(Map<String, Float> mappedFieldToWeight, Analyzer analyzer, Operator operator, String minimumShouldMatch) {
             super(analyzer);
             this.mappedFieldToWeight = mappedFieldToWeight;
             this.operator = operator;
+            this.minimumShouldMatch = minimumShouldMatch;
         }
 
         @Override
@@ -354,6 +383,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
                 builder.add(combinedFieldBuilder.build(), occur);
             }
+
             return builder.build();
         }
 
@@ -370,14 +400,15 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(queryValue, fieldToWeight, operator);
+        return Objects.hash(queryValue, fieldToWeight, operator, minimumShouldMatch);
     }
 
     @Override
     protected boolean doEquals(CombinedFieldsQueryBuilder other) {
         return Objects.equals(queryValue, other.queryValue)
             && Objects.equals(fieldToWeight, other.fieldToWeight)
-            && Objects.equals(operator, other.operator);
+            && Objects.equals(operator, other.operator)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch);
     }
 
 }

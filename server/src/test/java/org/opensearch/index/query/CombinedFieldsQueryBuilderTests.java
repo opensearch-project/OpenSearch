@@ -116,6 +116,11 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
             queryBuilder.operator(randomFrom(Operator.values()));
         }
 
+        // Add minimum_should_match configuration
+        if (randomBoolean()) {
+            queryBuilder.minimumShouldMatch(randomMinimumShouldMatch());
+        }
+
         return queryBuilder;
     }
 
@@ -195,12 +200,14 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         String queryText = "comprehensive test query with all features";
         CombinedFieldsQueryBuilder queryBuilder = new CombinedFieldsQueryBuilder(queryText, TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME + "^1.5")
             .operator(Operator.AND)
+            .minimumShouldMatch("75%")
             .boost(1.8f)
             .queryName("comprehensive_test");
 
         assertEquals("Query text should match", queryText, queryBuilder.queryValue());
         assertEquals("Field count should be 2", 2, queryBuilder.fieldToWeight().size());
         assertEquals("Operator should be AND", Operator.AND, queryBuilder.operator());
+        assertEquals("Minimum should match should be 75%", "75%", queryBuilder.minimumShouldMatch());
         assertEquals("Boost should be 1.8", 1.8f, queryBuilder.boost(), 1e-6);
         assertEquals("Query name should match", "comprehensive_test", queryBuilder.queryName());
 
@@ -273,6 +280,196 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
     }
 
     // ========================
+    // MINIMUM_SHOULD_MATCH TESTS
+    // ========================
+
+    /**
+     * Tests minimum_should_match configuration and getter/setter methods.
+     */
+    public void testMinimumShouldMatchConfiguration() {
+        String queryText = "minimum should match test";
+        CombinedFieldsQueryBuilder queryBuilder = new CombinedFieldsQueryBuilder(queryText, TEXT_FIELD_NAME);
+
+        // Test setting minimum_should_match
+        String minimumShouldMatch = "75%";
+        queryBuilder.minimumShouldMatch(minimumShouldMatch);
+        assertEquals("Minimum should match should be set correctly", minimumShouldMatch, queryBuilder.minimumShouldMatch());
+
+        // Test setting numeric value
+        String numericValue = "2";
+        queryBuilder.minimumShouldMatch(numericValue);
+        assertEquals("Numeric minimum should match should be set correctly", numericValue, queryBuilder.minimumShouldMatch());
+
+        // Test setting null value
+        queryBuilder.minimumShouldMatch(null);
+        assertNull("Null minimum should match should be set correctly", queryBuilder.minimumShouldMatch());
+
+        // Test method chaining
+        CombinedFieldsQueryBuilder chained = queryBuilder.minimumShouldMatch("50%");
+        assertSame("Method chaining should return same instance", queryBuilder, chained);
+        assertEquals("Chained minimum should match should be set", "50%", queryBuilder.minimumShouldMatch());
+    }
+
+    /**
+     * Tests minimum_should_match JSON serialization and parsing.
+     */
+    public void testMinimumShouldMatchJsonSerialization() throws IOException {
+        // Test with percentage value
+        String jsonWithPercentage = "{\n"
+            + "  \"combined_fields\" : {\n"
+            + "    \"query\" : \"test query\",\n"
+            + "    \"fields\" : [ \"content\" ],\n"
+            + "    \"minimum_should_match\" : \"75%\"\n"
+            + "  }\n"
+            + "}";
+
+        CombinedFieldsQueryBuilder parsedWithPercentage = (CombinedFieldsQueryBuilder) parseQuery(jsonWithPercentage);
+        assertEquals("Percentage minimum should match should be parsed correctly", "75%", parsedWithPercentage.minimumShouldMatch());
+
+        // Test with numeric value
+        String jsonWithNumber = "{\n"
+            + "  \"combined_fields\" : {\n"
+            + "    \"query\" : \"test query\",\n"
+            + "    \"fields\" : [ \"content\" ],\n"
+            + "    \"minimum_should_match\" : \"2\"\n"
+            + "  }\n"
+            + "}";
+
+        CombinedFieldsQueryBuilder parsedWithNumber = (CombinedFieldsQueryBuilder) parseQuery(jsonWithNumber);
+        assertEquals("Numeric minimum should match should be parsed correctly", "2", parsedWithNumber.minimumShouldMatch());
+
+        // Test with complex value
+        String jsonWithComplex = "{\n"
+            + "  \"combined_fields\" : {\n"
+            + "    \"query\" : \"test query\",\n"
+            + "    \"fields\" : [ \"content\" ],\n"
+            + "    \"minimum_should_match\" : \"2<75%\"\n"
+            + "  }\n"
+            + "}";
+
+        CombinedFieldsQueryBuilder parsedWithComplex = (CombinedFieldsQueryBuilder) parseQuery(jsonWithComplex);
+        assertEquals("Complex minimum should match should be parsed correctly", "2<75%", parsedWithComplex.minimumShouldMatch());
+
+        // Test serialization round-trip
+        CombinedFieldsQueryBuilder original = new CombinedFieldsQueryBuilder("test query", "content")
+            .minimumShouldMatch("50%")
+            .operator(Operator.OR);
+        
+        String serialized = original.toString();
+        CombinedFieldsQueryBuilder deserialized = (CombinedFieldsQueryBuilder) parseQuery(serialized);
+        
+        assertEquals("Minimum should match should be preserved in serialization", 
+            original.minimumShouldMatch(), deserialized.minimumShouldMatch());
+    }
+
+    /**
+     * Tests minimum_should_match functional behavior with real queries.
+     */
+    public void testMinimumShouldMatchFunctionalBehavior() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        Analyzer analyzer = new StandardAnalyzer();
+        IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
+        IndexWriter writer = new IndexWriter(dir, iwc);
+
+        // Add test documents with multiple terms
+        addTestDocument(writer, "content", "machine learning algorithms");
+        addTestDocument(writer, "content", "machine learning");
+        addTestDocument(writer, "content", "machine");
+        addTestDocument(writer, "content", "learning algorithms");
+        addTestDocument(writer, "content", "algorithms");
+        writer.close();
+
+        IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        // Test with minimum_should_match = "2" (at least 2 terms)
+        CombinedFieldsQueryBuilder queryWithMin2 = new CombinedFieldsQueryBuilder("machine learning algorithms", "content")
+            .operator(Operator.OR)
+            .minimumShouldMatch("2");
+        
+        Query luceneQueryMin2 = queryWithMin2.toQuery(createShardContext());
+        TopDocs resultsMin2 = searcher.search(luceneQueryMin2, 10);
+
+        // Should match documents with at least 2 of the 3 terms
+        // The documents should be: "machine learning algorithms" (3 terms), "machine learning" (2 terms), "learning algorithms" (2 terms)
+        assertTrue("Should match documents with at least 2 terms", resultsMin2.totalHits.value() == 3);
+
+        // Test with minimum_should_match = "75%" (75% of terms, rounded down, so 2 terms)
+        CombinedFieldsQueryBuilder queryWithMin75 = new CombinedFieldsQueryBuilder("machine learning algorithms", "content")
+            .operator(Operator.OR)
+            .minimumShouldMatch("75%");
+        
+        Query luceneQueryMin75 = queryWithMin75.toQuery(createShardContext());
+        TopDocs resultsMin75 = searcher.search(luceneQueryMin75, 10);
+        
+        // 75% of 3 terms = 2.25, rounded up to 3 terms required
+        // This should match fewer documents than the "2" minimum_should_match
+        assertTrue("Should match documents with 75% of terms", resultsMin75.totalHits.value() == 3);
+
+        reader.close();
+        dir.close();
+    }
+
+    /**
+     * Tests minimum_should_match edge cases and validation.
+     */
+    public void testMinimumShouldMatchEdgeCases() {
+        String queryText = "test query";
+        CombinedFieldsQueryBuilder queryBuilder = new CombinedFieldsQueryBuilder(queryText, TEXT_FIELD_NAME);
+
+        // Test with empty string
+        queryBuilder.minimumShouldMatch("");
+        assertEquals("Empty string should be preserved", "", queryBuilder.minimumShouldMatch());
+
+        // Test with whitespace-only string
+        queryBuilder.minimumShouldMatch("   ");
+        assertEquals("Whitespace-only string should be preserved", "   ", queryBuilder.minimumShouldMatch());
+
+        // Test with very large number
+        queryBuilder.minimumShouldMatch("999999");
+        assertEquals("Large number should be preserved", "999999", queryBuilder.minimumShouldMatch());
+
+        // Test with negative percentage
+        queryBuilder.minimumShouldMatch("-25%");
+        assertEquals("Negative percentage should be preserved", "-25%", queryBuilder.minimumShouldMatch());
+    }
+
+    /**
+     * Tests minimum_should_match in equals and hashCode methods.
+     */
+    public void testMinimumShouldMatchEqualsAndHashCode() {
+        String queryText = "test query";
+        String field = "content";
+
+        CombinedFieldsQueryBuilder query1 = new CombinedFieldsQueryBuilder(queryText, field)
+            .minimumShouldMatch("75%");
+        
+        CombinedFieldsQueryBuilder query2 = new CombinedFieldsQueryBuilder(queryText, field)
+            .minimumShouldMatch("75%");
+        
+        CombinedFieldsQueryBuilder query3 = new CombinedFieldsQueryBuilder(queryText, field)
+            .minimumShouldMatch("50%");
+
+        // Test equals
+        assertEquals("Queries with same minimum_should_match should be equal", query1, query2);
+        assertNotEquals("Queries with different minimum_should_match should not be equal", query1, query3);
+
+        // Test hashCode
+        assertEquals("Queries with same minimum_should_match should have same hashCode", query1.hashCode(), query2.hashCode());
+        assertNotEquals("Queries with different minimum_should_match should have different hashCode", query1.hashCode(), query3.hashCode());
+
+        // Test with null minimum_should_match
+        CombinedFieldsQueryBuilder query4 = new CombinedFieldsQueryBuilder(queryText, field)
+            .minimumShouldMatch(null);
+        
+        CombinedFieldsQueryBuilder query5 = new CombinedFieldsQueryBuilder(queryText, field)
+            .minimumShouldMatch(null);
+
+        assertEquals("Queries with null minimum_should_match should be equal", query4, query5);
+        assertEquals("Queries with null minimum_should_match should have same hashCode", query4.hashCode(), query5.hashCode());
+    }
+
+    // ========================
     // SERIALIZATION TESTS
     // ========================
 
@@ -285,6 +482,7 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
             + "    \"query\" : \"distributed systems architecture\",\n"
             + "    \"fields\" : [ \"title^2.0\", \"content^1.5\", \"tags^0.8\", \"metadata^1.2\" ],\n"
             + "    \"operator\" : \"AND\",\n"
+            + "    \"minimum_should_match\" : \"75%\",\n"
             + "    \"boost\" : 1.5,\n"
             + "    \"_name\" : \"test_combined_fields_query\"\n"
             + "  }\n"
@@ -300,6 +498,7 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
             assertEquals("Field weight should match for " + entry.getKey(), weight, entry.getValue(), 1e-6);
         }
         assertEquals("Operator should match", Operator.AND, parsed.operator());
+        assertEquals("Minimum should match should match", "75%", parsed.minimumShouldMatch());
         assertEquals("Boost should match", 1.5f, parsed.boost(), 1e-6);
         assertEquals("Query name should match", "test_combined_fields_query", parsed.queryName());
     }
@@ -311,6 +510,7 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         String queryText = "serialization test query";
         CombinedFieldsQueryBuilder original = new CombinedFieldsQueryBuilder(queryText, TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME + "^1.5")
             .operator(Operator.OR)
+            .minimumShouldMatch("50%")
             .boost(2.0f)
             .queryName("serialization_test");
 
@@ -320,6 +520,7 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         assertEquals("Query value should be preserved", original.queryValue(), deserialized.queryValue());
         assertEquals("Fields should be preserved", original.fieldToWeight(), deserialized.fieldToWeight());
         assertEquals("Operator should be preserved", original.operator(), deserialized.operator());
+        assertEquals("Minimum should match should be preserved", original.minimumShouldMatch(), deserialized.minimumShouldMatch());
         assertEquals("Boost should be preserved", original.boost(), deserialized.boost(), 1e-6);
         assertEquals("Query name should be preserved", original.queryName(), deserialized.queryName());
     }
