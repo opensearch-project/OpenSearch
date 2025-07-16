@@ -39,7 +39,6 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.geometry.Geometry;
-import org.opensearch.index.query.CombinedFieldsQueryBuilder;
 import org.opensearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;

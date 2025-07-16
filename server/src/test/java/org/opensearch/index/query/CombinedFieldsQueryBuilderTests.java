@@ -351,15 +351,17 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         assertEquals("Complex minimum should match should be parsed correctly", "2<75%", parsedWithComplex.minimumShouldMatch());
 
         // Test serialization round-trip
-        CombinedFieldsQueryBuilder original = new CombinedFieldsQueryBuilder("test query", "content")
-            .minimumShouldMatch("50%")
+        CombinedFieldsQueryBuilder original = new CombinedFieldsQueryBuilder("test query", "content").minimumShouldMatch("50%")
             .operator(Operator.OR);
-        
+
         String serialized = original.toString();
         CombinedFieldsQueryBuilder deserialized = (CombinedFieldsQueryBuilder) parseQuery(serialized);
-        
-        assertEquals("Minimum should match should be preserved in serialization", 
-            original.minimumShouldMatch(), deserialized.minimumShouldMatch());
+
+        assertEquals(
+            "Minimum should match should be preserved in serialization",
+            original.minimumShouldMatch(),
+            deserialized.minimumShouldMatch()
+        );
     }
 
     /**
@@ -383,10 +385,10 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // Test with minimum_should_match = "2" (at least 2 terms)
-        CombinedFieldsQueryBuilder queryWithMin2 = new CombinedFieldsQueryBuilder("machine learning algorithms", "content")
-            .operator(Operator.OR)
-            .minimumShouldMatch("2");
-        
+        CombinedFieldsQueryBuilder queryWithMin2 = new CombinedFieldsQueryBuilder("machine learning algorithms", "content").operator(
+            Operator.OR
+        ).minimumShouldMatch("2");
+
         Query luceneQueryMin2 = queryWithMin2.toQuery(createShardContext());
         TopDocs resultsMin2 = searcher.search(luceneQueryMin2, 10);
 
@@ -395,13 +397,13 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         assertTrue("Should match documents with at least 2 terms", resultsMin2.totalHits.value() == 3);
 
         // Test with minimum_should_match = "75%" (75% of terms, rounded down, so 2 terms)
-        CombinedFieldsQueryBuilder queryWithMin75 = new CombinedFieldsQueryBuilder("machine learning algorithms", "content")
-            .operator(Operator.OR)
-            .minimumShouldMatch("75%");
-        
+        CombinedFieldsQueryBuilder queryWithMin75 = new CombinedFieldsQueryBuilder("machine learning algorithms", "content").operator(
+            Operator.OR
+        ).minimumShouldMatch("75%");
+
         Query luceneQueryMin75 = queryWithMin75.toQuery(createShardContext());
         TopDocs resultsMin75 = searcher.search(luceneQueryMin75, 10);
-        
+
         // 75% of 3 terms = 2.25, rounded up to 3 terms required
         // This should match fewer documents than the "2" minimum_should_match
         assertTrue("Should match documents with 75% of terms", resultsMin75.totalHits.value() == 3);
@@ -441,14 +443,11 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         String queryText = "test query";
         String field = "content";
 
-        CombinedFieldsQueryBuilder query1 = new CombinedFieldsQueryBuilder(queryText, field)
-            .minimumShouldMatch("75%");
-        
-        CombinedFieldsQueryBuilder query2 = new CombinedFieldsQueryBuilder(queryText, field)
-            .minimumShouldMatch("75%");
-        
-        CombinedFieldsQueryBuilder query3 = new CombinedFieldsQueryBuilder(queryText, field)
-            .minimumShouldMatch("50%");
+        CombinedFieldsQueryBuilder query1 = new CombinedFieldsQueryBuilder(queryText, field).minimumShouldMatch("75%");
+
+        CombinedFieldsQueryBuilder query2 = new CombinedFieldsQueryBuilder(queryText, field).minimumShouldMatch("75%");
+
+        CombinedFieldsQueryBuilder query3 = new CombinedFieldsQueryBuilder(queryText, field).minimumShouldMatch("50%");
 
         // Test equals
         assertEquals("Queries with same minimum_should_match should be equal", query1, query2);
@@ -459,11 +458,9 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         assertNotEquals("Queries with different minimum_should_match should have different hashCode", query1.hashCode(), query3.hashCode());
 
         // Test with null minimum_should_match
-        CombinedFieldsQueryBuilder query4 = new CombinedFieldsQueryBuilder(queryText, field)
-            .minimumShouldMatch(null);
-        
-        CombinedFieldsQueryBuilder query5 = new CombinedFieldsQueryBuilder(queryText, field)
-            .minimumShouldMatch(null);
+        CombinedFieldsQueryBuilder query4 = new CombinedFieldsQueryBuilder(queryText, field).minimumShouldMatch(null);
+
+        CombinedFieldsQueryBuilder query5 = new CombinedFieldsQueryBuilder(queryText, field).minimumShouldMatch(null);
 
         assertEquals("Queries with null minimum_should_match should be equal", query4, query5);
         assertEquals("Queries with null minimum_should_match should have same hashCode", query4.hashCode(), query5.hashCode());
