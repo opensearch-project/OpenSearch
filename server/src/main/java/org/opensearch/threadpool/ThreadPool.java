@@ -124,6 +124,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
         public static final String REMOTE_STATE_CHECKSUM = "remote_state_checksum";
+        public static final String REPLICATION = "replication";
     }
 
     static Set<String> scalingThreadPoolKeys = new HashSet<>(Arrays.asList("max", "core"));
@@ -201,6 +202,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
         map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
+        map.put(Names.REPLICATION, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -252,8 +254,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
+        final int replicationThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
         final int snapshotDeletionPoolMax = boundedBy(4 * allocatedProcessors, 64, 256);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
+        builders.put(
+            Names.REPLICATION,
+            new ScalingExecutorBuilder(Names.REPLICATION, 4, replicationThreadPoolMax, TimeValue.timeValueSeconds(30))
+        );
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));

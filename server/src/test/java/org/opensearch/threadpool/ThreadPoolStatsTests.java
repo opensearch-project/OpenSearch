@@ -82,6 +82,7 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, -1, 0, 0, 0, 0, 0L, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.WARMER, -1, 0, 0, 0, 0, 0L, -1L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, -1, 0, 0, 0, 0, 0L, -1L));
+            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.REPLICATION, -1, 0, 0, 0, 0, 0L, -1L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L, -1L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L, -1L));
 
@@ -124,6 +125,7 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
                     contains(
                         ThreadPool.Names.FORCE_MERGE,
                         ThreadPool.Names.GENERIC,
+                        ThreadPool.Names.REPLICATION,
                         ThreadPool.Names.SAME,
                         ThreadPool.Names.SEARCH,
                         ThreadPool.Names.WARMER

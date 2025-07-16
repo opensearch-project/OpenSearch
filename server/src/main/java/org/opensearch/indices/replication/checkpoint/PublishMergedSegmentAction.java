@@ -60,7 +60,7 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
             actionFilters,
             PublishMergedSegmentRequest::new,
             PublishMergedSegmentRequest::new,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.REPLICATION,
             logger
         );
         this.replicationService = targetService;

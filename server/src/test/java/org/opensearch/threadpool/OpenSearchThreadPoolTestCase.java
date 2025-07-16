@@ -74,4 +74,7 @@ public abstract class OpenSearchThreadPoolTestCase extends OpenSearchTestCase {
         );
     }
 
+    public static boolean isGenericOrReplicationThreadPool(String threadPoolName) {
+        return ThreadPool.Names.GENERIC.equals(threadPoolName) || ThreadPool.Names.REPLICATION.equals(threadPoolName);
+    }
 }
