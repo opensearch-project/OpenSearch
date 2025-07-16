@@ -366,65 +366,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         return reducedBuckets;
     }
 
-    private List<B> reduceMergeSort3(List<InternalAggregation> aggregations, BucketOrder thisReduceOrder, ReduceContext reduceContext) {
-        assert isKeyOrder(thisReduceOrder);
-        final Comparator<MultiBucketsAggregation.Bucket> cmp = thisReduceOrder.comparator();
-
-        IteratorAndCurrent<B>[] iterators = new IteratorAndCurrent[aggregations.size()];
-        int activeIterators = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            @SuppressWarnings("unchecked")
-            InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
-            if (!terms.getBuckets().isEmpty()) {
-                iterators[activeIterators++] = new IteratorAndCurrent(terms.getBuckets().iterator());
-            }
-        }
-
-        final PriorityQueue<B> pq = new PriorityQueue<B>(aggregations.size()) {
-            @Override
-            protected boolean lessThan(B a, B b) {
-                return cmp.compare(a, b) < 0;
-            }
-        };
-        Map<Object, List<Integer>> keysMap = new HashMap<>();
-        for (int i = 0; i < activeIterators; i++) {
-            if (keysMap.containsKey(iterators[i].current().getKey())) {
-                keysMap.get(iterators[i].current().getKey()).add(i);
-            } else {
-                pq.add(iterators[i].current());
-                List<Integer> idx = new ArrayList<>();
-                idx.add(i);
-                keysMap.put(iterators[i].current().getKey(), idx);
-            }
-        }
-
-        List<B> reducedBuckets = new ArrayList<>();
-        List<B> currentBuckets = new ArrayList<>();
-
-        while (pq.size() > 0) {
-            Object minKeyBucket = pq.pop().getKey();
-            List<Integer> minBucketIndices = keysMap.remove(minKeyBucket);
-            currentBuckets.clear();
-            for (int i : minBucketIndices) {
-                currentBuckets.add(iterators[i].current());
-                if (iterators[i].hasNext()) {
-                    iterators[i].next();
-                    if (keysMap.containsKey(iterators[i].current().getKey())) {
-                        keysMap.get(iterators[i].current().getKey()).add(i);
-                    } else {
-                        pq.add(iterators[i].current());
-                        List<Integer> idx = new ArrayList<>();
-                        idx.add(i);
-                        keysMap.put(iterators[i].current().getKey(), idx);
-                    }
-                }
-            }
-            final B reduced = reduceBucket(currentBuckets, reduceContext);
-            reducedBuckets.add(reduced);
-        }
-        return reducedBuckets;
-    }
-
     private List<B> reduceLegacy(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> bucketMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
