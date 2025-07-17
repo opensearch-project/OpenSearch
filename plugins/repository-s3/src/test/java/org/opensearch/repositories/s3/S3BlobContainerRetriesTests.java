@@ -277,7 +277,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.getDefault(Settings.EMPTY),
                 SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.getDefault(Settings.EMPTY),
                 SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.getDefault(Settings.EMPTY),
-                EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY)
+                EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY),
+                AsyncHttpClientFactory.NETTY_ASYNC_HTTP_CLIENT_TYPE
             )
         ) {
             @Override
