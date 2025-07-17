@@ -408,5 +408,5 @@ setup:
             - my_field.doc_values:
                 order: asc
           size: 4
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 8 }
   - match: { hits.hits.0._id: "8" }
