@@ -13,9 +13,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -51,7 +48,6 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.BinaryIndexFieldData;
-import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -223,7 +219,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         Tokenizer tokenizer = new WildcardFieldTokenizer();
         tokenizer.setReader(new StringReader(value));
         context.doc().add(new Field(fieldType().name(), tokenizer, FIELD_TYPE));
-        //context.doc().add(new StringField(fieldType().name(), value, null));
+        // context.doc().add(new StringField(fieldType().name(), value, null));
         if (fieldType().hasDocValues()) {
             context.doc().add(new BinaryDocValuesField(fieldType().name(), binaryValue));
         } else {
