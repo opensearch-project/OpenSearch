@@ -1459,7 +1459,8 @@ public class Node implements Closeable {
                 circuitBreakerService,
                 searchModule.getIndexSearcherExecutor(threadPool),
                 taskResourceTrackingService,
-                searchModule.getConcurrentSearchRequestDeciderFactories()
+                searchModule.getConcurrentSearchRequestDeciderFactories(),
+                searchModule.getPluginProfileMetricsProviders()
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -2133,7 +2134,8 @@ public class Node implements Closeable {
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
     ) {
         return new SearchService(
             clusterService,
@@ -2147,7 +2149,8 @@ public class Node implements Closeable {
             circuitBreakerService,
             indexSearcherExecutor,
             taskResourceTrackingService,
-            concurrentSearchDeciderFactories
+            concurrentSearchDeciderFactories,
+            pluginProfilers
         );
     }
 
