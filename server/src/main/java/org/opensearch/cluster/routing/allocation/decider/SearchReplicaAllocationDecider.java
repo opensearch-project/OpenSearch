@@ -34,8 +34,15 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
 
     private Decision canAllocate(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
         boolean isSearchReplica = shardRouting.isSearchOnly();
+        boolean existSearchNodes = false;
+        for (DiscoveryNode discoveryNode : allocation.nodes()) {
+            if (discoveryNode.isSearchNode()) {
+                existSearchNodes = true;
+            }
+        }
+        boolean canAllocateSearchReplica = node.isSearchNode() || (existSearchNodes == false);
 
-        if ((node.isSearchNode() && isSearchReplica) || (node.isSearchNode() == false && isSearchReplica == false)) {
+        if ((canAllocateSearchReplica && isSearchReplica) || (node.isSearchNode() == false && isSearchReplica == false)) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
