@@ -73,6 +73,7 @@ import static org.opensearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.opensearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.opensearch.cluster.metadata.Metadata.Builder.validateDataStreams;
+import static org.opensearch.cluster.metadata.Metadata.NOOP_FIELD_FILTER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -736,7 +737,7 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            final Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1" }, MapperPlugin.NOOP_FIELD_FILTER);
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1" }, NOOP_FIELD_FILTER);
             MappingMetadata mappingMetadata = mappings.get("index1");
             assertSame(originalMappingMetadata, mappingMetadata);
         }

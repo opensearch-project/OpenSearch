@@ -44,6 +44,8 @@ public final class AutoExpandSearchReplicas {
         Property.IndexScope
     );
 
+    public static final Setting<AutoExpandSearchReplicas> INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING = AutoExpandSearchReplicas.SETTING;
+
     private static AutoExpandSearchReplicas parse(String value) {
         final int min;
         final int max;

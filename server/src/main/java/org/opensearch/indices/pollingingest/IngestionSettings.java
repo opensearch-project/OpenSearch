@@ -23,7 +23,7 @@ public class IngestionSettings {
 
     // Indicates target reset state of the poller.
     @Nullable
-    private final StreamPoller.ResetState resetState;
+    private final ResetState resetState;
 
     // Indicates target reset value (offset/timestamp/sequence number etc).
     @Nullable
@@ -41,7 +41,7 @@ public class IngestionSettings {
     }
 
     @Nullable
-    public StreamPoller.ResetState getResetState() {
+    public ResetState getResetState() {
         return resetState;
     }
 
@@ -62,7 +62,7 @@ public class IngestionSettings {
         @Nullable
         private Boolean isPaused;
         @Nullable
-        private StreamPoller.ResetState resetState;
+        private ResetState resetState;
         @Nullable
         private String resetValue;
 
@@ -71,7 +71,7 @@ public class IngestionSettings {
             return this;
         }
 
-        public Builder setResetState(StreamPoller.ResetState resetState) {
+        public Builder setResetState(ResetState resetState) {
             this.resetState = resetState;
             return this;
         }

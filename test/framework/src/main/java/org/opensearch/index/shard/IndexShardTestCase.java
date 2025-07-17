@@ -98,6 +98,7 @@ import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -1366,9 +1367,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
     protected void updateMappings(IndexShard shard, IndexMetadata indexMetadata) {
         shard.mapperService().merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper documentMapper = shard.mapperService().documentMapper();
         shard.indexSettings()
             .updateIndexMetadata(
-                IndexMetadata.builder(indexMetadata).putMapping(new MappingMetadata(shard.mapperService().documentMapper())).build()
+                IndexMetadata.builder(indexMetadata)
+                    .putMapping(
+                        new MappingMetadata(
+                            documentMapper.type(),
+                            documentMapper.mappingSource(),
+                            documentMapper.routingFieldMapper().required()
+                        )
+                    )
+                    .build()
             );
     }
 

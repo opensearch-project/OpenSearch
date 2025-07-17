@@ -124,7 +124,7 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Test if the stream has the specified feature. Features are used when serializing {@code ClusterState.Custom} or
-     * {@code Metadata.Custom}; see also {@code ClusterState.FeatureAware}.
+     * {@code Metadata.Custom}; see also {@code FeatureAware}.
      *
      * @param feature the feature to test
      * @return true if the stream has the specified feature

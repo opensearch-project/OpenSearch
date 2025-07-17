@@ -9,7 +9,6 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.cluster.ClusterStateListener;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
@@ -84,17 +83,5 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
         PAUSED,
         POLLING,
         PROCESSING,
-    }
-
-    /**
-     *  A reset state to indicate how to reset the pointer
-     */
-    @ExperimentalApi
-    enum ResetState {
-        EARLIEST,
-        LATEST,
-        RESET_BY_OFFSET,
-        RESET_BY_TIMESTAMP,
-        NONE,
     }
 }
