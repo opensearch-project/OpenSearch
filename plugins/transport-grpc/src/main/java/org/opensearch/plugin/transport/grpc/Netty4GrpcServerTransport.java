@@ -15,7 +15,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -113,7 +113,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
      */
     public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT = new Setting<>(
         "grpc.netty.worker_count",
-        (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s)),
+        (s) -> Integer.toString(OpenSearchExecutorsUtils.allocatedProcessors(s)),
         (s) -> Setting.parseInt(s, 1, "grpc.netty.worker_count"),
         Setting.Property.NodeScope
     );

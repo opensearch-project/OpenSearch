@@ -1348,7 +1348,7 @@ public class MetadataCreateIndexService {
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper mapper = documentMapperSupplier.get();
         if (mapper != null) {
-            MappingMetadata mappingMd = new MappingMetadata(mapper);
+            MappingMetadata mappingMd = new MappingMetadata(mapper.type(), mapper.mappingSource(), mapper.routingFieldMapper().required());
             mappingsMetadata.put(mapper.type(), mappingMd);
         }
 
@@ -1444,7 +1444,7 @@ public class MetadataCreateIndexService {
 
     private static void validateActiveShardCount(ActiveShardCount waitForActiveShards, IndexMetadata indexMetadata) {
         if (waitForActiveShards == ActiveShardCount.DEFAULT) {
-            waitForActiveShards = indexMetadata.getWaitForActiveShards();
+            waitForActiveShards = ActiveShardCount.get(indexMetadata.getWaitForActiveShards().getValue());
         }
         if (waitForActiveShards.validate(indexMetadata.getNumberOfReplicas()) == false) {
             throw new IllegalArgumentException(

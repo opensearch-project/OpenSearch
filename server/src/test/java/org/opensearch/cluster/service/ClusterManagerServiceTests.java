@@ -61,6 +61,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadUtils;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
@@ -1668,11 +1669,11 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
     }
 
     public void testUpdateTaskThreadName() {
-        Thread.currentThread().setName(ClusterManagerService.CLUSTER_MANAGER_UPDATE_THREAD_NAME);
+        Thread.currentThread().setName(ThreadUtils.CLUSTER_MANAGER_UPDATE_THREAD_NAME);
         assertThat(ClusterManagerService.assertClusterManagerUpdateThread(), is(Boolean.TRUE));
-        assertThrows(AssertionError.class, () -> ClusterManagerService.assertNotClusterManagerUpdateThread("test"));
+        assertThrows(AssertionError.class, () -> ThreadUtils.assertNotClusterManagerUpdateThread("test"));
         Thread.currentThread().setName("test not cluster manager update thread");
-        assertThat(ClusterManagerService.assertNotClusterManagerUpdateThread("test"), is(Boolean.TRUE));
+        assertThat(ThreadUtils.assertNotClusterManagerUpdateThread("test"), is(Boolean.TRUE));
         assertThrows(AssertionError.class, () -> ClusterManagerService.assertClusterManagerUpdateThread());
     }
 

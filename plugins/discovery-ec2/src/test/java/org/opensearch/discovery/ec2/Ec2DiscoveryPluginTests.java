@@ -43,7 +43,7 @@ import software.amazon.awssdk.services.ec2.Ec2Client;
 
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.node.Node;
+import org.opensearch.node.NodeSettings;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -64,7 +64,7 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
         if (expected == null) {
             assertTrue(additional.isEmpty());
         } else {
-            assertEquals(expected, additional.get(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone"));
+            assertEquals(expected, additional.get(NodeSettings.NODE_ATTRIBUTES.getKey() + "aws_availability_zone"));
         }
     }
 

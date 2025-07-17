@@ -34,7 +34,7 @@ import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.RemoteStoreSettings;
-import org.opensearch.node.Node;
+import org.opensearch.node.NodeSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.RepositoriesService;
@@ -92,7 +92,10 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
         Supplier<RepositoriesService> repositoriesServiceSupplier = mock(Supplier.class);
         Settings settings = Settings.builder()
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "remote-repo")
+            .put(
+                NodeSettings.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "remote-repo"
+            )
             .build();
         RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);

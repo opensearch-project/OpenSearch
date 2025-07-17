@@ -68,6 +68,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.opensearch.cluster.metadata.AutoExpandReplicas.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 
 /**
@@ -200,7 +201,7 @@ public class TaskResultsService {
     private Settings taskResultIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
+            .put(INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
             .build();
     }

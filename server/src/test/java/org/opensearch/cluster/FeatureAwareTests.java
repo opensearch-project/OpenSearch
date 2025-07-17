@@ -33,7 +33,6 @@
 package org.opensearch.cluster;
 
 import org.opensearch.Version;
-import org.opensearch.cluster.ClusterState.FeatureAware;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamOutput;

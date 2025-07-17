@@ -40,6 +40,7 @@ import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeUtils;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -98,7 +99,7 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             roles,
             Version.CURRENT
         );
-        assertFalse(node.toString().contains(RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.get(0)));
+        assertFalse(node.toString().contains(RemoteStoreNodeUtils.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.get(0)));
     }
 
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {

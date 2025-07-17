@@ -44,6 +44,7 @@ import org.opensearch.indices.pollingingest.DefaultStreamPoller;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.indices.pollingingest.ResetState;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class IngestionEngine extends InternalEngine {
     }
 
     private void initializeStreamPoller(
-        @Nullable StreamPoller.ResetState resetStateOverride,
+        @Nullable ResetState resetStateOverride,
         @Nullable String resetValueOverride,
         @Nullable IngestionShardPointer startPointerOverride
     ) {
@@ -104,7 +105,7 @@ public class IngestionEngine extends InternalEngine {
         );
         logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
         Map<String, String> commitData = commitDataAsMap(indexWriter);
-        StreamPoller.ResetState resetState = ingestionSource.getPointerInitReset().getType();
+        ResetState resetState = ingestionSource.getPointerInitReset().getType();
         String resetValue = ingestionSource.getPointerInitReset().getValue();
         IngestionShardPointer startPointer = null;
         Set<IngestionShardPointer> persistedPointers = new HashSet<>();
@@ -122,7 +123,7 @@ public class IngestionEngine extends InternalEngine {
                 startPointer = this.ingestionConsumerFactory.parsePointerFromString(batchStartStr);
 
                 // reset to none so the poller will poll from the startPointer
-                resetState = StreamPoller.ResetState.NONE;
+                resetState = ResetState.NONE;
             }
 
             try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
@@ -570,7 +571,7 @@ public class IngestionEngine extends InternalEngine {
      * Reinitialize the poller with provided state and value. The current poller is first closed, before initializing
      * the new poller. Once new poller is initialized, a flush is triggered to persist the new batch start pointer.
      */
-    private void resetStreamPoller(StreamPoller.ResetState resetState, String resetValue) {
+    private void resetStreamPoller(ResetState resetState, String resetValue) {
         if (streamPoller.isPaused() == false) {
             throw new IllegalStateException("Cannot reset consumer when poller is not paused");
         }
@@ -580,9 +581,9 @@ public class IngestionEngine extends InternalEngine {
             refresh("reset poller", SearcherScope.INTERNAL, true);
 
             IngestionShardPointer startPointer = null;
-            if (resetState == StreamPoller.ResetState.RESET_BY_OFFSET) {
+            if (resetState == ResetState.RESET_BY_OFFSET) {
                 startPointer = streamPoller.getConsumer().pointerFromOffset(resetValue);
-            } else if (resetState == StreamPoller.ResetState.RESET_BY_TIMESTAMP) {
+            } else if (resetState == ResetState.RESET_BY_TIMESTAMP) {
                 startPointer = streamPoller.getConsumer().pointerFromTimestampMillis(Long.parseLong(resetValue));
             }
 

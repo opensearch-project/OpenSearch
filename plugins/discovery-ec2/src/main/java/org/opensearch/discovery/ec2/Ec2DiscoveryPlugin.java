@@ -42,7 +42,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.SeedHostsProvider;
-import org.opensearch.node.Node;
+import org.opensearch.node.NodeSettings;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
@@ -173,7 +173,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             if ((metadataResult == null) || (metadataResult.length() == 0)) {
                 throw new IllegalStateException("no ec2 metadata returned from " + url);
             } else {
-                attrs.put(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", metadataResult);
+                attrs.put(NodeSettings.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", metadataResult);
             }
         } catch (final IOException e) {
             // this is lenient so the plugin does not fail when installed outside of ec2

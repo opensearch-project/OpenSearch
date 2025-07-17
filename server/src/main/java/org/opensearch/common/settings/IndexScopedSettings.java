@@ -70,6 +70,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.opensearch.cluster.metadata.AutoExpandReplicas.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
+import static org.opensearch.cluster.metadata.AutoExpandSearchReplicas.INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING;
+
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
@@ -97,8 +100,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
-                IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
-                IndexMetadata.INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING,
+                INDEX_AUTO_EXPAND_REPLICAS_SETTING,
+                INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,

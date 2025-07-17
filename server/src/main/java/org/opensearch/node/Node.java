@@ -290,8 +290,6 @@ import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 import org.opensearch.wlm.listeners.WorkloadGroupRequestOperationListener;
 import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
 
-import javax.net.ssl.SNIHostName;
-
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -367,35 +365,10 @@ public class Node implements Closeable {
     );
 
     /**
-     * controls whether the node is allowed to persist things like metadata to disk
-     * Note that this does not control whether the node stores actual indices (see
-     * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
-     * and {@link #NODE_MASTER_SETTING} must also be false.
+     * TODO: Remove this with {@link NodeSettings#NODE_NAME_SETTING}
      */
-    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
-        "node.local_storage",
-        true,
-        Property.Deprecated,
-        Property.NodeScope
-    );
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
-    public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting(
-        "node.attr.",
-        (key) -> new Setting<>(key, "", (value) -> {
-            if (value.length() > 0
-                && (Character.isWhitespace(value.charAt(0)) || Character.isWhitespace(value.charAt(value.length() - 1)))) {
-                throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace " + "[" + value + "]");
-            }
-            if (value.length() > 0 && "node.attr.server_name".equals(key)) {
-                try {
-                    new SNIHostName(value);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("invalid node.attr.server_name [" + value + "]", e);
-                }
-            }
-            return value;
-        }, Property.NodeScope)
-    );
+
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
         switch (s) {
             case "hierarchy":
@@ -480,7 +453,7 @@ public class Node implements Closeable {
                 .put(initialEnvironment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE)
                 // Enabling shard indexing backpressure node-attribute
-                .put(NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, "true")
+                .put(NodeSettings.NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, "true")
                 .build();
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
@@ -555,7 +528,11 @@ public class Node implements Closeable {
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
              * values, no matter they ask for them from.
              */
-            this.environment = new Environment(settings, initialEnvironment.configDir(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
+            this.environment = new Environment(
+                settings,
+                initialEnvironment.configDir(),
+                NodeSettings.NODE_LOCAL_STORAGE_SETTING.get(settings)
+            );
             Environment.assertEquivalent(initialEnvironment, this.environment);
             Stream<IndexStoreListener> indexStoreListenerStream = pluginsService.filterPlugins(IndexStorePlugin.class)
                 .stream()

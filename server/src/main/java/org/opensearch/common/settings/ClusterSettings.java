@@ -91,7 +91,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.HandshakingTransportAddressConnector;
@@ -144,6 +144,7 @@ import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.node.Node;
 import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeRoleSettings;
+import org.opensearch.node.NodeSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
@@ -565,17 +566,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
-                Node.NODE_NAME_SETTING,
-                Node.NODE_ATTRIBUTES,
-                Node.NODE_LOCAL_STORAGE_SETTING,
+                NodeSettings.NODE_NAME_SETTING,
+                NodeSettings.NODE_ATTRIBUTES,
+                NodeSettings.NODE_LOCAL_STORAGE_SETTING,
                 NodeRoleSettings.NODE_ROLES_SETTING,
                 AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
                 BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
                 ClusterName.CLUSTER_NAME_SETTING,
                 Client.CLIENT_TYPE_SETTING_S,
                 ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
-                OpenSearchExecutors.PROCESSORS_SETTING,
-                OpenSearchExecutors.NODE_PROCESSORS_SETTING,
+                OpenSearchExecutorsUtils.PROCESSORS_SETTING,
+                OpenSearchExecutorsUtils.NODE_PROCESSORS_SETTING,
                 ThreadContext.DEFAULT_HEADERS_SETTING,
                 Loggers.LOG_DEFAULT_LEVEL_SETTING,
                 Loggers.LOG_LEVEL_SETTING,

@@ -150,15 +150,15 @@ public class NodeTests extends OpenSearchTestCase {
 
     public void testNodeAttributes() throws IOException {
         String attr = randomAlphaOfLength(5);
-        Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
+        Settings.Builder settings = baseSettings().put(NodeSettings.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
         try (Node node = new MockNode(settings.build(), basePlugins())) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
-            assertEquals(attr, Node.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("test_attr"));
+            assertEquals(attr, NodeSettings.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("test_attr"));
         }
 
         // leading whitespace not allowed
         attr = " leading";
-        settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
+        settings = baseSettings().put(NodeSettings.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
         try (Node node = new MockNode(settings.build(), basePlugins())) {
             fail("should not allow a node attribute with leading whitespace");
         } catch (IllegalArgumentException e) {
@@ -167,7 +167,7 @@ public class NodeTests extends OpenSearchTestCase {
 
         // trailing whitespace not allowed
         attr = "trailing ";
-        settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
+        settings = baseSettings().put(NodeSettings.NODE_ATTRIBUTES.getKey() + "test_attr", attr);
         try (Node node = new MockNode(settings.build(), basePlugins())) {
             fail("should not allow a node attribute with trailing whitespace");
         } catch (IllegalArgumentException e) {
@@ -177,16 +177,16 @@ public class NodeTests extends OpenSearchTestCase {
 
     public void testServerNameNodeAttribute() throws IOException {
         String attr = "valid-hostname";
-        Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "server_name", attr);
+        Settings.Builder settings = baseSettings().put(NodeSettings.NODE_ATTRIBUTES.getKey() + "server_name", attr);
         int i = 0;
         try (Node node = new MockNode(settings.build(), basePlugins())) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
-            assertEquals(attr, Node.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("server_name"));
+            assertEquals(attr, NodeSettings.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("server_name"));
         }
 
         // non-LDH hostname not allowed
         attr = "invalid_hostname";
-        settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "server_name", attr);
+        settings = baseSettings().put(NodeSettings.NODE_ATTRIBUTES.getKey() + "server_name", attr);
         try (Node node = new MockNode(settings.build(), basePlugins())) {
             fail("should not allow a server_name attribute with an underscore");
         } catch (IllegalArgumentException e) {

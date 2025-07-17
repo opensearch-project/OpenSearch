@@ -43,7 +43,6 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
-import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
@@ -564,7 +563,9 @@ public class MetadataIndexTemplateService {
         }
 
         if (isContextAllowed
-            && template.composedOf().stream().anyMatch(componentTemplate -> isSystemTemplate(componentTemplates.get(componentTemplate)))) {
+            && template.composedOf()
+                .stream()
+                .anyMatch(componentTemplate -> MetadataUtils.isSystemTemplate(componentTemplates.get(componentTemplate)))) {
             throw new InvalidIndexTemplateException(
                 name,
                 "index template [" + name + "] specifies a component templates which can only be used in context."
@@ -580,7 +581,7 @@ public class MetadataIndexTemplateService {
     }
 
     private void validateComponentTemplateRequest(ComponentTemplate componentTemplate) {
-        if (isSystemTemplate(componentTemplate)
+        if (MetadataUtils.isSystemTemplate(componentTemplate)
             && !ClusterStateSystemTemplateLoader.TEMPLATE_LOADER_IDENTIFIER.equals(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME)
             )) {
@@ -602,14 +603,6 @@ public class MetadataIndexTemplateService {
             .map(coll -> coll.get(context.name()))
             .map(coll -> coll.get(searchSpecificVersion ? Long.parseLong(context.version()) : coll.lastKey()))
             .orElse(null);
-    }
-
-    public static boolean isSystemTemplate(ComponentTemplate componentTemplate) {
-        return Optional.ofNullable(componentTemplate)
-            .map(ComponentTemplate::metadata)
-            .map(md -> md.get(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY))
-            .filter(ob -> SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE.equals(ob.toString()))
-            .isPresent();
     }
 
     public ClusterState addIndexTemplateV2(

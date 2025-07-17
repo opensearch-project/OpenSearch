@@ -27,7 +27,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.pollingingest.IngestionSettings;
-import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.ResetState;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -38,8 +38,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.opensearch.indices.pollingingest.StreamPoller.ResetState.RESET_BY_OFFSET;
-import static org.opensearch.indices.pollingingest.StreamPoller.ResetState.RESET_BY_TIMESTAMP;
+import static org.opensearch.indices.pollingingest.ResetState.RESET_BY_OFFSET;
+import static org.opensearch.indices.pollingingest.ResetState.RESET_BY_TIMESTAMP;
 
 /**
  * Transport action for updating ingestion state on provided shards. Shard level failures are provided if there are
@@ -139,7 +139,7 @@ public class TransportUpdateIngestionStateAction extends TransportBroadcastByNod
             // update shard pointer
             if (request.getResetSettings() != null && request.getResetSettings().length > 0) {
                 ResumeIngestionRequest.ResetSettings resetSettings = getResetSettingsForShard(request, indexShard);
-                StreamPoller.ResetState resetState = getStreamPollerResetState(resetSettings);
+                ResetState resetState = getStreamPollerResetState(resetSettings);
                 String resetValue = resetSettings != null ? resetSettings.getValue() : null;
                 if (resetState != null && resetValue != null) {
                     IngestionSettings ingestionSettings = IngestionSettings.builder()
@@ -162,7 +162,7 @@ public class TransportUpdateIngestionStateAction extends TransportBroadcastByNod
         }
     }
 
-    private StreamPoller.ResetState getStreamPollerResetState(ResumeIngestionRequest.ResetSettings resetSettings) {
+    private ResetState getStreamPollerResetState(ResumeIngestionRequest.ResetSettings resetSettings) {
         if (resetSettings == null || resetSettings.getMode() == null) {
             return null;
         }

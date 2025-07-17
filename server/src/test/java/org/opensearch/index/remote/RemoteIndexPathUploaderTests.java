@@ -26,7 +26,7 @@ import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
-import org.opensearch.node.Node;
+import org.opensearch.node.NodeSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -62,7 +62,7 @@ import static org.mockito.Mockito.when;
 
 public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
 
-    private static final String CLUSTER_STATE_REPO_KEY = Node.NODE_ATTRIBUTES.getKey()
+    private static final String CLUSTER_STATE_REPO_KEY = NodeSettings.NODE_ATTRIBUTES.getKey()
         + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
     private static final String TRANSLOG_REPO_NAME = "translog-repo";
@@ -80,9 +80,9 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
     private final AtomicLong successCount = new AtomicLong();
     private final AtomicLong failureCount = new AtomicLong();
 
-    static final String TRANSLOG_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
+    static final String TRANSLOG_REPO_NAME_KEY = NodeSettings.NODE_ATTRIBUTES.getKey()
         + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
-    static final String SEGMENT_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
+    static final String SEGMENT_REPO_NAME_KEY = NodeSettings.NODE_ATTRIBUTES.getKey()
         + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
     @Before

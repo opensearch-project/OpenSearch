@@ -67,6 +67,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContextAccess;
+import org.opensearch.common.util.concurrent.ThreadUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -108,8 +109,6 @@ public class ClusterManagerService extends AbstractLifecycleComponent {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-
-    static final String CLUSTER_MANAGER_UPDATE_THREAD_NAME = "clusterManagerService#updateTask";
 
     ClusterStatePublisher clusterStatePublisher;
 
@@ -180,8 +179,8 @@ public class ClusterManagerService extends AbstractLifecycleComponent {
 
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
         return OpenSearchExecutors.newSinglePrioritizing(
-            nodeName + "/" + CLUSTER_MANAGER_UPDATE_THREAD_NAME,
-            daemonThreadFactory(nodeName, CLUSTER_MANAGER_UPDATE_THREAD_NAME),
+            nodeName + "/" + ThreadUtils.CLUSTER_MANAGER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(nodeName, ThreadUtils.CLUSTER_MANAGER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
             threadPool.scheduler()
         );
@@ -252,17 +251,17 @@ public class ClusterManagerService extends AbstractLifecycleComponent {
         return clusterStateSupplier.get();
     }
 
-    private static boolean isClusterManagerUpdateThread() {
-        return Thread.currentThread().getName().contains(CLUSTER_MANAGER_UPDATE_THREAD_NAME);
-    }
-
     public static boolean assertClusterManagerUpdateThread() {
-        assert isClusterManagerUpdateThread() : "not called from the cluster-manager service thread";
+        assert ThreadUtils.isClusterManagerUpdateThread() : "not called from the cluster-manager service thread";
         return true;
     }
 
+    /**
+     * TODO: Can be removed in major version release.
+     * {@link org.opensearch.common.util.concurrent.ThreadUtils#assertNotClusterManagerUpdateThread(String)}
+     */
     public static boolean assertNotClusterManagerUpdateThread(String reason) {
-        assert isClusterManagerUpdateThread() == false : "Expected current thread ["
+        assert ThreadUtils.isClusterManagerUpdateThread() == false : "Expected current thread ["
             + Thread.currentThread()
             + "] to not be the cluster-manager service thread. Reason: ["
             + reason
@@ -355,7 +354,7 @@ public class ClusterManagerService extends AbstractLifecycleComponent {
         final PlainActionFuture<Void> fut = new PlainActionFuture<Void>() {
             @Override
             protected boolean blockingAllowed() {
-                return isClusterManagerUpdateThread() || super.blockingAllowed();
+                return ThreadUtils.isClusterManagerUpdateThread() || super.blockingAllowed();
             }
         };
         clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));

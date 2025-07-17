@@ -8,7 +8,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.ResetState;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -19,7 +19,7 @@ import static org.opensearch.indices.pollingingest.IngestionErrorStrategy.ErrorS
 public class IngestionSourceTests extends OpenSearchTestCase {
 
     private final IngestionSource.PointerInitReset pointerInitReset = new IngestionSource.PointerInitReset(
-        StreamPoller.ResetState.RESET_BY_OFFSET,
+        ResetState.RESET_BY_OFFSET,
         "1000"
     );
 
@@ -33,7 +33,7 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             .build();
 
         assertEquals("type", source.getType());
-        assertEquals(StreamPoller.ResetState.RESET_BY_OFFSET, source.getPointerInitReset().getType());
+        assertEquals(ResetState.RESET_BY_OFFSET, source.getPointerInitReset().getType());
         assertEquals("1000", source.getPointerInitReset().getValue());
         assertEquals(DROP, source.getErrorStrategy());
         assertEquals(params, source.params());

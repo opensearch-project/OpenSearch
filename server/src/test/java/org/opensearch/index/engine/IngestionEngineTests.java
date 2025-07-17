@@ -24,6 +24,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.indices.pollingingest.ResetState;
 import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
@@ -200,7 +201,7 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngine.updateIngestionSettings(IngestionSettings.builder().setIsPaused(true).build());
         // resume ingestion with offset reset
         ingestionEngine.updateIngestionSettings(
-            IngestionSettings.builder().setIsPaused(false).setResetState(StreamPoller.ResetState.RESET_BY_OFFSET).setResetValue("0").build()
+            IngestionSettings.builder().setIsPaused(false).setResetState(ResetState.RESET_BY_OFFSET).setResetValue("0").build()
         );
         ShardIngestionState resumedIngestionState = ingestionEngine.getIngestionState();
         assertEquals(false, resumedIngestionState.isPollerPaused());

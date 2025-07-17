@@ -44,7 +44,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.opensearch.common.util.concurrent.OpenSearchExecutors.NODE_PROCESSORS_SETTING;
+import static org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils.NODE_PROCESSORS_SETTING;
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 import static org.opensearch.index.MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING;
 import static org.opensearch.index.MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING;

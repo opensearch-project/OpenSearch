@@ -66,6 +66,8 @@ public final class AutoExpandReplicas {
         Property.IndexScope
     );
 
+    public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
+
     private static AutoExpandReplicas parse(String value) {
         final int min;
         final int max;

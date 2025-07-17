@@ -55,6 +55,7 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.node.Node;
+import org.opensearch.node.NodeSettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -177,7 +178,7 @@ public final class MockTransportService extends TransportService {
                 Node.NODE_NAME_SETTING.get(settings),
                 UUIDs.randomBase64UUID(),
                 boundAddress.publishAddress(),
-                Node.NODE_ATTRIBUTES.getAsMap(settings),
+                NodeSettings.NODE_ATTRIBUTES.getAsMap(settings),
                 DiscoveryNode.getRolesFromSettings(settings),
                 version
             ),

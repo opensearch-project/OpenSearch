@@ -46,7 +46,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.IndexStoreListener;
-import org.opensearch.node.Node;
+import org.opensearch.node.NodeSettings;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
@@ -559,7 +559,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         env = newNodeEnvironment(Settings.EMPTY);
         assertThat(env.nodeId(), not(equalTo(nodeID)));
         env.close();
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { Node.NODE_LOCAL_STORAGE_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NodeSettings.NODE_LOCAL_STORAGE_SETTING });
     }
 
     public void testExistingTempFiles() throws IOException {

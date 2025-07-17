@@ -379,7 +379,7 @@ public abstract class TransportReplicationAction<
         if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
             // if the wait for active shard count has not been set in the request,
             // resolve it from the index settings
-            request.waitForActiveShards(indexMetadata.getWaitForActiveShards());
+            request.waitForActiveShards(ActiveShardCount.get(indexMetadata.getWaitForActiveShards().getValue()));
         }
     }
 
@@ -1026,7 +1026,7 @@ public abstract class TransportReplicationAction<
                 if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
                     // if the wait for active shard count has not been set in the request,
                     // resolve it from the index settings
-                    request.waitForActiveShards(indexMetadata.getWaitForActiveShards());
+                    request.waitForActiveShards(ActiveShardCount.get(indexMetadata.getWaitForActiveShards().getValue()));
                 }
                 assert request.waitForActiveShards() != ActiveShardCount.DEFAULT
                     : "request waitForActiveShards must be set in resolveRequest";

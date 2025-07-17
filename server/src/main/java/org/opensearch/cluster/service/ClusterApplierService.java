@@ -420,7 +420,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
     }
 
-    /** asserts that the current thread is <b>NOT</b> the cluster state update thread */
+    /** asserts that the current thread is <b>NOT</b> the cluster state update thread
+     * TODO: Can be removed in major version release.
+     * {@link org.opensearch.common.util.concurrent.ThreadUtils#assertNotClusterStateUpdateThread(String)}
+     */
     public static boolean assertNotClusterStateUpdateThread(String reason) {
         assert Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME) == false : "Expected current thread ["
             + Thread.currentThread()
