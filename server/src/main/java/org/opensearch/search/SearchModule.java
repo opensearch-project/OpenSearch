@@ -323,6 +323,8 @@ public class SearchModule {
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
+    private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilerProviders;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -353,6 +355,7 @@ public class SearchModule {
         namedWriteables.addAll(SortValue.namedWriteables());
         concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
         registerQueryCollectorContextSpec(plugins);
+        pluginProfilerProviders = registerProfilerProviders(plugins);
     }
 
     private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
@@ -1307,6 +1310,10 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getCollectorContextSpecFactories, QueryCollectorContextSpecRegistry::registerFactory);
     }
 
+    private List<SearchPlugin.ProfileMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
+        return plugins.stream().map(SearchPlugin::getQueryProfileMetricsProvider).filter(Optional::isPresent).map(Optional::get).toList();
+    }
+
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
     }
@@ -1317,5 +1324,9 @@ public class SearchModule {
 
     public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {
         return (indexSearcherExecutorProvider != null) ? indexSearcherExecutorProvider.getExecutor(pool) : null;
+    }
+
+    public List<SearchPlugin.ProfileMetricsProvider> getPluginProfileMetricsProviders() {
+        return pluginProfilerProviders;
     }
 }
