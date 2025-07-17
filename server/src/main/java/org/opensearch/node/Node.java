@@ -2285,6 +2285,10 @@ public class Node implements Closeable {
         }
     }
 
+    /**
+     * Custom ForkJoinWorkerThread that preserves the context ClassLoader of the creating thread
+     * to ensure proper resource loading in worker threads.
+     */
     public static class CustomForkJoinWorkerThread extends ForkJoinWorkerThread {
         public CustomForkJoinWorkerThread(ForkJoinPool pool) {
             super(pool);
