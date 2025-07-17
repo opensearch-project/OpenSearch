@@ -1,0 +1,181 @@
+setup:
+  - do:
+      indices.create:
+        index: test_fetch_profile
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+              numeric_field:
+                type: integer
+              date_field:
+                type: date
+              object_field:
+                properties:
+                  nested_field:
+                    type: keyword
+              stored_field:
+                type: keyword
+                store: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_fetch_profile
+        body: |
+          { "index": {} }
+          { "text_field": "Hello world", "numeric_field": 42, "date_field": "2023-01-01", "object_field": { "nested_field": "nested value" }, "stored_field": "stored value" }
+          { "index": {} }
+          { "text_field": "Another document", "numeric_field": 100, "date_field": "2023-02-01", "object_field": { "nested_field": "another nested" }, "stored_field": "another stored" }
+          { "index": {} }
+          { "text_field": "Third document with more text", "numeric_field": 200, "date_field": "2023-03-01", "object_field": { "nested_field": "third nested" }, "stored_field": "third stored" }
+
+---
+"Basic fetch phase profiling":
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match:
+              text_field: "document"
+
+  # Verify that fetch phase profiling is included in the response
+  - is_true: profile.shards.0.fetch
+  - match: { profile.shards.0.fetch.type: "FetchPhase" }
+  - is_true: profile.shards.0.fetch.breakdown
+  - is_true: profile.shards.0.fetch.debug
+  - is_true: profile.shards.0.fetch.children
+
+---
+"Fetch phase profiling with source filtering":
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          _source: ["text_field", "numeric_field"]
+          query:
+            match_all: {}
+
+  # Verify fetch phase profiling with source filtering
+  - is_true: profile.shards.0.fetch
+  - match: { profile.shards.0.fetch.type: "FetchPhase" }
+  - is_true: profile.shards.0.fetch.breakdown
+  - is_true: profile.shards.0.fetch.debug
+  - is_true: profile.shards.0.fetch.children
+
+---
+"Fetch phase profiling with stored fields":
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          stored_fields: ["stored_field"]
+          query:
+            match_all: {}
+
+  # Verify fetch phase profiling with stored fields
+  - is_true: profile.shards.0.fetch
+  - match: { profile.shards.0.fetch.type: "FetchPhase" }
+  - is_true: profile.shards.0.fetch.breakdown
+  - is_true: profile.shards.0.fetch.debug
+  - is_true: profile.shards.0.fetch.children
+
+---
+"Fetch phase profiling with script fields":
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          script_fields:
+            doubled_numeric:
+              script:
+                source: "doc['numeric_field'].value * 2"
+          query:
+            match_all: {}
+
+  # Verify fetch phase profiling with script fields
+  - is_true: profile.shards.0.fetch
+  - match: { profile.shards.0.fetch.type: "FetchPhase" }
+  - is_true: profile.shards.0.fetch.breakdown
+  - is_true: profile.shards.0.fetch.debug
+  - is_true: profile.shards.0.fetch.children
+  
+  # Check for script fields in the children
+  - is_true: profile.shards.0.fetch.children.0
+  - match: { profile.shards.0.fetch.children.0.type: "ScriptFieldsFetchSubPhase" }
+
+---
+"Fetch phase profiling with docvalue fields":
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          docvalue_fields: ["numeric_field", "date_field"]
+          query:
+            match_all: {}
+
+  # Verify fetch phase profiling with docvalue fields
+  - is_true: profile.shards.0.fetch
+  - match: { profile.shards.0.fetch.type: "FetchPhase" }
+  - is_true: profile.shards.0.fetch.breakdown
+  - is_true: profile.shards.0.fetch.debug
+  - is_true: profile.shards.0.fetch.children
+  
+  # Check for docvalue fields in the children
+  - is_true: profile.shards.0.fetch.children.0
+  - match: { profile.shards.0.fetch.children.0.type: "DocValueFieldsFetchSubPhase" }
+
+---
+"Fetch phase profiling with highlighting":
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match:
+              text_field: "document"
+          highlight:
+            fields:
+              text_field: {}
+
+  # Verify fetch phase profiling with highlighting
+  - is_true: profile.shards.0.fetch
+  - match: { profile.shards.0.fetch.type: "FetchPhase" }
+  - is_true: profile.shards.0.fetch.breakdown
+  - is_true: profile.shards.0.fetch.debug
+  - is_true: profile.shards.0.fetch.children
+  
+  # Check for highlighting in the children
+  - is_true: profile.shards.0.fetch.children.0
+  - match: { profile.shards.0.fetch.children.0.type: "HighlightPhase" }
+
+---
+"Fetch phase profiling with size=0":
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          size: 0
+          query:
+            match_all: {}
+
+  # Verify fetch phase profiling with size=0 (should be minimal or absent)
+  - is_true: profile.shards.0.fetch
+  - match: { profile.shards.0.fetch.type: "FetchPhase" }
+  - is_true: profile.shards.0.fetch.breakdown
+  - is_true: profile.shards.0.fetch.debug
