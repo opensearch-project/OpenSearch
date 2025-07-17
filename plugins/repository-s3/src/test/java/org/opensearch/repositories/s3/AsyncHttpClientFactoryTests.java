@@ -8,8 +8,6 @@
 
 package org.opensearch.repositories.s3;
 
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
@@ -22,6 +20,8 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Map;
+
+import io.netty.channel.nio.NioEventLoopGroup;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
