@@ -304,6 +304,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    public static final String MAX_REMOTE_LOW_PRIORITY_DOWNLOAD_BYTES_PER_SEC = "max_remote_low_priority_download_bytes_per_sec";
+
+    public static final Setting<ByteSizeValue> MAX_REMOTE_LOW_PRIORITY_DOWNLOAD_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        MAX_REMOTE_LOW_PRIORITY_DOWNLOAD_BYTES_PER_SEC,
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Set to Integer.MAX_VALUE - 8 to prevent OutOfMemoryError due to array header requirements, following the limit used in certain JDK versions.
      * This ensures compatibility across various JDK versions. For a practical usage example,
@@ -492,6 +500,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private volatile RateLimiter remoteDownloadRateLimiter;
 
+    private volatile RateLimiter remoteDownloadLowPriorityRateLimiter;
+
     private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
 
     private final CounterMetric restoreRateLimitingTimeInNanos = new CounterMetric();
@@ -501,6 +511,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final CounterMetric remoteUploadRateLimitingTimeInNanos = new CounterMetric();
 
     private final CounterMetric remoteUploadLowPriorityRateLimitingTimeInNanos = new CounterMetric();
+
+    private final CounterMetric remoteDownloadLowPriorityRateLimitingTimeInNanos = new CounterMetric();
 
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "metadata",
@@ -645,6 +657,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         remoteUploadRateLimiter = getRateLimiter(MAX_REMOTE_UPLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
         remoteUploadLowPriorityRateLimiter = getRateLimiter(MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
         remoteDownloadRateLimiter = getRateLimiter(MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
+        remoteDownloadLowPriorityRateLimiter = getRateLimiter(MAX_REMOTE_LOW_PRIORITY_DOWNLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
         readOnly = READONLY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
@@ -2973,6 +2986,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return remoteDownloadRateLimitingTimeInNanos.count();
     }
 
+    @Override
+    public long getLowPriorityRemoteDownloadThrottleTimeInNanos() {
+        return remoteDownloadLowPriorityRateLimitingTimeInNanos.count();
+    }
+
     protected void assertSnapshotOrGenericThread() {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT_DELETION + ']')
             || Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
@@ -4357,6 +4375,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 inputStream,
                 () -> remoteDownloadRateLimiter,
                 remoteDownloadRateLimitingTimeInNanos,
+                BlobStoreTransferContext.REMOTE_DOWNLOAD
+            ),
+            recoverySettings::recoveryRateLimiter,
+            remoteDownloadRateLimitingTimeInNanos,
+            BlobStoreTransferContext.REMOTE_DOWNLOAD
+        );
+    }
+
+    public InputStream maybeRateLimitLowPriorityDownloadTransfers(InputStream inputStream) {
+        return maybeRateLimit(
+            maybeRateLimit(
+                inputStream,
+                () -> remoteDownloadLowPriorityRateLimiter,
+                remoteDownloadLowPriorityRateLimitingTimeInNanos,
                 BlobStoreTransferContext.REMOTE_DOWNLOAD
             ),
             recoverySettings::recoveryRateLimiter,

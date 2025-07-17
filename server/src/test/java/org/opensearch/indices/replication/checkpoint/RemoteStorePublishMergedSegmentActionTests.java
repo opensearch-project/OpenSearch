@@ -40,6 +40,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
@@ -131,14 +132,13 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
             mockTargetService
         );
 
-        final MergedSegmentCheckpoint checkpoint = new RemoteStoreMergedSegmentCheckpoint(
+        final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
             indexShard.shardId(),
             1,
             1111,
             Codec.getDefault().getName(),
             Collections.emptyMap(),
-            "_1",
-            null
+            "_1"
         );
 
         action.publish(indexShard, checkpoint);
@@ -172,13 +172,8 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         );
 
         final RemoteStoreMergedSegmentCheckpoint checkpoint = new RemoteStoreMergedSegmentCheckpoint(
-            indexShard.shardId(),
-            1,
-            1111,
-            Codec.getDefault().getName(),
-            Collections.emptyMap(),
-            "_1",
-            null
+            new MergedSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1"),
+            Map.of("_1", "_1__uuid")
         );
         final RemoteStorePublishMergedSegmentRequest request = new RemoteStorePublishMergedSegmentRequest(checkpoint);
 
@@ -304,13 +299,8 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
 
     private RemoteStoreMergedSegmentCheckpoint createCheckpoint(IndexShard indexShard) {
         return new RemoteStoreMergedSegmentCheckpoint(
-            indexShard.shardId(),
-            1,
-            1111,
-            Codec.getDefault().getName(),
-            Collections.emptyMap(),
-            "_1",
-            null
+            new MergedSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1"),
+            Map.of("_1", "_1__uuid")
         );
     }
 

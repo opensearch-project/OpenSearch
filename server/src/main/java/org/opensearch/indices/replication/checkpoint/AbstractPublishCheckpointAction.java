@@ -218,7 +218,7 @@ public abstract class AbstractPublishCheckpointAction<
     }
 
     @Override
-    protected void shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+    final protected void shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
         Objects.requireNonNull(shardRequest);
         Objects.requireNonNull(replica);
         ActionListener.completeWith(listener, () -> {

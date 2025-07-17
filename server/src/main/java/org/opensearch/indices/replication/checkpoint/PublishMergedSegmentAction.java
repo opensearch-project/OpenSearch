@@ -36,8 +36,7 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
         MergedSegmentPublisher.PublishAction {
 
     public static final String ACTION_NAME = "indices:admin/publish_merged_segment";
-
-    private static final Logger logger = LogManager.getLogger(PublishMergedSegmentAction.class);
+    protected static Logger logger = LogManager.getLogger(PublishMergedSegmentAction.class);
 
     private final SegmentReplicationTargetService replicationService;
 
@@ -74,15 +73,6 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
         assert false : "use PublishMergedSegmentAction#publish";
     }
 
-    @Override
-    protected void shardOperationOnPrimary(
-        PublishMergedSegmentRequest request,
-        IndexShard primary,
-        ActionListener<PrimaryResult<PublishMergedSegmentRequest, ReplicationResponse>> listener
-    ) {
-        ActionListener.completeWith(listener, () -> new PrimaryResult<>(request, new ReplicationResponse()));
-    }
-
     /**
      * Publish merged segment request to shard
      */
@@ -97,6 +87,15 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
             true,
             indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout()
         );
+    }
+
+    @Override
+    protected void shardOperationOnPrimary(
+        PublishMergedSegmentRequest request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<PublishMergedSegmentRequest, ReplicationResponse>> listener
+    ) {
+        ActionListener.completeWith(listener, () -> new PrimaryResult<>(request, new ReplicationResponse()));
     }
 
     @Override

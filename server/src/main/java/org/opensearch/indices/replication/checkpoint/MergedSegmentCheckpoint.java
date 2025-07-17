@@ -79,7 +79,8 @@ public class MergedSegmentCheckpoint extends ReplicationCheckpoint {
 
     @Override
     public String toString() {
-        return "ReplicationCheckpoint{"
+        return getClass().getSimpleName()
+            + "{"
             + "shardId="
             + getShardId()
             + ", primaryTerm="

@@ -8,6 +8,9 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -20,17 +23,19 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 
 /**
- * Implementation of a {@link IndexWriter.IndexReaderWarmer} when local on-disk segment replication is enabled.
+ * Implementation of a {@link IndexWriter.IndexReaderWarmer} for local on-disk and remote store enabled domains.
  *
  * @opensearch.internal
  */
-public class LocalMergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
+public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
     private final TransportService transportService;
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
     private final IndexShard indexShard;
 
-    public LocalMergedSegmentWarmer(
+    private final Logger logger = LogManager.getLogger(MergedSegmentWarmer.class);
+
+    public MergedSegmentWarmer(
         TransportService transportService,
         RecoverySettings recoverySettings,
         ClusterService clusterService,
@@ -48,6 +53,16 @@ public class LocalMergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         assert leafReader instanceof SegmentReader;
 
         SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
+        if (logger.isTraceEnabled()) {
+            logger.trace(() -> new ParameterizedMessage("[ShardId {}] Warming segment: {}", indexShard.shardId(), segmentCommitInfo));
+        }
         indexShard.publishMergedSegment(segmentCommitInfo);
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "[ShardId {}] Completed segment warming for {}.",
+                indexShard.shardId(),
+                segmentCommitInfo.info.name
+            )
+        );
     }
 }
