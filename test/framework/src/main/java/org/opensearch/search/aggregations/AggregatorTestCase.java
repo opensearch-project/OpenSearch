@@ -120,6 +120,7 @@ import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.ObjectMapper.Nested;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
+import org.opensearch.index.mapper.SemanticVersionFieldMapper;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
@@ -213,6 +214,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         denylist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
         denylist.add(DerivedFieldMapper.CONTENT_TYPE); // TODO support derived fields
         denylist.add(StarTreeMapper.CONTENT_TYPE); // TODO evaluate support for star tree fields
+        denylist.add(SemanticVersionFieldMapper.CONTENT_TYPE); // TODO support for semantic version fields
         TYPE_TEST_DENYLIST = denylist;
     }
 
@@ -776,6 +778,40 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean assertCollectorEarlyTermination,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        return searchAndReduceStarTree(
+            indexSettings,
+            searcher,
+            query,
+            queryBuilder,
+            builder,
+            compositeIndexFieldInfo,
+            supportedDimensions,
+            supportedMetrics,
+            maxBucket,
+            hasNested,
+            aggregatorFactory,
+            assertCollectorEarlyTermination,
+            false,
+            fieldTypes
+        );
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceStarTree(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        AggregationBuilder builder,
+        CompositeIndexFieldInfo compositeIndexFieldInfo,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
+        List<Metric> supportedMetrics,
+        int maxBucket,
+        boolean hasNested,
+        AggregatorFactory aggregatorFactory,
+        boolean assertCollectorEarlyTermination,
+        boolean skipReducedMultiBucketConsumerAssertion,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
         query = query.rewrite(searcher);
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
@@ -823,7 +859,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, context);
-        doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        if (skipReducedMultiBucketConsumerAssertion == false) doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
         return internalAgg;
     }
 

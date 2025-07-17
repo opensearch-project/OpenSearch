@@ -42,6 +42,8 @@ import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureValueValidator;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupRuleRoutingService;
+import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
+import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
@@ -51,11 +53,13 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.InMemoryRuleProcessingService;
+import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleRoutingService;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
+import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
@@ -70,6 +74,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.opensearch.rule.service.IndexStoredRulePersistenceService.MAX_WLM_RULES_SETTING;
 
 /**
  * Plugin class for WorkloadManagement
@@ -87,7 +93,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     private static FeatureType featureType;
     private static RulePersistenceService rulePersistenceService;
     private static RuleRoutingService ruleRoutingService;
-
+    private WlmClusterSettingValuesProvider wlmClusterSettingValuesProvider;
     private AutoTaggingActionFilter autoTaggingActionFilter;
 
     /**
@@ -109,22 +115,38 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        wlmClusterSettingValuesProvider = new WlmClusterSettingValuesProvider(
+            clusterService.getSettings(),
+            clusterService.getClusterSettings()
+        );
         featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService));
+        RuleEntityParser parser = new XContentRuleParser(featureType);
+        AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
+            featureType,
+            DefaultAttributeValueStore::new
+        );
+        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(attributeValueStoreFactory);
         rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
             clusterService,
             MAX_RULES_PER_PAGE,
-            new XContentRuleParser(featureType),
+            parser,
             new IndexBasedRuleQueryMapper()
         );
         ruleRoutingService = new WorkloadGroupRuleRoutingService(client, clusterService);
-        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
+
+        RefreshBasedSyncMechanism refreshMechanism = new RefreshBasedSyncMechanism(
+            threadPool,
+            clusterService.getSettings(),
             featureType,
-            DefaultAttributeValueStore::new
+            rulePersistenceService,
+            new RuleEventClassifier(Collections.emptySet(), ruleProcessingService),
+            wlmClusterSettingValuesProvider
         );
+
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
-        return Collections.emptyList();
+        return List.of(refreshMechanism);
     }
 
     @Override
@@ -164,16 +186,20 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(
-            new RestCreateWorkloadGroupAction(),
+            new RestCreateWorkloadGroupAction(wlmClusterSettingValuesProvider),
             new RestGetWorkloadGroupAction(),
-            new RestDeleteWorkloadGroupAction(),
-            new RestUpdateWorkloadGroupAction()
+            new RestDeleteWorkloadGroupAction(wlmClusterSettingValuesProvider),
+            new RestUpdateWorkloadGroupAction(wlmClusterSettingValuesProvider)
         );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(WorkloadGroupPersistenceService.MAX_QUERY_GROUP_COUNT);
+        return List.of(
+            WorkloadGroupPersistenceService.MAX_QUERY_GROUP_COUNT,
+            RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING,
+            MAX_WLM_RULES_SETTING
+        );
     }
 
     @Override

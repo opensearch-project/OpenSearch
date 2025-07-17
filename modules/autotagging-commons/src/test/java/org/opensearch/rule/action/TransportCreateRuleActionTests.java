@@ -10,8 +10,6 @@ package org.opensearch.rule.action;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.rule.CreateRuleRequest;
-import org.opensearch.rule.CreateRuleResponse;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
 import org.opensearch.rule.RuleRoutingService;
 import org.opensearch.rule.RuleRoutingServiceRegistry;

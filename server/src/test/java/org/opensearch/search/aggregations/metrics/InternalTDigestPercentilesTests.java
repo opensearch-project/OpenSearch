@@ -54,7 +54,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         Arrays.stream(values).forEach(state::add);
 
         // the number of centroids is defined as <= the number of samples inserted
-        assertTrue(state.centroids().size() <= values.length);
+        assertTrue(state.centroidCount() <= values.length);
         return new InternalTDigestPercentiles(name, percents, state, keyed, format, metadata);
     }
 

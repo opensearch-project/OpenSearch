@@ -229,6 +229,26 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), numDocs);
     }
 
+    public void testMustToFilterRewrite() throws Exception {
+        // Check we still get expected behavior after rewriting must clauses --> filter clauses.
+        String intField = "int_field";
+        createIndex("test");
+        int numDocs = 100;
+
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, i).get();
+        }
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
+
+        int gt = 22;
+        int lt = 92;
+        int expectedHitCount = lt - gt - 1;
+        assertHitCount(client().prepareSearch().setQuery(boolQuery().must(rangeQuery(intField).lt(lt).gt(gt))).get(), expectedHitCount);
+    }
+
     private String padZeros(int value, int length) {
         // String.format() not allowed
         String ret = Integer.toString(value);

@@ -208,8 +208,13 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 final HttpContent continuationRequest = new DefaultHttpContent(Unpooled.EMPTY_BUFFER);
                 final FullHttpResponse continuationResponse = client.send(remoteAddress.address(), request, continuationRequest);
                 try {
-                    assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
-                    assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done"));
+                    if (expectedStatus == HttpResponseStatus.EXPECTATION_FAILED && client.useHttp11only() == false) {
+                        assertThat(continuationResponse.status(), is(HttpResponseStatus.EXPECTATION_FAILED));
+                        assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is(""));
+                    } else {
+                        assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
+                        assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done"));
+                    }
                 } finally {
                     continuationResponse.release();
                 }

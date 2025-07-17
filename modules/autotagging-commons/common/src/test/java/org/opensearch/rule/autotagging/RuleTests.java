@@ -13,6 +13,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.rule.RuleUtils;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -20,7 +21,6 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.rule.autotagging.Rule._ID_STRING;
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_2;
 
@@ -32,12 +32,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
     public static final String _ID = "test_id";
     public static final String FEATURE_VALUE = "feature_value";
     public static final TestFeatureType FEATURE_TYPE = TestFeatureType.INSTANCE;
-    public static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(
-        TEST_ATTRIBUTE_1,
-        Set.of("value1"),
-        TEST_ATTRIBUTE_2,
-        Set.of("value2")
-    );
+    public static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(TEST_ATTRIBUTE_1, Set.of("value1"));
     public static final String UPDATED_AT = "2025-02-24T07:42:10.123456Z";
     public static final String INVALID_ATTRIBUTE = "invalid_attribute";
     public static final String INVALID_FEATURE = "invalid_feature";
@@ -47,7 +42,8 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         String description = randomAlphaOfLength(10);
         String featureValue = randomAlphaOfLength(5);
         String updatedAt = Instant.now().toString();
-        return new Rule(description, ATTRIBUTE_MAP, FEATURE_TYPE, featureValue, updatedAt);
+        String id = RuleUtils.computeRuleHash(description, FEATURE_TYPE, ATTRIBUTE_MAP, featureValue);
+        return new Rule(id, description, ATTRIBUTE_MAP, FEATURE_TYPE, featureValue, updatedAt);
     }
 
     @Override
@@ -122,7 +118,9 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         String updatedAt,
         String description
     ) {
+        String id = RuleUtils.computeRuleHash(description, featureType, attributeListMap, featureValue);
         return Rule.builder()
+            .id(id)
             .featureValue(featureValue)
             .featureType(featureType)
             .description(description)
@@ -145,13 +143,14 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
 
     public void testToXContent() throws IOException {
         String updatedAt = Instant.now().toString();
-        Rule rule = buildRule(FEATURE_VALUE, FEATURE_TYPE, Map.of(TEST_ATTRIBUTE_1, Set.of("value1")), updatedAt, DESCRIPTION);
+        Map<Attribute, Set<String>> map = Map.of(TEST_ATTRIBUTE_1, Set.of("value1"));
+        Rule rule = buildRule(FEATURE_VALUE, FEATURE_TYPE, map, updatedAt, DESCRIPTION);
 
         XContentBuilder builder = JsonXContent.contentBuilder();
-        rule.toXContent(builder, new ToXContent.MapParams(Map.of(_ID_STRING, _ID)));
+        rule.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
-            "{\"_id\":\""
-                + _ID
+            "{\"id\":\""
+                + RuleUtils.computeRuleHash(DESCRIPTION, FEATURE_TYPE, map, FEATURE_VALUE)
                 + "\",\"description\":\"description\",\"test_attr1\":[\"value1\"],\"test_feature_type\":\"feature_value\",\"updated_at\":\""
                 + updatedAt
                 + "\"}",

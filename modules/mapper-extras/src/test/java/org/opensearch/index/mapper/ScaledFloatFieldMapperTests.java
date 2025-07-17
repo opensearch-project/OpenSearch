@@ -56,7 +56,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.hamcrest.Matchers.containsString;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
@@ -104,7 +103,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
-    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testScaledFloatWithStarTree() throws Exception {
 
         double scalingFactorField1 = randomDouble() * 100;

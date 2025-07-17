@@ -25,11 +25,13 @@ import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -247,10 +249,16 @@ public class CompositeDirectory extends FilterDirectory {
     public void sync(Collection<String> names) throws IOException {
         ensureOpen();
         logger.trace("Composite Directory[{}]: sync() called {}", this::toString, () -> names);
-        Collection<String> remoteFiles = Arrays.asList(getRemoteFiles());
-        Collection<String> filesToSync = names.stream().filter(name -> remoteFiles.contains(name) == false).collect(Collectors.toList());
-        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> filesToSync);
-        localDirectory.sync(filesToSync);
+        Set<String> remoteFiles = Set.of(getRemoteFiles());
+        Set<String> localFilesHavingBlocks = Arrays.stream(listLocalFiles())
+            .filter(FileTypeUtils::isBlockFile)
+            .map(file -> file.substring(0, file.indexOf(BLOCK_FILE_IDENTIFIER)))
+            .collect(Collectors.toSet());
+        Collection<String> fullFilesToSync = names.stream()
+            .filter(name -> (remoteFiles.contains(name) == false) && (localFilesHavingBlocks.contains(name) == false))
+            .collect(Collectors.toList());
+        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> fullFilesToSync);
+        localDirectory.sync(fullFilesToSync);
     }
 
     /**
@@ -285,7 +293,27 @@ public class CompositeDirectory extends FilterDirectory {
         }
         // Return directly from the FileCache (via TransferManager) if complete file is present
         Path key = getFilePath(name);
-        CachedIndexInput indexInput = fileCache.get(key);
+
+        CachedIndexInput indexInput = fileCache.compute(key, (path, cachedIndexInput) -> {
+            // If entry exists and is not closed, use it
+            if (cachedIndexInput != null && cachedIndexInput.isClosed() == false) {
+                return cachedIndexInput;
+            }
+
+            // If entry is closed but file exists locally, create new IndexInput from local
+            if (cachedIndexInput != null && cachedIndexInput.isClosed() && Files.exists(key)) {
+                try {
+                    assert cachedIndexInput instanceof RestoredCachedIndexInput;
+                    return new CachedFullFileIndexInput(fileCache, key, localDirectory.openInput(name, IOContext.DEFAULT));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // Return null to fall back to remote store block download/existing block reuse.
+            return null;
+        });
+
         if (indexInput != null) {
             logger.trace("Composite Directory[{}]: Complete file {} found in FileCache", this::toString, () -> name);
             try {
@@ -306,7 +334,8 @@ public class CompositeDirectory extends FilterDirectory {
             if (uploadedSegmentMetadata == null) {
                 throw new NoSuchFileException("File " + name + " not found in directory");
             }
-            // TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot specific
+            // TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot
+            // specific
             BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
                 name,
                 new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(), uploadedSegmentMetadata.getChecksum(), Version.LATEST),
@@ -332,7 +361,6 @@ public class CompositeDirectory extends FilterDirectory {
                 fileCache.remove(getFilePath(localFile));
             }
         }
-        fileCache.prune();
         localDirectory.close();
     }
 

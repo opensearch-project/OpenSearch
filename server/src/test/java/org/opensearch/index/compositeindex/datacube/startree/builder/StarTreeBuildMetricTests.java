@@ -49,6 +49,7 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -1021,7 +1022,7 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
                 long dimValue = dimValueToDocIdEntry.getKey();
                 int docId = dimValueToDocIdEntry.getValue();
                 if (map.get(dimValue) != null) {
-                    assertEquals(map.get(dimValue), resultStarTreeDocuments.get(docId).metrics[0]);
+                    assertEquals(map.get(dimValue), ((CompensatedSum) resultStarTreeDocuments.get(docId).metrics[0]).value(), 0);
                 }
             }
         }
@@ -1032,7 +1033,7 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
             assertEquals(expectedStarTreeDocument.dimensions[0], resultStarTreeDocument.dimensions[0]);
             assertEquals(expectedStarTreeDocument.dimensions[1], resultStarTreeDocument.dimensions[1]);
             assertEquals(expectedStarTreeDocument.dimensions[2], resultStarTreeDocument.dimensions[2]);
-            assertEquals(expectedStarTreeDocument.metrics[0], resultStarTreeDocument.metrics[0]);
+            assertEquals(expectedStarTreeDocument.metrics[0], ((CompensatedSum) resultStarTreeDocument.metrics[0]).value());
             assertEquals(expectedStarTreeDocument.metrics[1], resultStarTreeDocument.metrics[1]);
         }
 

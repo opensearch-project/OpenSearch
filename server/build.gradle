@@ -395,7 +395,7 @@ tasks.named("sourcesJar").configure {
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
     // See please https://github.com/siom79/japicmp/issues/201
-    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT" ]
+    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
     oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
     newClasspath.from(tasks.named('jar'))
     onlyModified = true

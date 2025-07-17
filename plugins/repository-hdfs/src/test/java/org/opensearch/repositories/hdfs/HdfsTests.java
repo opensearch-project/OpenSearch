@@ -160,7 +160,7 @@ public class HdfsTests extends OpenSearchSingleNodeTestCase {
 
     public void testMissingUri() {
         try {
-            OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "hdfs", Settings.builder());
+            OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo1", "hdfs", Settings.builder());
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -193,7 +193,7 @@ public class HdfsTests extends OpenSearchSingleNodeTestCase {
     public void testPathSpecifiedInHdfs() {
         try {
             Settings.Builder settings = Settings.builder().put("uri", "hdfs:///some/path");
-            OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "hdfs", settings);
+            OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo2", "hdfs", settings);
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -204,7 +204,7 @@ public class HdfsTests extends OpenSearchSingleNodeTestCase {
     public void testMissingPath() {
         try {
             Settings.Builder settings = Settings.builder().put("uri", "hdfs:///");
-            OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "hdfs", settings);
+            OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo3", "hdfs", settings);
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
