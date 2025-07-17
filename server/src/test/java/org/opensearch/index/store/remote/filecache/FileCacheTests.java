@@ -512,7 +512,7 @@ public class FileCacheTests extends OpenSearchTestCase {
         cache.decRef(key);
     }
 
-    public void testRestore() throws IOException {
+    public void testConcurrentRestore() throws IOException {
         String index = "test-index-";
         String warmIndex = "test-warm-index-";
         for (int i = 1; i <= 100; i++) {

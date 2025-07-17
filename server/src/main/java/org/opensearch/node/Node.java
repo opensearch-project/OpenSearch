@@ -2270,15 +2270,24 @@ public class Node implements Closeable {
 
         this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
-        ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
+        ForkJoinPool loadFileCacheThreadpool = new ForkJoinPool(
+            Runtime.getRuntime().availableProcessors(),
+            Node.CustomForkJoinWorkerThread::new,
+            null,
+            false
+        );
         SetOnce<UncheckedIOException> exception = new SetOnce<>();
-        ForkJoinTask<Void> task1 = pool.submit(new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception));
+        ForkJoinTask<Void> task1 = loadFileCacheThreadpool.submit(
+            new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception)
+        );
         if (DiscoveryNode.isDedicatedWarmNode(settings)) {
-            ForkJoinTask<Void> task2 = pool.submit(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
+            ForkJoinTask<Void> task2 = loadFileCacheThreadpool.submit(
+                new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception)
+            );
             task2.join();
         }
         task1.join();
-        pool.shutdown();
+        loadFileCacheThreadpool.shutdown();
         if (exception.get() != null) {
             logger.error("File cache initialization failed.", exception.get());
             throw new OpenSearchException(exception.get());
