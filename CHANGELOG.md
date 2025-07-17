@@ -29,6 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add fetch phase profiling. ([#18664](https://github.com/opensearch-project/OpenSearch/pull/18664))
 - Include named queries from rescore contexts in matched_queries array ([#18697](https://github.com/opensearch-project/OpenSearch/pull/18697))
 - Add the configurable limit on rule cardinality ([#18663](https://github.com/opensearch-project/OpenSearch/pull/18663))
+- [Experimental] Start in "clusterless" mode if a clusterless ClusterPlugin is loaded ([#18479](https://github.com/opensearch-project/OpenSearch/pull/18479))
+- [Star-Tree] Add star-tree search related stats ([#18707](https://github.com/opensearch-project/OpenSearch/pull/18707))
+- Add support for plugins to profile information ([#18656](https://github.com/opensearch-project/OpenSearch/pull/18656))
 
 ### Changed
 - Update Subject interface to use CheckedRunnable ([#18570](https://github.com/opensearch-project/OpenSearch/issues/18570))
@@ -39,7 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Bump `stefanzweifel/git-auto-commit-action` from 5 to 6 ([#18524](https://github.com/opensearch-project/OpenSearch/pull/18524))
 - Bump Apache Lucene to 10.2.2 ([#18573](https://github.com/opensearch-project/OpenSearch/pull/18573))
-- Bump `org.apache.logging.log4j:log4j-core` from 2.24.3 to 2.25.0 ([#18589](https://github.com/opensearch-project/OpenSearch/pull/18589))
+- Bump `org.apache.logging.log4j:log4j-core` from 2.24.3 to 2.25.1 ([#18589](https://github.com/opensearch-project/OpenSearch/pull/18589), [#18744](https://github.com/opensearch-project/OpenSearch/pull/18744))
 - Bump `com.google.code.gson:gson` from 2.13.0 to 2.13.1 ([#18585](https://github.com/opensearch-project/OpenSearch/pull/18585))
 - Bump `com.azure:azure-core-http-netty` from 1.15.11 to 1.15.12 ([#18586](https://github.com/opensearch-project/OpenSearch/pull/18586))
 - Bump `com.squareup.okio:okio` from 3.13.0 to 3.15.0 ([#18645](https://github.com/opensearch-project/OpenSearch/pull/18645), [#18689](https://github.com/opensearch-project/OpenSearch/pull/18689))
@@ -52,6 +55,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.bouncycastle:bcpg-fips` from 2.0.10 to 2.0.11 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
 - Bump `com.password4j:password4j` from 1.8.2 to 1.8.3 ([#18668](https://github.com/opensearch-project/OpenSearch/pull/18668))
 - Bump `com.azure:azure-core` from 1.55.3 to 1.55.5 ([#18691](https://github.com/opensearch-project/OpenSearch/pull/18691))
+- Bump `com.google.jimfs:jimfs` from 1.3.0 to 1.3.1 ([#18743](https://github.com/opensearch-project/OpenSearch/pull/18743)), [#18746](https://github.com/opensearch-project/OpenSearch/pull/18746))
+- Bump `com.azure:azure-storage-common` from 12.29.0 to 12.29.1 ([#18742](https://github.com/opensearch-project/OpenSearch/pull/18742))
+- Bump `org.apache.commons:commons-lang3` from 3.17.0 to 3.18.0 ([#18745](https://github.com/opensearch-project/OpenSearch/pull/18745))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 10.2 to 10.3.1 ([#18759](https://github.com/opensearch-project/OpenSearch/pull/18759))
+- Bump `commons-beanutils:commons-beanutils` from 1.9.4 to 1.11.0 ([#18401](https://github.com/opensearch-project/OpenSearch/issues/18401))
 
 ### Deprecated
 
@@ -68,6 +76,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix Replication lag computation ([#18602](https://github.com/opensearch-project/OpenSearch/pull/18602))
 - Fix max_score is null when sorting on score firstly ([#18715](https://github.com/opensearch-project/OpenSearch/pull/18715))
 - Fixed Staggered merge -  load average replace with AverageTrackers, some Default thresholds modified ([#18666](https://github.com/opensearch-project/OpenSearch/pull/18666))
+- Use `new SecureRandom()` to avoid blocking ([18729](https://github.com/opensearch-project/OpenSearch/issues/18729))
 
 ### Security
 

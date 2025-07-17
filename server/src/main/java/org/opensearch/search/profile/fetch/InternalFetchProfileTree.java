@@ -16,7 +16,7 @@ import org.opensearch.search.profile.AbstractInternalProfileTree;
 public class InternalFetchProfileTree extends AbstractInternalProfileTree<FetchProfileBreakdown, String> {
 
     @Override
-    protected FetchProfileBreakdown createProfileBreakdown() {
+    protected FetchProfileBreakdown createProfileBreakdown(String element) {
         return new FetchProfileBreakdown();
     }
 
