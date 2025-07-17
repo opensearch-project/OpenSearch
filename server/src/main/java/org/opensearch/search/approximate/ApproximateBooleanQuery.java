@@ -90,36 +90,92 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     }
 
     @Override
-    public ConstantScoreWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost){
-        return new ConstantScoreWeight(this, boost) {
-
-            /**
-             * @param ctx
-             * @return {@code true} if the object can be cached against a given leaf
-             */
-            @Override
-            public boolean isCacheable(LeafReaderContext ctx) {
-                return false;
+    public ConstantScoreWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        // For single clause boolean queries, delegate to the clause's createWeight
+        if (clauses.size() == 1 && clauses.get(0).occur() != BooleanClause.Occur.MUST_NOT) {
+            BooleanClause singleClause = clauses.get(0);
+            Query clauseQuery = singleClause.query();
+            
+            // If it's a scoring query, wrap it in a ConstantScoreQuery to ensure constant scoring
+            if (!(clauseQuery instanceof ConstantScoreQuery)) {
+                clauseQuery = new ConstantScoreQuery(clauseQuery);
             }
-
-            /**
-             * Get a {@link ScorerSupplier}, which allows knowing the cost of the {@link Scorer} before
-             * building it. A scorer supplier for the same {@link LeafReaderContext} instance may be requested
-             * multiple times as part of a single search call.
-             *
-             * <p><strong>Note:</strong> It must return null if the scorer is null.
-             *
-             * @param context the leaf reader context
-             * @return a {@link ScorerSupplier} providing the scorer, or null if scorer is null
-             * @throws IOException if an IOException occurs
-             * @see Scorer
-             * @see DefaultScorerSupplier
-             */
-            @Override
-            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            
+            return (ConstantScoreWeight) clauseQuery.createWeight(searcher, scoreMode, boost);
+        }
+        
+        // For multi-clause boolean queries, create a custom weight
+        return new ApproximateBooleanWeight(searcher, scoreMode, boost);
+    }
+    
+    /**
+     * Custom Weight implementation for ApproximateBooleanQuery that handles multi-clause boolean queries.
+     * This is a basic implementation that behaves like a regular filter boolean query for now.
+     */
+    private class ApproximateBooleanWeight extends ConstantScoreWeight {
+        private final Weight booleanWeight;
+        
+        public ApproximateBooleanWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            super(ApproximateBooleanQuery.this, boost);
+            // Create a weight for the underlying boolean query
+            this.booleanWeight = boolQuery.createWeight(searcher, scoreMode, boost);
+        }
+        
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            return false;
+        }
+        
+        @Override
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            // Get the scorer supplier from the underlying boolean weight
+            final ScorerSupplier booleanScorer = booleanWeight.scorerSupplier(context);
+            if (booleanScorer == null) {
                 return null;
             }
-        };
+            
+            // Return a wrapper scorer supplier that delegates to the boolean scorer
+            return new ScorerSupplier() {
+                @Override
+                public Scorer get(long leadCost) throws IOException {
+                    Scorer scorer = booleanScorer.get(leadCost);
+                    if (scorer == null) {
+                        return null;
+                    }
+                    return new ConstantScoreScorer(ApproximateBooleanWeight.this, score(), scoreMode, scorer.iterator());
+                }
+                
+                @Override
+                public long cost() {
+                    return booleanScorer.cost();
+                }
+                
+                @Override
+                public BulkScorer bulkScorer() throws IOException {
+                    // For now, just delegate to the standard bulk scorer
+                    // In the future, this is where we would implement our custom bulk scorer
+                    return booleanScorer.bulkScorer();
+                }
+            };
+        }
+        
+        @Override
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            ScorerSupplier scorerSupplier = scorerSupplier(context);
+            if (scorerSupplier == null) {
+                return null;
+            }
+            return scorerSupplier.get(Long.MAX_VALUE);
+        }
+        
+        @Override
+        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
+            ScorerSupplier scorerSupplier = scorerSupplier(context);
+            if (scorerSupplier == null) {
+                return null;
+            }
+            return scorerSupplier.bulkScorer();
+        }
     }
 
     @Override
