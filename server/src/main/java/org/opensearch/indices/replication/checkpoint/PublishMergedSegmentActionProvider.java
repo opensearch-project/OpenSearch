@@ -16,6 +16,8 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
+
 public class PublishMergedSegmentActionProvider implements Provider<MergedSegmentPublisher.PublishAction> {
 
     private final Settings settings;
@@ -53,8 +55,7 @@ public class PublishMergedSegmentActionProvider implements Provider<MergedSegmen
         if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING) == false) {
             return null;
         }
-        // TODO: FIX THIS
-        if (false) {// || clusterService.localNode().isRemoteStoreNode() == false) {
+        if (isRemoteDataAttributePresent(settings) == false) {
             return new PublishMergedSegmentAction(
                 settings,
                 transportService,

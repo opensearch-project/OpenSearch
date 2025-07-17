@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
@@ -29,6 +30,7 @@ import java.util.function.Function;
  * The service essentially acts as a bridge between local segment storage and remote storage,
  * ensuring efficient and reliable segment synchronization while providing comprehensive monitoring and error handling.
  */
+@ExperimentalApi
 public class RemoteStoreUploaderService implements RemoteStoreUploader {
 
     private final Logger logger;

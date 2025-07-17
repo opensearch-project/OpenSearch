@@ -84,13 +84,15 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
             IndexFileNames.parseSegmentName(SEGMENT_NAME)
         );
         remoteStoreMergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
-            spyIndexShard.shardId(),
-            spyIndexShard.getPendingPrimaryTerm(),
-            1,
-            indexShard.getLatestReplicationCheckpoint().getCodec(),
-            SI_SNAPSHOT,
-            IndexFileNames.parseSegmentName(SEGMENT_NAME),
-            null
+            new MergedSegmentCheckpoint(
+                spyIndexShard.shardId(),
+                spyIndexShard.getPendingPrimaryTerm(),
+                1,
+                indexShard.getLatestReplicationCheckpoint().getCodec(),
+                SI_SNAPSHOT,
+                IndexFileNames.parseSegmentName(SEGMENT_NAME)
+            ),
+            Map.of(SEGMENT_NAME, SEGMENT_NAME + "__uuid")
         );
     }
 

@@ -31,7 +31,6 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.RemoteStoreSettings;
-import org.opensearch.indices.replication.ActiveMergesSegmentRegistry;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.ThreadPool;
@@ -82,7 +81,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     public static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
 
-    private final ActiveMergesSegmentRegistry activeMergesSegmentRegistry = ActiveMergesSegmentRegistry.getInstance();
     private final IndexShard indexShard;
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
@@ -98,7 +96,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         IndexShard indexShard,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
         RemoteSegmentTransferTracker segmentTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        RemoteStoreUploaderService remoteStoreUploaderService
     ) {
         super(indexShard.getThreadPool());
         logger = Loggers.getLogger(getClass(), indexShard.shardId());
@@ -106,7 +105,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
-        remoteStoreUploader = new RemoteStoreUploaderService(indexShard, storeDirectory, remoteDirectory);
+        this.remoteStoreUploader = remoteStoreUploaderService;
         localSegmentChecksumMap = new HashMap<>();
         RemoteSegmentMetadata remoteSegmentMetadata = null;
         if (indexShard.routingEntry().primary()) {
@@ -259,11 +258,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
-                    remoteDirectory.syncSegmentsUploadedToRemoteStoreWithActiveMergesSegmentRegistry(
-                        storeDirectory,
-                        localSegmentsPostRefresh
-                    );
-
                     // Create a map of file name to size and update the refresh segment tracker
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
                         .stream()
@@ -294,6 +288,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                 // as part of exponential back-off retry logic. This should not affect durability of the indexed data
                                 // with remote trans-log integration.
                                 logger.warn("Exception in post new segment upload actions", e);
+                            } finally {
+                                remoteDirectory.syncMergedSegments();
                             }
                         }
 

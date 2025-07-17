@@ -32,7 +32,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
-import org.opensearch.indices.replication.ActiveMergesSegmentRegistry;
+import org.opensearch.indices.replication.ActiveMergesRegistry;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -70,6 +70,7 @@ public class RemoteDirectory extends Directory {
 
     private final DownloadRateLimiterProvider downloadRateLimiterProvider;
 
+    final ActiveMergesRegistry activeMergesRegistry;
     /**
      * Number of bytes in the segment file to store checksum
      */
@@ -80,7 +81,7 @@ public class RemoteDirectory extends Directory {
     }
 
     public RemoteDirectory(BlobContainer blobContainer) {
-        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity());
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), null);
     }
 
     public RemoteDirectory(
@@ -88,12 +89,14 @@ public class RemoteDirectory extends Directory {
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
         UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
         UnaryOperator<InputStream> downloadRateLimiter,
-        UnaryOperator<InputStream> lowPriorityDownloadRateLimiter
+        UnaryOperator<InputStream> lowPriorityDownloadRateLimiter,
+        ActiveMergesRegistry activeMergesRegistry
     ) {
         this.blobContainer = blobContainer;
         this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
         this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
+        this.activeMergesRegistry = activeMergesRegistry;
     }
 
     /**
@@ -238,7 +241,8 @@ public class RemoteDirectory extends Directory {
         InputStream inputStream = null;
         try {
             inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, downloadRateLimiterProvider.get(name).apply(inputStream), fileLength);
+            UnaryOperator<InputStream> rateLimiter = downloadRateLimiterProvider.get(name);
+            return new RemoteIndexInput(name, rateLimiter.apply(inputStream), fileLength);
         } catch (Exception e) {
             // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
@@ -483,8 +487,6 @@ public class RemoteDirectory extends Directory {
     }
 
     private class DownloadRateLimiterProvider {
-        private final ActiveMergesSegmentRegistry activeMergesSegmentRegistry = ActiveMergesSegmentRegistry.getInstance();
-
         private final UnaryOperator<InputStream> downloadRateLimiter;
         private final UnaryOperator<InputStream> lowPriorityDownloadRateLimiter;
 
@@ -497,7 +499,7 @@ public class RemoteDirectory extends Directory {
         }
 
         public UnaryOperator<InputStream> get(final String filename) {
-            if (activeMergesSegmentRegistry.contains(filename)) {
+            if (activeMergesRegistry != null && activeMergesRegistry.contains(filename)) {
                 return lowPriorityDownloadRateLimiter;
             }
             return downloadRateLimiter;

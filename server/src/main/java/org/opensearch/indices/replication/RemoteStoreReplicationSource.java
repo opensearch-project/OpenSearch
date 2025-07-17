@@ -20,7 +20,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.RemoteStoreFileDownloader;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -181,13 +180,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             final Directory storeDirectory = indexShard.store().directory();
 
             Map<String, String> localToRemoteSegmentFileNameMap = mergedSegmentCheckpoint.getLocalToRemoteSegmentFilenameMap();
-
-            final List<RemoteStoreFileDownloader.FileCopySpec> toDownloadSegmentNames = new ArrayList<>();
-            for (StoreFileMetadata fileMetadata : filesToFetch) {
-                String file = fileMetadata.name();
-                toDownloadSegmentNames.add(new RemoteStoreFileDownloader.FileCopySpec(file, localToRemoteSegmentFileNameMap.get(file)));
-            }
-
+            List<String> toDownloadSegmentNames = localToRemoteSegmentFileNameMap.keySet().stream().toList();
             indexShard.getFileDownloader()
                 .download(
                     indexShard.getRemoteDirectory(),

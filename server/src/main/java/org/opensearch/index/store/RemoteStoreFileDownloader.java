@@ -14,7 +14,6 @@ import org.apache.lucene.store.IOContext;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
@@ -41,10 +40,6 @@ public final class RemoteStoreFileDownloader {
     private final Logger logger;
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
-
-    @ExperimentalApi
-    public record FileCopySpec(String localFilename, String remoteFilename) {
-    }
 
     public RemoteStoreFileDownloader(ShardId shardId, ThreadPool threadPool, RecoverySettings recoverySettings) {
         this.logger = Loggers.getLogger(RemoteStoreFileDownloader.class, shardId);
@@ -77,16 +72,16 @@ public final class RemoteStoreFileDownloader {
      * @param destination The local directory to copy segment files to
      * @param secondDestination The second remote directory that segment files are
      *                          copied to after being copied to the local directory
-     * @param toDownloadSegments The list of segment files to download as String or {@link FileCopySpec}
+     * @param toDownloadSegments The list of segment files to download
      * @param onFileCompletion A generic runnable that is invoked after each file download.
      *                         Must be thread safe as this may be invoked concurrently from
      *                         different threads.
      */
-    public <T> void download(
+    public void download(
         Directory source,
         Directory destination,
         Directory secondDestination,
-        Collection<T> toDownloadSegments,
+        Collection<String> toDownloadSegments,
         Runnable onFileCompletion
     ) throws InterruptedException, IOException {
         final CancellableThreads cancellableThreads = new CancellableThreads();
@@ -110,16 +105,16 @@ public final class RemoteStoreFileDownloader {
         }
     }
 
-    private <T> void downloadInternal(
+    private void downloadInternal(
         CancellableThreads cancellableThreads,
         Directory source,
         Directory destination,
         @Nullable Directory secondDestination,
-        Collection<T> toDownloadSegments,
+        Collection<String> toDownloadSegments,
         Runnable onFileCompletion,
         ActionListener<Void> listener
     ) {
-        final Queue<T> queue = new ConcurrentLinkedQueue<>(toDownloadSegments);
+        final Queue<String> queue = new ConcurrentLinkedQueue<>(toDownloadSegments);
         // Choose the minimum of:
         // - number of files to download
         // - max thread pool size
@@ -135,36 +130,29 @@ public final class RemoteStoreFileDownloader {
         }
     }
 
-    private <T> void copyOneFile(
+    private void copyOneFile(
         CancellableThreads cancellableThreads,
         Directory source,
         Directory destination,
         @Nullable Directory secondDestination,
-        Queue<T> queue,
+        Queue<String> queue,
         Runnable onFileCompletion,
         ActionListener<Void> listener
     ) {
-        final T file = queue.poll();
+        final String file = queue.poll();
         if (file == null) {
             // Queue is empty, so notify listener we are done
             listener.onResponse(null);
         } else {
-            String fileSrc, fileDest;
-            if (file instanceof FileCopySpec(String localFilename, String remoteFilename)) {
-                fileSrc = remoteFilename;
-                fileDest = localFilename;
-            } else {
-                fileSrc = fileDest = (String) file;
-            }
             threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY).submit(() -> {
                 logger.trace("Downloading file {}", file);
                 try {
                     cancellableThreads.executeIO(() -> {
-                        destination.copyFrom(source, fileSrc, fileDest, IOContext.DEFAULT);
-                        logger.trace("Downloaded file {} of size {}", file, destination.fileLength(fileDest));
+                        destination.copyFrom(source, file, file, IOContext.DEFAULT);
+                        logger.trace("Downloaded file {} of size {}", file, destination.fileLength(file));
                         onFileCompletion.run();
                         if (secondDestination != null) {
-                            secondDestination.copyFrom(destination, fileSrc, fileDest, IOContext.DEFAULT);
+                            secondDestination.copyFrom(destination, file, file, IOContext.DEFAULT);
                         }
                     });
                 } catch (Exception e) {

@@ -40,20 +40,13 @@ public class RemoteStorePublishMergedSegmentRequest extends ReplicationRequest<R
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof RemoteStorePublishMergedSegmentRequest that)) return false;
-        return Objects.equals(mergedSegment, that.mergedSegment);
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(mergedSegment);
     }
 
     @Override
     public String toString() {
-        return "RemoteStorePublishMergedSegmentRequest{" + "mergedSegment=" + mergedSegment + '}';
+        return "RemoteStorePublishMergedSegmentRequest{mergedSegment=" + mergedSegment + '}';
     }
 
     public RemoteStoreMergedSegmentCheckpoint getMergedSegment() {

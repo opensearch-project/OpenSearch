@@ -180,7 +180,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         return 0;
     }
 
-
     @Override
     public String startVerification() {
         return null;
