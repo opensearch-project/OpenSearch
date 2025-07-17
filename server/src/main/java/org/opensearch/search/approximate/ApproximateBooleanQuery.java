@@ -8,12 +8,11 @@
 
 package org.opensearch.search.approximate;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.*;
 import org.opensearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -88,6 +87,39 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
         }
 
         return false;
+    }
+
+    @Override
+    public ConstantScoreWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost){
+        return new ConstantScoreWeight(this, boost) {
+
+            /**
+             * @param ctx
+             * @return {@code true} if the object can be cached against a given leaf
+             */
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                return false;
+            }
+
+            /**
+             * Get a {@link ScorerSupplier}, which allows knowing the cost of the {@link Scorer} before
+             * building it. A scorer supplier for the same {@link LeafReaderContext} instance may be requested
+             * multiple times as part of a single search call.
+             *
+             * <p><strong>Note:</strong> It must return null if the scorer is null.
+             *
+             * @param context the leaf reader context
+             * @return a {@link ScorerSupplier} providing the scorer, or null if scorer is null
+             * @throws IOException if an IOException occurs
+             * @see Scorer
+             * @see DefaultScorerSupplier
+             */
+            @Override
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                return null;
+            }
+        };
     }
 
     @Override
