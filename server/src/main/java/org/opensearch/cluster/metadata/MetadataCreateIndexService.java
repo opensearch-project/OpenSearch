@@ -1182,6 +1182,14 @@ public class MetadataCreateIndexService {
                     settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true).put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
                     if (translogRepo != null) {
                         settingsBuilder.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                    } else if (isMigratingToRemoteStore(clusterSettings)) {
+                        ValidationException validationException = new ValidationException();
+                        validationException.addValidationErrors(
+                            Collections.singletonList(
+                                "Cluster is migrating to remote store but remote translog is not configured, failing index creation"
+                            )
+                        );
+                        throw new IndexCreationException(indexName, validationException);
                     }
                 } else {
                     ValidationException validationException = new ValidationException();
