@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Bump `netty` from 4.1.118.Final to 4.1.121.Final ([#18192](https://github.com/opensearch-project/OpenSearch/pull/18192))
 - Bump Apache Lucene to 9.12.2 ([#18574](https://github.com/opensearch-project/OpenSearch/pull/18574))
+- Bump net.minidev:json-smart from 2.5.1 to 2.5.2 ([#18781](https://github.com/opensearch-project/OpenSearch/pull/18781))
 
 ### Deprecated
 
