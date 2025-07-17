@@ -108,6 +108,9 @@ setup:
 
 ---
 "field-level setting shall override index-level setting":
+  - skip:
+      version: " - 3.1.99"
+      reason: "Versions pre-3.2.0 are affected by the bug"
   - do:
       catch: /failed to parse field \[my_date\] of type \[date\]/
       index:
