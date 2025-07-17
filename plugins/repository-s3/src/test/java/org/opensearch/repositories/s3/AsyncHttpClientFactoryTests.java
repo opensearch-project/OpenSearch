@@ -12,9 +12,14 @@ import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
+
+import java.nio.file.Path;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
@@ -26,7 +31,11 @@ public class AsyncHttpClientFactoryTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        clientSettings = mock(S3ClientSettings.class);
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.max_retries", 10).build(),
+            configPath()
+        );
+        clientSettings = settings.get("default");
         eventLoopGroup = mock(AsyncTransferEventLoopGroup.class);
         factory = new AsyncHttpClientFactory(clientSettings, eventLoopGroup);
     }
@@ -65,5 +74,9 @@ public class AsyncHttpClientFactoryTests extends OpenSearchTestCase {
     public void testClientTypeToString() {
         assertEquals("netty", AsyncHttpClientFactory.AsyncHttpClientType.NETTY_ASYNC_CLIENT.toString());
         assertEquals("crt", AsyncHttpClientFactory.AsyncHttpClientType.CRT_ASYNC_CLIENT.toString());
+    }
+
+    protected Path configPath() {
+        return PathUtils.get("config");
     }
 }
