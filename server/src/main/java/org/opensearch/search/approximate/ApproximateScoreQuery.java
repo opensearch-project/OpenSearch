@@ -59,7 +59,8 @@ public final class ApproximateScoreQuery extends Query {
 
     public void setContext(SearchContext context) {
         resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
-        if (resolvedQuery instanceof ApproximateBooleanQuery || resolvedQuery instanceof BooleanQuery) {
+        if (resolvedQuery instanceof ApproximateBooleanQuery && ((BooleanQuery) originalQuery).clauses().size() == 1
+            || resolvedQuery instanceof BooleanQuery) {
             resolvedQuery = ApproximateBooleanQuery.unwrap(resolvedQuery);
             if (resolvedQuery instanceof ApproximateScoreQuery appxResolved) {
                 appxResolved.setContext(context);

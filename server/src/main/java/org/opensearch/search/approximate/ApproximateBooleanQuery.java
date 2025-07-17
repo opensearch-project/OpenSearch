@@ -9,7 +9,19 @@
 package org.opensearch.search.approximate;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -24,7 +36,6 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     private final int size;
     private final List<BooleanClause> clauses;
     private ApproximateBooleanQuery booleanQuery;
-    public boolean isUnwrapped = false;
 
     public ApproximateBooleanQuery(BooleanQuery boolQuery) {
         this(boolQuery, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
@@ -86,6 +97,11 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             }
         }
 
+        if (clauses.size() > 1) {
+            // need to update
+            return true;
+        }
+
         return false;
     }
 
@@ -93,39 +109,40 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     public ConstantScoreWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         // For single clause boolean queries, delegate to the clause's createWeight
         if (clauses.size() == 1 && clauses.get(0).occur() != BooleanClause.Occur.MUST_NOT) {
-            BooleanClause singleClause = clauses.get(0);
-            Query clauseQuery = singleClause.query();
-            
+            Query clauseQuery = clauses.get(0).query();
+
             // If it's a scoring query, wrap it in a ConstantScoreQuery to ensure constant scoring
             if (!(clauseQuery instanceof ConstantScoreQuery)) {
                 clauseQuery = new ConstantScoreQuery(clauseQuery);
             }
-            
+
             return (ConstantScoreWeight) clauseQuery.createWeight(searcher, scoreMode, boost);
         }
-        
+
         // For multi-clause boolean queries, create a custom weight
         return new ApproximateBooleanWeight(searcher, scoreMode, boost);
     }
-    
+
     /**
      * Custom Weight implementation for ApproximateBooleanQuery that handles multi-clause boolean queries.
      * This is a basic implementation that behaves like a regular filter boolean query for now.
      */
     private class ApproximateBooleanWeight extends ConstantScoreWeight {
         private final Weight booleanWeight;
-        
+        private final ScoreMode scoreMode;
+
         public ApproximateBooleanWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             super(ApproximateBooleanQuery.this, boost);
             // Create a weight for the underlying boolean query
             this.booleanWeight = boolQuery.createWeight(searcher, scoreMode, boost);
+            this.scoreMode = scoreMode;
         }
-        
+
         @Override
         public boolean isCacheable(LeafReaderContext ctx) {
             return false;
         }
-        
+
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             // Get the scorer supplier from the underlying boolean weight
@@ -133,7 +150,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             if (booleanScorer == null) {
                 return null;
             }
-            
+
             // Return a wrapper scorer supplier that delegates to the boolean scorer
             return new ScorerSupplier() {
                 @Override
@@ -142,14 +159,14 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
                     if (scorer == null) {
                         return null;
                     }
-                    return new ConstantScoreScorer(ApproximateBooleanWeight.this, score(), scoreMode, scorer.iterator());
+                    return new ConstantScoreScorer(score(), scoreMode, scorer.iterator());
                 }
-                
+
                 @Override
                 public long cost() {
                     return booleanScorer.cost();
                 }
-                
+
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
                     // For now, just delegate to the standard bulk scorer
@@ -158,24 +175,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
                 }
             };
         }
-        
-        @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            ScorerSupplier scorerSupplier = scorerSupplier(context);
-            if (scorerSupplier == null) {
-                return null;
-            }
-            return scorerSupplier.get(Long.MAX_VALUE);
-        }
-        
-        @Override
-        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-            ScorerSupplier scorerSupplier = scorerSupplier(context);
-            if (scorerSupplier == null) {
-                return null;
-            }
-            return scorerSupplier.bulkScorer();
-        }
+
     }
 
     @Override
