@@ -61,6 +61,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -268,7 +269,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             final DiscoveryNode sourceNode,
             final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
             final DiscoveryNodes discoveryNodes,
-            final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+            final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+            final MergedSegmentPublisher mergedSegmentPublisher
         ) throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);

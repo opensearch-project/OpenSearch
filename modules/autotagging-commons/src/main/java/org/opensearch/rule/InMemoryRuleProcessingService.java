@@ -66,7 +66,7 @@ public class InMemoryRuleProcessingService {
     private void removeOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.remove(value);
+            valueStore.remove(value.replace(WILDCARD, ""));
         }
     }
 

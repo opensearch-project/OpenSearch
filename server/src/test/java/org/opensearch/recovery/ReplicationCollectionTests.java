@@ -144,6 +144,7 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
             final IndexShard shard2 = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard1);
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shard2);
+            assertEquals(2, collection.getOngoingReplicationTargetList(shard1.shardId()).size());
             try {
                 collection.getOngoingReplicationTarget(shard1.shardId());
             } catch (AssertionError e) {

@@ -678,6 +678,24 @@ public class RestIndicesAction extends AbstractListAction {
         table.addCell("pri.search.concurrent_avg_slice_count", "default:false;text-align:right;desc:average query concurrency");
 
         table.addCell(
+            "search.startree_query_current",
+            "sibling:pri;alias:stqc,startreeQueryCurrent;default:false;text-align:right;desc:current star tree query ops"
+        );
+        table.addCell("pri.startree.query_current", "default:false;text-align:right;desc:current star tree query ops");
+
+        table.addCell(
+            "search.startree_query_total",
+            "sibling:pri;alias:stqto,startreeQueryCurrent;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell("pri.startree.query_total", "default:false;text-align:right;desc:total star tree resolved queries");
+
+        table.addCell(
+            "search.startree_query_time",
+            "sibling:pri;alias:stqti,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
+        );
+        table.addCell("pri.startree.query_time", "default:false;text-align:right;desc:time spent in star tree queries");
+
+        table.addCell(
             "search.scroll_current",
             "sibling:pri;alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts"
         );
@@ -770,6 +788,15 @@ public class RestIndicesAction extends AbstractListAction {
         table.addCell("pri.memory.total", "default:false;text-align:right;desc:total user memory");
 
         table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
+
+        table.addCell(
+            "last_index_request_timestamp",
+            "alias:last_index_ts,lastIndexRequestTimestamp;default:false;text-align:right;desc:timestamp of the last processed index request (epoch millis)"
+        );
+        table.addCell(
+            "last_index_request_timestamp_string",
+            "alias:last_index_ts_string,lastIndexRequestTimestampString;default:false;text-align:right;desc:timestamp of the last processed index request (ISO8601 string)"
+        );
 
         table.endHeaders();
         return table;
@@ -1002,6 +1029,15 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentAvgSliceCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentAvgSliceCount());
 
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryTime());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCurrent());
+
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());
 
@@ -1058,8 +1094,13 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(searchThrottled);
 
-            table.endRow();
+            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getMaxLastIndexRequestTimestamp());
+            Long ts = totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getMaxLastIndexRequestTimestamp();
+            table.addCell(
+                ts == null || ts == 0 ? null : STRICT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(ts).atZone(ZoneOffset.UTC))
+            );
 
+            table.endRow();
         }
 
         return table;

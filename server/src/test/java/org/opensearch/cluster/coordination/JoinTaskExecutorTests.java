@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -137,7 +136,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final DiscoveryNode tooLowJoiningNode = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
-            LegacyESVersion.fromString("6.7.0")
+            Version.fromString("6.7.0")
         );
         expectThrows(IllegalStateException.class, () -> {
             if (randomBoolean()) {

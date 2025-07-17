@@ -50,6 +50,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.discovery.AbstractDisruptionTestCase;
 import org.opensearch.plugins.Plugin;
@@ -154,6 +155,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Thread.sleep(1000); // Wait for the snapshot to start
         assertFalse(createSlowFuture.isDone()); // Ensure the snapshot is still in progress
         // Attempt to update the repository settings while the snapshot is in progress
+        settings.put("chunk_size", 2000, ByteSizeUnit.BYTES);
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> updateRepository(repoName, "mock", settings));
         // Verify that the update fails with an appropriate exception
         assertEquals("trying to modify or unregister repository that is currently used", ex.getMessage());
@@ -180,10 +182,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Thread.sleep(1000); // Wait for the delete operation to start
         assertFalse(future.isDone()); // Ensure the delete operation is still in progress
         // Attempt to update the repository settings while the delete operation is in progress
-        IllegalStateException ex = assertThrows(
-            IllegalStateException.class,
-            () -> updateRepository(repoName, "mock", randomRepositorySettings())
-        );
+        Settings.Builder newSettings = randomRepositorySettings();
+        newSettings.put("chunk_size", 2000, ByteSizeUnit.BYTES);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> updateRepository(repoName, "mock", newSettings));
         // Verify that the update fails with an appropriate exception
         assertEquals("trying to modify or unregister repository that is currently used", ex.getMessage());
         unblockNode(repoName, clusterManagerName); // Unblock the delete operation
