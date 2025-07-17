@@ -2277,16 +2277,16 @@ public class Node implements Closeable {
             false
         );
         SetOnce<UncheckedIOException> exception = new SetOnce<>();
-        ForkJoinTask<Void> task1 = loadFileCacheThreadpool.submit(
+        ForkJoinTask<Void> fileCacheFilesLoadTask = loadFileCacheThreadpool.submit(
             new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception)
         );
         if (DiscoveryNode.isDedicatedWarmNode(settings)) {
-            ForkJoinTask<Void> task2 = loadFileCacheThreadpool.submit(
+            ForkJoinTask<Void> indicesFilesLoadTask = loadFileCacheThreadpool.submit(
                 new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception)
             );
-            task2.join();
+            indicesFilesLoadTask.join();
         }
-        task1.join();
+        fileCacheFilesLoadTask.join();
         loadFileCacheThreadpool.shutdown();
         if (exception.get() != null) {
             logger.error("File cache initialization failed.", exception.get());
