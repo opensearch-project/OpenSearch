@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.breaker.TestCircuitBreaker;
@@ -35,6 +34,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCacheTests extends OpenSearchTestCase {
@@ -527,13 +527,11 @@ public class FileCacheTests extends OpenSearchTestCase {
         Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER);
         ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
         SetOnce<UncheckedIOException> exception = new SetOnce<>();
-        pool.submit(new FileCache.LoadTask(indicesPath, fileCache, exception));
-        pool.invoke(new FileCache.LoadTask(cachePath, fileCache, exception));
+        ForkJoinTask<Void> task1 = pool.submit(new FileCache.LoadTask(indicesPath, fileCache, exception));
+        ForkJoinTask<Void> task2 = pool.submit(new FileCache.LoadTask(cachePath, fileCache, exception));
+        task2.join();
+        task1.join();
         pool.shutdown();
-        if (exception.get() != null) {
-            logger.error("File cache initialization failed.", exception.get());
-            throw new OpenSearchException(exception.get());
-        }
         assertEquals(2000, fileCache.size());
     }
 

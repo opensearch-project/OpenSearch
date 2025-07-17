@@ -321,6 +321,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -2268,10 +2269,12 @@ public class Node implements Closeable {
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
         ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
         SetOnce<UncheckedIOException> exception = new SetOnce<>();
+        ForkJoinTask<Void> task1 = pool.submit(new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception));
         if (DiscoveryNode.isDedicatedWarmNode(settings)) {
-            pool.submit(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
+            ForkJoinTask<Void> task2 = pool.submit(new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception));
+            task2.join();
         }
-        pool.invoke(new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception));
+        task1.join();
         pool.shutdown();
         if (exception.get() != null) {
             logger.error("File cache initialization failed.", exception.get());
