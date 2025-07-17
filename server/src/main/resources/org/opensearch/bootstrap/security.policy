@@ -247,6 +247,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory.swap.current", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.max", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.current", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/system.slice/hosted-compute-agent.service/memory.max", "read";
 
   // needed by RestClientBuilder
   permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";
