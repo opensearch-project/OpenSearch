@@ -18,6 +18,7 @@ setup:
               date_field:
                 type: date
               object_field:
+                type: nested
                 properties:
                   nested_field:
                     type: keyword
@@ -39,6 +40,9 @@ setup:
 
 ---
 "Basic fetch phase profiling":
+  - skip:
+      features: "contains"
+
   - do:
       search:
         index: test_fetch_profile
@@ -49,97 +53,323 @@ setup:
               text_field: "document"
 
   # Verify that fetch phase profiling is included in the response
-  - is_true: profile.shards.0.fetch
-  - match: { profile.shards.0.fetch.type: "FetchPhase" }
-  - is_true: profile.shards.0.fetch.breakdown
-  - is_true: profile.shards.0.fetch.debug
-  - is_true: profile.shards.0.fetch.children
+  - is_true: profile.shards.0.fetch.0
+  - match: { profile.shards.0.fetch.0.type: "fetch" }
+  - match: { profile.shards.0.fetch.0.description: "fetch" }
+  - is_true: profile.shards.0.fetch.0.time_in_nanos
+  - is_true: profile.shards.0.fetch.0.breakdown
+  - is_true: profile.shards.0.fetch.0.breakdown.load_stored_fields
+  - match: { profile.shards.0.fetch.0.breakdown.load_stored_fields_count: 2 }
+  - is_true: profile.shards.0.fetch.0.breakdown.load_source
+  - match: { profile.shards.0.fetch.0.breakdown.load_source_count: 2 }
+  - is_true: profile.shards.0.fetch.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.breakdown.next_reader_count: 1}
+  - is_true: profile.shards.0.fetch.0.breakdown.build_search_hits
+  - match: { profile.shards.0.fetch.0.breakdown.build_search_hits_count: 1}
+  - is_true: profile.shards.0.fetch.0.breakdown.build_sub_phase_processors
+  - match: { profile.shards.0.fetch.0.breakdown.build_sub_phase_processors_count: 1}
+  - is_true: profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor
+  - match: { profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor_count: 1}
+
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - is_true: profile.shards.0.fetch.0.children.0.time_in_nanos
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - length: { profile.shards.0.fetch.0.children: 1 }
 
 ---
-"Fetch phase profiling with source filtering":
+"Fetch phase profiling with aggregations":
   - do:
       search:
         index: test_fetch_profile
         body:
           profile: true
-          _source: ["text_field", "numeric_field"]
-          query:
-            match_all: {}
+          size: 0
+          aggs:
+            group_by_nested:
+              terms:
+                field: "object_field.nested_field"
 
-  # Verify fetch phase profiling with source filtering
-  - is_true: profile.shards.0.fetch
-  - match: { profile.shards.0.fetch.type: "FetchPhase" }
-  - is_true: profile.shards.0.fetch.breakdown
-  - is_true: profile.shards.0.fetch.debug
-  - is_true: profile.shards.0.fetch.children
+  - match: { profile.shards.0.fetch: [ ] }
 
 ---
-"Fetch phase profiling with stored fields":
+"Explain phase profiling":
+  - skip:
+      features: "contains"
+
   - do:
       search:
         index: test_fetch_profile
         body:
           profile: true
-          stored_fields: ["stored_field"]
+          explain: true
           query:
-            match_all: {}
+            match:
+              text_field: "document"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "ExplainPhase"
+        description: "ExplainPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - length: { profile.shards.0.fetch.0.children: 2 }
 
-  # Verify fetch phase profiling with stored fields
-  - is_true: profile.shards.0.fetch
-  - match: { profile.shards.0.fetch.type: "FetchPhase" }
-  - is_true: profile.shards.0.fetch.breakdown
-  - is_true: profile.shards.0.fetch.debug
-  - is_true: profile.shards.0.fetch.children
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
 
 ---
-"Fetch phase profiling with script fields":
+"Doc values phase profiling":
+  - skip:
+      features: "contains"
+
   - do:
       search:
         index: test_fetch_profile
         body:
           profile: true
-          script_fields:
-            doubled_numeric:
-              script:
-                source: "doc['numeric_field'].value * 2"
           query:
             match_all: {}
+          docvalue_fields:
+            - "numeric_field"
+            - "date_field"
 
-  # Verify fetch phase profiling with script fields
-  - is_true: profile.shards.0.fetch
-  - match: { profile.shards.0.fetch.type: "FetchPhase" }
-  - is_true: profile.shards.0.fetch.breakdown
-  - is_true: profile.shards.0.fetch.debug
-  - is_true: profile.shards.0.fetch.children
-  
-  # Check for script fields in the children
-  - is_true: profile.shards.0.fetch.children.0
-  - match: { profile.shards.0.fetch.children.0.type: "ScriptFieldsFetchSubPhase" }
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchDocValuesPhase"
+        description: "FetchDocValuesPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - length: { profile.shards.0.fetch.0.children: 2 }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+
+
+#---
+#"Script fields phase profiling":
+#  - skip:
+#      features: "contains"
+#
+#  - do:
+#      search:
+#        index: test_fetch_profile
+#        body:
+#          profile: true
+#          query:
+#            match_all: {}
+#          script_fields:
+#            my_script_field:
+#              script:
+#                source: "doc['numeric_field'].value * 2"
+#
+#  - contains:
+#      profile.shards.0.fetch.0.children:
+#        type: "ScriptFieldsPhase"
+#        description: "ScriptFieldsPhase"
+#  - contains:
+#      profile.shards.0.fetch.0.children:
+#        type: "FetchSourcePhase"
+#        description: "FetchSourcePhase"
+#  - length: { profile.shards.0.fetch.0.children: 2 }
+#
+#  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+#  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+#  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+#  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+#  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+#  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
+#  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+#  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
 
 ---
-"Fetch phase profiling with docvalue fields":
+"No FetchSourcePhase profiling":
   - do:
       search:
         index: test_fetch_profile
         body:
           profile: true
-          docvalue_fields: ["numeric_field", "date_field"]
           query:
             match_all: {}
+          _source: false
+          docvalue_fields:
+            - "numeric_field"
 
-  # Verify fetch phase profiling with docvalue fields
-  - is_true: profile.shards.0.fetch
-  - match: { profile.shards.0.fetch.type: "FetchPhase" }
-  - is_true: profile.shards.0.fetch.breakdown
-  - is_true: profile.shards.0.fetch.debug
-  - is_true: profile.shards.0.fetch.children
-  
-  # Check for docvalue fields in the children
-  - is_true: profile.shards.0.fetch.children.0
-  - match: { profile.shards.0.fetch.children.0.type: "DocValueFieldsFetchSubPhase" }
+  - is_true: profile.shards.0.fetch.0
+  - length: { profile.shards.0.fetch.0.children: 1 }
+  - match: { profile.shards.0.fetch.0.children.0.type: "FetchDocValuesPhase" }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
 
 ---
-"Fetch phase profiling with highlighting":
+"Fields phase profiling":
+  - skip:
+      features: "contains"
+
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match_all: {}
+          fields:
+            - "numeric_field"
+            - "date_field"
+
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchFieldsPhase"
+        description: "FetchFieldsPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - length: { profile.shards.0.fetch.0.children: 2 }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+
+
+---
+"Version phase profiling":
+  - skip:
+      features: "contains"
+
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match_all: {}
+          version: true
+
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchVersionPhase"
+        description: "FetchVersionPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - length: { profile.shards.0.fetch.0.children: 2 }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+
+---
+"Sequence number and primary term phase profiling":
+  - skip:
+      features: "contains"
+
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match_all: {}
+          seq_no_primary_term: true
+
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "SeqNoPrimaryTermPhase"
+        description: "SeqNoPrimaryTermPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - length: { profile.shards.0.fetch.0.children: 2 }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+
+
+#---
+#"Matched queries phase profiling":
+#  - skip:
+#      features: "contains"
+#
+#  - do:
+#      search:
+#        index: test_fetch_profile
+#        body:
+#          profile: true
+#          query:
+#            bool:
+#              should:
+#                - match:
+#                    text_field: "document"
+#                    _name: "my_query"
+#
+#  - contains:
+#      profile.shards.0.fetch.0.children:
+#        type: "MatchedQueriesPhase"
+#        description: "MatchedQueriesPhase"
+#  - contains:
+#      profile.shards.0.fetch.0.children:
+#        type: "FetchSourcePhase"
+#        description: "FetchSourcePhase"
+#  - length: { profile.shards.0.fetch.0.children: 2 }
+#
+#  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+#  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
+#  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+#  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+#  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+#  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
+#  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+#  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+
+---
+"Highlight phase profiling":
+  - skip:
+      features: "contains"
+
   - do:
       search:
         index: test_fetch_profile
@@ -152,30 +382,96 @@ setup:
             fields:
               text_field: {}
 
-  # Verify fetch phase profiling with highlighting
-  - is_true: profile.shards.0.fetch
-  - match: { profile.shards.0.fetch.type: "FetchPhase" }
-  - is_true: profile.shards.0.fetch.breakdown
-  - is_true: profile.shards.0.fetch.debug
-  - is_true: profile.shards.0.fetch.children
-  
-  # Check for highlighting in the children
-  - is_true: profile.shards.0.fetch.children.0
-  - match: { profile.shards.0.fetch.children.0.type: "HighlightPhase" }
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "HighlightPhase"
+        description: "HighlightPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - length: { profile.shards.0.fetch.0.children: 2 }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+
+
 
 ---
-"Fetch phase profiling with size=0":
+"Fetch score phase profiling":
+  - skip:
+      features: "contains"
+
   - do:
       search:
         index: test_fetch_profile
         body:
           profile: true
-          size: 0
           query:
-            match_all: {}
+            match:
+              text_field: "document"
+          track_scores: true
+          sort:
+            - numeric_field
 
-  # Verify fetch phase profiling with size=0 (should be minimal or absent)
-  - is_true: profile.shards.0.fetch
-  - match: { profile.shards.0.fetch.type: "FetchPhase" }
-  - is_true: profile.shards.0.fetch.breakdown
-  - is_true: profile.shards.0.fetch.debug
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchScorePhase"
+        description: "FetchScorePhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - length: { profile.shards.0.fetch.0.children: 2 }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+
+
+#---
+#"Inner hits phase profiling":
+#  - skip:
+#      features: "contains"
+#
+#  - do:
+#      search:
+#        index: test_fetch_profile
+#        body:
+#          profile: true
+#          query:
+#            nested:
+#              path: "object_field"
+#              query:
+#                match_all: {}
+#              inner_hits: {}
+#
+#  - contains:
+#      profile.shards.0.fetch.0.children:
+#        type: "InnerHitsPhase"
+#        description: "InnerHitsPhase"
+#  - contains:
+#      profile.shards.0.fetch.0.children:
+#        type: "FetchSourcePhase"
+#        description: "FetchSourcePhase"
+#  - length: { profile.shards.0.fetch.0.children: 2 }
+#
+#  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+#  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
+#  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+#  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+#  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+#  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
+#  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+#  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }

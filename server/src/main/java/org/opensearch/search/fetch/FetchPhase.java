@@ -114,7 +114,7 @@ public class FetchPhase {
             fetchProfiler = context.getProfilers().getFetchProfiler();
             if (context.docIdsToLoadSize() > 0) {
                 breakdown = fetchProfiler.getQueryBreakdown("fetch");
-                }
+            }
         }
 
         try {
