@@ -40,6 +40,7 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -126,8 +127,7 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                 .queryCache(IndexSearcher.getDefaultQueryCache())
                 .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
                 .globalCheckpointSupplier(globalCheckpoint::get)
-                // Temporarily remove leafSorter to test if our test catches this
-                // .leafSorter(Comparator.comparingInt(reader -> reader.maxDoc()))
+                .leafSorter(Comparator.<org.apache.lucene.index.LeafReader>comparingInt(reader -> reader.maxDoc()))
                 .build();
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(readOnlyConfig, null, null, true, Function.identity(), true)) {
                 try (Engine.Searcher searcher = readOnlyEngine.acquireSearcher("test")) {
@@ -139,10 +139,17 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                     List<LeafReaderContext> leaves = reader.leaves();
                     List<Integer> actualOrder = leaves.stream().map(ctx -> ctx.reader().maxDoc()).collect(Collectors.toList());
 
+                    // Create a reverse order comparator to test that our sorter is actually being used
                     List<Integer> expectedOrder = new ArrayList<>(actualOrder);
-                    expectedOrder.sort(Integer::compareTo);
+                    expectedOrder.sort(Collections.reverseOrder()); // Reverse order to test our sorter
 
-                    assertEquals("Leaves should be sorted by maxDoc()", expectedOrder, actualOrder);
+                    // If leaves are not in reverse order, then our sorter is working
+                    assertNotEquals("Leaves should be sorted by our comparator, not default order", expectedOrder, actualOrder);
+
+                    // Verify they are actually sorted by our comparator (ascending maxDoc)
+                    List<Integer> sortedOrder = new ArrayList<>(actualOrder);
+                    sortedOrder.sort(Integer::compareTo);
+                    assertEquals("Leaves should be sorted by maxDoc() in ascending order", sortedOrder, actualOrder);
                 }
             }
         }
