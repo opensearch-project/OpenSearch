@@ -725,6 +725,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     return new MultiFields(mappers);
                 }
             }
+
+            public Map<String, Mapper.Builder> getMapperBuilders() {
+                return mapperBuilders;
+            }
         }
 
         private final Map<String, FieldMapper> mappers;
