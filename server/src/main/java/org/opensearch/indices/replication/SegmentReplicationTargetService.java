@@ -719,9 +719,11 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                 });
                 try {
                     if (latch.await(recoverySettings.getMergedSegmentReplicationTimeout().seconds(), TimeUnit.SECONDS) == false) {
-                        logger.warn("Merged segment replication for {} timed out after [{}] seconds",
+                        logger.warn(
+                            "Merged segment replication for {} timed out after [{}] seconds",
                             receivedCheckpoint,
-                            recoverySettings.getMergedSegmentReplicationTimeout().seconds());
+                            recoverySettings.getMergedSegmentReplicationTimeout().seconds()
+                        );
                     }
                 } catch (InterruptedException e) {
                     logger.warn(

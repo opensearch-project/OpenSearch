@@ -21,7 +21,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.RemoteStoreUploaderService;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.ActiveMergesRegistry;
@@ -37,6 +36,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+/**
+ * Replication action responsible for publishing merged segment to a remote store and
+ * notifying all replicas of newly available segments.
+ *
+ * @opensearch.api
+ */
 public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckpointAction<
     RemoteStorePublishMergedSegmentRequest,
     RemoteStorePublishMergedSegmentRequest> implements MergedSegmentPublisher.PublishAction {

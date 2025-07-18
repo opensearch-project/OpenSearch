@@ -38,6 +38,7 @@ import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
+import org.opensearch.indices.replication.ActiveMergesRegistry;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
@@ -505,7 +506,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             remoteMetadataDirectory,
             mdLockManager,
             threadPool,
-            indexShard.shardId()
+            indexShard.shardId(),
+            new ActiveMergesRegistry()
         );
 
         populateMetadata();
@@ -549,7 +551,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             remoteMetadataDirectory,
             mdLockManager,
             threadPool,
-            indexShard.shardId()
+            indexShard.shardId(),
+            new ActiveMergesRegistry()
         );
         when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any())).thenReturn(remoteSegmentDirectory);
         String repositoryName = "test-repository";

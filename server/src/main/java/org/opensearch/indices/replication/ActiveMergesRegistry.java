@@ -8,8 +8,6 @@
 
 package org.opensearch.indices.replication;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 
@@ -17,9 +15,19 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
+/**
+ * Registry to track active segment merges in OpenSearch.
+ * This registry maintains a mapping of segment filenames to their metadata and processing state.
+ * It allows segments to be registered, tracked, and have their state updated as they move through
+ * the pre-copy lifecycle.
+ *
+ * <p>The registry is thread-safe and uses a concurrent hash map to store segment entries.
+ * Each entry contains the segment filename, its current state (REGISTERED or PROCESSED),
+ * and {@link UploadedSegmentMetadata} for the segment.
+ *
+ * @opensearch.internal
+ */
 @ExperimentalApi
 public class ActiveMergesRegistry {
     private final Map<String, SegmentEntry> registryMap = new ConcurrentHashMap<>();
@@ -60,12 +68,28 @@ public class ActiveMergesRegistry {
         }
     }
 
+    /**
+     * Represents the processing state of a segment in the registry.
+     * <p> Possible states:
+     * <ul>
+     *   <li>REGISTERED - The segment has been registered but not yet processed</li>
+     *   <li>PROCESSED - The segment has been uploaded/downloaded and can be unregistered.</li>
+     * </ul>
+     */
     @ExperimentalApi
     public enum SegmentState {
         REGISTERED,
         PROCESSED
     }
 
+    /**
+     * Entry in the ActiveMergesRegistry that holds information about a segment.
+     * <ul>
+     *   <li>filename - The name of the segment file</li>
+     *   <li>state - The current processing state of the segment</li>
+     *   <li>metadata - Optional metadata about the uploaded segment</li>
+     * </ul>
+     */
     @ExperimentalApi
     public static class SegmentEntry {
         private final String filename;

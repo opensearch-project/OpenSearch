@@ -16,6 +16,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
+import org.opensearch.indices.replication.ActiveMergesRegistry;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -76,7 +77,8 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mdLockManager,
             threadPool,
-            indexShard.shardId()
+            indexShard.shardId(),
+            new ActiveMergesRegistry()
         );
         try (Store store = indexShard.store()) {
             segmentInfos = store.readLastCommittedSegmentsInfo();

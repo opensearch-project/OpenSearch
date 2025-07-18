@@ -18,6 +18,9 @@ import org.opensearch.transport.TransportService;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 
+/**
+ * Provides a {@link MergedSegmentPublisher.PublishAction} based on user-specified settings.
+ */
 public class PublishMergedSegmentActionProvider implements Provider<MergedSegmentPublisher.PublishAction> {
 
     private final Settings settings;
@@ -53,7 +56,7 @@ public class PublishMergedSegmentActionProvider implements Provider<MergedSegmen
     @Override
     public MergedSegmentPublisher.PublishAction get() {
         if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING) == false) {
-            return null;
+            return (shard, checkpoint) -> {};
         }
         if (isRemoteDataAttributePresent(settings) == false) {
             return new PublishMergedSegmentAction(
