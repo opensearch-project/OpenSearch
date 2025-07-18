@@ -61,6 +61,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -509,7 +510,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             )
         );
         doReturn(List.of(targetSpy)).when(serviceSpy).getMergedSegmentReplicationTarget(any());
-        serviceSpy.onNewMergedSegmentCheckpoint(newPrimaryCheckpoint, replicaShard);
+        serviceSpy.onNewMergedSegmentCheckpoint(mockMergedSegmentCheckpoint(newPrimaryCheckpoint), replicaShard);
         // ensure the old target is cancelled. and new iteration kicks off.
         verify(targetSpy, times(1)).cancel("Cancelling stuck merged segment target after new primary");
         verify(serviceSpy, times(1)).startMergedSegmentReplication(eq(replicaShard), any(), any());
@@ -537,21 +538,22 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
                 Assert.fail("Unreachable");
             }
         };
+        MergedSegmentCheckpoint mergedSegmentCheckpoint = mockMergedSegmentCheckpoint(checkpoint);
         final MergedSegmentReplicationTarget targetSpy = spy(
             new MergedSegmentReplicationTarget(
                 replicaShard,
-                checkpoint,
+                mergedSegmentCheckpoint,
                 source,
                 mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
             )
         );
         doReturn(List.of(targetSpy)).when(serviceSpy).getMergedSegmentReplicationTarget(any());
         // already exist
-        serviceSpy.onNewMergedSegmentCheckpoint(checkpoint, replicaShard);
+        serviceSpy.onNewMergedSegmentCheckpoint(mergedSegmentCheckpoint, replicaShard);
         verify(serviceSpy, times(0)).startMergedSegmentReplication(eq(replicaShard), any(), any());
 
         // new merged segment
-        serviceSpy.onNewMergedSegmentCheckpoint(newPrimaryCheckpoint, replicaShard);
+        serviceSpy.onNewMergedSegmentCheckpoint(mockMergedSegmentCheckpoint(newPrimaryCheckpoint), replicaShard);
         verify(serviceSpy, times(1)).startMergedSegmentReplication(eq(replicaShard), any(), any());
     }
 
@@ -863,4 +865,15 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(spy, times(1)).processLatestReceivedCheckpoint(eq(replicaShard), any());
     }
 
+    private MergedSegmentCheckpoint mockMergedSegmentCheckpoint(ReplicationCheckpoint checkpoint) {
+        return new MergedSegmentCheckpoint(
+            checkpoint.getShardId(),
+            checkpoint.getPrimaryTerm(),
+            checkpoint.getSegmentInfosVersion(),
+            1,
+            checkpoint.getCodec(),
+            checkpoint.getMetadataMap(),
+            UUID.randomUUID().toString()
+        );
+    }
 }
