@@ -43,6 +43,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 
@@ -111,6 +112,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         assertThat(
             query,
             either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
+                .or(instanceOf(ApproximateScoreQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class))
                 .or(instanceOf(AutomatonQuery.class))
                 .or(instanceOf(IndexOrDocValuesQuery.class))

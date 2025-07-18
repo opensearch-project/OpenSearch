@@ -51,6 +51,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
@@ -68,7 +69,17 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         long scaledValue = Math.round(value * ft.getScalingFactor());
         Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("scaled_float", scaledValue);
         Query query = new IndexOrDocValuesQuery(LongPoint.newExactQuery("scaled_float", scaledValue), dvQuery);
-        assertEquals(query, ft.termQuery(value, null));
+        Query expectedQuery = new ApproximateScoreQuery(
+            query,
+            new ApproximatePointRangeQuery(
+                "scaled_float",
+                LongPoint.pack(new long[] { scaledValue }).bytes,
+                LongPoint.pack(new long[] { scaledValue }).bytes,
+                1,
+                ApproximatePointRangeQuery.LONG_FORMAT
+            )
+        );
+        assertEquals(expectedQuery, ft.termQuery(value, null));
     }
 
     public void testTermsQuery() {
@@ -128,6 +139,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
                 MOCK_QSC
             );
             Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_QSC);
+            assertTrue(scaledFloatQ instanceof ApproximateScoreQuery);
+            Query approximationQuery = ((ApproximateScoreQuery) scaledFloatQ).getApproximationQuery();
+            assertTrue(approximationQuery instanceof ApproximatePointRangeQuery);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
         }
         IOUtils.close(reader, dir);
