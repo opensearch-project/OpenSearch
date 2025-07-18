@@ -21,42 +21,42 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class PublishReferencedSegmentsRequest extends ReplicationRequest<PublishReferencedSegmentsRequest> {
-    private final ReferencedSegmentsCheckpoint referencedSegments;
+    private final ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint;
 
-    public PublishReferencedSegmentsRequest(ReferencedSegmentsCheckpoint referencedSegments) {
-        super(referencedSegments.getShardId());
-        this.referencedSegments = referencedSegments;
+    public PublishReferencedSegmentsRequest(ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint) {
+        super(referencedSegmentsCheckpoint.getShardId());
+        this.referencedSegmentsCheckpoint = referencedSegmentsCheckpoint;
     }
 
     public PublishReferencedSegmentsRequest(StreamInput in) throws IOException {
         super(in);
-        this.referencedSegments = new ReferencedSegmentsCheckpoint(in);
+        this.referencedSegmentsCheckpoint = new ReferencedSegmentsCheckpoint(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        referencedSegments.writeTo(out);
+        referencedSegmentsCheckpoint.writeTo(out);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof PublishReferencedSegmentsRequest that)) return false;
-        return Objects.equals(referencedSegments, that.referencedSegments);
+        return Objects.equals(referencedSegmentsCheckpoint, that.referencedSegmentsCheckpoint);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(referencedSegments);
+        return Objects.hash(referencedSegmentsCheckpoint);
     }
 
     @Override
     public String toString() {
-        return "PublishReferencedSegmentRequest{" + "referencedSegments=" + referencedSegments + '}';
+        return "PublishReferencedSegmentRequest{" + "referencedSegmentsCheckpoint=" + referencedSegmentsCheckpoint + '}';
     }
 
-    public ReferencedSegmentsCheckpoint getReferencedSegments() {
-        return referencedSegments;
+    public ReferencedSegmentsCheckpoint getReferencedSegmentsCheckpoint() {
+        return referencedSegmentsCheckpoint;
     }
 }

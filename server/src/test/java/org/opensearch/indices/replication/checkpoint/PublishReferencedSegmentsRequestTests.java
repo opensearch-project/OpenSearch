@@ -33,7 +33,7 @@ public class PublishReferencedSegmentsRequestTests extends OpenSearchTestCase {
         );
         PublishReferencedSegmentsRequest request = new PublishReferencedSegmentsRequest(checkpoint);
         assertNull(request.validate());
-        assertEquals(checkpoint, request.getReferencedSegments());
+        assertEquals(checkpoint, request.getReferencedSegmentsCheckpoint());
     }
 
     public void testSerialize() throws Exception {
@@ -55,6 +55,6 @@ public class PublishReferencedSegmentsRequestTests extends OpenSearchTestCase {
             }
         }
         assertThat(cloneRequest, equalTo(originalRequest));
-        assertThat(cloneRequest.getReferencedSegments(), equalTo(originalRequest.getReferencedSegments()));
+        assertThat(cloneRequest.getReferencedSegmentsCheckpoint(), equalTo(originalRequest.getReferencedSegmentsCheckpoint()));
     }
 }

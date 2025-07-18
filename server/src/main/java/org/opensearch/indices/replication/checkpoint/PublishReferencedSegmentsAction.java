@@ -94,8 +94,8 @@ public class PublishReferencedSegmentsAction extends AbstractPublishCheckpointAc
 
     @Override
     protected void doReplicaOperation(PublishReferencedSegmentsRequest request, IndexShard replica) {
-        if (request.getReferencedSegments().getShardId().equals(replica.shardId())) {
-            replica.cleanupRedundantPendingMergeSegment(request.getReferencedSegments());
+        if (request.getReferencedSegmentsCheckpoint().getShardId().equals(replica.shardId())) {
+            replica.cleanupRedundantPendingMergeSegment(request.getReferencedSegmentsCheckpoint());
         }
     }
 }
