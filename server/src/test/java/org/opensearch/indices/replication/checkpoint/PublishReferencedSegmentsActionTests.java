@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication.checkpoint;
 
 import org.apache.lucene.codecs.Codec;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
@@ -38,6 +39,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
@@ -136,7 +138,7 @@ public class PublishReferencedSegmentsActionTests extends OpenSearchTestCase {
         action.publish(indexShard, checkpoint);
     }
 
-    public void testPublishReferencedSegmentsOnPrimary() {
+    public void testPublishReferencedSegmentsOnPrimary() throws Exception {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -170,11 +172,12 @@ public class PublishReferencedSegmentsActionTests extends OpenSearchTestCase {
             Sets.newHashSet("_1", "_2", "_3")
         );
         final PublishReferencedSegmentsRequest request = new PublishReferencedSegmentsRequest(checkpoint);
-
-        action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+        final CountDownLatch latch = new CountDownLatch(1);
+        action.shardOperationOnPrimary(request, indexShard, new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
             // we should forward the request containing the current publish checkpoint to the replica
             assertThat(result.replicaRequest(), sameInstance(request));
-        }));
+        }), latch));
+        latch.await();
     }
 
     public void testPublishReferencedSegmentsActionOnReplica() {
