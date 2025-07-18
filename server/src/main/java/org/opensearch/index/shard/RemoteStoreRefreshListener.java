@@ -96,7 +96,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         IndexShard indexShard,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
         RemoteSegmentTransferTracker segmentTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        RemoteStoreUploaderService remoteStoreUploaderService
     ) {
         super(indexShard.getThreadPool());
         logger = Loggers.getLogger(getClass(), indexShard.shardId());
@@ -104,7 +105,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
-        remoteStoreUploader = new RemoteStoreUploaderService(indexShard, storeDirectory, remoteDirectory);
+        this.remoteStoreUploader = remoteStoreUploaderService;
         localSegmentChecksumMap = new HashMap<>();
         RemoteSegmentMetadata remoteSegmentMetadata = null;
         if (indexShard.routingEntry().primary()) {
@@ -287,6 +288,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                 // as part of exponential back-off retry logic. This should not affect durability of the indexed data
                                 // with remote trans-log integration.
                                 logger.warn("Exception in post new segment upload actions", e);
+                            } finally {
+                                remoteDirectory.syncMergedSegments();
                             }
                         }
 

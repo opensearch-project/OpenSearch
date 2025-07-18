@@ -32,6 +32,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.indices.replication.ActiveMergesRegistry;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -67,8 +68,9 @@ public class RemoteDirectory extends Directory {
 
     private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
 
-    private final UnaryOperator<InputStream> downloadRateLimiter;
+    private final DownloadRateLimiterProvider downloadRateLimiterProvider;
 
+    final ActiveMergesRegistry activeMergesRegistry;
     /**
      * Number of bytes in the segment file to store checksum
      */
@@ -79,19 +81,22 @@ public class RemoteDirectory extends Directory {
     }
 
     public RemoteDirectory(BlobContainer blobContainer) {
-        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity());
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), null);
     }
 
     public RemoteDirectory(
         BlobContainer blobContainer,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
         UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
-        UnaryOperator<InputStream> downloadRateLimiter
+        UnaryOperator<InputStream> downloadRateLimiter,
+        UnaryOperator<InputStream> lowPriorityDownloadRateLimiter,
+        ActiveMergesRegistry activeMergesRegistry
     ) {
         this.blobContainer = blobContainer;
         this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
-        this.downloadRateLimiter = downloadRateLimiter;
+        this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
+        this.activeMergesRegistry = activeMergesRegistry;
     }
 
     /**
@@ -236,7 +241,8 @@ public class RemoteDirectory extends Directory {
         InputStream inputStream = null;
         try {
             inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
+            UnaryOperator<InputStream> rateLimiter = downloadRateLimiterProvider.get(name);
+            return new RemoteIndexInput(name, rateLimiter.apply(inputStream), fileLength);
         } catch (Exception e) {
             // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
@@ -475,8 +481,28 @@ public class RemoteDirectory extends Directory {
         byte[] bytes;
         try (InputStream inputStream = blobContainer.readBlob(name, position, length)) {
             // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
-            bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
+            bytes = downloadRateLimiterProvider.get(name).apply(inputStream).readAllBytes();
         }
         return new ByteArrayIndexInput(name, bytes);
+    }
+
+    private class DownloadRateLimiterProvider {
+        private final UnaryOperator<InputStream> downloadRateLimiter;
+        private final UnaryOperator<InputStream> lowPriorityDownloadRateLimiter;
+
+        DownloadRateLimiterProvider(
+            UnaryOperator<InputStream> downloadRateLimiter,
+            UnaryOperator<InputStream> lowPriorityDownloadRateLimiter
+        ) {
+            this.downloadRateLimiter = downloadRateLimiter;
+            this.lowPriorityDownloadRateLimiter = lowPriorityDownloadRateLimiter;
+        }
+
+        public UnaryOperator<InputStream> get(final String filename) {
+            if (activeMergesRegistry != null && activeMergesRegistry.contains(filename)) {
+                return lowPriorityDownloadRateLimiter;
+            }
+            return downloadRateLimiter;
+        }
     }
 }

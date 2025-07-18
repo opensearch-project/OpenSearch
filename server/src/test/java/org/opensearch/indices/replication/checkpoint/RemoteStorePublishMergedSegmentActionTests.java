@@ -27,6 +27,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -39,6 +40,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
@@ -51,7 +53,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
+public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private CapturingTransport transport;
@@ -115,10 +117,11 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         when(indexShard.getPendingPrimaryTerm()).thenReturn(1L);
         when(indexShard.recoveryState()).thenReturn(recoveryState);
         when(indexShard.getRecoverySettings()).thenReturn(recoverySettings);
+        when(indexShard.store()).thenReturn(mock(Store.class));
 
         final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
-        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
+        final RemoteStorePublishMergedSegmentAction action = new RemoteStorePublishMergedSegmentAction(
             Settings.EMPTY,
             transportService,
             clusterService,
@@ -157,7 +160,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
 
         final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
-        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
+        final RemoteStorePublishMergedSegmentAction action = new RemoteStorePublishMergedSegmentAction(
             Settings.EMPTY,
             transportService,
             clusterService,
@@ -168,15 +171,11 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
-            indexShard.shardId(),
-            1,
-            1111,
-            Codec.getDefault().getName(),
-            Collections.emptyMap(),
-            "_1"
+        final RemoteStoreMergedSegmentCheckpoint checkpoint = new RemoteStoreMergedSegmentCheckpoint(
+            new MergedSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1"),
+            Map.of("_1", "_1__uuid")
         );
-        final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
+        final RemoteStorePublishMergedSegmentRequest request = new RemoteStorePublishMergedSegmentRequest(checkpoint);
 
         action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             // we should forward the request containing the current publish checkpoint to the replica
@@ -201,7 +200,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         );
         final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
-        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
+        final RemoteStorePublishMergedSegmentAction action = new RemoteStorePublishMergedSegmentAction(
             Settings.EMPTY,
             transportService,
             clusterService,
@@ -212,16 +211,9 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
-            indexShard.shardId(),
-            1,
-            1111,
-            Codec.getDefault().getName(),
-            Collections.emptyMap(),
-            "_1"
-        );
+        final RemoteStoreMergedSegmentCheckpoint checkpoint = createCheckpoint(indexShard);
 
-        final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
+        final RemoteStorePublishMergedSegmentRequest request = new RemoteStorePublishMergedSegmentRequest(checkpoint);
 
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
         action.shardOperationOnReplica(request, indexShard, listener);
@@ -252,7 +244,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
-        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
+        final RemoteStorePublishMergedSegmentAction action = new RemoteStorePublishMergedSegmentAction(
             Settings.EMPTY,
             transportService,
             clusterService,
@@ -263,16 +255,9 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
-            indexShard.shardId(),
-            1,
-            1111,
-            Codec.getDefault().getName(),
-            Collections.emptyMap(),
-            "_1"
-        );
+        final RemoteStoreMergedSegmentCheckpoint checkpoint = createCheckpoint(indexShard);
 
-        final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
+        final RemoteStorePublishMergedSegmentRequest request = new RemoteStorePublishMergedSegmentRequest(checkpoint);
 
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
         action.shardOperationOnReplica(request, indexShard, listener);
@@ -286,21 +271,21 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
     }
 
     public void testGetReplicationModeWithRemoteTranslog() {
-        final PublishMergedSegmentAction action = createAction();
+        final RemoteStorePublishMergedSegmentAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
-        final PublishMergedSegmentAction action = createAction();
+        final RemoteStorePublishMergedSegmentAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
-    private PublishMergedSegmentAction createAction() {
-        return new PublishMergedSegmentAction(
+    private RemoteStorePublishMergedSegmentAction createAction() {
+        return new RemoteStorePublishMergedSegmentAction(
             Settings.EMPTY,
             transportService,
             clusterService,
@@ -309,6 +294,13 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             mock(SegmentReplicationTargetService.class)
+        );
+    }
+
+    private RemoteStoreMergedSegmentCheckpoint createCheckpoint(IndexShard indexShard) {
+        return new RemoteStoreMergedSegmentCheckpoint(
+            new MergedSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1"),
+            Map.of("_1", "_1__uuid")
         );
     }
 

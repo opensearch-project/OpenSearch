@@ -39,6 +39,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.ActiveMergesRegistry;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.ClusterServiceUtils;
@@ -100,7 +101,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexShard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             tracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            mock(RemoteStoreUploaderService.class)
         );
     }
 
@@ -157,7 +159,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
             mock(ThreadPool.class),
-            shardId
+            shardId,
+            new ActiveMergesRegistry()
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
@@ -168,7 +171,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             shard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             mock(RemoteSegmentTransferTracker.class),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            mock(RemoteStoreUploaderService.class)
         );
         assertTrue(remoteStoreRefreshListener.isLocalOrSnapshotRecoveryOrSeeding());
         assertTrue(remoteStoreRefreshListener.isLowPriorityUpload());
@@ -224,7 +228,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
             mock(ThreadPool.class),
-            shardId
+            shardId,
+            new ActiveMergesRegistry()
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
@@ -236,7 +241,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             shard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             mock(RemoteSegmentTransferTracker.class),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            mock(RemoteStoreUploaderService.class)
         );
 
         // Validate that the stream of metadata file of remoteMetadataDirectory has been opened only once and the
@@ -730,7 +736,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 mock(RemoteDirectory.class),
                 mock(RemoteStoreLockManager.class),
                 indexShard.getThreadPool(),
-                indexShard.shardId
+                indexShard.shardId,
+                new ActiveMergesRegistry()
             );
         } else {
             remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore()
@@ -836,7 +843,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             shard,
             emptyCheckpointPublisher,
             tracker,
-            remoteStoreSettings
+            remoteStoreSettings,
+            mock(RemoteStoreUploaderService.class)
         );
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteStoreStatsTrackerFactory);

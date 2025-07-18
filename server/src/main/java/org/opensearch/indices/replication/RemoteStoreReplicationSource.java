@@ -23,6 +23,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
@@ -150,6 +151,45 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
         } catch (IOException | RuntimeException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     **/
+    @Override
+    public void getMergedSegmentFiles(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        List<StoreFileMetadata> filesToFetch,
+        IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
+        ActionListener<GetSegmentFilesResponse> listener
+    ) {
+        try {
+            assert checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
+
+            if (filesToFetch.isEmpty()) {
+                listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+                return;
+            }
+
+            RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = (RemoteStoreMergedSegmentCheckpoint) checkpoint;
+
+            final Directory storeDirectory = indexShard.store().directory();
+
+            Map<String, String> localToRemoteSegmentFileNameMap = mergedSegmentCheckpoint.getLocalToRemoteSegmentFilenameMap();
+            List<String> toDownloadSegmentNames = localToRemoteSegmentFileNameMap.keySet().stream().toList();
+            indexShard.getFileDownloader()
+                .download(
+                    indexShard.getRemoteDirectory(),
+                    storeDirectory,
+                    null,
+                    toDownloadSegmentNames,
+                    () -> listener.onResponse(new GetSegmentFilesResponse(filesToFetch))
+                );
+        } catch (InterruptedException | IOException e) {
             listener.onFailure(e);
         }
     }

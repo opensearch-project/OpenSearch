@@ -8,11 +8,14 @@
 
 package org.opensearch.common.util;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * A tracker class that is fed to FileUploader.
  *
  * @opensearch.internal
  */
+@PublicApi(since = "2.9.0")
 public interface UploadListener {
 
     void beforeUpload(String file);

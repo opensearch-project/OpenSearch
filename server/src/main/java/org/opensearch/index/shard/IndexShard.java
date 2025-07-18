@@ -201,7 +201,7 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
@@ -382,6 +382,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
     private final ClusterApplierService clusterApplierService;
+    private final RemoteStoreUploaderService remoteStoreUploaderService;
     private final MergedSegmentPublisher mergedSegmentPublisher;
 
     @InternalApi
@@ -530,6 +531,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
         this.clusterApplierService = clusterApplierService;
+        this.remoteStoreUploaderService = new RemoteStoreUploaderService(this, store().directory(), getRemoteDirectory());
+
         this.mergedSegmentPublisher = mergedSegmentPublisher;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
@@ -553,6 +556,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public ThreadPool getThreadPool() {
         return this.threadPool;
+    }
+
+    public RemoteStoreUploaderService getRemoteStoreUploaderService() {
+        return this.remoteStoreUploaderService;
     }
 
     public Store store() {
@@ -1864,19 +1871,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Compute {@link MergeSegmentCheckpoint} from a SegmentCommitInfo.
+     * Compute {@link MergedSegmentCheckpoint} from a SegmentCommitInfo.
      * This function fetches a metadata snapshot from the store that comes with an IO cost.
      *
      * @param segmentCommitInfo {@link SegmentCommitInfo} segmentCommitInfo to use to compute.
-     * @return {@link MergeSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
+     * @return {@link MergedSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
      * @throws IOException When there is an error computing segment metadata from the store.
      */
-    public MergeSegmentCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
+    public ReplicationCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
         // Only need to get the file metadata information in segmentCommitInfo and reuse Store#getSegmentMetadataMap.
         SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
         segmentInfos.add(segmentCommitInfo);
         Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
-        return new MergeSegmentCheckpoint(
+
+        return new MergedSegmentCheckpoint(
             shardId,
             getOperationPrimaryTerm(),
             segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
@@ -4131,7 +4139,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     this,
                     this.checkpointPublisher,
                     remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId()),
-                    remoteStoreSettings
+                    remoteStoreSettings,
+                    remoteStoreUploaderService
                 )
             );
         }
