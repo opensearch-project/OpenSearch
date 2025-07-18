@@ -1850,6 +1850,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         pendingMergeSegmentCheckpoints.add(mergeSegmentCheckpoint);
     }
 
+    // for tests
     public Set<MergeSegmentCheckpoint> getPendingMergeSegmentCheckpoints() {
         return pendingMergeSegmentCheckpoints;
     }
