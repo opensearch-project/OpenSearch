@@ -53,6 +53,8 @@ dependencies {
     exclude group: 'org.apache.kerby'
     exclude group: 'com.nimbusds'
     exclude module: "commons-configuration2"
+    exclude module: "commons-beanutils"
+    exclude module: "org.eclipse.jetty"
   }
   api "dnsjava:dnsjava:3.6.2"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
