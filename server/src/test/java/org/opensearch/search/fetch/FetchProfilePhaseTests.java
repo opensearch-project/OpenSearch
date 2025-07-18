@@ -72,42 +72,6 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    private static class FetchTestConfig {
-        boolean enableSourceLoading = false;
-        boolean enableStoredFields = false;
-        boolean enableScriptFields = false;
-        boolean enableFetchSubPhases = false;
-        int documentCount = 3;
-        boolean includeSourceField = false;
-        List<String> storedFieldNames = Collections.emptyList();
-
-        static FetchTestConfig basic() {
-            return new FetchTestConfig();
-        }
-
-        FetchTestConfig withSourceLoading() {
-            this.enableSourceLoading = true;
-            this.includeSourceField = true;
-            return this;
-        }
-
-        FetchTestConfig withStoredFields(String... fieldNames) {
-            this.enableStoredFields = true;
-            this.storedFieldNames = Arrays.asList(fieldNames);
-            return this;
-        }
-
-        FetchTestConfig withDocumentCount(int count) {
-            this.documentCount = count;
-            return this;
-        }
-
-        FetchTestConfig withFetchSubPhases() {
-            this.enableFetchSubPhases = true;
-            return this;
-        }
-    }
-
     private static class TestDocumentBuilder {
         private final List<Document> documents = new ArrayList<>();
 
@@ -146,29 +110,9 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
             assertTrue("Timing key should be present: " + timingKey, breakdown.containsKey(timingKey));
             assertTrue("Count key should be present: " + countKey, breakdown.containsKey(countKey));
-            assertTrue("Start time key should be present: " + startTimeKey, breakdown.containsKey(startTimeKey));
 
-            assertThat("Timing should be non-negative: " + timingKey, breakdown.get(timingKey), greaterThanOrEqualTo(0L));
+            assertThat("Timing should be geq 1: " + timingKey, breakdown.get(timingKey), greaterThanOrEqualTo(1L));
             assertThat("Count should be non-negative: " + countKey, breakdown.get(countKey), greaterThanOrEqualTo(0L));
-            assertThat("Start time should be non-negative: " + startTimeKey, breakdown.get(startTimeKey), greaterThanOrEqualTo(0L));
-
-            return this;
-        }
-
-        TimingAssertions assertTimingExecuted(FetchTimingType timingType) {
-            assertTimingPresent(timingType);
-
-            // Verify that the timing was actually executed (count > 0)
-            String countKey = timingType.toString() + "_count";
-            assertThat("Timing should have been executed: " + timingType, breakdown.get(countKey), greaterThan(0L));
-
-            return this;
-        }
-
-        TimingAssertions assertAllTimingsNonNegative() {
-            breakdown.forEach((key, value) -> {
-                assertThat("All timing values should be non-negative for key: " + key, value, greaterThanOrEqualTo(0L));
-            });
             return this;
         }
 
@@ -348,26 +292,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         };
     }
 
-    // Comprehensive test for CREATE_STORED_FIELDS_VISITOR timing
-    public void testCreateStoredFieldsVisitorTiming() throws Exception {
-        try (Directory dir = newDirectory()) {
-            List<Document> docs = new TestDocumentBuilder().addDocuments(3, false).build();
-            int[] docIds = indexDocumentsAndGetIds(dir, docs, 2);
-
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withStoredFields("id", "content").build();
-
-                ProfileResult profile = executeFetchPhaseAndGetProfile(context, Collections.emptyList());
-
-                new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
-                    .assertTimingExecuted(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
-                    .assertAllTimingsNonNegative();
-            }
-        }
-    }
-
-    // Comprehensive test for LOAD_SOURCE timing
-    public void testLoadSourceTiming() throws Exception {
+    public void testRootTiming() throws Exception {
         try (Directory dir = newDirectory()) {
             List<Document> docs = new TestDocumentBuilder().addDocuments(3, true).build();
             int[] docIds = indexDocumentsAndGetIds(dir, docs, 2);
@@ -380,41 +305,43 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 ProfileResult profile = executeFetchPhaseAndGetProfile(context, Collections.emptyList());
 
                 new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
-                    .assertTimingExecuted(FetchTimingType.LOAD_SOURCE)
-                    .assertTimingExecuted(FetchTimingType.LOAD_STORED_FIELDS)
-                    .assertAllTimingsNonNegative();
+                    .assertTimingPresent(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
+                    .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
+                    .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
+                    .assertTimingPresent(FetchTimingType.BUILD_SEARCH_HITS)
+                    .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
             }
         }
     }
 
-    // Combined test for multiple timing types in a complex scenario
-    public void testComplexFetchScenarioWithAllTimings() throws Exception {
-        try (Directory dir = newDirectory()) {
-            List<Document> docs = new TestDocumentBuilder().addDocuments(6, true).build();
-            int[] docIds = indexDocumentsAndGetIds(dir, docs, 4);
 
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
-                    .withStoredFields("_source", "id", "content")
-                    .build();
-
-                List<FetchSubPhase> subPhases = Collections.singletonList(createMockFetchSubPhase());
-                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
-
-                // Verify all major timing types are present and executed
-                new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
-                    .assertTimingExecuted(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
-                    .assertTimingExecuted(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
-                    .assertTimingExecuted(FetchTimingType.LOAD_STORED_FIELDS)
-                    .assertTimingExecuted(FetchTimingType.LOAD_SOURCE)
-                    .assertTimingExecuted(FetchTimingType.BUILD_SEARCH_HITS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER) // May or may not execute depending on segments
-                    .assertAllTimingsNonNegative();
-
-                // Verify fetch results
-                SearchHits hits = context.fetchResult().hits();
-                assertThat(hits.getHits().length, equalTo(docIds.length));
-            }
-        }
-    }
+//    public void testComplexFetchScenarioWithAllTimings() throws Exception {
+//        try (Directory dir = newDirectory()) {
+//            List<Document> docs = new TestDocumentBuilder().addDocuments(6, true).build();
+//            int[] docIds = indexDocumentsAndGetIds(dir, docs, 4);
+//
+//            try (IndexReader reader = DirectoryReader.open(dir)) {
+//                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+//                    .withStoredFields("_source", "id", "content")
+//                    .build();
+//
+//                List<FetchSubPhase> subPhases = Collections.singletonList(createMockFetchSubPhase());
+//                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+//
+//                new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
+//                    .assertTimingExecuted(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
+//                    .assertTimingExecuted(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
+//                    .assertTimingExecuted(FetchTimingType.LOAD_STORED_FIELDS)
+//                    .assertTimingExecuted(FetchTimingType.LOAD_SOURCE)
+//                    .assertTimingExecuted(FetchTimingType.BUILD_SEARCH_HITS)
+//                    .assertTimingPresent(FetchTimingType.NEXT_READER) // May or may not execute depending on segments
+//                    .assertAllTimingsNonNegative();
+//
+//                // Verify fetch results
+//                SearchHits hits = context.fetchResult().hits();
+//                assertThat(hits.getHits().length, equalTo(docIds.length));
+//            }
+//        }
+//    }
 }

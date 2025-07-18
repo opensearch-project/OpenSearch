@@ -88,6 +88,9 @@ setup:
 
 ---
 "Fetch phase profiling with aggregations":
+  - skip:
+        version: " - 3.1.99"
+        reason: "Fetch phase profiling was introduced in 3.2.0"
   - do:
       search:
         index: test_fetch_profile
