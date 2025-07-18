@@ -40,7 +40,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -1962,7 +1961,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             String[] allFiles = store.directory().listAll();
             Set<String> segmentNames = Sets.newHashSet();
             for (String file : allFiles) {
-                if (file.startsWith(IndexFileNames.SEGMENTS) || file.startsWith("extra") || IndexWriter.WRITE_LOCK_NAME.equals(file)) {
+                // filter segment files
+                if (false == file.endsWith(".si")) {
                     continue;
                 }
                 String segmentName = IndexFileNames.parseSegmentName(file);
