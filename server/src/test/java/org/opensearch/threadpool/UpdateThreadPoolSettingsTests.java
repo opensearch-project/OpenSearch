@@ -152,10 +152,10 @@ public class UpdateThreadPoolSettingsTests extends OpenSearchThreadPoolTestCase 
                 .put("node.name", "testScalingExecutorType")
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
+            final int expectedMinimum = isGenericOrReplicationThreadPool(threadPoolName) ? 4 : 1;
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
-            final long expectedKeepAlive = "generic".equals(threadPoolName) ? 30 : 300;
+            final long expectedKeepAlive = isGenericOrReplicationThreadPool(threadPoolName) ? 30 : 300;
             assertThat(info(threadPool, threadPoolName).getKeepAlive().seconds(), equalTo(expectedKeepAlive));
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.SCALING);
             assertThat(threadPool.executor(threadPoolName), instanceOf(OpenSearchThreadPoolExecutor.class));
