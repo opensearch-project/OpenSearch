@@ -30,7 +30,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.search.SearchHits;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
@@ -50,7 +49,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -315,33 +313,32 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
-
-//    public void testComplexFetchScenarioWithAllTimings() throws Exception {
-//        try (Directory dir = newDirectory()) {
-//            List<Document> docs = new TestDocumentBuilder().addDocuments(6, true).build();
-//            int[] docIds = indexDocumentsAndGetIds(dir, docs, 4);
-//
-//            try (IndexReader reader = DirectoryReader.open(dir)) {
-//                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
-//                    .withStoredFields("_source", "id", "content")
-//                    .build();
-//
-//                List<FetchSubPhase> subPhases = Collections.singletonList(createMockFetchSubPhase());
-//                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
-//
-//                new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
-//                    .assertTimingExecuted(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
-//                    .assertTimingExecuted(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
-//                    .assertTimingExecuted(FetchTimingType.LOAD_STORED_FIELDS)
-//                    .assertTimingExecuted(FetchTimingType.LOAD_SOURCE)
-//                    .assertTimingExecuted(FetchTimingType.BUILD_SEARCH_HITS)
-//                    .assertTimingPresent(FetchTimingType.NEXT_READER) // May or may not execute depending on segments
-//                    .assertAllTimingsNonNegative();
-//
-//                // Verify fetch results
-//                SearchHits hits = context.fetchResult().hits();
-//                assertThat(hits.getHits().length, equalTo(docIds.length));
-//            }
-//        }
-//    }
+    // public void testComplexFetchScenarioWithAllTimings() throws Exception {
+    // try (Directory dir = newDirectory()) {
+    // List<Document> docs = new TestDocumentBuilder().addDocuments(6, true).build();
+    // int[] docIds = indexDocumentsAndGetIds(dir, docs, 4);
+    //
+    // try (IndexReader reader = DirectoryReader.open(dir)) {
+    // SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+    // .withStoredFields("_source", "id", "content")
+    // .build();
+    //
+    // List<FetchSubPhase> subPhases = Collections.singletonList(createMockFetchSubPhase());
+    // ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+    //
+    // new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
+    // .assertTimingExecuted(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
+    // .assertTimingExecuted(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
+    // .assertTimingExecuted(FetchTimingType.LOAD_STORED_FIELDS)
+    // .assertTimingExecuted(FetchTimingType.LOAD_SOURCE)
+    // .assertTimingExecuted(FetchTimingType.BUILD_SEARCH_HITS)
+    // .assertTimingPresent(FetchTimingType.NEXT_READER) // May or may not execute depending on segments
+    // .assertAllTimingsNonNegative();
+    //
+    // // Verify fetch results
+    // SearchHits hits = context.fetchResult().hits();
+    // assertThat(hits.getHits().length, equalTo(docIds.length));
+    // }
+    // }
+    // }
 }
