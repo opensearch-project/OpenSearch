@@ -35,6 +35,7 @@ public class PublishReferencedSegmentsAction extends AbstractPublishCheckpointAc
     PublishReferencedSegmentsRequest> {
 
     public static final String ACTION_NAME = "indices:admin/publish_referenced_segments";
+    private static final String TASK_ACTION_NAME = "segrep_publish_referenced_segments";
     protected static Logger logger = LogManager.getLogger(PublishReferencedSegmentsAction.class);
 
     @Inject
@@ -76,7 +77,7 @@ public class PublishReferencedSegmentsAction extends AbstractPublishCheckpointAc
             indexShard,
             checkpoint,
             new PublishReferencedSegmentsRequest(checkpoint),
-            "segrep_publish_referenced_segments",
+            TASK_ACTION_NAME,
             false,
             indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout()
         );
