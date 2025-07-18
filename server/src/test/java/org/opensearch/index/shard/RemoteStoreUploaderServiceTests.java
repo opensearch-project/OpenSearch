@@ -20,6 +20,7 @@ import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
+import org.opensearch.indices.replication.ActiveMergesRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -112,7 +113,14 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ThreadPool threadPool = mock(ThreadPool.class);
             ShardId shardId = new ShardId(new Index("test", "test"), 0);
 
-            return new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory, lockManager, threadPool, shardId);
+            return new RemoteSegmentStoreDirectory(
+                remoteDataDirectory,
+                remoteMetadataDirectory,
+                lockManager,
+                threadPool,
+                shardId,
+                new ActiveMergesRegistry()
+            );
         } catch (IOException e) {
             throw new RuntimeException("Failed to create mock RemoteSegmentStoreDirectory", e);
         }
@@ -170,7 +178,8 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             mock(RemoteDirectory.class),
             mock(RemoteStoreLockManager.class),
             freshMockShard.getThreadPool(),
-            freshMockShard.shardId()
+            freshMockShard.shardId(),
+            new ActiveMergesRegistry()
         );
 
         // Create a new uploader service with the fresh mocks
@@ -232,7 +241,8 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             mock(RemoteDirectory.class),
             mock(RemoteStoreLockManager.class),
             freshMockShard.getThreadPool(),
-            freshMockShard.shardId()
+            freshMockShard.shardId(),
+            new ActiveMergesRegistry()
         );
 
         // Create a new uploader service with the fresh mocks
@@ -296,7 +306,8 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             mock(RemoteDirectory.class),
             mock(RemoteStoreLockManager.class),
             freshMockShard.getThreadPool(),
-            freshMockShard.shardId()
+            freshMockShard.shardId(),
+            new ActiveMergesRegistry()
         );
 
         // Create a new uploader service with the fresh mocks
@@ -360,7 +371,8 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             mock(RemoteDirectory.class),
             mock(RemoteStoreLockManager.class),
             freshMockShard.getThreadPool(),
-            freshMockShard.shardId()
+            freshMockShard.shardId(),
+            new ActiveMergesRegistry()
         );
 
         // Create a new uploader service with the fresh mocks
@@ -427,7 +439,8 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             mock(RemoteDirectory.class),
             mock(RemoteStoreLockManager.class),
             freshMockShard.getThreadPool(),
-            freshMockShard.shardId()
+            freshMockShard.shardId(),
+            new ActiveMergesRegistry()
         );
 
         // Create a new uploader service with the fresh mocks

@@ -15,7 +15,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Represents a remote store merged segment checkpoint.
