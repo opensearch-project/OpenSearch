@@ -64,6 +64,7 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Error;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.StorageClass;
@@ -72,11 +73,14 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.collect.Tuple;
@@ -97,6 +101,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -120,6 +125,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -983,6 +990,1148 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Fits in N parts plus a bit more
         final long remaining = randomIntBetween(1, (size > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) size - 1);
         assertNumberOfMultiparts(factor + 1, remaining, (size * factor) + remaining, size);
+    }
+
+    public void testExecuteMultipartUploadConditionallyWithEtagMatchSuccess() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String inputETag = randomAlphaOfLengthBetween(8, 32);
+        final String finalETag = randomAlphaOfLengthBetween(8, 32);
+        final String uploadId = randomAlphaOfLengthBetween(10, 20);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
+        final BlobPath blobPath = new BlobPath();
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final int partCount = randomIntBetween(2, 5);
+        final long lastPartSize = randomIntBetween(1, (int) partSize);
+        final long blobSize = partSize * (partCount - 1) + lastPartSize;
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
+        if (cannedAccessControlList != null) {
+            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+        }
+
+        final boolean isUploadRetryEnabled = randomBoolean();
+        when(blobStore.isUploadRetryEnabled()).thenReturn(isUploadRetryEnabled);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor = ArgumentCaptor.forClass(
+            CreateMultipartUploadRequest.class
+        );
+        final ArgumentCaptor<UploadPartRequest> uploadPartRequestCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+        final ArgumentCaptor<RequestBody> requestBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
+        final ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
+
+        when(client.createMultipartUpload(createRequestCaptor.capture())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
+
+        final List<String> partETags = new ArrayList<>();
+        for (int i = 0; i < partCount; i++) {
+            partETags.add("etag-part-" + (i + 1));
+        }
+
+        when(client.uploadPart(uploadPartRequestCaptor.capture(), requestBodyCaptor.capture())).thenAnswer(invocation -> {
+            UploadPartRequest request = (UploadPartRequest) invocation.getArguments()[0];
+            int partNumber = request.partNumber();
+            return UploadPartResponse.builder().eTag(partETags.get(partNumber - 1)).build();
+        });
+
+        when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
+        );
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
+
+        blobContainer.executeMultipartUploadConditionally(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            metadata,
+            ConditionalWriteOptions.ifMatch(inputETag),
+            responseListener
+        );
+
+        final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
+        assertEquals(bucketName, createRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
+        assertEquals(storageClass, createRequest.storageClass());
+        assertEquals(cannedAccessControlList, createRequest.acl());
+        assertEquals(metadata, createRequest.metadata());
+
+        // ENCRYPTION VERIFICATION: Updated encryption verification
+        if (useSseKms) {
+            assertEquals(ServerSideEncryption.AWS_KMS, createRequest.serverSideEncryption());
+            assertEquals(kmsKeyId, createRequest.ssekmsKeyId());
+            assertEquals(kmsContext, createRequest.ssekmsEncryptionContext());
+            assertEquals(useBucketKey, createRequest.bucketKeyEnabled());
+        } else {
+            assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
+        }
+
+        List<UploadPartRequest> partRequests = uploadPartRequestCaptor.getAllValues();
+        assertEquals(partCount, partRequests.size());
+
+        List<RequestBody> requestBodies = requestBodyCaptor.getAllValues();
+        assertEquals(partCount, requestBodies.size());
+
+        for (int i = 0; i < partCount; i++) {
+            UploadPartRequest partRequest = partRequests.get(i);
+            assertEquals(bucketName, partRequest.bucket());
+            assertEquals(blobPath.buildAsString() + blobName, partRequest.key());
+            assertEquals(uploadId, partRequest.uploadId());
+            assertEquals(Integer.valueOf(i + 1), partRequest.partNumber());
+            long expectedPartSize = (i < partCount - 1) ? partSize : lastPartSize;
+            assertEquals(expectedPartSize, partRequest.contentLength().longValue());
+
+            if (i == 0) {
+                RequestBody body = requestBodies.get(i);
+                try (InputStream is = body.contentStreamProvider().newStream()) {
+                    assertNotNull(is);
+                }
+            }
+        }
+
+        CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+        assertEquals(bucketName, completeRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, completeRequest.key());
+        assertEquals(uploadId, completeRequest.uploadId());
+
+        assertEquals(inputETag, completeRequest.ifMatch());
+
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(responseListener).onResponse(responseCaptor.capture());
+        assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
+
+        verify(responseListener, never()).onFailure(any());
+        verify(clientReference).close();
+    }
+
+    public void testExecuteMultipartUploadConditionallyWithMetadataAndSSE() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String inputETag = randomAlphaOfLengthBetween(8, 32);
+        final String finalETag = randomAlphaOfLengthBetween(8, 32);
+        final String uploadId = randomAlphaOfLengthBetween(10, 20);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
+        final BlobPath blobPath = new BlobPath();
+
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final long blobSize = partSize * 2;
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+
+        // ENCRYPTION CHANGES: Replace hard-coded encryption with enhanced configuration
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+
+        final ObjectCannedACL cannedAccessControlList = randomFrom(ObjectCannedACL.values());
+        when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+
+        final boolean isUploadRetryEnabled = randomBoolean();
+        when(blobStore.isUploadRetryEnabled()).thenReturn(isUploadRetryEnabled);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor = ArgumentCaptor.forClass(
+            CreateMultipartUploadRequest.class
+        );
+        final ArgumentCaptor<UploadPartRequest> uploadPartRequestCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+        final ArgumentCaptor<RequestBody> requestBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
+        final ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
+
+        when(client.createMultipartUpload(createRequestCaptor.capture())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
+
+        final List<String> partETags = List.of("etag-part-1", "etag-part-2");
+
+        when(client.uploadPart(uploadPartRequestCaptor.capture(), requestBodyCaptor.capture())).thenAnswer(invocation -> {
+            UploadPartRequest request = (UploadPartRequest) invocation.getArguments()[0];
+            int partNumber = request.partNumber();
+            return UploadPartResponse.builder().eTag(partETags.get(partNumber - 1)).build();
+        });
+
+        when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
+        );
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
+
+        blobContainer.executeMultipartUploadConditionally(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            metadata,
+            ConditionalWriteOptions.ifMatch(inputETag),
+            responseListener
+        );
+
+        final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
+        assertEquals(bucketName, createRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
+        assertEquals(storageClass, createRequest.storageClass());
+        assertEquals(cannedAccessControlList, createRequest.acl());
+        assertEquals(metadata, createRequest.metadata());
+
+        // ENCRYPTION VERIFICATION: Updated encryption verification
+        if (useSseKms) {
+            assertEquals(ServerSideEncryption.AWS_KMS, createRequest.serverSideEncryption());
+            assertEquals(kmsKeyId, createRequest.ssekmsKeyId());
+            assertEquals(kmsContext, createRequest.ssekmsEncryptionContext());
+            assertEquals(useBucketKey, createRequest.bucketKeyEnabled());
+        } else {
+            assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
+        }
+
+        List<UploadPartRequest> partRequests = uploadPartRequestCaptor.getAllValues();
+        assertEquals(2, partRequests.size());
+
+        for (int i = 0; i < 2; i++) {
+            UploadPartRequest partRequest = partRequests.get(i);
+            assertEquals(bucketName, partRequest.bucket());
+            assertEquals(blobPath.buildAsString() + blobName, partRequest.key());
+            assertEquals(uploadId, partRequest.uploadId());
+            assertEquals(Integer.valueOf(i + 1), partRequest.partNumber());
+            assertEquals(partSize, partRequest.contentLength().longValue());
+
+            if (i == 0) {
+                RequestBody body = requestBodyCaptor.getAllValues().get(i);
+                try (InputStream is = body.contentStreamProvider().newStream()) {
+                    assertNotNull(is);
+                    assertTrue("Content stream should be available", is.available() > 0);
+                }
+            }
+        }
+
+        CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+        assertEquals(bucketName, completeRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, completeRequest.key());
+        assertEquals(uploadId, completeRequest.uploadId());
+
+        assertEquals(inputETag, completeRequest.ifMatch());
+
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(responseListener).onResponse(responseCaptor.capture());
+        assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
+
+        verify(responseListener, never()).onFailure(any());
+
+        verify(clientReference).close();
+    }
+
+    public void testExecuteMultipartUploadConditionallyContentIntegrity() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String inputETag = randomAlphaOfLengthBetween(8, 32);
+        final String finalETag = randomAlphaOfLengthBetween(8, 32);
+        final String uploadId = randomAlphaOfLengthBetween(10, 20);
+
+        final BlobPath blobPath = new BlobPath();
+
+        final int partCount = 3;
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final long blobSize = partSize * partCount;
+
+        final byte[] blobContent = new byte[(int) blobSize];
+        Random random = new Random(0);
+        random.nextBytes(blobContent);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+        // ENCRYPTION CHANGES: Replace serverSideEncryption with enhanced configuration
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor = ArgumentCaptor.forClass(
+            CreateMultipartUploadRequest.class
+        );
+        final ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
+        final ArgumentCaptor<RequestBody> requestBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
+
+        when(client.createMultipartUpload(createRequestCaptor.capture())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
+
+        final List<byte[]> capturedPartContents = new ArrayList<>();
+
+        when(client.uploadPart(any(UploadPartRequest.class), requestBodyCaptor.capture())).thenAnswer(invocation -> {
+            RequestBody requestBody = requestBodyCaptor.getValue();
+            try (InputStream contentStream = requestBody.contentStreamProvider().newStream()) {
+                byte[] partContent = contentStream.readAllBytes();
+                capturedPartContents.add(partContent);
+            }
+            return UploadPartResponse.builder().eTag("etag-for-part").build();
+        });
+
+        when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
+        );
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(blobContent);
+
+        blobContainer.executeMultipartUploadConditionally(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            null,
+            ConditionalWriteOptions.ifMatch(inputETag),
+            responseListener
+        );
+
+        final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
+        assertEquals(bucketName, createRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
+
+        // No explicit encryption verification needed for this test as it focuses on content integrity
+
+        final CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+        assertEquals(inputETag, completeRequest.ifMatch());
+        assertEquals(bucketName, completeRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, completeRequest.key());
+        assertEquals(uploadId, completeRequest.uploadId());
+
+        assertEquals(partCount, capturedPartContents.size());
+
+        byte[] reassembledContent = new byte[(int) blobSize];
+        int offset = 0;
+        for (byte[] partContent : capturedPartContents) {
+            System.arraycopy(partContent, 0, reassembledContent, offset, partContent.length);
+            offset += partContent.length;
+        }
+
+        assertArrayEquals("Uploaded content should match original content", blobContent, reassembledContent);
+
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(responseListener).onResponse(responseCaptor.capture());
+        assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
+
+        verify(responseListener, never()).onFailure(any());
+
+        verify(clientReference).close();
+    }
+
+    public void testExecuteMultipartUploadConditionallySizeValidation() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String inputETag = randomAlphaOfLengthBetween(8, 32);
+        final String finalETag = randomAlphaOfLengthBetween(8, 32);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> invalidSizeListener = mock(ActionListener.class);
+
+        {
+            final long tooSmallSize = ByteSizeUnit.MB.toBytes(5) - 1024;
+
+            final IllegalArgumentException tooSmallException = expectThrows(
+                IllegalArgumentException.class,
+                () -> blobContainer.executeMultipartUploadConditionally(
+                    blobStore,
+                    blobName,
+                    new ByteArrayInputStream(new byte[0]),
+                    tooSmallSize,
+                    null,
+                    ConditionalWriteOptions.ifMatch(inputETag),
+                    invalidSizeListener
+                )
+            );
+
+            assertTrue(tooSmallException.getMessage().contains("can't be smaller than"));
+            verify(invalidSizeListener, never()).onResponse(any());
+            verify(invalidSizeListener, never()).onFailure(any());
+        }
+
+        {
+            final long tooLargeSize = ByteSizeUnit.TB.toBytes(5) + 1;
+
+            final IllegalArgumentException tooLargeException = expectThrows(
+                IllegalArgumentException.class,
+                () -> blobContainer.executeMultipartUploadConditionally(
+                    blobStore,
+                    blobName,
+                    new ByteArrayInputStream(new byte[0]),
+                    tooLargeSize,
+                    null,
+                    ConditionalWriteOptions.ifMatch(inputETag),
+                    invalidSizeListener
+                )
+            );
+
+            assertTrue(tooLargeException.getMessage().contains("can't be larger than"));
+            verify(invalidSizeListener, never()).onResponse(any());
+            verify(invalidSizeListener, never()).onFailure(any());
+        }
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+        when(blobStore.bucket()).thenReturn("test-bucket");
+
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(5));
+
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
+
+        when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId("test-upload-id").build()
+        );
+
+        when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+            UploadPartResponse.builder().eTag("test-etag").build()
+        );
+
+        when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
+        );
+
+        {
+            final long exactMinimumSize = ByteSizeUnit.MB.toBytes(5);
+            @SuppressWarnings("unchecked")
+            ActionListener<ConditionalWriteResponse> validSizeListener = mock(ActionListener.class);
+
+            InputStream zeroStream = new InputStream() {
+                long remaining = exactMinimumSize;
+
+                @Override
+                public int read() {
+                    if (remaining > 0) {
+                        remaining--;
+                        return 0;
+                    } else {
+                        return -1;
+                    }
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) {
+                    if (remaining <= 0) {
+                        return -1;
+                    }
+                    int toRead = (int) Math.min(len, remaining);
+                    Arrays.fill(b, off, off + toRead, (byte) 0);
+                    remaining -= toRead;
+                    return toRead;
+                }
+            };
+
+            try {
+                blobContainer.executeMultipartUploadConditionally(
+                    blobStore,
+                    blobName,
+                    zeroStream,
+                    exactMinimumSize,
+                    null,
+                    ConditionalWriteOptions.ifMatch(inputETag),
+                    validSizeListener
+                );
+
+                ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+                verify(validSizeListener).onResponse(responseCaptor.capture());
+                assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
+                verify(validSizeListener, never()).onFailure(any());
+
+                verify(clientReference).close();
+
+                CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+                assertEquals(inputETag, completeRequest.ifMatch());
+
+            } catch (IOException e) {
+                fail("Should not throw exception for exact minimum size: " + e);
+            }
+        }
+
+        reset(clientReference);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        {
+            final long testSize = ByteSizeUnit.MB.toBytes(10);
+            @SuppressWarnings("unchecked")
+            ActionListener<ConditionalWriteResponse> validSizeListener = mock(ActionListener.class);
+
+            InputStream zeroStream = new InputStream() {
+                long remaining = testSize;
+
+                @Override
+                public int read() {
+                    if (remaining > 0) {
+                        remaining--;
+                        return 0;
+                    } else {
+                        return -1;
+                    }
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) {
+                    if (remaining <= 0) {
+                        return -1;
+                    }
+                    int toRead = (int) Math.min(len, remaining);
+                    Arrays.fill(b, off, off + toRead, (byte) 0);
+                    remaining -= toRead;
+                    return toRead;
+                }
+            };
+
+            try {
+                blobContainer.executeMultipartUploadConditionally(
+                    blobStore,
+                    blobName,
+                    zeroStream,
+                    testSize,
+                    null,
+                    ConditionalWriteOptions.ifMatch(inputETag),
+                    validSizeListener
+                );
+
+                ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+                verify(validSizeListener).onResponse(responseCaptor.capture());
+                assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
+                verify(validSizeListener, never()).onFailure(any());
+
+                verify(clientReference).close();
+
+                CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+                assertEquals(inputETag, completeRequest.ifMatch());
+
+            } catch (IOException e) {
+                fail("Should not fail with size validation error: " + e);
+            }
+        }
+    }
+
+    public void testExecuteMultipartUploadConditionallyPreconditionFailed() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final BlobPath blobPath = new BlobPath();
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final long blobSize = partSize * 2;
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        final AmazonS3Reference abortClientReference = mock(AmazonS3Reference.class);
+
+        when(blobStore.clientReference()).thenReturn(clientReference).thenReturn(abortClientReference);
+        when(clientReference.get()).thenReturn(client);
+        when(abortClientReference.get()).thenReturn(client);
+
+        S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
+            .message("Precondition Failed")
+            .statusCode(S3BlobContainer.HTTP_STATUS_PRECONDITION_FAILED)
+            .build();
+
+        final String uploadId = randomAlphaOfLengthBetween(10, 20);
+        when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
+
+        when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+            UploadPartResponse.builder().eTag("part-etag").build()
+        );
+
+        when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(preconditionFailedException);
+
+        when(client.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(
+            AbortMultipartUploadResponse.builder().build()
+        );
+
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        ActionListener<ConditionalWriteResponse> responseListener = ActionListener.wrap(
+            r -> fail("Should have failed with precondition failure"),
+            capturedException::set
+        );
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
+
+        IOException ioException = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeMultipartUploadConditionally(
+                blobStore,
+                blobName,
+                inputStream,
+                blobSize,
+                null,
+                ConditionalWriteOptions.ifMatch(eTag),
+                responseListener
+            )
+        );
+
+        assertEquals("Unable to upload object [" + blobName + "] due to ETag mismatch", ioException.getMessage());
+        assertEquals(preconditionFailedException, ioException.getCause());
+
+        Exception exception = capturedException.get();
+        assertNotNull("Expected an exception to be captured", exception);
+        assertTrue("Exception should be an OpenSearchException", exception instanceof OpenSearchException);
+        assertEquals("Precondition Failed : Etag Mismatch", exception.getMessage());
+
+        verify(client).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+        verify(client).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+        verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+
+        verify(clientReference).close();
+        verify(abortClientReference).close();
+    }
+
+    public void testExecuteMultipartUploadConditionallyS3ExceptionTypes() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final BlobPath blobPath = new BlobPath();
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final long blobSize = partSize * 2;
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+
+        Object[][] testCases = {
+            { "S3Exception", 0, 403 },
+            { "S3Exception", 1, 404 },
+            { "S3Exception", 2, 412 },
+            { "SdkException", 1, 0 }, };
+
+        for (Object[] testCase : testCases) {
+            String exceptionType = (String) testCase[0];
+            int errorPhase = (int) testCase[1];
+            int statusCode = (int) testCase[2];
+
+            final S3BlobStore blobStore = mock(S3BlobStore.class);
+            final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+
+            when(blobStore.bucket()).thenReturn(bucketName);
+            when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+            when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+            when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+            final boolean useSseKms = randomBoolean();
+            final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+            final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+            final boolean useBucketKey = randomBoolean();
+            if (useSseKms) {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+                when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+                when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+                when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+            } else {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+            }
+
+            final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+            final S3Client client = mock(S3Client.class);
+            final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+            final AmazonS3Reference abortClientReference = mock(AmazonS3Reference.class);
+
+            when(blobStore.clientReference()).thenReturn(clientReference).thenReturn(abortClientReference);
+            when(clientReference.get()).thenReturn(client);
+            when(abortClientReference.get()).thenReturn(client);
+
+            Exception testException;
+            if ("S3Exception".equals(exceptionType)) {
+                testException = (S3Exception) S3Exception.builder()
+                    .message("S3 Error with status code " + statusCode)
+                    .statusCode(statusCode)
+                    .build();
+            } else {
+                testException = SdkException.builder().message("SDK Error occurred").build();
+            }
+
+            final String uploadId = "test-upload-id";
+            if (errorPhase >= 1) {
+                when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+                    CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+                );
+            } else {
+                when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenThrow(testException);
+            }
+
+            if (errorPhase >= 2) {
+                when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+                    UploadPartResponse.builder().eTag("part-etag").build()
+                );
+            } else if (errorPhase == 1) {
+                when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(testException);
+            }
+
+            if (errorPhase == 2) {
+                when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(testException);
+            }
+
+            when(client.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(
+                AbortMultipartUploadResponse.builder().build()
+            );
+
+            final AtomicReference<Exception> capturedException = new AtomicReference<>();
+            ActionListener<ConditionalWriteResponse> responseListener = ActionListener.wrap(
+                r -> fail("Should have failed with exception"),
+                capturedException::set
+            );
+
+            final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
+            IOException exception = expectThrows(
+                IOException.class,
+                () -> blobContainer.executeMultipartUploadConditionally(
+                    blobStore,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    metadata,
+                    ConditionalWriteOptions.ifMatch(eTag),
+                    responseListener
+                )
+            );
+
+            assertEquals(testException, exception.getCause());
+
+            Exception listenerException = capturedException.get();
+            assertNotNull("Expected a listener exception", listenerException);
+
+            if ("S3Exception".equals(exceptionType) && statusCode == 412) {
+                assertTrue(listenerException instanceof OpenSearchException);
+                assertEquals("Precondition Failed : Etag Mismatch", listenerException.getMessage());
+            } else {
+                assertTrue(listenerException instanceof IOException);
+            }
+
+            verify(clientReference).close();
+
+            if (errorPhase >= 1) {
+                verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+                verify(abortClientReference).close();
+            } else {
+                verify(client, never()).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+            }
+        }
+    }
+
+    public void testExecuteMultipartUploadConditionallySdkException() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final BlobPath blobPath = new BlobPath();
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final long blobSize = partSize * 2;
+
+        Object[][] testScenarios = {
+            { "initialization error", 0, false },
+            { "part upload error", 1, false },
+            { "abort failure", 1, true } };
+
+        for (Object[] scenario : testScenarios) {
+            String scenarioName = (String) scenario[0];
+            int errorStage = (int) scenario[1];
+            boolean abortFails = (boolean) scenario[2];
+
+            final S3BlobStore blobStore = mock(S3BlobStore.class);
+            final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+            when(blobStore.bucket()).thenReturn(bucketName);
+            when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+            when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+            when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+            final boolean useSseKms = randomBoolean();
+            final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+            final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+            final boolean useBucketKey = randomBoolean();
+            if (useSseKms) {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+                when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+                when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+                when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+            } else {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+            }
+
+            final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+            final S3Client client = mock(S3Client.class);
+            final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+            final AmazonS3Reference abortClientReference = mock(AmazonS3Reference.class);
+            when(blobStore.clientReference()).thenReturn(clientReference).thenReturn(abortClientReference);
+            when(clientReference.get()).thenReturn(client);
+            when(abortClientReference.get()).thenReturn(client);
+
+            SdkException primaryException = SdkException.builder().message("SDK error during " + scenarioName).build();
+
+            final String uploadId = "test-upload-id";
+            if (errorStage == 0) {
+                when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenThrow(primaryException);
+            } else {
+                when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+                    CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+                );
+
+                when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(primaryException);
+            }
+
+            ArgumentCaptor<AbortMultipartUploadRequest> abortCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
+
+            if (abortFails) {
+                SdkException abortException = SdkException.builder().message("Abort failure").build();
+                when(client.abortMultipartUpload(abortCaptor.capture())).thenThrow(abortException);
+            } else {
+                when(client.abortMultipartUpload(abortCaptor.capture())).thenReturn(AbortMultipartUploadResponse.builder().build());
+            }
+
+            final AtomicReference<Exception> capturedException = new AtomicReference<>();
+            ActionListener<ConditionalWriteResponse> responseListener = ActionListener.wrap(
+                r -> fail("Should have failed with SdkException"),
+                capturedException::set
+            );
+
+            final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
+            IOException exception = expectThrows(
+                IOException.class,
+                () -> blobContainer.executeMultipartUploadConditionally(
+                    blobStore,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    null,
+                    ConditionalWriteOptions.ifMatch(eTag),
+                    responseListener
+                )
+            );
+
+            assertEquals("Original SdkException should be preserved as cause", primaryException, exception.getCause());
+
+            Exception listenerException = capturedException.get();
+            assertNotNull("Expected an exception", listenerException);
+            assertTrue("Exception should be IOException", listenerException instanceof IOException);
+
+            verify(clientReference).close();
+
+            if (errorStage > 0) {
+                verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+                verify(abortClientReference).close();
+
+                if (!abortCaptor.getAllValues().isEmpty()) {
+                    AbortMultipartUploadRequest abortRequest = abortCaptor.getValue();
+                    assertEquals("Abort request should have correct upload ID", uploadId, abortRequest.uploadId());
+                    assertEquals("Abort request should have correct bucket", bucketName, abortRequest.bucket());
+                    assertEquals("Abort request should have correct key", blobPath.buildAsString() + blobName, abortRequest.key());
+                }
+            } else {
+                verify(client, never()).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+            }
+        }
+    }
+
+    public void testExecuteMultipartUploadConditionallyResourceManagement() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+        final String uploadId = randomAlphaOfLengthBetween(10, 20);
+
+        final BlobPath blobPath = new BlobPath();
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final long blobSize = partSize * 2;
+
+        enum ResourceScenario {
+            SUCCESS_PATH,
+            INIT_FAILURE,
+            PART_UPLOAD_FAILURE,
+            COMPLETION_FAILURE,
+            ABORT_FAILURE
+        }
+
+        for (ResourceScenario scenario : ResourceScenario.values()) {
+            final S3BlobStore blobStore = mock(S3BlobStore.class);
+            final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+            when(blobStore.bucket()).thenReturn(bucketName);
+            when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+            when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+            when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+            final boolean useSseKms = randomBoolean();
+            final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+            final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+            final boolean useBucketKey = randomBoolean();
+            if (useSseKms) {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+                when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+                when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+                when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+            } else {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+            }
+
+            final S3Client client = mock(S3Client.class);
+
+            AmazonS3Reference primaryClientReference = mock(AmazonS3Reference.class);
+            AmazonS3Reference abortClientReference = mock(AmazonS3Reference.class);
+
+            when(primaryClientReference.get()).thenReturn(client);
+            when(abortClientReference.get()).thenReturn(client);
+
+            when(blobStore.clientReference()).thenReturn(primaryClientReference).thenReturn(abortClientReference);
+
+            final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+            SdkException stageException = SdkException.builder().message("Failure during " + scenario.name()).build();
+
+            ArgumentCaptor<AbortMultipartUploadRequest> abortCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
+
+            switch (scenario) {
+                case SUCCESS_PATH:
+                    when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+                        CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+                    );
+                    when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+                        UploadPartResponse.builder().eTag("test-etag").build()
+                    );
+                    when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+                        CompleteMultipartUploadResponse.builder().eTag("final-etag").build()
+                    );
+                    break;
+
+                case INIT_FAILURE:
+                    when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenThrow(stageException);
+                    break;
+
+                case PART_UPLOAD_FAILURE:
+                    when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+                        CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+                    );
+                    when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(stageException);
+                    when(client.abortMultipartUpload(abortCaptor.capture())).thenReturn(AbortMultipartUploadResponse.builder().build());
+                    break;
+
+                case COMPLETION_FAILURE:
+                    when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+                        CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+                    );
+                    when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+                        UploadPartResponse.builder().eTag("test-etag").build()
+                    );
+                    when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(stageException);
+                    when(client.abortMultipartUpload(abortCaptor.capture())).thenReturn(AbortMultipartUploadResponse.builder().build());
+                    break;
+
+                case ABORT_FAILURE:
+                    when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+                        CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+                    );
+                    when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(stageException);
+                    when(client.abortMultipartUpload(abortCaptor.capture())).thenThrow(
+                        SdkException.builder().message("Abort failure").build()
+                    );
+                    break;
+            }
+
+            @SuppressWarnings("unchecked")
+            ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
+
+            final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
+
+            if (scenario == ResourceScenario.SUCCESS_PATH) {
+                blobContainer.executeMultipartUploadConditionally(
+                    blobStore,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    null,
+                    ConditionalWriteOptions.ifMatch(eTag),
+                    responseListener
+                );
+
+                ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+                verify(responseListener).onResponse(responseCaptor.capture());
+                assertEquals("final-etag", responseCaptor.getValue().getVersionIdentifier());
+                verify(responseListener, never()).onFailure(any());
+
+                verify(blobStore, times(1)).clientReference();
+                verify(primaryClientReference).close();
+            } else {
+                IOException exception = expectThrows(
+                    IOException.class,
+                    () -> blobContainer.executeMultipartUploadConditionally(
+                        blobStore,
+                        blobName,
+                        inputStream,
+                        blobSize,
+                        null,
+                        ConditionalWriteOptions.ifMatch(eTag),
+                        responseListener
+                    )
+                );
+
+                assertEquals("Exception cause should be the original exception", stageException, exception.getCause());
+
+                verify(responseListener).onFailure(any(Exception.class));
+                verify(responseListener, never()).onResponse(any());
+
+                verify(primaryClientReference).close();
+
+                if (scenario != ResourceScenario.INIT_FAILURE) {
+                    verify(blobStore, times(2)).clientReference();
+                    verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+                    verify(abortClientReference).close();
+
+                    if (!abortCaptor.getAllValues().isEmpty()) {
+                        AbortMultipartUploadRequest abortRequest = abortCaptor.getValue();
+                        assertEquals("Upload ID should match", uploadId, abortRequest.uploadId());
+                        assertEquals("Bucket should match", bucketName, abortRequest.bucket());
+                        assertEquals("Key should match", blobPath.buildAsString() + blobName, abortRequest.key());
+                    }
+                } else {
+                    verify(blobStore, times(1)).clientReference();
+                    verify(client, never()).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+                }
+            }
+        }
     }
 
     public void testInitCannedACL() {
