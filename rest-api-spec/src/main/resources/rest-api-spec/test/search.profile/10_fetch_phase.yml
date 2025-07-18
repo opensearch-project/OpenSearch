@@ -169,42 +169,6 @@ setup:
 
 
 ---
-"Script fields phase profiling":
-  - skip:
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            match_all: {}
-          script_fields:
-            my_script_field:
-              script:
-                source: "doc['numeric_field'].value * 2"
-
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "ScriptFieldsPhase"
-        description: "ScriptFieldsPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
----
 "No FetchSourcePhase profiling":
   - do:
       search:
@@ -329,41 +293,42 @@ setup:
   - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
 
 
-#---
-#"Matched queries phase profiling":
-#  - skip:
-#      features: "contains"
-#
-#  - do:
-#      search:
-#        index: test_fetch_profile
-#        body:
-#          profile: true
-#          query:
-#            bool:
-#              should:
-#                - match:
-#                    text_field: "document"
-#                    _name: "my_query"
-#
-#  - contains:
-#      profile.shards.0.fetch.0.children:
-#        type: "MatchedQueriesPhase"
-#        description: "MatchedQueriesPhase"
-#  - contains:
-#      profile.shards.0.fetch.0.children:
-#        type: "FetchSourcePhase"
-#        description: "FetchSourcePhase"
-#  - length: { profile.shards.0.fetch.0.children: 2 }
-#
-#  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-#  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
-#  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-#  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-#  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-#  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
-#  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-#  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+---
+"Matched queries phase profiling":
+  - skip:
+      features: "contains"
+
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            bool:
+              should:
+                - match:
+                    text_field:
+                      query: "document"
+                      _name: "my_query"
+
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "MatchedQueriesPhase"
+        description: "MatchedQueriesPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
+        description: "FetchSourcePhase"
+  - length: { profile.shards.0.fetch.0.children: 2 }
+
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
+  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
 
 ---
 "Highlight phase profiling":
