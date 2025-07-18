@@ -21,27 +21,28 @@ import java.util.Objects;
 
 /**
  * Represents a Pre-copy merged segment which is sent to a replica shard.
- * Inherit {@link ReplicationCheckpoint}, but the segmentsGen and segmentInfosVersion will not be used.
+ * Inherit {@link ReplicationCheckpoint}, but the segmentsGen will not be used.
  *
  * @opensearch.internal
  */
 @ExperimentalApi
-public class MergeSegmentCheckpoint extends ReplicationCheckpoint {
+public class MergedSegmentCheckpoint extends ReplicationCheckpoint {
     private final String segmentName;
 
-    public MergeSegmentCheckpoint(
+    public MergedSegmentCheckpoint(
         ShardId shardId,
         long primaryTerm,
+        long segmentInfosVersion,
         long length,
         String codec,
         Map<String, StoreFileMetadata> metadataMap,
         String segmentName
     ) {
-        super(shardId, primaryTerm, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, length, codec, metadataMap);
+        super(shardId, primaryTerm, SequenceNumbers.NO_OPS_PERFORMED, segmentInfosVersion, length, codec, metadataMap);
         this.segmentName = segmentName;
     }
 
-    public MergeSegmentCheckpoint(StreamInput in) throws IOException {
+    public MergedSegmentCheckpoint(StreamInput in) throws IOException {
         super(in);
         segmentName = in.readString();
     }
@@ -65,7 +66,7 @@ public class MergeSegmentCheckpoint extends ReplicationCheckpoint {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        MergeSegmentCheckpoint that = (MergeSegmentCheckpoint) o;
+        MergedSegmentCheckpoint that = (MergedSegmentCheckpoint) o;
         return getPrimaryTerm() == that.getPrimaryTerm()
             && segmentName.equals(that.segmentName)
             && Objects.equals(getShardId(), that.getShardId())
@@ -79,7 +80,7 @@ public class MergeSegmentCheckpoint extends ReplicationCheckpoint {
 
     @Override
     public String toString() {
-        return "ReplicationCheckpoint{"
+        return "MergedSegmentCheckpoint{"
             + "shardId="
             + getShardId()
             + ", primaryTerm="
