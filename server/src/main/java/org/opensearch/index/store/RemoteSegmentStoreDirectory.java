@@ -170,8 +170,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     public void syncMergedSegments() {
-        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false ||
-            activeMergesRegistry.isEmpty() == true) {
+        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false
+            || activeMergesRegistry.isEmpty() == true) {
             return;
         }
 
