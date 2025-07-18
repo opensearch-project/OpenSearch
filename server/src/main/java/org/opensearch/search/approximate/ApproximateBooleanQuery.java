@@ -136,6 +136,17 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             return false;
         }
 
+        // public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
+        // ScorerSupplier scorerSupplier = scorerSupplier(context);
+        // if (scorerSupplier == null) {
+        // // No docs match
+        // return null;
+        // }
+        //
+        // scorerSupplier.setTopLevelScoringClause();
+        // return scorerSupplier.bulkScorer();
+        // }
+
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             // Get the scorer supplier from the underlying boolean weight
@@ -144,6 +155,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
                 return null;
             }
 
+            // return new ApproximateBooleanScorerSupplier();
             // Return a wrapper scorer supplier that delegates to the boolean scorer
             return new ScorerSupplier() {
                 @Override
