@@ -12,6 +12,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Interface for an entry in the {@link FileCache} that can return an
@@ -28,6 +29,14 @@ public interface CachedIndexInput extends AutoCloseable {
      * @throws IOException if any I/O error occurs
      */
     IndexInput getIndexInput() throws IOException;
+
+    /**
+     *  Trigger and get the completable future of index input
+     *  @return CompletableFuture of IndexInput
+     */
+    default CompletableFuture<IndexInput> asyncLoadIndexInput() {
+        return null;
+    }
 
     /**
      * @return length in bytes

@@ -107,6 +107,34 @@ public class TransferManager {
         }
     }
 
+    public CompletableFuture<IndexInput> fetchBlobAsync(BlobFetchRequest blobFetchRequest) throws IOException {
+        final Path key = blobFetchRequest.getFilePath();
+        logger.trace("Async fetchBlob called for {}", key.toString());
+        try {
+            CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
+                    if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
+                        logger.trace("Transfer Manager - IndexInput closed or not in cache");
+                        // Doesn't exist or is closed, either way create a new one
+                        return new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest);
+                    } else {
+                        logger.trace("Transfer Manager - Required blob Already in cache");
+                        // already in the cache and ready to be used (open)
+                        return cachedIndexInput;
+                    }
+                });
+                // Cache entry was either retrieved from the cache or newly added, either
+                // way the reference count has been incremented by one. We can only
+                // decrement this reference _after_ creating the clone to be returned.
+                try {
+                    return cacheEntry.asyncLoadIndexInput();
+                } finally {
+                    fileCache.decRef(key);
+                }
+        } catch (Exception cause) {
+            throw (RuntimeException) cause;
+        }
+    }
+
     private static FileCachedIndexInput createIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
         try {
             // This local file cache is ref counted and may not strictly enforce configured capacity.
@@ -193,6 +221,27 @@ public class TransferManager {
                 }
                 throw e;
             }
+        }
+
+        public CompletableFuture<IndexInput> asyncLoadIndexInput() {
+            if (isClosed.get()) {
+                throw new IllegalStateException("Already closed");
+            }
+            if (isStarted.getAndSet(true) == false) {
+                CompletableFuture.supplyAsync(() -> {
+                        try {
+                            return createIndexInput(fileCache, streamReader, request);
+                        } catch (Exception e) {
+                            fileCache.remove(request.getFilePath());
+                            throw new CompletionException(e);
+                        }
+                    }).thenAccept(result::complete)
+                    .exceptionally(throwable -> {
+                        result.completeExceptionally(throwable);
+                        return null;
+                    });
+            }
+            return result;
         }
 
         @Override
