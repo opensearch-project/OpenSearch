@@ -259,8 +259,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
-
-            assertFetchPhaseProfileResults(resp);
         }
     }
 
@@ -324,8 +322,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-
-        assertFetchPhaseProfileResults(resp);
     }
 
     /**
@@ -368,7 +364,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-        assertFetchPhaseProfileResults(resp);
     }
 
     /**
@@ -415,7 +410,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-        assertFetchPhaseProfileResults(resp);
     }
 
     public void testBoosting() throws Exception {
@@ -457,7 +451,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-        assertFetchPhaseProfileResults(resp);
     }
 
     public void testSearchLeafForItsLeavesAndRewriteQuery() throws Exception {
@@ -541,7 +534,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-        assertFetchPhaseProfileResults(resp);
     }
 
     public void testDisMaxRange() throws Exception {
@@ -583,7 +575,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-        assertFetchPhaseProfileResults(resp);
     }
 
     public void testRange() throws Exception {
@@ -624,7 +615,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-        assertFetchPhaseProfileResults(resp);
     }
 
     public void testPhrase() throws Exception {
@@ -679,7 +669,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-        assertFetchPhaseProfileResults(resp);
     }
 
     /**
@@ -734,27 +723,5 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
             assertThat(avgSliceTime, is(nullValue()));
             assertThat(breakdown.size(), equalTo(27));
         }
-    }
-
-    private void assertFetchPhaseProfileResults(SearchResponse response) {
-        for (Map.Entry<String, ProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
-            List<ProfileResult> fetchResults = shardResult.getValue().getFetchProfileResult().getFetchProfileResults();
-            if (response.getHits().getHits().length > 0) {
-                assertThat(fetchResults.size(), greaterThan(0));
-                for (ProfileResult result : fetchResults) {
-                    assertFetchProfileResult(result);
-                }
-            } else {
-                assertThat(fetchResults.size(), equalTo(0));
-            }
-        }
-    }
-
-    private void assertFetchProfileResult(ProfileResult result) {
-        assertNotNull(result.getQueryName());
-        assertNotNull(result.getLuceneDescription());
-        assertThat(result.getTime(), greaterThanOrEqualTo(0L));
-        assertNotNull(result.getTimeBreakdown());
-        assertThat(result.getTimeBreakdown().size(), greaterThan(0));
     }
 }

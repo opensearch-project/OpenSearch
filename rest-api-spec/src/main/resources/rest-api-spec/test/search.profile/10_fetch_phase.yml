@@ -41,6 +41,8 @@ setup:
 ---
 "Basic fetch phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -102,6 +104,8 @@ setup:
 ---
 "Explain phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -135,6 +139,8 @@ setup:
 ---
 "Doc values phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -170,6 +176,10 @@ setup:
 
 ---
 "No FetchSourcePhase profiling":
+  - skip:
+        version: " - 3.1.99"
+        reason: "Fetch phase profiling was introduced in 3.2.0"
+
   - do:
       search:
         index: test_fetch_profile
@@ -193,6 +203,8 @@ setup:
 ---
 "Fields phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -229,6 +241,8 @@ setup:
 ---
 "Version phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -262,6 +276,8 @@ setup:
 ---
 "Sequence number and primary term phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -296,6 +312,8 @@ setup:
 ---
 "Matched queries phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -333,6 +351,8 @@ setup:
 ---
 "Highlight phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -371,6 +391,8 @@ setup:
 ---
 "Fetch score phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -407,6 +429,8 @@ setup:
 ---
 "Inner hits phase profiling":
   - skip:
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
       features: "contains"
 
   - do:
@@ -442,6 +466,10 @@ setup:
 
 ---
 "Top-hits aggregation profiling":
+  - skip:
+        version: " - 3.1.99"
+        reason: "Fetch phase profiling was introduced in 3.2.0"
+
   - do:
       search:
         index: test_fetch_profile
