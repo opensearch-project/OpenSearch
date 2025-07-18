@@ -28,7 +28,6 @@ public class FileCacheSettings {
         "cluster.filecache.remote_data_ratio",
         5.0,
         1.0,
-        100.0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
