@@ -35,7 +35,6 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     public final BooleanQuery boolQuery;
     private final int size;
     private final List<BooleanClause> clauses;
-    private ApproximateBooleanQuery booleanQuery;
 
     public ApproximateBooleanQuery(BooleanQuery boolQuery) {
         this(boolQuery, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
@@ -47,8 +46,8 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
         this.clauses = boolQuery.clauses();
     }
 
-    public ApproximateBooleanQuery getBooleanQuery() {
-        return booleanQuery;
+    public BooleanQuery getBooleanQuery() {
+        return boolQuery;
     }
 
     public Query getClauseQuery() {
@@ -68,7 +67,6 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
     @Override
     protected boolean canApproximate(SearchContext context) {
-        booleanQuery = this;
         if (context == null) {
             return false;
         }
@@ -97,12 +95,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             }
         }
 
-        if (clauses.size() > 1) {
-            // need to update
-            return true;
-        }
-
-        return false;
+        return clauses.size() > 1 && clauses.stream().allMatch(clause -> clause.occur() == BooleanClause.Occur.FILTER);
     }
 
     @Override
