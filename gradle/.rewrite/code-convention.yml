@@ -1,0 +1,24 @@
+type: specs.openrewrite.org/v1beta/recipe
+name: org.opensearch.openrewrite.recipe.CodeCleanup
+displayName: CodeCleanup
+description: Automatically cleanup code, e.g. remove unnecessary parentheses, simplify expressions.
+recipeList:
+  - org.openrewrite.java.RemoveUnusedImports
+  - org.openrewrite.staticanalysis.RemoveUnusedPrivateMethods
+#  - org.openrewrite.java.OrderImports
+#  - org.openrewrite.java.format.RemoveTrailingWhitespace
+#  - org.openrewrite.java.recipes.JavaRecipeBestPractices
+#  - org.openrewrite.java.recipes.RecipeNullabilityBestPractices
+#  - org.openrewrite.java.recipes.RecipeTestingBestPractices
+#  - org.openrewrite.staticanalysis.EmptyBlock
+#  - org.openrewrite.staticanalysis.EqualsAvoidsNull
+#  - org.openrewrite.staticanalysis.JavaApiBestPractices
+#  - org.openrewrite.staticanalysis.MissingOverrideAnnotation
+#  - org.openrewrite.staticanalysis.ModifierOrder
+#  - org.openrewrite.staticanalysis.RemoveCallsToSystemGc
+#  - org.openrewrite.staticanalysis.RemoveUnusedLocalVariables
+#  - org.openrewrite.staticanalysis.RemoveUnusedPrivateFields
+#  - org.openrewrite.staticanalysis.StringLiteralEquality
+#  - org.openrewrite.staticanalysis.UnnecessaryThrows
+#  - org.openrewrite.staticanalysis.WrappingAndBraces
+#  - org.openrewrite.text.EndOfLineAtEndOfFile

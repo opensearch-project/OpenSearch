@@ -78,12 +78,10 @@ import static org.opensearch.test.geo.RandomShapeGenerator.xRandomPoint;
 import static org.opensearch.test.geo.RandomShapeGenerator.xRandomRectangle;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {
