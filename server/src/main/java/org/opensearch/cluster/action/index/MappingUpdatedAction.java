@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.action.index;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
@@ -44,7 +43,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.RunOnce;
-import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -148,19 +146,6 @@ public class MappingUpdatedAction {
             putMappingRequest,
             ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
         );
-    }
-
-    // todo: this explicit unwrap should not be necessary, but is until guessRootCause is fixed to allow wrapped non-es exception.
-    private static Exception unwrapException(Exception cause) {
-        return cause instanceof OpenSearchException ? unwrapEsException((OpenSearchException) cause) : cause;
-    }
-
-    private static RuntimeException unwrapEsException(OpenSearchException esEx) {
-        Throwable root = esEx.unwrapCause();
-        if (root instanceof RuntimeException) {
-            return (RuntimeException) root;
-        }
-        return new UncategorizedExecutionException("Failed execution", root);
     }
 
     /**

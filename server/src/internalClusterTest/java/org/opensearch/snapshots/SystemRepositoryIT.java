@@ -17,8 +17,6 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SystemRepositoryIT extends AbstractSnapshotIntegTestCase {
     protected Path absolutePath;

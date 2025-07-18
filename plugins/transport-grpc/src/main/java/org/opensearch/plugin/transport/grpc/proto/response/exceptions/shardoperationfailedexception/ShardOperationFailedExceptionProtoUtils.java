@@ -11,8 +11,6 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.snapshots.SnapshotShardFailure;
 
