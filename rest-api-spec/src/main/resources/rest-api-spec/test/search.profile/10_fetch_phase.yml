@@ -204,7 +204,7 @@ setup:
   - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
 
 ---
-"Fields phase profiling":
+"Fetch Fields phase profiling":
   - skip:
       version: " - 3.1.99"
       reason: "Fetch phase profiling was introduced in 3.2.0"

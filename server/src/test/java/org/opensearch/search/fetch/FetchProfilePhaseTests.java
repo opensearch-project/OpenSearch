@@ -18,7 +18,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
@@ -26,11 +29,32 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.fetch.subphase.ExplainPhase;
+import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
+import org.opensearch.search.fetch.subphase.FetchDocValuesPhase;
+import org.opensearch.search.fetch.subphase.FetchFieldsContext;
+import org.opensearch.search.fetch.subphase.FetchFieldsPhase;
+import org.opensearch.search.fetch.subphase.FetchScorePhase;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.fetch.subphase.FetchSourcePhase;
+import org.opensearch.search.fetch.subphase.FetchVersionPhase;
+import org.opensearch.search.fetch.subphase.FieldAndFormat;
+import org.opensearch.search.fetch.subphase.MatchedQueriesPhase;
+import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
+import org.opensearch.search.fetch.subphase.SeqNoPrimaryTermPhase;
+import org.opensearch.search.fetch.subphase.highlight.FieldHighlightContext;
+import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.fetch.subphase.highlight.HighlightField;
+import org.opensearch.search.fetch.subphase.highlight.HighlightPhase;
+import org.opensearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
@@ -40,12 +64,14 @@ import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.fetch.FetchProfiler;
 import org.opensearch.search.profile.fetch.FetchTimingType;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -129,6 +155,24 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         private boolean enableStoredFields = false;
         private List<String> storedFieldNames = Collections.emptyList();
         private boolean enableScriptFields = false;
+        private ScriptFieldsContext scriptFieldsContext = null;
+
+        private boolean enableExplain = false;
+        private boolean enableVersion = false;
+        private boolean enableSeqNoPrimaryTerm = false;
+        private boolean enableFetchScore = false;
+
+        private boolean enableDocValues = false;
+        private List<FieldAndFormat> docValueFields = Collections.emptyList();
+
+        private boolean enableFetchFields = false;
+        private List<FieldAndFormat> fetchFields = Collections.emptyList();
+
+        private ParsedQuery parsedQuery = null;
+        private Query query = new MatchAllDocsQuery();
+
+        private SearchHighlightContext highlightContext = null;
+        private QueryShardContext externalQueryShardContext = null;
 
         SearchContextBuilder(IndexReader reader, int[] docIds, IndexShard indexShard) {
             this.reader = reader;
@@ -147,8 +191,61 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
             return this;
         }
 
-        SearchContextBuilder withScriptFields() {
+        SearchContextBuilder withScriptFields(ScriptFieldsContext ctx) {
             this.enableScriptFields = true;
+            this.scriptFieldsContext = ctx;
+            return this;
+        }
+
+        SearchContextBuilder withExplain() {
+            this.enableExplain = true;
+            return this;
+        }
+
+        SearchContextBuilder withVersion() {
+            this.enableVersion = true;
+            return this;
+        }
+
+        SearchContextBuilder withSeqNoPrimaryTerm() {
+            this.enableSeqNoPrimaryTerm = true;
+            return this;
+        }
+
+        SearchContextBuilder withFetchScore() {
+            this.enableFetchScore = true;
+            return this;
+        }
+
+        SearchContextBuilder withDocValues(FieldAndFormat... fields) {
+            this.enableDocValues = true;
+            this.docValueFields = Arrays.asList(fields);
+            return this;
+        }
+
+        SearchContextBuilder withFetchFields(FieldAndFormat... fields) {
+            this.enableFetchFields = true;
+            this.fetchFields = Arrays.asList(fields);
+            return this;
+        }
+
+        SearchContextBuilder withParsedQuery(ParsedQuery pq) {
+            this.parsedQuery = pq;
+            return this;
+        }
+
+        SearchContextBuilder withQuery(Query query) {
+            this.query = query;
+            return this;
+        }
+
+        SearchContextBuilder withHighlight(SearchHighlightContext hc) {
+            this.highlightContext = hc;
+            return this;
+        }
+
+        SearchContextBuilder withQueryShardContext(QueryShardContext qsc) {
+            this.externalQueryShardContext = qsc;
             return this;
         }
 
@@ -163,6 +260,17 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
             // Script fields configuration
             when(context.hasScriptFields()).thenReturn(enableScriptFields);
+
+            if (enableScriptFields) {
+                when(context.scriptFields()).thenReturn(scriptFieldsContext);
+            }
+
+            // Basic query configuration
+            when(context.query()).thenReturn(query);
+            when(context.parsedQuery()).thenReturn(parsedQuery);
+            when(context.explain()).thenReturn(enableExplain);
+            when(context.version()).thenReturn(enableVersion);
+            when(context.seqNoAndPrimaryTerm()).thenReturn(enableSeqNoPrimaryTerm);
 
             // Source loading configuration
             when(context.hasFetchSourceContext()).thenReturn(enableSourceLoading);
@@ -179,6 +287,34 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 when(context.storedFieldsContext()).thenReturn(null);
             }
 
+            if (enableDocValues) {
+                when(context.docValuesContext()).thenReturn(new FetchDocValuesContext(docValueFields));
+            } else {
+                when(context.docValuesContext()).thenReturn(null);
+            }
+
+            if (enableFetchFields) {
+                when(context.fetchFieldsContext()).thenReturn(new FetchFieldsContext(fetchFields));
+            } else {
+                when(context.fetchFieldsContext()).thenReturn(null);
+            }
+
+            if (highlightContext != null) {
+                when(context.highlight()).thenReturn(highlightContext);
+            } else {
+                when(context.highlight()).thenReturn(null);
+            }
+
+            if (enableFetchScore) {
+                Sort sort = new Sort(SortField.FIELD_SCORE);
+                SortAndFormats sf = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW });
+                when(context.sort()).thenReturn(sf);
+                when(context.trackScores()).thenReturn(true);
+            } else {
+                when(context.sort()).thenReturn(null);
+                when(context.trackScores()).thenReturn(false);
+            }
+
             // Query result setup
             QuerySearchResult queryResult = new QuerySearchResult();
             ScoreDoc[] scoreDocs = new ScoreDoc[docIds.length];
@@ -193,7 +329,9 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
             when(context.queryResult()).thenReturn(queryResult);
 
             // Search lookup setup
-            QueryShardContext queryShardContext = mock(QueryShardContext.class);
+            QueryShardContext queryShardContext = externalQueryShardContext != null
+                ? externalQueryShardContext
+                : mock(QueryShardContext.class);
             SearchLookup searchLookup = mock(SearchLookup.class);
             SourceLookup sourceLookup = new SourceLookup();
             when(searchLookup.source()).thenReturn(sourceLookup);
@@ -205,6 +343,12 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
             when(mapperService.hasNested()).thenReturn(false);
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.typeText()).thenReturn(new Text("_doc"));
+
+            // Mock the sourceMapper
+            org.opensearch.index.mapper.SourceFieldMapper sourceFieldMapper = mock(org.opensearch.index.mapper.SourceFieldMapper.class);
+            when(sourceFieldMapper.enabled()).thenReturn(true);
+            when(documentMapper.sourceMapper()).thenReturn(sourceFieldMapper);
+
             when(mapperService.documentMapper()).thenReturn(documentMapper);
             when(context.mapperService()).thenReturn(mapperService);
 
@@ -265,29 +409,17 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
-    // Mock fetch sub-phase for testing
-    private FetchSubPhase createMockFetchSubPhase() {
-        return new FetchSubPhase() {
-            @Override
-            public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
-                return new FetchSubPhaseProcessor() {
-                    @Override
-                    public void setNextReader(org.apache.lucene.index.LeafReaderContext readerContext) {
-                        // Mock implementation
-                    }
+    // Simple highlighter used for profiling tests
+    private static class StubHighlighter implements Highlighter {
+        @Override
+        public HighlightField highlight(FieldHighlightContext fieldContext) {
+            return null;
+        }
 
-                    @Override
-                    public void process(HitContext hitContext) {
-                        // Mock implementation - add a simple field
-                        hitContext.hit()
-                            .setDocumentField(
-                                "mock_field",
-                                new org.opensearch.common.document.DocumentField("mock_field", Collections.singletonList("mock_value"))
-                            );
-                    }
-                };
-            }
-        };
+        @Override
+        public boolean canHighlight(MappedFieldType fieldType) {
+            return true;
+        }
     }
 
     public void testRootTiming() throws Exception {
@@ -313,32 +445,343 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
-    // public void testComplexFetchScenarioWithAllTimings() throws Exception {
-    // try (Directory dir = newDirectory()) {
-    // List<Document> docs = new TestDocumentBuilder().addDocuments(6, true).build();
-    // int[] docIds = indexDocumentsAndGetIds(dir, docs, 4);
-    //
-    // try (IndexReader reader = DirectoryReader.open(dir)) {
-    // SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
-    // .withStoredFields("_source", "id", "content")
-    // .build();
-    //
-    // List<FetchSubPhase> subPhases = Collections.singletonList(createMockFetchSubPhase());
-    // ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
-    //
-    // new TimingAssertions(profile.getTimeBreakdown()).assertBreakdownNotEmpty()
-    // .assertTimingExecuted(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
-    // .assertTimingExecuted(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
-    // .assertTimingExecuted(FetchTimingType.LOAD_STORED_FIELDS)
-    // .assertTimingExecuted(FetchTimingType.LOAD_SOURCE)
-    // .assertTimingExecuted(FetchTimingType.BUILD_SEARCH_HITS)
-    // .assertTimingPresent(FetchTimingType.NEXT_READER) // May or may not execute depending on segments
-    // .assertAllTimingsNonNegative();
-    //
-    // // Verify fetch results
-    // SearchHits hits = context.fetchResult().hits();
-    // assertThat(hits.getHits().length, equalTo(docIds.length));
-    // }
-    // }
-    // }
+    public void testExplainPhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery(), Map.of("named", new MatchAllDocsQuery()));
+
+                // Create a search context with only explain enabled
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withExplain() // Only enable explain
+                    .withParsedQuery(pq)
+                    .build();
+
+                // Only include the ExplainPhase in the sub-phases list
+                List<FetchSubPhase> subPhases = Collections.singletonList(new ExplainPhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that ExplainPhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for ExplainPhase", children.containsKey("ExplainPhase"));
+                new TimingAssertions(children.get("ExplainPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testFetchSourcePhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                // Create a search context with only source loading enabled
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()  // Enable source loading
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .build();
+
+                // Only include the FetchSourcePhase in the sub-phases list
+                List<FetchSubPhase> subPhases = Collections.singletonList(new FetchSourcePhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that FetchSourcePhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for FetchSourcePhase", children.containsKey("FetchSourcePhase"));
+                new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testFetchDocValuesPhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                // Create a search context with doc values enabled
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .withDocValues(new FieldAndFormat("id", null))  // Enable doc values for the id field
+                    .build();
+
+                // Only include the FetchDocValuesPhase in the sub-phases list
+                List<FetchSubPhase> subPhases = Collections.singletonList(new FetchDocValuesPhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that FetchDocValuesPhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for FetchDocValuesPhase", children.containsKey("FetchDocValuesPhase"));
+                new TimingAssertions(children.get("FetchDocValuesPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testFetchFieldsPhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                // Create a search context with fetch fields enabled
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .withFetchFields(new FieldAndFormat("content", null))  // Enable fetch fields for the content field
+                    .build();
+
+                // Only include the FetchFieldsPhase in the sub-phases list
+                List<FetchSubPhase> subPhases = Collections.singletonList(new FetchFieldsPhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that FetchFieldsPhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for FetchFieldsPhase", children.containsKey("FetchFieldsPhase"));
+                new TimingAssertions(children.get("FetchFieldsPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testFetchVersionPhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                // Create a search context with version enabled
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .withVersion() // Enable version
+                    .build();
+
+                // Only include the FetchVersionPhase in the sub-phases list
+                List<FetchSubPhase> subPhases = Collections.singletonList(new FetchVersionPhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that FetchVersionPhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for FetchVersionPhase", children.containsKey("FetchVersionPhase"));
+                new TimingAssertions(children.get("FetchVersionPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testSeqNoPrimaryTermPhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                // Create a search context with sequence number and primary term enabled
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .withSeqNoPrimaryTerm() // Enable sequence number and primary term
+                    .build();
+
+                // Only include the SeqNoPrimaryTermPhase in the sub-phases list
+                List<FetchSubPhase> subPhases = Collections.singletonList(new SeqNoPrimaryTermPhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that SeqNoPrimaryTermPhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for SeqNoPrimaryTermPhase", children.containsKey("SeqNoPrimaryTermPhase"));
+                new TimingAssertions(children.get("SeqNoPrimaryTermPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testMatchedQueriesPhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+
+                // Create a parsed query with named queries for the MatchedQueriesPhase to extract
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery(), Map.of("test_query", new MatchAllDocsQuery()));
+
+                // Create a search context with the parsed query containing named queries
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .build();
+
+                // Only include the MatchedQueriesPhase in the sub-phases list
+                List<FetchSubPhase> subPhases = Collections.singletonList(new MatchedQueriesPhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that MatchedQueriesPhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for MatchedQueriesPhase", children.containsKey("MatchedQueriesPhase"));
+                new TimingAssertions(children.get("MatchedQueriesPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testHighlightPhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                // Create highlight builder with stub highlighter
+                HighlightBuilder hb = new HighlightBuilder();
+                hb.field(new HighlightBuilder.Field("content").highlighterType("stub"));
+                SearchHighlightContext highlight = hb.build(qsc);
+
+                // Create a search context with highlighting enabled
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .withHighlight(highlight)
+                    .build();
+
+                // Only include the HighlightPhase in the sub-phases list with the stub highlighter
+                List<FetchSubPhase> subPhases = Collections.singletonList(
+                    new HighlightPhase(Collections.singletonMap("stub", new StubHighlighter()))
+                );
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that HighlightPhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for HighlightPhase", children.containsKey("HighlightPhase"));
+                new TimingAssertions(children.get("HighlightPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testFetchScorePhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                // Create a search context with score tracking enabled
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .withFetchScore() // Enable score fetching
+                    .build();
+
+                // Only include the FetchScorePhase in the sub-phases list
+                List<FetchSubPhase> subPhases = Collections.singletonList(new FetchScorePhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                // Verify the profile results
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                // Check that FetchScorePhase is present and has timing information
+                assertEquals(1, children.size());
+                assertTrue("Missing profile for FetchScorePhase", children.containsKey("FetchScorePhase"));
+                new TimingAssertions(children.get("FetchScorePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
 }
