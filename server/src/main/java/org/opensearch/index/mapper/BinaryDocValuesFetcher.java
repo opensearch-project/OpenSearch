@@ -15,6 +15,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * FieldValueFetcher for binary doc values
+ *
+ * @opensearch.internal
+ */
 public class BinaryDocValuesFetcher extends FieldValueFetcher {
 
     public BinaryDocValuesFetcher(MappedFieldType mappedFieldType, String simpleName) {
