@@ -39,10 +39,12 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.FailAwareWeightedRouting;
@@ -76,7 +78,9 @@ import static org.opensearch.action.support.TransportActions.isShardNotAvailable
  * @opensearch.internal
  */
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends
-    TransportAction<Request, Response> {
+    TransportAction<Request, Response>
+    implements
+        TransportIndicesResolvingAction<Request> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -154,6 +158,19 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     @Nullable
     protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
 
+    @Override
+    public ResolvedIndices resolveIndices(Request request) {
+        return ResolvedIndices.of(resolveToConcreteSingleIndex(request, clusterService.state()));
+    }
+
+    private String resolveToConcreteSingleIndex(Request request, ClusterState clusterState) {
+        if (resolveIndex(request)) {
+            return indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
+        } else {
+            return request.index();
+        }
+    }
+
     /**
      * Asynchronous single action
      *
@@ -180,12 +197,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 throw blockException;
             }
 
-            String concreteSingleIndex;
-            if (resolveIndex(request)) {
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
-            } else {
-                concreteSingleIndex = request.index();
-            }
+            String concreteSingleIndex = resolveToConcreteSingleIndex(request, clusterState);
             this.internalRequest = new InternalRequest(request, concreteSingleIndex);
             resolveRequest(clusterState, internalRequest);
 

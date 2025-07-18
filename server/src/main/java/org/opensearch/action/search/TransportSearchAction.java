@@ -41,11 +41,13 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -134,7 +136,9 @@ import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
  *
  * @opensearch.internal
  */
-public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
+public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse>
+    implements
+        TransportIndicesResolvingAction<SearchRequest> {
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -500,20 +504,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.source(source);
             }
             final ClusterState clusterState = clusterService.state();
-            final SearchContextId searchContext;
-            final Map<String, OriginalIndices> remoteClusterIndices;
-            if (searchRequest.pointInTimeBuilder() != null) {
-                searchContext = SearchContextId.decode(namedWriteableRegistry, searchRequest.pointInTimeBuilder().getId());
-                remoteClusterIndices = getIndicesFromSearchContexts(searchContext, searchRequest.indicesOptions());
-            } else {
-                searchContext = null;
-                remoteClusterIndices = remoteClusterService.groupIndices(
-                    searchRequest.indicesOptions(),
-                    searchRequest.indices(),
-                    idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState)
-                );
-            }
-            OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            final OriginalIndicesAndSearchContextId requestedIndices = extractRequestedIndices(searchRequest, clusterState);
+            final SearchContextId searchContext = requestedIndices.searchContextId;
+            final Map<String, OriginalIndices> remoteClusterIndices = requestedIndices.remoteClusterIndices;
+            OriginalIndices localIndices = requestedIndices.localOriginalIndices;
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(
                     task,
@@ -991,6 +985,37 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return remoteShardIterators;
     }
 
+    @Override
+    public ResolvedIndices resolveIndices(SearchRequest searchRequest) {
+        ClusterState clusterState = clusterService.state();
+        OriginalIndicesAndSearchContextId requestedIndices = extractRequestedIndices(searchRequest, clusterState);
+        Index[] localConcreteIndices = resolveLocalIndices(
+            requestedIndices.localOriginalIndices,
+            clusterState,
+            new SearchTimeProvider(searchRequest.getOrCreateAbsoluteStartMillis(), System.nanoTime(), System::nanoTime)
+        );
+
+        return ResolvedIndices.of(localConcreteIndices).withRemoteIndices(requestedIndices.remoteClusterIndices);
+    }
+
+    private OriginalIndicesAndSearchContextId extractRequestedIndices(SearchRequest searchRequest, ClusterState clusterState) {
+        final SearchContextId searchContext;
+        final Map<String, OriginalIndices> remoteClusterIndices;
+        if (searchRequest.pointInTimeBuilder() != null) {
+            searchContext = SearchContextId.decode(namedWriteableRegistry, searchRequest.pointInTimeBuilder().getId());
+            remoteClusterIndices = getIndicesFromSearchContexts(searchContext, searchRequest.indicesOptions());
+        } else {
+            searchContext = null;
+            remoteClusterIndices = remoteClusterService.groupIndices(
+                searchRequest.indicesOptions(),
+                searchRequest.indices(),
+                idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState)
+            );
+        }
+        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        return new OriginalIndicesAndSearchContextId(localIndices, remoteClusterIndices, searchContext);
+    }
+
     private Index[] resolveLocalIndices(OriginalIndices localIndices, ClusterState clusterState, SearchTimeProvider timeProvider) {
         if (localIndices == null) {
             return Index.EMPTY_ARRAY; // don't search on any local index (happens when only remote indices were specified)
@@ -1466,5 +1491,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         return iterators;
+    }
+
+    record OriginalIndicesAndSearchContextId(OriginalIndices localOriginalIndices, Map<String, OriginalIndices> remoteClusterIndices,
+        SearchContextId searchContextId) {
+
     }
 }

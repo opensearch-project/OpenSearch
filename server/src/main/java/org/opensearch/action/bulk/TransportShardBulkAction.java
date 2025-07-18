@@ -47,6 +47,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationTask;
@@ -61,6 +62,7 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -122,7 +124,9 @@ import java.util.function.LongSupplier;
  *
  * @opensearch.internal
  */
-public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
+public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse>
+    implements
+        TransportIndicesResolvingAction<BulkShardRequest> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
@@ -215,6 +219,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(BulkShardRequest request) {
+        return ResolvedIndices.of(request.shardId().getIndexName());
     }
 
     /**
