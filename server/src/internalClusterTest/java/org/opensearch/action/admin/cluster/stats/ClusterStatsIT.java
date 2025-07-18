@@ -863,19 +863,19 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertNotNull(statsResponseWarmFSMetrics);
         assertNotNull(statsResponseWarmFSMetrics.getNodesStats());
         validateNodeStatsOutput(Set.of(Metric.FS), statsResponseWarmFSMetrics);
-        FsInfo warmFsInfo = statsResponseWarmFSMetrics.getNodes().stream()
+        FsInfo warmFsInfo = statsResponseWarmFSMetrics.getNodes()
+            .stream()
             .filter(nodeResponse -> nodeResponse.getNode().isWarmNode())
             .findFirst()
             .map(nodeResponse -> nodeResponse.nodeStats().getFs())
             .orElseThrow(() -> new IllegalStateException("No warm node found"));
 
-        for (FsInfo.Path path : warmFsInfo){
+        for (FsInfo.Path path : warmFsInfo) {
             assertEquals(path.getPath(), "/warm");
             assertEquals(path.getFileCacheReserved(), new ByteSizeValue(16, ByteSizeUnit.GB));
-            assertEquals(path.getTotal(), new ByteSizeValue(16*5, ByteSizeUnit.GB));
+            assertEquals(path.getTotal(), new ByteSizeValue(16 * 5, ByteSizeUnit.GB));
         }
     }
-
 
     private void validateNodeStatsOutput(Set<ClusterStatsRequest.Metric> expectedMetrics, ClusterStatsResponse clusterStatsResponse) {
         // Ingest, network types, discovery types and packaging types stats are not included here as they don't have a get method exposed.
