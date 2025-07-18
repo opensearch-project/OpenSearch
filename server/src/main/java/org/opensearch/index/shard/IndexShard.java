@@ -2772,11 +2772,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Map<String, String> fetchUserData() throws IOException {
-        if (indexSettings.isRemoteSnapshot() && indexSettings.getExtendedCompatibilitySnapshotVersion() != null) {
-            return Lucene.readSegmentInfos(store.directory(), indexSettings.getExtendedCompatibilitySnapshotVersion()).getUserData();
-        } else {
-            return SegmentInfos.readLatestCommit(store.directory()).getUserData();
-        }
+        return SegmentInfos.readLatestCommit(store.directory()).getUserData();
     }
 
     private void onNewEngine(Engine newEngine) {
