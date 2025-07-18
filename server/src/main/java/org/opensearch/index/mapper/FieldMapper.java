@@ -617,6 +617,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * DerivedFieldGenerator should be set for which derived source feature is supported, this behaviour can be
      * overridden at a Mapper level by implementing this method
      */
+    @Override
     public void canDeriveSource() {
         if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
             throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
@@ -677,6 +678,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param leafReader - leafReader to read data from
      * @param docId - docId for which we want to derive the source
      */
+    @Override
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
         derivedFieldGenerator.generate(builder, leafReader, docId);
     }
