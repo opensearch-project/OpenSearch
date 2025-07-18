@@ -1559,7 +1559,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         public String toString() {
-            return "clean_pending_merge_segment";
+            return "publish_primary_referenced_segments";
         }
 
         @Override
@@ -1577,7 +1577,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     shard.publishReferencedSegments();
                 }
             } catch (IOException ex) {
-                // do nothing
+                logger.warn(() -> new ParameterizedMessage("failed to publish primary referenced segments"), ex);
             }
         }
     }
