@@ -8,6 +8,7 @@
 
 package org.opensearch.search.approximate;
 
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -17,18 +18,22 @@ import java.io.IOException;
 /**
  * A resumable DocIdSetIterator that can be used to score documents in batches.
  * This class wraps a ScorerSupplier and creates a new Scorer/DocIdSetIterator only when needed.
- * It keeps track of the last document scored and can resume from that point when asked to score more documents.
+ * It maintains state between calls to enable resuming from where it left off.
+ *
+ * This implementation is specifically designed for the approximation framework to enable
+ * early termination while preserving state between scoring cycles.
  */
 public class ResumableDISI extends DocIdSetIterator {
     private static final int DEFAULT_BATCH_SIZE = 10_000;
 
     private final ScorerSupplier scorerSupplier;
     private DocIdSetIterator currentDisi;
-    private int lastDocID = -1;
-    private int docsScored = 0;
     private final int batchSize;
     private boolean exhausted = false;
-    private long leadCost;
+
+    // State tracking
+    private int lastDocID = -1;
+    private int docsScored = 0;
 
     /**
      * Creates a new ResumableDISI with the default batch size of 10,000 documents.
@@ -48,7 +53,6 @@ public class ResumableDISI extends DocIdSetIterator {
     public ResumableDISI(ScorerSupplier scorerSupplier, int batchSize) {
         this.scorerSupplier = scorerSupplier;
         this.batchSize = batchSize;
-        this.leadCost = Long.MAX_VALUE; // Start with max cost, will be adjusted later
     }
 
     /**
@@ -65,14 +69,8 @@ public class ResumableDISI extends DocIdSetIterator {
         }
 
         if (currentDisi == null || docsScored >= batchSize) {
-            // If we've already scored some documents, adjust the lead cost
-            if (docsScored > 0) {
-                // Reduce the lead cost based on what we've already processed
-                leadCost = Math.max(scorerSupplier.cost() - docsScored, 0);
-            }
-
             // Get a new scorer and its iterator
-            Scorer scorer = scorerSupplier.get(leadCost);
+            Scorer scorer = scorerSupplier.get(scorerSupplier.cost());
             currentDisi = scorer.iterator();
 
             // If we have a last document ID, advance to the next one
@@ -165,5 +163,42 @@ public class ResumableDISI extends DocIdSetIterator {
      */
     public int getLastDocID() {
         return lastDocID;
+    }
+
+    /**
+     * Class to track the state of BKD tree traversal.
+     */
+    public static class BKDState {
+        private PointValues.PointTree currentTree;
+        private boolean isExhausted = false;
+        private long docCount = 0;
+
+        public PointValues.PointTree getCurrentTree() {
+            return currentTree;
+        }
+
+        public void setCurrentTree(PointValues.PointTree tree) {
+            if (tree != null) {
+                this.currentTree = tree.clone();
+            } else {
+                this.currentTree = null;
+            }
+        }
+
+        public boolean isExhausted() {
+            return isExhausted;
+        }
+
+        public void setExhausted(boolean exhausted) {
+            this.isExhausted = exhausted;
+        }
+
+        public long getDocCount() {
+            return docCount;
+        }
+
+        public void setDocCount(long count) {
+            this.docCount = count;
+        }
     }
 }
