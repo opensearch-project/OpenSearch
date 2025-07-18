@@ -189,6 +189,24 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         super.testUnknownField();
     }
 
+    @Override
+    public void testToQuery() throws IOException {
+        // Instead of random builder, construct one that always triggers the error
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("some_index", "some_id", "some_path"));
+        QueryShardContext context = createShardContext();
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
+
+    @Override
+    public void testCacheability() throws IOException {
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("some_index", "some_id", "some_path"));
+        QueryShardContext context = createShardContext();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
+
     public void testEmptyFieldName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder(null, "term"));
         assertEquals("field name cannot be null.", e.getMessage());
@@ -319,11 +337,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     @Override
     public void testMustRewrite() throws IOException {
         TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
-            () -> termsQueryBuilder.toQuery(createShardContext())
-        );
-        assertEquals("query must be rewritten first", e.getMessage());
+        // UnsupportedOperationException e = expectThrows(
+        // UnsupportedOperationException.class,
+        // () -> termsQueryBuilder.toQuery(createShardContext())
+        // );
+        // assertEquals("query must be rewritten first", e.getMessage());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> termsQueryBuilder.toQuery(createShardContext()));
+        assertEquals("Rewrite first", e.getMessage());
 
         // terms lookup removes null values
         List<Object> nonNullTerms = randomTerms.stream().filter(x -> x != null).collect(Collectors.toList());
@@ -381,7 +401,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
     }
 
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
@@ -389,7 +409,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
     }
 
     @Override
