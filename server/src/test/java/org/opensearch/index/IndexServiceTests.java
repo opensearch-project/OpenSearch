@@ -654,14 +654,27 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(task.mustReschedule());
         assertEquals(5000, task.getInterval().millis());
 
-        // test we can update the interval
+        // test update the refresh interval, AsyncPublishReferencedSegmentsTask should not be updated
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "5s"))
+            .get();
+
+        IndexService.AsyncPublishReferencedSegmentsTask updatedTask = indexService.getPublishReferencedSegmentsTask();
+        assertSame(task, updatedTask);
+        assertTrue(task.isScheduled());
+        assertTrue(task.mustReschedule());
+        assertEquals(5000, task.getInterval().millis());
+
+        // test we can update the publishReferencedSegmentsInterval
         client().admin()
             .indices()
             .prepareUpdateSettings("segrep_index")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "1s"))
             .get();
 
-        IndexService.AsyncPublishReferencedSegmentsTask updatedTask = indexService.getPublishReferencedSegmentsTask();
+        updatedTask = indexService.getPublishReferencedSegmentsTask();
         assertNotSame(task, updatedTask);
         assertFalse(task.isScheduled());
         assertTrue(task.isClosed());

@@ -1199,6 +1199,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void updatePublishReferencedSegmentsTask() {
+        if (getIndexSettings().getPublishReferencedSegmentsInterval().equals(asyncPublishReferencedSegmentsTask.getInterval())) {
+            return;
+        }
         try {
             asyncPublishReferencedSegmentsTask.close();
         } finally {
