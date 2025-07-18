@@ -37,6 +37,10 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 
 public class LeafSorterOptimizationTests extends EngineTestCase {
@@ -69,24 +73,57 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                     );
                 }
                 engine.flush();
+            }
+        }
+        // Second block: reopen the same store and open ReadOnlyEngine for assertions
+        // (Assume storePath and translogPath are available or can be replaced with appropriate temp dirs)
+        // For this test, we focus on the leafSorter logic
+        try (Store readOnlyStore = createStore()) {
+            EngineConfig readOnlyConfig = new EngineConfig.Builder().shardId(shardId)
+                .threadPool(threadPool)
+                .indexSettings(defaultSettings)
+                .warmer(null)
+                .store(readOnlyStore)
+                .mergePolicy(newMergePolicy())
+                .analyzer(newIndexWriterConfig().getAnalyzer())
+                .similarity(newIndexWriterConfig().getSimilarity())
+                .codecService(new CodecService(null, defaultSettings, logger))
+                .eventListener(new Engine.EventListener() {
+                })
+                .translogConfig(new TranslogConfig(shardId, createTempDir(), defaultSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false))
+                .flushMergesAfter(TimeValue.timeValueMinutes(5))
+                .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+                .primaryTermSupplier(primaryTerm)
+                .tombstoneDocSupplier(tombstoneDocSupplier())
+                .externalRefreshListener(java.util.Collections.emptyList())
+                .internalRefreshListener(java.util.Collections.emptyList())
+                .queryCache(IndexSearcher.getDefaultQueryCache())
+                .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+                .globalCheckpointSupplier(globalCheckpoint::get)
+                .leafSorter(java.util.Comparator.<org.apache.lucene.index.LeafReader>comparingInt(reader -> reader.maxDoc()))
+                .build();
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(readOnlyConfig, null, null, true, java.util.function.Function.identity(), true)) {
+                try (Engine.Searcher searcher = readOnlyEngine.acquireSearcher("test")) {
+                    DirectoryReader reader = (DirectoryReader) searcher.getDirectoryReader();
+                    // Assert that there are multiple leaves (segments)
+                    assertThat("ReadOnlyEngine should have multiple leaves to test sorting", reader.leaves().size(), greaterThan(1));
 
-                // Create ReadOnlyEngine
-                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
-                    engine.engineConfig,
-                    engine.getSeqNoStats(globalCheckpoint.get()),
-                    engine.translogManager().getTranslogStats(),
-                    false,
-                    Function.identity(),
-                    true
-                );
+                    // Collect maxDoc for each leaf
+                    java.util.List<Integer> actualOrder = new java.util.ArrayList<>();
+                    for (org.apache.lucene.index.LeafReaderContext ctx : reader.leaves()) {
+                        actualOrder.add(ctx.reader().maxDoc());
+                    }
+                    // Create a reverse order comparator to test that our sorter is actually being used
+                    java.util.List<Integer> expectedOrder = new java.util.ArrayList<>(actualOrder);
+                    expectedOrder.sort(java.util.Collections.reverseOrder()); // Reverse order to test our sorter
 
-                // Verify that the engine has a leafSorter configured
-                assertThat("Engine should have leafSorter configured", readOnlyEngine.engineConfig.getLeafSorter(), notNullValue());
+                    // If leaves are not in reverse order, then our sorter is working
+                    assertNotEquals("Leaves should be sorted by our comparator, not default order", expectedOrder, actualOrder);
 
-                // Verify that DirectoryReader is opened with leafSorter
-                try (Engine.Searcher searcher = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
-                    DirectoryReader reader = searcher.getDirectoryReader();
-                    assertThat("DirectoryReader should be created", reader, notNullValue());
+                    // Verify they are actually sorted by our comparator (ascending maxDoc)
+                    java.util.List<Integer> sortedOrder = new java.util.ArrayList<>(actualOrder);
+                    sortedOrder.sort(Integer::compareTo);
+                    assertEquals("Leaves should be sorted by maxDoc() in ascending order", sortedOrder, actualOrder);
                 }
             }
         }
