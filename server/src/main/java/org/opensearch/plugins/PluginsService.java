@@ -148,7 +148,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                         p.getName(),
                         null,
                         Collections.emptyList(),
-                        false
+                        false,
+                        Collections.emptyList()
                     )
                 )
                 .collect(Collectors.toList())
@@ -585,20 +586,28 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         dependencyStack.add(name);
-        for (String dependency : bundle.plugin.getExtendedPlugins()) {
+        for (String dependency : bundle.plugin.getPluginDependencies()) {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
-                if (bundle.plugin.isExtendedPluginOptional(dependency)) {
-                    logger.warn("Missing plugin [" + dependency + "], dependency of [" + name + "]");
-                    logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
-                    continue;
-                } else {
-                    throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
-                }
+                throw new IllegalStateException("Required plugin dependency [" + dependency + "] is missing for plugin [" + name + "]");
             }
             addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
-            assert sortedBundles.contains(depBundle);
         }
+
+        for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+            Bundle depBundle = bundles.get(extendedPlugin);
+            if (depBundle == null) {
+                if (bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                    logger.warn("Optional extended plugin [{}] is missing for plugin [{}]", extendedPlugin, name);
+                    continue;
+                }
+                throw new IllegalArgumentException(
+                    "Required extended plugin [" + extendedPlugin + "] is missing for plugin [" + name + "]"
+                );
+            }
+            addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
+        }
+
         dependencyStack.remove(name);
 
         sortedBundles.add(bundle);
@@ -772,6 +781,22 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         verifyCompatibility(bundle.plugin);
 
+        // Verify all required plugin dependencies are loaded
+        for (String dependency : bundle.plugin.getPluginDependencies()) {
+            if (!loaded.containsKey(dependency)) {
+                throw new IllegalStateException("Plugin [" + name + "] requires plugin [" + dependency + "] which has not been loaded");
+            }
+        }
+        List<ClassLoader> dependencyLoaders = new ArrayList<>();
+        // Add loaders from plugin dependencies
+        for (String dependency : bundle.plugin.getPluginDependencies()) {
+            Plugin depPlugin = loaded.get(dependency);
+            if (depPlugin == null) {
+                throw new IllegalStateException("Plugin [" + name + "] requires plugin [" + dependency + "] which was not loaded");
+            }
+            dependencyLoaders.add(depPlugin.getClass().getClassLoader());
+        }
+
         // collect loaders of extended plugins
         List<ClassLoader> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
@@ -788,7 +813,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         // create a child to load the plugin in this bundle
-        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
+        List<ClassLoader> allParentPluginLoaders = new ArrayList<>();
+        allParentPluginLoaders.addAll(dependencyLoaders);
+        allParentPluginLoaders.addAll(extendedLoaders);
+
+        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), allParentPluginLoaders);
         ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
 
         // reload SPI with any new services from the plugin

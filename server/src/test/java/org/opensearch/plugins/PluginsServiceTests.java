@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -363,7 +364,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> PluginsService.sortBundles(Collections.singleton(bundle))
         );
-        assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
+        assertEquals("Required extended plugin [dne] is missing for plugin [foo]", e.getMessage());
     }
 
     public void testSortBundlesMissingOptionalDep() throws Exception {
@@ -373,7 +374,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
                     "[.test] warning",
                     "org.opensearch.plugins.PluginsService",
                     Level.WARN,
-                    "Missing plugin [dne], dependency of [foo]"
+                    "Optional extended plugin [dne] is missing for plugin [foo]"
                 )
             );
             Path pluginDir = createTempDir();
@@ -725,6 +726,197 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
     }
 
+    public void testEmptyPluginsList() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+
+        PluginsService service = new PluginsService(settings, null, null, null, Collections.emptyList());
+        assertEquals(0, service.filterPlugins(Plugin.class).size());
+        assertTrue(service.getPluginSettings().isEmpty());
+        assertTrue(service.getPluginSettingsFilter().isEmpty());
+    }
+
+    public void testPluginDependencyVersionRanges() {
+        List<SemverRange> ranges = Arrays.asList(
+            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.TILDE),
+            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.CARET)
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PluginInfo(
+                "test_plugin",
+                "desc",
+                "1.0",
+                ranges,
+                "1.8",
+                "TestPlugin",
+                null,
+                Collections.emptyList(),
+                false,
+                Collections.emptyList()
+            )
+        );
+
+        assertThat(e.getMessage(), containsString("Exactly one range is allowed to be specified in dependencies"));
+    }
+
+    public void testCircularPluginDependencyFails() throws IOException {
+        Path pluginsDir = createTempDir();
+
+        // Plugin A -> Plugin B
+        Path pluginA = pluginsDir.resolve("plugin-a");
+        Files.createDirectory(pluginA);
+        PluginTestUtil.writePluginProperties(
+            pluginA,
+            "description",
+            "Plugin A",
+            "name",
+            "plugin-a",
+            "version",
+            "1.0",
+            "dependencies",
+            "{\"opensearch\":\"" + Version.CURRENT.toString() + "\", \"plugin-b\":\"1.0\"}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePluginA"
+        );
+
+        // Plugin B -> Plugin A (circular)
+        Path pluginB = pluginsDir.resolve("plugin-b");
+        Files.createDirectory(pluginB);
+        PluginTestUtil.writePluginProperties(
+            pluginB,
+            "description",
+            "Plugin B",
+            "name",
+            "plugin-b",
+            "version",
+            "1.0",
+            "dependencies",
+            "{\"opensearch\":\"" + Version.CURRENT.toString() + "\", \"plugin-a\":\"1.0\"}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePluginB"
+        );
+
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { new PluginsService(settings, null, pluginsDir, List.of()); }
+        );
+        assertEquals("Cycle found in plugin dependencies: plugin-a -> plugin-b -> plugin-a", e.getMessage());
+    }
+
+    public void testTransitivePluginDependencyLoadOrderWithoutClassLoading() throws IOException {
+        Path pluginsDir = createTempDir();
+
+        // Plugin D (no dependencies)
+        Path pluginD = pluginsDir.resolve("plugin-d");
+        Files.createDirectory(pluginD);
+        PluginTestUtil.writePluginProperties(
+            pluginD,
+            "description",
+            "Plugin D",
+            "name",
+            "plugin-d",
+            "version",
+            "1.0",
+            "dependencies",
+            "{\"opensearch\":\"" + Version.CURRENT.toString() + "\"}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "none.D" // not loaded, so safe
+        );
+
+        // Plugin C (no dependencies)
+        Path pluginC = pluginsDir.resolve("plugin-c");
+        Files.createDirectory(pluginC);
+        PluginTestUtil.writePluginProperties(
+            pluginC,
+            "description",
+            "Plugin C",
+            "name",
+            "plugin-c",
+            "version",
+            "1.0",
+            "dependencies",
+            "{\"opensearch\":\"" + Version.CURRENT.toString() + "\"}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "none.C"
+        );
+
+        // Plugin B (depends on C and D)
+        Path pluginB = pluginsDir.resolve("plugin-b");
+        Files.createDirectory(pluginB);
+        PluginTestUtil.writePluginProperties(
+            pluginB,
+            "description",
+            "Plugin B",
+            "name",
+            "plugin-b",
+            "version",
+            "1.0",
+            "dependencies",
+            "{\"opensearch\":\"" + Version.CURRENT.toString() + "\", \"plugin-c\":\"1.0\", \"plugin-d\":\"1.0\"}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "none.B"
+        );
+
+        // Plugin A (depends on B and C)
+        Path pluginA = pluginsDir.resolve("plugin-a");
+        Files.createDirectory(pluginA);
+        PluginTestUtil.writePluginProperties(
+            pluginA,
+            "description",
+            "Plugin A",
+            "name",
+            "plugin-a",
+            "version",
+            "1.0",
+            "dependencies",
+            "{\"opensearch\":\"" + Version.CURRENT.toString() + "\", \"plugin-b\":\"1.0\", \"plugin-c\":\"1.0\"}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "none.A"
+        );
+
+        // Get topologically sorted plugin bundles
+        Set<PluginsService.Bundle> bundleSet = PluginsService.getPluginBundles(pluginsDir);
+        List<PluginsService.Bundle> bundles = PluginsService.sortBundles(bundleSet);
+
+        List<String> loadOrder = bundles.stream().map(b -> b.plugin.getName()).collect(Collectors.toList());
+
+        // Assertions based on dependency hierarchy
+        assertTrue(loadOrder.indexOf("plugin-d") < loadOrder.indexOf("plugin-b"));
+        assertTrue(loadOrder.indexOf("plugin-c") < loadOrder.indexOf("plugin-b"));
+        assertTrue(loadOrder.indexOf("plugin-c") < loadOrder.indexOf("plugin-a"));
+        assertTrue(loadOrder.indexOf("plugin-b") < loadOrder.indexOf("plugin-a"));
+    }
+
+    public void testInvalidJavaVersionFormat() {
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "invalid_java_version",
+            "FakePlugin",
+            Collections.emptyList(),
+            false
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("invalid_java_version"));
+    }
+
     public void testIncompatibleOpenSearchVersion() throws Exception {
         PluginInfo info = new PluginInfo(
             "my_plugin",
@@ -751,7 +943,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "FakePlugin",
             null,
             Collections.emptyList(),
-            false
+            false,
+            Collections.emptyList()
         );
         PluginsService.verifyCompatibility(info);
     }
@@ -773,7 +966,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "FakePlugin",
             null,
             Collections.emptyList(),
-            false
+            false,
+            Collections.emptyList()
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for OpenSearch version "));
@@ -894,6 +1088,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             fake,
             "description",
             "description",
+
             "name",
             "fake",
             "version",
@@ -1206,7 +1401,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "FakePlugin",
             null,
             Collections.emptyList(),
-            false
+            false,
+            Collections.emptyList()
         );
     }
 

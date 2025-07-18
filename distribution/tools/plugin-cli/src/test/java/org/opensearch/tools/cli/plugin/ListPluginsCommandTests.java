@@ -171,6 +171,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "OpenSearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
+                "Plugin Dependencies: []",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder"
@@ -194,6 +195,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "OpenSearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: true",
+                "Plugin Dependencies: []",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder"
@@ -218,6 +220,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "OpenSearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
+                "Plugin Dependencies: []",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder",
@@ -317,6 +320,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "OpenSearch Version: " + Version.CURRENT.toString(),
                 "Java Version: " + System.getProperty("java.specification.version"),
                 "Native Controller: false",
+                "Plugin Dependencies: []",
                 "Extended Plugins: []",
                 " * Classname: org.fake1",
                 "Folder name: null"
