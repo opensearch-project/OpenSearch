@@ -404,7 +404,6 @@ setup:
   - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
   - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
 
-
 ---
 "Inner hits phase profiling":
   - skip:
@@ -440,3 +439,33 @@ setup:
   - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
   - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
   - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+
+---
+"Top-hits aggregation profiling":
+  - do:
+      search:
+        index: test_fetch_profile
+        body:
+          profile: true
+          query:
+            match:
+              text_field: "document"
+          aggs:
+            top_hits_agg:
+              top_hits:
+                size: 1
+
+  # Verify that the fetch profile contains two separate fetch operations
+  - length: { profile.shards.0.fetch: 2 }
+
+  # Check the top-hits fetch profile
+  - match: { profile.shards.0.fetch.0.type: "fetch_top_hits" }
+  - match: { profile.shards.0.fetch.0.description: "fetch_top_hits" }
+  - length: { profile.shards.0.fetch.0.children: 1 }
+  - match: { profile.shards.0.fetch.0.children.0.type: "FetchSourcePhase" }
+
+  # Check the main query fetch profile
+  - match: { profile.shards.0.fetch.1.type: "fetch" }
+  - match: { profile.shards.0.fetch.1.description: "fetch" }
+  - length: { profile.shards.0.fetch.1.children: 1 }
+  - match: { profile.shards.0.fetch.1.children.0.type: "FetchSourcePhase" }

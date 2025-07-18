@@ -61,17 +61,9 @@ setup:
       profile.shards.0.fetch.0.children:
         type: "ScriptFieldsPhase"
         description: "ScriptFieldsPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
+  - length: { profile.shards.0.fetch.0.children: 1 }
 
   - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
   - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
   - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
   - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }

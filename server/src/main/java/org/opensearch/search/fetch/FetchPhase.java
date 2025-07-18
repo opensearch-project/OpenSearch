@@ -108,12 +108,16 @@ public class FetchPhase {
     }
 
     public void execute(SearchContext context) {
+        execute(context, "fetch");
+    }
+
+    public void execute(SearchContext context, String profileDescription) {
         FetchProfileBreakdown breakdown = null;
         FetchProfiler fetchProfiler = null;
         if (context.getProfilers() != null) {
             fetchProfiler = context.getProfilers().getFetchProfiler();
             if (context.docIdsToLoadSize() > 0) {
-                breakdown = fetchProfiler.getQueryBreakdown("fetch");
+                breakdown = fetchProfiler.getQueryBreakdown(profileDescription);
             }
         }
 

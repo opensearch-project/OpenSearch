@@ -72,7 +72,6 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    // Test configuration builder for different scenarios
     private static class FetchTestConfig {
         boolean enableSourceLoading = false;
         boolean enableStoredFields = false;
@@ -109,7 +108,6 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
-    // Document builder for test scenarios
     private static class TestDocumentBuilder {
         private final List<Document> documents = new ArrayList<>();
 
@@ -134,7 +132,6 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
-    // Timing assertion helper
     private static class TimingAssertions {
         private final Map<String, Long> breakdown;
 
@@ -181,7 +178,6 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
-    // Modular search context builder
     private static class SearchContextBuilder {
         private final IndexReader reader;
         private final int[] docIds;
