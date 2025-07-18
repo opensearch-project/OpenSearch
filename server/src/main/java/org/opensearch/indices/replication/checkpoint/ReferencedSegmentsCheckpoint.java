@@ -73,7 +73,7 @@ public class ReferencedSegmentsCheckpoint extends ReplicationCheckpoint {
 
     @Override
     public String toString() {
-        return "ReplicationCheckpoint{"
+        return "ReferencedSegmentsCheckpoint{"
             + "shardId="
             + getShardId()
             + ", primaryTerm="

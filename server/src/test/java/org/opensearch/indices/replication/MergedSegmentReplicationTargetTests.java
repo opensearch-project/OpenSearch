@@ -22,7 +22,7 @@ import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -41,7 +41,7 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
 
     private MergedSegmentReplicationTarget mergedSegmentReplicationTarget;
     private IndexShard indexShard, spyIndexShard;
-    private MergeSegmentCheckpoint mergedSegment;
+    private MergedSegmentCheckpoint mergedSegment;
     private ByteBuffersDataOutput buffer;
 
     private static final String SEGMENT_NAME = "_0.si";
@@ -71,7 +71,7 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         try (ByteBuffersIndexOutput indexOutput = new ByteBuffersIndexOutput(buffer, "", null)) {
             testSegmentInfos.write(indexOutput);
         }
-        mergedSegment = new MergeSegmentCheckpoint(
+        mergedSegment = new MergedSegmentCheckpoint(
             spyIndexShard.shardId(),
             spyIndexShard.getPendingPrimaryTerm(),
             1,

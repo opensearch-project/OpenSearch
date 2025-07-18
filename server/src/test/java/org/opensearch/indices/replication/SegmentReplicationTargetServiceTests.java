@@ -40,7 +40,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationCollection;
@@ -209,7 +209,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         ReplicationCheckpoint replicationCheckpoint = primaryShard.getLatestReplicationCheckpoint();
         sut.startMergedSegmentReplication(
             replicaShard,
-            new MergeSegmentCheckpoint(
+            new MergedSegmentCheckpoint(
                 replicationCheckpoint.getShardId(),
                 replicationCheckpoint.getPrimaryTerm(),
                 replicationCheckpoint.getSegmentInfosVersion(),

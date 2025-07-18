@@ -227,13 +227,13 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
         }
 
         IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
-        assertBusy(() -> assertFalse(replicaShard.getPendingMergeSegmentCheckpoints().isEmpty()));
+        assertBusy(() -> assertFalse(replicaShard.getPendingMergedSegmentCheckpoints().isEmpty()));
 
         client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1)).get();
         forceMergeComplete.set(true);
 
         // Verify replica shard has pending merged segments
-        assertBusy(() -> { assertFalse(replicaShard.getPendingMergeSegmentCheckpoints().isEmpty()); }, 1, TimeUnit.MINUTES);
+        assertBusy(() -> { assertFalse(replicaShard.getPendingMergedSegmentCheckpoints().isEmpty()); }, 1, TimeUnit.MINUTES);
 
         waitForSegmentCount(INDEX_NAME, 1, logger);
         primaryTransportService.clearAllRules();
@@ -257,7 +257,7 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
             Set<String> replicaFiles = Sets.newHashSet(replicaDirectory.listAll());
             replicaFiles.removeIf(f -> f.startsWith("segment"));
             // Verify replica shard does not have pending merged segments
-            assertEquals(0, replicaShard.getPendingMergeSegmentCheckpoints().size());
+            assertEquals(0, replicaShard.getPendingMergedSegmentCheckpoints().size());
             // Verify that primary shard and replica shard have the same file list
             assertEquals(primaryFiles, replicaFiles);
         }, 1, TimeUnit.MINUTES);

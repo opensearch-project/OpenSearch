@@ -202,7 +202,7 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
@@ -387,7 +387,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
-    private final Set<MergeSegmentCheckpoint> pendingMergeSegmentCheckpoints = Sets.newConcurrentHashSet();
+    private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
 
     @InternalApi
     public IndexShard(
@@ -1780,7 +1780,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentCommitInfoName
                     )
                 );
-                pendingMergeSegmentCheckpoints.removeIf(s -> s.getSegmentName().equals(segmentCommitInfoName));
+                pendingMergedSegmentCheckpoints.removeIf(s -> s.getSegmentName().equals(segmentCommitInfoName));
             }
         }
     }
@@ -1824,34 +1824,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param referencedSegmentsCheckpoint primary referenced segments
      */
     public void cleanupRedundantPendingMergeSegment(ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint) {
-        List<MergeSegmentCheckpoint> pendingDeleteCheckpoints = new ArrayList<>();
-        for (MergeSegmentCheckpoint mergeSegmentCheckpoint : pendingMergeSegmentCheckpoints) {
-            if (false == referencedSegmentsCheckpoint.getSegmentNames().contains(mergeSegmentCheckpoint.getSegmentName())
-                && referencedSegmentsCheckpoint.isAheadOf(mergeSegmentCheckpoint)) {
+        List<MergedSegmentCheckpoint> pendingDeleteCheckpoints = new ArrayList<>();
+        for (MergedSegmentCheckpoint mergedSegmentCheckpoint : pendingMergedSegmentCheckpoints) {
+            if (false == referencedSegmentsCheckpoint.getSegmentNames().contains(mergedSegmentCheckpoint.getSegmentName())
+                && referencedSegmentsCheckpoint.isAheadOf(mergedSegmentCheckpoint)) {
                 logger.trace(
-                    "cleanup mergeSegmentCheckpoint [{}] term [{}] segmentInfosVersion [{}], primary shard term [{}] segmentInfosVersion [{}]",
-                    mergeSegmentCheckpoint.getSegmentName(),
-                    mergeSegmentCheckpoint.getPrimaryTerm(),
-                    mergeSegmentCheckpoint.getSegmentInfosVersion(),
-                    referencedSegmentsCheckpoint.getPrimaryTerm(),
-                    referencedSegmentsCheckpoint.getSegmentInfosVersion()
+                    "cleanup pending mergedSegmentCheckpoint={}, primary referencedSegmentsCheckpoint={}",
+                    mergedSegmentCheckpoint,
+                    referencedSegmentsCheckpoint
                 );
-                pendingDeleteCheckpoints.add(mergeSegmentCheckpoint);
+                pendingDeleteCheckpoints.add(mergedSegmentCheckpoint);
             }
         }
-        for (MergeSegmentCheckpoint mergeSegmentCheckpoint : pendingDeleteCheckpoints) {
-            store.deleteQuiet(mergeSegmentCheckpoint.getMetadataMap().keySet().toArray(new String[0]));
-            pendingMergeSegmentCheckpoints.remove(mergeSegmentCheckpoint);
+        for (MergedSegmentCheckpoint mergedSegmentCheckpoint : pendingDeleteCheckpoints) {
+            store.deleteQuiet(mergedSegmentCheckpoint.getMetadataMap().keySet().toArray(new String[0]));
+            pendingMergedSegmentCheckpoints.remove(mergedSegmentCheckpoint);
         }
     }
 
-    public void addPendingMergeSegmentCheckpoint(MergeSegmentCheckpoint mergeSegmentCheckpoint) {
-        pendingMergeSegmentCheckpoints.add(mergeSegmentCheckpoint);
+    public void addPendingMergeSegmentCheckpoint(MergedSegmentCheckpoint mergedSegmentCheckpoint) {
+        pendingMergedSegmentCheckpoints.add(mergedSegmentCheckpoint);
     }
 
     // for tests
-    public Set<MergeSegmentCheckpoint> getPendingMergeSegmentCheckpoints() {
-        return pendingMergeSegmentCheckpoints;
+    public Set<MergedSegmentCheckpoint> getPendingMergedSegmentCheckpoints() {
+        return pendingMergedSegmentCheckpoints;
     }
 
     /**
@@ -1986,20 +1983,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Compute {@link MergeSegmentCheckpoint} from a SegmentCommitInfo.
+     * Compute {@link MergedSegmentCheckpoint} from a SegmentCommitInfo.
      * This function fetches a metadata snapshot from the store that comes with an IO cost.
      *
      * @param segmentCommitInfo {@link SegmentCommitInfo} segmentCommitInfo to use to compute.
-     * @return {@link MergeSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
+     * @return {@link MergedSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
      * @throws IOException When there is an error computing segment metadata from the store.
      */
-    public MergeSegmentCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
+    public MergedSegmentCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
         // Only need to get the file metadata information in segmentCommitInfo and reuse Store#getSegmentMetadataMap.
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
             SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
             segmentInfos.add(segmentCommitInfo);
             Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
-            return new MergeSegmentCheckpoint(
+            return new MergedSegmentCheckpoint(
                 shardId,
                 getOperationPrimaryTerm(),
                 segmentInfosGatedCloseable.get().getVersion(),

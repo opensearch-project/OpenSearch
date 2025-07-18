@@ -241,16 +241,16 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // verify primary segment count and replica pending merge segment count
             assertEquals(1, primaryShard.segments(false).size());
-            assertEquals(2, replicaShard.getPendingMergeSegmentCheckpoints().size());
+            assertEquals(2, replicaShard.getPendingMergedSegmentCheckpoints().size());
 
             // after segment replication, _4.si is removed from pending merge segments
             replicateSegments(primaryShard, List.of(replicaShard));
-            assertEquals(1, replicaShard.getPendingMergeSegmentCheckpoints().size());
+            assertEquals(1, replicaShard.getPendingMergedSegmentCheckpoints().size());
 
             // after cleanup redundant pending merge segment, _2.si is removed from pending merge segments
             ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint = primaryShard.computeReferencedSegmentsCheckpoint();
             replicaShard.cleanupRedundantPendingMergeSegment(referencedSegmentsCheckpoint);
-            assertEquals(0, replicaShard.getPendingMergeSegmentCheckpoints().size());
+            assertEquals(0, replicaShard.getPendingMergedSegmentCheckpoints().size());
         }
     }
 

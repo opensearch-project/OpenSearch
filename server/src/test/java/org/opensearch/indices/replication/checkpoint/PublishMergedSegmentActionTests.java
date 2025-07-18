@@ -129,7 +129,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
             indexShard.shardId(),
             1,
             1,
@@ -169,7 +169,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
             indexShard.shardId(),
             1,
             1,
@@ -214,7 +214,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
             indexShard.shardId(),
             1,
             1,
@@ -266,7 +266,7 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
             indexShard.shardId(),
             1,
             1,

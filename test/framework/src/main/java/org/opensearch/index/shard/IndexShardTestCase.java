@@ -143,7 +143,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -1806,7 +1806,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             targetService.startMergedSegmentReplication(
                 replica,
-                new MergeSegmentCheckpoint(
+                new MergedSegmentCheckpoint(
                     replicationCheckpoint.getShardId(),
                     replicationCheckpoint.getPrimaryTerm(),
                     replicationCheckpoint.getSegmentInfosVersion(),

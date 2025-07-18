@@ -74,7 +74,7 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
     /**
      * Publish merged segment request to shard
      */
-    final void publish(IndexShard indexShard, MergeSegmentCheckpoint checkpoint) {
+    final void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
         doPublish(
             indexShard,
             checkpoint,
