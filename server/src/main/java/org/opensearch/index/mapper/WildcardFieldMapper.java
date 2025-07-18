@@ -930,7 +930,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
-        return new DerivedFieldGenerator(mappedFieldType, new SortedSetDocValuesFetcher(mappedFieldType, simpleName()) {
+        return new DerivedFieldGenerator(mappedFieldType, new BinaryDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {
                 if (value == null) {
