@@ -9,50 +9,57 @@
 package org.opensearch.search.approximate;
 
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 
 import java.io.IOException;
+import java.util.List;
 
+/**
+ * A custom Scorer that manages an ApproximateConjunctionDISI.
+ * This class creates and manages an ApproximateConjunctionDISI to score documents
+ * that match all clauses in a boolean query.
+ */
 public class ApproximateConjunctionScorer extends Scorer {
+    private final ApproximateConjunctionDISI approximateConjunctionDISI;
+    private final float score;
+
     /**
-     * Returns the doc ID that is currently being scored.
+     * Creates a new ApproximateConjunctionScorer.
+     *
+     * @param boost The boost factor
+     * @param scoreMode The score mode
+     * @param iterators The iterators to coordinate
      */
-    @Override
-    public int docID() {
-        return 0;
+    public ApproximateConjunctionScorer(float boost, ScoreMode scoreMode, List<ResumableDISI> iterators) {
+        // Scorer doesn't have a constructor that takes arguments
+        this.approximateConjunctionDISI = new ApproximateConjunctionDISI(iterators);
+        this.score = boost;
     }
 
-    /**
-     * Return a {@link DocIdSetIterator} over matching documents.
-     *
-     * <p>The returned iterator will either be positioned on {@code -1} if no documents have been
-     * scored yet, {@link DocIdSetIterator#NO_MORE_DOCS} if all documents have been scored already, or
-     * the last document id that has been scored otherwise.
-     *
-     * <p>The returned iterator is a view: calling this method several times will return iterators
-     * that have the same state.
-     */
     @Override
     public DocIdSetIterator iterator() {
-        return null;
+        return approximateConjunctionDISI;
     }
 
-    /**
-     * Return the maximum score that documents between the last {@code target} that this iterator was
-     * {@link #advanceShallow(int) shallow-advanced} to included and {@code upTo} included.
-     *
-     * @param upTo
-     */
-    @Override
-    public float getMaxScore(int upTo) throws IOException {
-        return 0;
-    }
-
-    /**
-     * Returns the score of the current document matching the query.
-     */
     @Override
     public float score() throws IOException {
-        return 0;
+        return score;
+    }
+
+    @Override
+    public float getMaxScore(int upTo) throws IOException {
+        return score;
+    }
+
+    @Override
+    public int docID() {
+        return approximateConjunctionDISI.docID();
+    }
+
+    @Override
+    public TwoPhaseIterator twoPhaseIterator() {
+        return null; // No two-phase iteration needed for conjunction
     }
 }
