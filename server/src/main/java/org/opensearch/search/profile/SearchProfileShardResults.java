@@ -41,6 +41,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
+import org.opensearch.search.profile.fetch.FetchProfileShardResult;
+import org.opensearch.search.profile.fetch.FetchProfiler;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfiler;
 
@@ -117,6 +119,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             }
             builder.endArray();
             profileShardResult.getAggregationProfileResults().toXContent(builder, params);
+            profileShardResult.getFetchProfileResult().toXContent(builder, params);
             builder.endObject();
         }
         builder.endArray().endObject();
@@ -149,6 +152,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
+        FetchProfileShardResult fetchProfileShardResult = null;
         String id = null;
         String currentFieldName = null;
         long inboundNetworkTime = 0;
@@ -173,6 +177,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
                     aggProfileShardResult = AggregationProfileShardResult.fromXContent(parser);
+                } else if (FetchProfileShardResult.FETCH.equals(currentFieldName)) {
+                    fetchProfileShardResult = FetchProfileShardResult.fromXContent(parser);
                 } else {
                     parser.skipChildren();
                 }
@@ -181,7 +187,13 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             }
         }
         NetworkTime networkTime = new NetworkTime(inboundNetworkTime, outboundNetworkTime);
-        searchProfileResults.put(id, new ProfileShardResult(queryProfileResults, aggProfileShardResult, networkTime));
+        if (fetchProfileShardResult == null) {
+            fetchProfileShardResult = new FetchProfileShardResult(Collections.emptyList());
+        }
+        searchProfileResults.put(
+            id,
+            new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime)
+        );
     }
 
     /**
@@ -196,6 +208,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
     public static ProfileShardResult buildShardResults(Profilers profilers, ShardSearchRequest request) {
         List<QueryProfiler> queryProfilers = profilers.getQueryProfilers();
         AggregationProfiler aggProfiler = profilers.getAggregationProfiler();
+        FetchProfiler fetchProfiler = profilers.getFetchProfiler();
         List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
         for (QueryProfiler queryProfiler : queryProfilers) {
             QueryProfileShardResult result = new QueryProfileShardResult(
@@ -206,11 +219,13 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             queryResults.add(result);
         }
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
+        List<ProfileResult> fetchTree = fetchProfiler.getTree();
+        FetchProfileShardResult fetchResult = new FetchProfileShardResult(fetchTree);
         NetworkTime networkTime = new NetworkTime(0, 0);
         if (request != null) {
             networkTime.setInboundNetworkTime(request.getInboundNetworkTime());
             networkTime.setOutboundNetworkTime(request.getOutboundNetworkTime());
         }
-        return new ProfileShardResult(queryResults, aggResults, networkTime);
+        return new ProfileShardResult(queryResults, aggResults, fetchResult, networkTime);
     }
 }
