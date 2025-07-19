@@ -36,6 +36,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.subphase.ExplainPhase;
 import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
 import org.opensearch.search.fetch.subphase.FetchDocValuesPhase;
@@ -46,6 +47,7 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.fetch.subphase.FetchVersionPhase;
 import org.opensearch.search.fetch.subphase.FieldAndFormat;
+import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.fetch.subphase.MatchedQueriesPhase;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.SeqNoPrimaryTermPhase;
@@ -422,6 +424,20 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
+    // Minimal inner hit sub context used for profiling tests
+    private static class DummyInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
+        DummyInnerHitSubContext(String name, SearchContext context) {
+            super(name, context);
+        }
+
+        @Override
+        public TopDocsAndMaxScore topDocs(SearchHit hit) {
+            ScoreDoc[] docs = new ScoreDoc[] { new ScoreDoc(hit.docId(), 1.0f) };
+            TopDocs topDocs = new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), docs);
+            return new TopDocsAndMaxScore(topDocs, 1.0f);
+        }
+    }
+
     public void testRootTiming() throws Exception {
         try (Directory dir = newDirectory()) {
             List<Document> docs = new TestDocumentBuilder().addDocuments(3, true).build();
@@ -780,6 +796,48 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for FetchScorePhase", children.containsKey("FetchScorePhase"));
                 new TimingAssertions(children.get("FetchScorePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+            }
+        }
+    }
+
+    public void testInnerHitsPhaseProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(1, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 1);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                SearchContext context = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .build();
+
+                InnerHitsContext.InnerHitSubContext innerContext = new DummyInnerHitSubContext("inner", context);
+                InnerHitsContext innerHits = new InnerHitsContext();
+                innerHits.addInnerHitDefinition(innerContext);
+                when(context.innerHits()).thenReturn(innerHits);
+
+                List<FetchSubPhase> subPhases = Collections.singletonList(new FetchSourcePhase());
+
+                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+
+                Map<String, ProfileResult> children = new HashMap<>();
+                for (ProfileResult child : profile.getProfiledChildren()) {
+                    children.put(child.getQueryName(), child);
+                }
+
+                assertEquals(2, children.size());
+                assertTrue(children.containsKey("InnerHitsPhase"));
+                assertTrue(children.containsKey("FetchSourcePhase"));
+
+                new TimingAssertions(children.get("InnerHitsPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+
+                new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
                     .assertTimingPresent(FetchTimingType.NEXT_READER);
             }
         }
