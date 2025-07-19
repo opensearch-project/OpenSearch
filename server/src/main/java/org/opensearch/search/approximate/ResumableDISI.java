@@ -172,6 +172,7 @@ public class ResumableDISI extends DocIdSetIterator {
         private PointValues.PointTree currentTree;
         private boolean isExhausted = false;
         private long docCount = 0;
+        private boolean inProgress = false;
 
         public PointValues.PointTree getCurrentTree() {
             return currentTree;
@@ -199,6 +200,14 @@ public class ResumableDISI extends DocIdSetIterator {
 
         public void setDocCount(long count) {
             this.docCount = count;
+        }
+
+        public boolean isInProgress() {
+            return inProgress;
+        }
+
+        public void setInProgress(boolean inProgress) {
+            this.inProgress = inProgress;
         }
     }
 }
