@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * FieldValueFetcher used for binary doc values
+ * FieldValueFetcher for binary doc values
  *
  * @opensearch.internal
  */
