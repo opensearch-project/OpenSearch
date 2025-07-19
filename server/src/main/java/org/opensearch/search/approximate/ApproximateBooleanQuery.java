@@ -11,20 +11,18 @@ package org.opensearch.search.approximate;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -121,14 +119,16 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
      * This is a basic implementation that behaves like a regular filter boolean query for now.
      */
     private class ApproximateBooleanWeight extends ConstantScoreWeight {
-        private final Weight booleanWeight;
         private final ScoreMode scoreMode;
+        private final IndexSearcher searcher;
+        private final float boost;
 
         public ApproximateBooleanWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             super(ApproximateBooleanQuery.this, boost);
             // Create a weight for the underlying boolean query
-            this.booleanWeight = boolQuery.createWeight(searcher, scoreMode, boost);
             this.scoreMode = scoreMode;
+            this.searcher = searcher;
+            this.boost = boost;
         }
 
         @Override
@@ -136,49 +136,16 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             return false;
         }
 
-        // public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-        // ScorerSupplier scorerSupplier = scorerSupplier(context);
-        // if (scorerSupplier == null) {
-        // // No docs match
-        // return null;
-        // }
-        //
-        // scorerSupplier.setTopLevelScoringClause();
-        // return scorerSupplier.bulkScorer();
-        // }
-
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-            // Get the scorer supplier from the underlying boolean weight
-            final ScorerSupplier booleanScorer = booleanWeight.scorerSupplier(context);
-            if (booleanScorer == null) {
-                return null;
+            // For multi-clause boolean queries, create a custom scorer supplier
+            List<Weight> clauseWeights = new ArrayList<>(clauses.size());
+            for (BooleanClause clause : clauses) {
+                Weight weight = clause.query().createWeight(searcher, scoreMode, boost);
+                clauseWeights.add(weight);
             }
 
-            // return new ApproximateBooleanScorerSupplier();
-            // Return a wrapper scorer supplier that delegates to the boolean scorer
-            return new ScorerSupplier() {
-                @Override
-                public Scorer get(long leadCost) throws IOException {
-                    Scorer scorer = booleanScorer.get(leadCost);
-                    if (scorer == null) {
-                        return null;
-                    }
-                    return new ConstantScoreScorer(score(), scoreMode, scorer.iterator());
-                }
-
-                @Override
-                public long cost() {
-                    return booleanScorer.cost();
-                }
-
-                @Override
-                public BulkScorer bulkScorer() throws IOException {
-                    // For now, just delegate to the standard bulk scorer
-                    // In the future, this is where we would implement our custom bulk scorer
-                    return booleanScorer.bulkScorer();
-                }
-            };
+            return new ApproximateBooleanScorerSupplier(clauseWeights, scoreMode, boost, size, context);
         }
 
     }
