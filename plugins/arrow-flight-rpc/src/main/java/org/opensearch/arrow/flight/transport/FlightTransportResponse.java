@@ -10,6 +10,7 @@ package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightCallHeaders;
 import org.apache.arrow.flight.FlightClient;
+import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.HeaderCallOption;
 import org.apache.arrow.flight.Ticket;
@@ -20,8 +21,9 @@ import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.Header;
-import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
@@ -53,7 +55,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private boolean streamInitialized = false;
     private boolean streamExhausted = false;
     private boolean firstResponseConsumed = false;
-    private Exception initializationException;
+    private StreamException initializationException;
 
     /**
      * Creates a new Flight transport response.
@@ -102,7 +104,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
         if (streamExhausted) {
             if (initializationException != null) {
-                throw new TransportException("Stream initialization failed", initializationException);
+                throw initializationException;
             }
             return null;
         }
@@ -121,9 +123,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                 streamExhausted = true;
                 return null;
             }
+        } catch (FlightRuntimeException e) {
+            streamExhausted = true;
+            // Convert Flight exception to StreamException
+            throw FlightErrorMapper.fromFlightException(e);
         } catch (Exception e) {
             streamExhausted = true;
-            throw new TransportException("Failed to fetch next batch", e);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Failed to fetch next batch", e);
         }
     }
 
@@ -160,7 +166,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         try {
             flightStream.close();
         } catch (Exception e) {
-            throw new TransportException("Failed to close flight stream", e);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Failed to close flight stream", e);
         } finally {
             isClosed = true;
         }
@@ -185,29 +191,32 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             } else {
                 streamExhausted = true;
             }
+        } catch (FlightRuntimeException e) {
+            // Try to get headers even if stream failed
+            currentHeader = headerContext.getHeader(reqId);
+            streamExhausted = true;
+            initializationException = FlightErrorMapper.fromFlightException(e);
+            logger.warn("Stream initialization failed, headers may still be available", e);
         } catch (Exception e) {
             // Try to get headers even if stream failed
             currentHeader = headerContext.getHeader(reqId);
             streamExhausted = true;
-            initializationException = e;
+            initializationException = new StreamException(StreamErrorCode.INTERNAL, "Stream initialization failed", e);
             logger.warn("Stream initialization failed, headers may still be available", e);
         }
     }
 
-    /**
-     * Deserializes a response from the current root.
-     */
     private T deserializeResponse() {
         try (VectorStreamInput input = new VectorStreamInput(currentRoot, namedWriteableRegistry)) {
             return handler.read(input);
         } catch (IOException e) {
-            throw new TransportException("Failed to deserialize response", e);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Failed to deserialize response", e);
         }
     }
 
     private void ensureOpen() {
         if (isClosed) {
-            throw new TransportException("Stream is closed");
+            throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed");
         }
     }
 }

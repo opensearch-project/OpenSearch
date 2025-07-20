@@ -18,7 +18,8 @@ import java.io.IOException;
  * <p>
  * Streaming channels allow sending multiple response batches for a single request.
  * Once a stream is cancelled (either by client or due to error), subsequent calls
- * to {@link #sendResponseBatch(TransportResponse)} will throw {@link StreamCancellationException}.
+ * to {@link #sendResponseBatch(TransportResponse)} will throw {@link StreamException} with
+ * {@link StreamErrorCode#CANCELLED}.
  * At this point, no action is needed as the underlying channel is already closed and call to
  * completeStream() will fail.
  * @opensearch.internal
@@ -26,7 +27,7 @@ import java.io.IOException;
 public interface StreamingTransportChannel extends TransportChannel {
 
     // TODO: introduce a way to poll for cancellation in addition to current way of detection i.e. depending on channel
-    // throwing StreamCancellationException.
+    // throwing StreamException with CANCELLED error code.
     /**
      * Sends a batch of responses to the request that this channel is associated with.
      * Call {@link #completeStream()} on a successful completion.
@@ -34,10 +35,10 @@ public interface StreamingTransportChannel extends TransportChannel {
      * Do not use {@link #sendResponse} in conjunction with this method if you are sending a batch of responses.
      *
      * @param response the batch of responses to send
-     * @throws org.opensearch.transport.stream.StreamCancellationException if the stream has been canceled.
+     * @throws StreamException with {@link StreamErrorCode#CANCELLED} if the stream has been canceled.
      * Do not call this method again or completeStream() once canceled.
      */
-    void sendResponseBatch(TransportResponse response) throws StreamCancellationException;
+    void sendResponseBatch(TransportResponse response) throws StreamException;
 
     /**
      * Completes the streaming response, indicating no more batches will be sent.
