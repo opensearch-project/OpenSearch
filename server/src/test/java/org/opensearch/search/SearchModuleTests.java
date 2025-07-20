@@ -578,6 +578,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "bool",
         "boosting",
         "constant_score",
+        "combined_fields",
         "dis_max",
         "exists",
         "function_score",
