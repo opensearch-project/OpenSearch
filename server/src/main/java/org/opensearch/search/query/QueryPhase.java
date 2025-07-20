@@ -446,8 +446,34 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
-            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
-            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
+            for (QueryPhaseExtension extension : queryPhaseExtensions()) {
+                try {
+                    extension.beforeScoreCollection(searchContext);
+                } catch (Exception e) {
+                    LOGGER.warn("Error executing beforeScoreCollection extension: {}", extension.getClass().getName(), e);
+                }
+            }
+
+            try {
+                QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
+                return QueryPhase.searchWithCollector(
+                    searchContext,
+                    searcher,
+                    query,
+                    collectors,
+                    queryCollectorContext,
+                    hasFilterCollector,
+                    hasTimeout
+                );
+            } finally {
+                for (QueryPhaseExtension extension : queryPhaseExtensions()) {
+                    try {
+                        extension.afterScoreCollection(searchContext);
+                    } catch (Exception e) {
+                        LOGGER.warn("Error executing afterScoreCollection extension: {}", extension.getClass().getName(), e);
+                    }
+                }
+            }
         }
 
         private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector) throws IOException {
