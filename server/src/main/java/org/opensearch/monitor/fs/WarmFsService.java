@@ -79,8 +79,10 @@ public class WarmFsService extends FsService {
         warmPath.total = adjustForHugeFilesystems(totalBytes);
         warmPath.free = adjustForHugeFilesystems(freeBytes);
         warmPath.available = adjustForHugeFilesystems(freeBytes);
-        warmPath.fileCacheReserved = adjustForHugeFilesystems(fileCache.capacity());
-        warmPath.fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage());
+        if (fileCache != null) {
+            warmPath.fileCacheReserved = adjustForHugeFilesystems(fileCache.capacity());
+            warmPath.fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage());
+        }
 
         logger.trace("Warm node disk usage - total: {}, used: {}, free: {}", totalBytes, usedBytes, freeBytes);
 
