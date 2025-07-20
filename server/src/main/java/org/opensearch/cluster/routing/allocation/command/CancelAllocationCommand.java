@@ -116,7 +116,7 @@ public class CancelAllocationCommand implements AllocationCommand {
     }
 
     /**
-
+    
      * Get the id of the shard which allocation should be canceled
      * @return id of the shard which allocation should be canceled
      */

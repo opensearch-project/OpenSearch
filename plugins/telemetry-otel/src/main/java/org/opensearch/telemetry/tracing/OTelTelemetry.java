@@ -24,7 +24,7 @@ public class OTelTelemetry implements Telemetry {
 
     /**
      * Creates Telemetry instance
-
+    
      */
     /**
      * Creates Telemetry instance

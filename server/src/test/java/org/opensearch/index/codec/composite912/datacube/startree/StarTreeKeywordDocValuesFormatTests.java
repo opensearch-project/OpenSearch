@@ -451,7 +451,7 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         /**
          * keyword1 keyword2 | [ sum, value_count, min, max[sndv]] , doc_count
          [null, null] | [6.0, 4.0, 1.0, 2.0, 4.0]
-
+        
          */
         StarTreeDocument[] expectedStarTreeDocuments = new StarTreeDocument[1];
         expectedStarTreeDocuments[0] = new StarTreeDocument(new Long[] { null, null }, new Double[] { 6.0, 4.0, 1.0, 2.0, 4.0 });
