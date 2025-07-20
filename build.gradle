@@ -28,25 +28,22 @@
  * under the License.
  */
 
-import java.nio.charset.StandardCharsets;
-import java.io.ByteArrayOutputStream;
 
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.opensearch.gradle.BuildPlugin
+import org.opensearch.gradle.CheckCompatibilityTask
 import org.opensearch.gradle.Version
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.plugin.PluginBuildPlugin
 import org.opensearch.gradle.tar.SymbolicLinkPreservingTar
-import org.gradle.plugins.ide.eclipse.model.AccessRule
-import org.gradle.plugins.ide.eclipse.model.EclipseJdt
-import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.gradle.api.Project;
-import org.gradle.process.ExecResult;
-import org.opensearch.gradle.CheckCompatibilityTask
+
+import java.nio.charset.StandardCharsets
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
@@ -56,6 +53,7 @@ plugins {
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.25.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
+  id "org.openrewrite.rewrite" version "7.11.0" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -76,7 +74,31 @@ allprojects {
   version = VersionProperties.getOpenSearch()
   description = "OpenSearch subproject ${project.path}"
 }
-
+allprojects {
+  configurations.configureEach {
+    resolutionStrategy {
+      force(
+        'org.jetbrains:annotations:26.0.2',
+        'org.apache.commons:commons-text:1.13.1',
+        'org.ow2.asm:asm:9.8',
+        'org.ow2.asm:asm-util:9.8',
+      )
+      eachDependency { details ->
+        if (details.requested.group.startsWith('com.fasterxml.jackson')) {
+          details.useVersion '2.17.3'
+        }
+        if (details.requested.group == 'org.openrewrite.recipe' &&
+          details.requested.name == 'rewrite-java-dependencies') {
+          details.useVersion '1.37.0'
+        }
+        if (details.requested.group == 'com.google.errorprone' &&
+          details.requested.name == 'error_prone_annotations') {
+          details.useVersion '2.36.0'
+        }
+      }
+    }
+  }
+}
 configure(allprojects - project(':distribution:archives:integ-test-zip')) {
   project.pluginManager.withPlugin('nebula.maven-base-publish') {
     if (project.pluginManager.hasPlugin('opensearch.build') == false) {
