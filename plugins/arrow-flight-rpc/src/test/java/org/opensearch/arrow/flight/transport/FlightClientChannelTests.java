@@ -20,7 +20,8 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
-import org.opensearch.transport.stream.StreamCancellationException;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 import org.junit.After;
 
@@ -261,7 +262,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         assertTrue(handlerLatch.await(4, TimeUnit.SECONDS));
         assertNotNull(handlerException.get());
-        assertTrue(handlerException.get().getMessage(), handlerException.get().getMessage().contains("Stream initialization failed"));
+        assertEquals("Simulated handler exception", handlerException.get().getMessage());
     }
 
     public void testThreadPoolExhaustion() throws InterruptedException {
@@ -465,9 +466,11 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
                     Thread.sleep(4000); // Allow client to process and cancel
                     TestResponse response2 = new TestResponse("Response 2");
                     secondBatchCalled.set(true);
-                    channel.sendResponseBatch(response2); // This should throw StreamCancellationException
-                } catch (StreamCancellationException e) {
-                    serverException.set(e);
+                    channel.sendResponseBatch(response2); // This should throw StreamException with CANCELLED code
+                } catch (StreamException e) {
+                    if (e.getErrorCode() == StreamErrorCode.CANCELLED) {
+                        serverException.set(e);
+                    }
                 } finally {
                     serverLatch.countDown();
                 }
@@ -521,9 +524,10 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         assertTrue(secondBatchCalled.get());
         assertNotNull(
-            "Server should receive StreamCancellationException when calling sendResponseBatch after cancellation",
+            "Server should receive StreamException with CANCELLED code when calling sendResponseBatch after cancellation",
             serverException.get()
         );
+        assertEquals(StreamErrorCode.CANCELLED, ((StreamException) serverException.get()).getErrorCode());
     }
 
     public void testFrameworkLevelStreamCreationError() throws InterruptedException {

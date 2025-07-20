@@ -16,6 +16,7 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.flight.FlightRuntimeException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -30,6 +31,7 @@ import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
+import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -97,6 +99,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         final boolean compress,
         final boolean isHandshake
     ) throws IOException {
+        // TODO add support for compression
         if (!(channel instanceof FlightServerChannel flightChannel)) {
             throw new IllegalStateException("Expected FlightServerChannel, got " + channel.getClass().getName());
         }
@@ -106,6 +109,14 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                 flightChannel.sendBatch(getHeaderBuffer(requestId, nodeVersion, features), out);
                 messageListener.onResponseSent(requestId, action, response);
             }
+        } catch (StreamException e) {
+            messageListener.onResponseSent(requestId, action, e);
+            // Let StreamException propagate as is - it will be converted to FlightRuntimeException at a higher level
+            throw e;
+        } catch (FlightRuntimeException e) {
+            messageListener.onResponseSent(requestId, action, e);
+            // Convert FlightRuntimeException to StreamException
+            throw FlightErrorMapper.fromFlightException(e);
         } catch (Exception e) {
             messageListener.onResponseSent(requestId, action, e);
             throw e;
@@ -125,6 +136,10 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         try {
             flightChannel.completeStream();
             messageListener.onResponseSent(requestId, action, TransportResponse.Empty.INSTANCE);
+        } catch (FlightRuntimeException e) {
+            messageListener.onResponseSent(requestId, action, e);
+            // Convert FlightRuntimeException to StreamException
+            throw FlightErrorMapper.fromFlightException(e);
         } catch (Exception e) {
             messageListener.onResponseSent(requestId, action, e);
             throw e;
@@ -144,7 +159,11 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             throw new IllegalStateException("Expected FlightServerChannel, got " + channel.getClass().getName());
         }
         try {
-            flightServerChannel.sendError(getHeaderBuffer(requestId, version, features), error);
+            Exception flightError = error;
+            if (error instanceof StreamException) {
+                flightError = FlightErrorMapper.toFlightException((StreamException) error);
+            }
+            flightServerChannel.sendError(getHeaderBuffer(requestId, version, features), flightError);
             messageListener.onResponseSent(requestId, action, error);
         } catch (Exception e) {
             messageListener.onResponseSent(requestId, action, e);

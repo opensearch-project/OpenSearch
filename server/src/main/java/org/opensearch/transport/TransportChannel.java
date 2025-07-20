@@ -38,6 +38,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -63,7 +65,7 @@ public interface TransportChannel {
      * Do not use {@link #sendResponse} in conjunction with this method if you are sending a batch of responses.
      *
      * @param response the batch of responses to send
-     * @throws org.opensearch.transport.stream.StreamCancellationException if the stream has been canceled.
+     * @throws StreamException with {@link StreamErrorCode#CANCELLED} if the stream has been canceled.
      * Do not call this method again or completeStream() once canceled.
      */
     default void sendResponseBatch(TransportResponse response) {
