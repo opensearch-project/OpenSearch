@@ -27,17 +27,22 @@ private void handleStreamRequest(MyRequest request, TransportChannel channel, Ta
             MyData data = iterator.next();
             MyResponse response = processData(data);
             
-            // Send batch - may block or throw StreamCancellationException
+            // Send batch - may block or throw StreamException with CANCELLED code
             channel.sendResponseBatch(response);
         }
         
         // Signal successful completion
         channel.completeStream();
         
-    } catch (StreamCancellationException e) {
-        // Client cancelled - exit gracefully
-        logger.info("Stream cancelled by client: {}", e.getMessage());
-        // Do NOT call completeStream() or sendResponse()
+    } catch (StreamException e) {
+        if (e.getErrorCode() == StreamErrorCode.CANCELLED) {
+            // Client cancelled - exit gracefully
+            logger.info("Stream cancelled by client: {}", e.getMessage());
+            // Do NOT call completeStream() or sendResponse()
+        } else {
+            // Other stream error - send to client
+            channel.sendResponse(e);
+        }
         
     } catch (Exception e) {
         // Send error to client
@@ -79,7 +84,7 @@ flowchart TD
 - Server will pause until client consumes data and frees buffer space
 
 ### Cancellation
-- `sendResponseBatch()` throws `StreamCancellationException` when client cancels
+- `sendResponseBatch()` throws `StreamException` with `StreamErrorCode.CANCELLED` when client cancels
 - Exit handler immediately - framework handles cleanup
 - Do NOT call `completeStream()` or `sendResponse()` after cancellation
 

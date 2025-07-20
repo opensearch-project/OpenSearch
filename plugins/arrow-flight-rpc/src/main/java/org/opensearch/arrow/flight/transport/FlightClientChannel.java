@@ -26,9 +26,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Header;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.Transport;
-import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
@@ -182,14 +183,14 @@ class FlightClientChannel implements TcpChannel {
         try {
             return new InetSocketAddress(InetAddress.getByName(location.getUri().getHost()), location.getUri().getPort());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to resolve remote address", e);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Failed to resolve remote address", e);
         }
     }
 
     @Override
     public void sendMessage(long reqId, BytesReference reference, ActionListener<Void> listener) {
         if (!isOpen()) {
-            listener.onFailure(new TransportException("FlightClientChannel is closed"));
+            listener.onFailure(new StreamException(StreamErrorCode.UNAVAILABLE, "FlightClientChannel is closed"));
             return;
         }
         try {
@@ -209,7 +210,7 @@ class FlightClientChannel implements TcpChannel {
             processStreamResponseAsync(streamResponse);
             listener.onResponse(null);
         } catch (Exception e) {
-            listener.onFailure(new TransportException("Failed to send message", e));
+            listener.onFailure(new StreamException(StreamErrorCode.INTERNAL, "Failed to send message", e));
         }
     }
 
@@ -252,7 +253,7 @@ class FlightClientChannel implements TcpChannel {
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             Header header = streamResponse.getHeader();
             if (header == null) {
-                throw new TransportException("Header is null");
+                throw new StreamException(StreamErrorCode.INTERNAL, "Header is null");
             }
             TransportResponseHandler handler = streamResponse.getHandler();
             threadContext.setHeaders(header.getHeaders());
@@ -293,17 +294,23 @@ class FlightClientChannel implements TcpChannel {
     }
 
     private void notifyHandlerOfException(TransportResponseHandler<?> handler, Exception exception) {
-        TransportException transportException = new TransportException("Stream processing failed", exception);
+        StreamException streamException;
+        if (exception instanceof StreamException) {
+            streamException = (StreamException) exception;
+        } else {
+            streamException = new StreamException(StreamErrorCode.INTERNAL, "Stream processing failed", exception);
+        }
+
         String executor = handler.executor();
 
         if (ThreadPool.Names.SAME.equals(executor)) {
-            safeHandleException(handler, transportException);
+            safeHandleException(handler, streamException);
         } else {
-            threadPool.executor(executor).execute(() -> safeHandleException(handler, transportException));
+            threadPool.executor(executor).execute(() -> safeHandleException(handler, streamException));
         }
     }
 
-    private void safeHandleException(TransportResponseHandler<?> handler, TransportException exception) {
+    private void safeHandleException(TransportResponseHandler<?> handler, StreamException exception) {
         try {
             handler.handleException(exception);
         } catch (Exception handlerEx) {

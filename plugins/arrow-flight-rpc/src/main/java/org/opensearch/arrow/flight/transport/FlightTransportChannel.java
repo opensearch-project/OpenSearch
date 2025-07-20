@@ -17,8 +17,8 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TcpTransportChannel;
-import org.opensearch.transport.TransportException;
-import org.opensearch.transport.stream.StreamCancellationException;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
 import java.util.Set;
@@ -66,7 +66,7 @@ class FlightTransportChannel extends TcpTransportChannel {
     @Override
     public void sendResponseBatch(TransportResponse response) {
         if (!streamOpen.get()) {
-            throw new TransportException("Stream is closed for requestId [" + requestId + "]");
+            throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed for requestId [" + requestId + "]");
         }
         if (response instanceof QuerySearchResult && ((QuerySearchResult) response).getShardSearchRequest() != null) {
             ((QuerySearchResult) response).getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
@@ -82,12 +82,16 @@ class FlightTransportChannel extends TcpTransportChannel {
                 compressResponse,
                 isHandshake
             );
-        } catch (StreamCancellationException e) {
+        } catch (StreamException e) {
+            if (e.getErrorCode() == StreamErrorCode.CANCELLED) {
+                release(true);
+                throw e;
+            }
             release(true);
             throw e;
         } catch (Exception e) {
             release(true);
-            throw new RuntimeException(e);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Error sending response batch", e);
         }
     }
 
@@ -99,12 +103,15 @@ class FlightTransportChannel extends TcpTransportChannel {
                 release(false);
             } catch (Exception e) {
                 release(true);
-                throw e;
+                if (e instanceof StreamException) {
+                    throw (StreamException) e;
+                }
+                throw new StreamException(StreamErrorCode.INTERNAL, "Error completing stream", e);
             }
         } else {
             release(true);
             logger.warn("CompleteStream called on already closed stream with action[{}] and requestId[{}]", action, requestId);
-            throw new TransportException("FlightTransportChannel stream already closed.");
+            throw new StreamException(StreamErrorCode.UNAVAILABLE, "FlightTransportChannel stream already closed.");
         }
     }
 

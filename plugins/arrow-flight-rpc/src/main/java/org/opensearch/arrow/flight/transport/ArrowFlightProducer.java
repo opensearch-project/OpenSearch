@@ -21,6 +21,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.InboundPipeline;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.stream.StreamException;
 
 import java.util.concurrent.ExecutorService;
 
@@ -77,6 +78,11 @@ class ArrowFlightProducer extends NoOpFlightProducer {
                     // nothing changes in inbound logic, so reusing native transport inbound pipeline
                     pipeline.handleBytes(channel, reference);
                 }
+            } catch (StreamException e) {
+                FlightRuntimeException flightException = FlightErrorMapper.toFlightException(e);
+                listener.error(flightException);
+                channel.close();
+                throw flightException;
             } catch (FlightRuntimeException ex) {
                 listener.error(ex);
                 // FlightServerChannel is always closed in FlightTransportChannel at the time of release.

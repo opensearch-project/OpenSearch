@@ -17,8 +17,9 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.transport.Header;
 import org.opensearch.transport.InboundDecoder;
-import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportStatus;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -54,7 +55,7 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
      * Extracts, decodes, and validates the transport header, then stores it in the context.
      *
      * @param incomingHeaders The headers received from the Arrow Flight server
-     * @throws TransportException if headers are missing, invalid, or incompatible
+     * @throws StreamException if headers are missing, invalid, or incompatible
      */
     @Override
     public void onHeadersReceived(CallHeaders incomingHeaders) {
@@ -62,10 +63,10 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
         String reqId = incomingHeaders.get(REQUEST_ID_KEY);
 
         if (encodedHeader == null) {
-            throw new TransportException("Missing required header: " + RAW_HEADER_KEY);
+            throw new StreamException(StreamErrorCode.INVALID_ARGUMENT, "Missing required header: " + RAW_HEADER_KEY);
         }
         if (reqId == null) {
-            throw new TransportException("Missing required header: " + REQUEST_ID_KEY);
+            throw new StreamException(StreamErrorCode.INVALID_ARGUMENT, "Missing required header: " + REQUEST_ID_KEY);
         }
 
         try {
@@ -75,20 +76,23 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
             Header header = InboundDecoder.readHeader(version, headerRef.length(), headerRef);
 
             if (!Version.CURRENT.isCompatible(header.getVersion())) {
-                throw new TransportException("Incompatible version: " + header.getVersion() + ", current: " + Version.CURRENT);
+                throw new StreamException(
+                    StreamErrorCode.UNAVAILABLE,
+                    "Incompatible version: " + header.getVersion() + ", current: " + Version.CURRENT
+                );
             }
 
             if (TransportStatus.isError(header.getStatus())) {
-                throw new TransportException("Received error response with status: " + header.getStatus());
+                throw new StreamException(StreamErrorCode.INTERNAL, "Received error response with status: " + header.getStatus());
             }
 
             // Store the header in context for later retrieval
             long requestId = Long.parseLong(reqId);
             context.setHeader(requestId, header);
         } catch (IOException e) {
-            throw new TransportException("Failed to decode header", e);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Failed to decode header", e);
         } catch (NumberFormatException e) {
-            throw new TransportException("Invalid request ID format: " + reqId, e);
+            throw new StreamException(StreamErrorCode.INVALID_ARGUMENT, "Invalid request ID format: " + reqId, e);
         }
     }
 
