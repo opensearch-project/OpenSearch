@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 
 import java.util.Collections;
@@ -66,6 +67,16 @@ public class ActiveMergesRegistry {
         if (entry != null) {
             entry.setState(SegmentState.PROCESSED);
         }
+    }
+
+    public boolean containsRemoteFile(String filename) {
+        String localFilename = getLocalFilename(filename);
+        return contains(localFilename);
+    }
+
+    private String getLocalFilename(String filename) {
+        String[] parts = filename.split(RemoteSegmentStoreDirectory.SEGMENT_NAME_UUID_SEPARATOR);
+        return parts.length > 0 ? parts[0] : filename;
     }
 
     /**
