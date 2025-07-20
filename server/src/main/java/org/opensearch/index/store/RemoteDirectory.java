@@ -499,7 +499,7 @@ public class RemoteDirectory extends Directory {
         }
 
         public UnaryOperator<InputStream> get(final String filename) {
-            if (activeMergesRegistry != null && activeMergesRegistry.contains(filename)) {
+            if (activeMergesRegistry != null && activeMergesRegistry.containsRemoteFile(filename)) {
                 return lowPriorityDownloadRateLimiter;
             }
             return downloadRateLimiter;
