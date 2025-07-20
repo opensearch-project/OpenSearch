@@ -51,18 +51,27 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
     public void warm(LeafReader leafReader) throws IOException {
         // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
         assert leafReader instanceof SegmentReader;
+        long startTime = System.currentTimeMillis();
 
         SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
         if (logger.isTraceEnabled()) {
             logger.trace(() -> new ParameterizedMessage("[ShardId {}] Warming segment: {}", indexShard.shardId(), segmentCommitInfo));
         }
         indexShard.publishMergedSegment(segmentCommitInfo);
-        logger.trace(
-            () -> new ParameterizedMessage(
-                "[ShardId {}] Completed segment warming for {}.",
-                indexShard.shardId(),
-                segmentCommitInfo.info.name
-            )
-        );
+        if (logger.isTraceEnabled()) {
+            logger.trace(() -> {
+                long segmentSize = -1;
+                try {
+                    segmentCommitInfo.sizeInBytes();
+                } catch (IOException ignored) {}
+                return new ParameterizedMessage(
+                    "[ShardId {}] Completed segment warming for {}. Size: {}, Timing: {}s",
+                    indexShard.shardId(),
+                    segmentCommitInfo.info.name,
+                    segmentSize,
+                    (System.currentTimeMillis() - startTime) / 1000.0
+                );
+            });
+        }
     }
 }
