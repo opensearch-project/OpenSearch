@@ -47,7 +47,7 @@ public class OSFlightClient {
         private ExecutorService executorService;
         private Class<? extends io.netty.channel.Channel> channelType;
         private SslContext sslContext;
-        
+
         private Builder() {}
 
         Builder(BufferAllocator allocator, Location location) {
@@ -131,7 +131,7 @@ public class OSFlightClient {
                             builder.channelType(
                                 Class.forName("io.netty.channel.epoll.EpollDomainSocketChannel")
                                     .asSubclass(ServerChannel.class));
-                            final EventLoopGroup elg =  
+                            final EventLoopGroup elg =
                                 Class.forName("io.netty.channel.epoll.EpollEventLoopGroup")
                                     .asSubclass(EventLoopGroup.class)
                                     .getDeclaredConstructor()
@@ -142,7 +142,7 @@ public class OSFlightClient {
                             builder.channelType(
                                 Class.forName("io.netty.channel.kqueue.KQueueDomainSocketChannel")
                                     .asSubclass(ServerChannel.class));
-                            final EventLoopGroup elg =  
+                            final EventLoopGroup elg =
                                 Class.forName("io.netty.channel.kqueue.KQueueEventLoopGroup")
                                     .asSubclass(EventLoopGroup.class)
                                     .getDeclaredConstructor()
@@ -179,7 +179,7 @@ public class OSFlightClient {
                     builder.sslContext(sslContext);
                 } else {
                     final SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
-    
+
                     if (!this.verifyServer) {
                         sslContextBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE);
                     } else if (this.trustedCertificates != null
@@ -215,11 +215,11 @@ public class OSFlightClient {
             if (channelType != null) {
                 builder.channelType(channelType);
             }
- 
+
             if (workerELG != null) {
                 builder.eventLoopGroup(workerELG);
             }
- 
+
             return new FlightClient(allocator, builder.build(), middleware);
         }
 
@@ -232,7 +232,7 @@ public class OSFlightClient {
             this.channelType = channelType;
             return this;
         }
-        
+
         public Builder eventLoopGroup(EventLoopGroup workerELG) {
             this.workerELG = workerELG;
             return this;

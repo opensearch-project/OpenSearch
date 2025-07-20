@@ -61,7 +61,6 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
-import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.Arrays;
