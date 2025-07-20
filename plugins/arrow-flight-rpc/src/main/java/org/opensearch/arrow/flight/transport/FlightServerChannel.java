@@ -18,7 +18,7 @@ import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.transport.TcpChannel;
-import org.opensearch.transport.stream.StreamCancellationException;
+import org.opensearch.transport.stream.StreamException;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -87,7 +87,7 @@ class FlightServerChannel implements TcpChannel {
      */
     public void sendBatch(ByteBuffer header, VectorStreamOutput output) {
         if (cancelled) {
-            throw new StreamCancellationException("Cannot flush more batches. Stream cancelled by the client");
+            throw StreamException.cancelled("Cannot flush more batches. Stream cancelled by the client");
         }
         if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
