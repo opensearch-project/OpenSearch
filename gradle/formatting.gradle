@@ -125,14 +125,11 @@ allprojects {
         "**.yml"
       )
     }
-    precommit.dependsOn(rewriteDryRun)
-    precommit.dependsOn(spotlessJavaCheck)
-    tasks.check.dependsOn(rewriteDryRun) // off switch for release: ' -x check' or ' -x rewriteDryRun spotlessJavaCheck'
-    tasks.check.dependsOn(spotlessJavaCheck)
+    precommit.dependsOn(rewriteDryRun, spotlessJavaCheck)
+    tasks.check.dependsOn(rewriteDryRun, spotlessJavaCheck) // off switch for release: ' -x check' or ' -x rewriteDryRun spotlessJavaCheck'
     if (valueOf(getenv("formatting")) // on switch for dev to auto apply Dformatting ' -Dformatting=true'
       && isNull(getenv("JENKINS_URL"))) { // avoid CI
-      tasks.assemble.dependsOn(rewriteRun)
-      tasks.assemble.dependsOn(spotlessApply)
+      tasks.assemble.dependsOn(rewriteRun, spotlessApply)
     }
   }
 }
