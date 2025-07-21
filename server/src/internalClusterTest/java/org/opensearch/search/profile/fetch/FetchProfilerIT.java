@@ -323,6 +323,28 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
         assertFalse(resp.getHits().getAt(0).getInnerHits().isEmpty());
 
         assertFetchPhase(resp, "InnerHitsPhase", 2);
+
+        Map<String, ProfileShardResult> profileResults = resp.getProfileResults();
+        for (ProfileShardResult shardResult : profileResults.values()) {
+            FetchProfileShardResult fetchProfileResult = shardResult.getFetchProfileResult();
+
+            for (ProfileResult fetchResult : fetchProfileResult.getFetchProfileResults()) {
+                for (ProfileResult phase : fetchResult.getProfiledChildren()) {
+                    if ("InnerHitsPhase".equals(phase.getQueryName())) {
+
+                        assertFalse("InnerHitsPhase should have children", phase.getProfiledChildren().isEmpty());
+
+                        for (ProfileResult innerHitsChild : phase.getProfiledChildren()) {
+                            assertEquals("fetch_inner_hits", innerHitsChild.getQueryName());
+
+                            assertEquals("Should have 1 profiled child", 1, innerHitsChild.getProfiledChildren().size());
+
+                            assertEquals("FetchSourcePhase", innerHitsChild.getProfiledChildren().getFirst().getQueryName());
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void assertFetchPhase(SearchResponse resp, String phaseName, int expectedChildren) {

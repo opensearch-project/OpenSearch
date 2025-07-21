@@ -194,7 +194,6 @@ public class QueryPhase {
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
-
         try {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());

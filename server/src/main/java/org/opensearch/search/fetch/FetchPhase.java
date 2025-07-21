@@ -114,6 +114,7 @@ public class FetchPhase {
     public void execute(SearchContext context, String profileDescription) {
         FetchProfileBreakdown breakdown = null;
         FetchProfiler fetchProfiler = null;
+        FetchProfileBreakdown innerHitsBreakdown = null;
         if (context.getProfilers() != null) {
             fetchProfiler = context.getProfilers().getFetchProfiler();
             if (context.docIdsToLoadSize() > 0) {
@@ -167,7 +168,11 @@ public class FetchPhase {
                         .getFetchProfiler()
                         .getQueryBreakdown(p.v2().getClass().getSimpleName());
                     processorProfiles.put(p.v1(), pb);
-                    fetchProfiler.pollLastElement();
+                    if (p.v2() instanceof InnerHitsPhase) {
+                        innerHitsBreakdown = pb;
+                    } else {
+                        fetchProfiler.pollLastElement();
+                    }
                 }
             }
 
@@ -246,6 +251,9 @@ public class FetchPhase {
 
         } finally {
             if (breakdown != null) {
+                if (innerHitsBreakdown != null) {
+                    fetchProfiler.pollLastElement();
+                }
                 fetchProfiler.pollLastElement();
             }
         }

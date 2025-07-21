@@ -170,8 +170,7 @@ public final class InnerHitsContext {
 
         @Override
         public Profilers getProfilers() {
-            // Disable profiling for fetch phases executed as part of inner hits
-            return null;
+            return context.getProfilers();
         }
     }
 
