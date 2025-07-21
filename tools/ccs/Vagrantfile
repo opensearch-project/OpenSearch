@@ -1,0 +1,72 @@
+version = "4.12.0"
+provider = "virtualbox"
+    
+system("
+    if [ #{ARGV[0]} = 'up' ]; then
+        echo 'Executing pre-start script.'
+        bash ./pre-start.sh #{version}
+    fi 
+")
+
+Vagrant.configure("2") do |config|
+    
+    config.vm.define "cluster_a" do |cluster_a|
+        cluster_a.vm.box = "generic/alma9"
+        cluster_a.vm.synced_folder ".", "/vagrant"
+        cluster_a.vm.network "private_network", ip: "192.168.56.11"
+        cluster_a.vm.hostname = "cluster-a"
+        cluster_a.vm.provider "#{provider}" do |vb|
+            vb.memory = "4096"
+            vb.cpus = "4"
+        end
+        cluster_a.vm.provision "shell", inline: <<-SHELL
+            systemctl stop firewalld
+            systemctl disable firewalld
+
+            cp /vagrant/node-start.sh /home/vagrant/
+            cp /vagrant/wazuh-certificates/root-ca* /home/vagrant
+            bash ./node-start.sh cluster_a #{version}
+        SHELL
+    end
+
+    config.vm.define "cluster_b" do |cluster_b|
+        cluster_b.vm.box = "generic/alma9"
+        cluster_b.vm.synced_folder ".", "/vagrant"
+        cluster_b.vm.network "private_network", ip: "192.168.56.12"
+        cluster_b.vm.hostname = "cluster-b"
+
+        cluster_b.vm.provider "#{provider}" do |vb|
+            vb.memory = "4096"
+            vb.cpus = "4"
+        end
+
+        cluster_b.vm.provision "shell", inline: <<-SHELL
+            systemctl stop firewalld
+            systemctl disable firewalld
+
+            cp /vagrant/node-start.sh /home/vagrant/
+            cp /vagrant/wazuh-certificates/root-ca* /home/vagrant
+            bash ./node-start.sh cluster_b #{version}
+        SHELL
+    end 
+
+    config.vm.define "ccs" do |ccs|
+        ccs.vm.box = "generic/alma9"
+        ccs.vm.synced_folder ".", "/vagrant"
+        ccs.vm.network "private_network", ip: "192.168.56.10"
+        ccs.vm.hostname = "ccs"
+        ccs.vm.provider "#{provider}" do |vb|
+            vb.memory = "4096"
+            vb.cpus = "4"
+        end
+
+        ccs.vm.provision "shell", inline: <<-SHELL
+            systemctl stop firewalld
+            systemctl disable firewalld
+
+            cp /vagrant/node-start.sh /home/vagrant/
+            cp -r /vagrant/wazuh-certificates /home/vagrant/
+            bash ./node-start.sh ccs #{version}
+        SHELL
+    end
+end
