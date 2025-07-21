@@ -682,6 +682,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             }
             if (replicaShard.shouldProcessMergedSegmentCheckpoint(receivedCheckpoint)) {
                 CountDownLatch latch = new CountDownLatch(1);
+                final ActiveMergesRegistry activeMergesRegistry = replicaShard.getRemoteDirectory().getActiveMergesRegistry();
                 startMergedSegmentReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
@@ -694,8 +695,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                                 state.getTimingData()
                             )
                         );
-                        ActiveMergesRegistry registry = replicaShard.getRemoteDirectory().getActiveMergesRegistry();
-                        receivedCheckpoint.getMetadataMap().forEach((key, value) -> registry.setStateProcessed(key));
+                        receivedCheckpoint.getMetadataMap().forEach((key, value) -> activeMergesRegistry.setStateProcessed(key));
                         latch.countDown();
                     }
 
@@ -710,8 +710,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                             if (sendShardFailure == true) {
                                 failShard(e, replicaShard);
                             }
-                            ActiveMergesRegistry registry = replicaShard.getRemoteDirectory().getActiveMergesRegistry();
-                            receivedCheckpoint.getMetadataMap().forEach((key, value) -> registry.setStateProcessed(key));
+                            receivedCheckpoint.getMetadataMap().forEach((key, value) -> activeMergesRegistry.unregister(key));
                         } finally {
                             latch.countDown();
                         }
