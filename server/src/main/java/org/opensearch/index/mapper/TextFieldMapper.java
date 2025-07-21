@@ -45,7 +45,6 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -78,6 +77,7 @@ import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -95,7 +95,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -473,6 +472,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         public TextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
+            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)) {
+                fieldType.setStored(true);
+            }
             return new TextFieldMapper(
                 name,
                 fieldType,
@@ -992,7 +994,6 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     protected final Version indexCreatedVersion;
     protected final IndexAnalyzers indexAnalyzers;
     private final FielddataFrequencyFilter freqFilter;
-    private KeywordFieldMapper keywordMapperForDerivedSource;
 
     protected TextFieldMapper(
         String simpleName,
@@ -1231,48 +1232,10 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void canDeriveSourceInternal() {
-        if (fieldType.stored()) {
-            return;
-        }
-        List<KeywordFieldMapper> applicableSubFieldsForDerivedSource = new ArrayList<>();
-        if (keywordMapperForDerivedSource == null) {
-            for (final Mapper mapper : this.multiFields()) {
-                if (mapper instanceof KeywordFieldMapper) {
-                    try {
-                        final KeywordFieldMapper subFieldMapper = (KeywordFieldMapper) mapper;
-                        subFieldMapper.canDeriveSourceInternal();
-                        applicableSubFieldsForDerivedSource.add(subFieldMapper);
-                    } catch (Exception ignored) {}
-                }
-            }
-        }
-        if (applicableSubFieldsForDerivedSource.isEmpty()) {
-            throw new UnsupportedOperationException(
-                "Unable to derive source for ["
-                    + name()
-                    + "] with stored field disabled and "
-                    + "keyword subfield is not there with derived source supported"
-            );
-        }
-        // To keep experience consistent across runs, we are picking first applicable sub keyword from lexicographically
-        // sorted sub keywords, so that order of sub keyword fields in mapping doesn't matter
-        applicableSubFieldsForDerivedSource.sort(Comparator.comparing((Mapper o) -> o.simpleName()));
-        this.keywordMapperForDerivedSource = applicableSubFieldsForDerivedSource.getFirst();
-        this.keywordMapperForDerivedSource.setDerivedFieldGenerator(
-            new DerivedFieldGenerator(
-                keywordMapperForDerivedSource.fieldType(),
-                new SortedSetDocValuesFetcher(keywordMapperForDerivedSource.fieldType(), simpleName()),
-                new StoredFieldFetcher(keywordMapperForDerivedSource.fieldType(), simpleName())
-            )
-        );
-    }
+    protected void canDeriveSourceInternal() {}
 
     /**
-     * 1. Iff stored field is enabled, derive source using that
-     * 2. If there is any subfield present of type keyword, for which source can be derived(doc_values/stored field
-     *    is present and other conditions are meeting for keyword field mapper, i.e. ignore_above or normalizer should
-     *    not be present in subfield mapping)
+     * Derive source using stored field, which would always be present for derived source enabled index field
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
@@ -1282,16 +1245,5 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 return FieldValueType.STORED;
             }
         };
-    }
-
-    @Override
-    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
-        if (fieldType.stored()) {
-            super.deriveSource(builder, leafReader, docId);
-        } else {
-            if (keywordMapperForDerivedSource != null) {
-                keywordMapperForDerivedSource.deriveSource(builder, leafReader, docId);
-            }
-        }
     }
 }
