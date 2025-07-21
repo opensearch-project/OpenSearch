@@ -473,7 +473,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.getDefault(Settings.EMPTY),
             SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.getDefault(Settings.EMPTY),
             EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY),
-            S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+            S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
         );
     }
 
