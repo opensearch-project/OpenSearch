@@ -22,8 +22,9 @@ import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
+import software.amazon.awssdk.http.crt.ProxyConfiguration;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
-import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
 import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -116,7 +117,8 @@ class S3AsyncService implements Closeable {
         RepositoryMetadata repositoryMetadata,
         AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
-        AsyncExecutorContainer normalExecutorBuilder
+        AsyncExecutorContainer normalExecutorBuilder,
+        String asyncHttpClientType
     ) {
         final S3ClientSettings clientSettings = settings(repositoryMetadata);
         {
@@ -132,7 +134,7 @@ class S3AsyncService implements Closeable {
             }
 
             final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
-                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder)
+                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder, asyncHttpClientType)
             );
             clientReference.incRef();
             clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();
@@ -180,7 +182,8 @@ class S3AsyncService implements Closeable {
         final S3ClientSettings clientSettings,
         AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
-        AsyncExecutorContainer normalExecutorBuilder
+        AsyncExecutorContainer normalExecutorBuilder,
+        String asyncHttpClientType
     ) {
         setDefaultAwsProfilePath();
         final S3AsyncClientBuilder builder = S3AsyncClient.builder();
@@ -209,7 +212,7 @@ class S3AsyncService implements Closeable {
             builder.forcePathStyle(true);
         }
 
-        builder.httpClient(buildHttpClient(clientSettings, urgentExecutorBuilder.getAsyncTransferEventLoopGroup()));
+        builder.httpClient(buildHttpClient(clientSettings, urgentExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
                 .advancedOption(
@@ -220,7 +223,7 @@ class S3AsyncService implements Closeable {
         );
         final S3AsyncClient urgentClient = SocketAccess.doPrivileged(builder::build);
 
-        builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getAsyncTransferEventLoopGroup()));
+        builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
                 .advancedOption(
@@ -231,7 +234,7 @@ class S3AsyncService implements Closeable {
         );
         final S3AsyncClient priorityClient = SocketAccess.doPrivileged(builder::build);
 
-        builder.httpClient(buildHttpClient(clientSettings, normalExecutorBuilder.getAsyncTransferEventLoopGroup()));
+        builder.httpClient(buildHttpClient(clientSettings, normalExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
                 .advancedOption(
@@ -243,6 +246,68 @@ class S3AsyncService implements Closeable {
         final S3AsyncClient client = SocketAccess.doPrivileged(builder::build);
 
         return AmazonAsyncS3WithCredentials.create(client, priorityClient, urgentClient, credentials);
+    }
+
+    static SdkAsyncHttpClient buildHttpClient(
+        S3ClientSettings clientSettings,
+        AsyncTransferEventLoopGroup asyncTransferEventLoopGroup,
+        final String asyncHttpClientType
+    ) {
+        if (S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE.equals(asyncHttpClientType)) {
+            return buildAsyncNettyHttpClient(clientSettings, asyncTransferEventLoopGroup);
+        }
+        return buildAsyncCrtHttpClient(clientSettings);
+    }
+
+    static SdkAsyncHttpClient buildAsyncNettyHttpClient(
+        final S3ClientSettings clientSettings,
+        final AsyncTransferEventLoopGroup asyncTransferEventLoopGroup
+    ) {
+        // the response metadata cache is only there for diagnostics purposes,
+        // but can force objects from every response to the old generation.
+        NettyNioAsyncHttpClient.Builder clientBuilder = NettyNioAsyncHttpClient.builder();
+
+        if (clientSettings.proxySettings.getType() != ProxySettings.ProxyType.DIRECT) {
+            software.amazon.awssdk.http.nio.netty.ProxyConfiguration.Builder proxyConfiguration =
+                software.amazon.awssdk.http.nio.netty.ProxyConfiguration.builder();
+            proxyConfiguration.scheme(clientSettings.proxySettings.getType().toProtocol().toString());
+            proxyConfiguration.host(clientSettings.proxySettings.getHostName());
+            proxyConfiguration.port(clientSettings.proxySettings.getPort());
+            proxyConfiguration.username(clientSettings.proxySettings.getUsername());
+            proxyConfiguration.password(clientSettings.proxySettings.getPassword());
+            clientBuilder.proxyConfiguration(proxyConfiguration.build());
+        }
+
+        // TODO: add max retry and UseThrottleRetry. Replace values with settings and put these in default settings
+        clientBuilder.connectionTimeout(Duration.ofMillis(clientSettings.connectionTimeoutMillis));
+        clientBuilder.connectionAcquisitionTimeout(Duration.ofMillis(clientSettings.connectionAcquisitionTimeoutMillis));
+        clientBuilder.maxPendingConnectionAcquires(10_000);
+        clientBuilder.maxConcurrency(clientSettings.maxConnections);
+        clientBuilder.eventLoopGroup(SdkEventLoopGroup.create(asyncTransferEventLoopGroup.getEventLoopGroup()));
+        clientBuilder.tcpKeepAlive(true);
+
+        return clientBuilder.build();
+    }
+
+    static SdkAsyncHttpClient buildAsyncCrtHttpClient(final S3ClientSettings clientSettings) {
+        AwsCrtAsyncHttpClient.Builder crtClientBuilder = AwsCrtAsyncHttpClient.builder();
+
+        if (clientSettings.proxySettings.getType() != ProxySettings.ProxyType.DIRECT) {
+            ProxyConfiguration.Builder crtProxyConfiguration = ProxyConfiguration.builder();
+
+            crtProxyConfiguration.scheme(clientSettings.proxySettings.getType().toProtocol().toString());
+            crtProxyConfiguration.host(clientSettings.proxySettings.getHostName());
+            crtProxyConfiguration.port(clientSettings.proxySettings.getPort());
+            crtProxyConfiguration.username(clientSettings.proxySettings.getUsername());
+            crtProxyConfiguration.password(clientSettings.proxySettings.getPassword());
+
+            crtClientBuilder.proxyConfiguration(crtProxyConfiguration.build());
+        }
+
+        crtClientBuilder.connectionTimeout(Duration.ofMillis(clientSettings.connectionTimeoutMillis));
+        crtClientBuilder.maxConcurrency(clientSettings.maxConnections);
+
+        return crtClientBuilder.build();
     }
 
     static ClientOverrideConfiguration buildOverrideConfiguration(
@@ -263,33 +328,6 @@ class S3AsyncService implements Closeable {
         }
 
         return builder.retryPolicy(retryPolicy).apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis)).build();
-    }
-
-    // pkg private for tests
-    static SdkAsyncHttpClient buildHttpClient(S3ClientSettings clientSettings, AsyncTransferEventLoopGroup asyncTransferEventLoopGroup) {
-        // the response metadata cache is only there for diagnostics purposes,
-        // but can force objects from every response to the old generation.
-        NettyNioAsyncHttpClient.Builder clientBuilder = NettyNioAsyncHttpClient.builder();
-
-        if (clientSettings.proxySettings.getType() != ProxySettings.ProxyType.DIRECT) {
-            ProxyConfiguration.Builder proxyConfiguration = ProxyConfiguration.builder();
-            proxyConfiguration.scheme(clientSettings.proxySettings.getType().toProtocol().toString());
-            proxyConfiguration.host(clientSettings.proxySettings.getHostName());
-            proxyConfiguration.port(clientSettings.proxySettings.getPort());
-            proxyConfiguration.username(clientSettings.proxySettings.getUsername());
-            proxyConfiguration.password(clientSettings.proxySettings.getPassword());
-            clientBuilder.proxyConfiguration(proxyConfiguration.build());
-        }
-
-        // TODO: add max retry and UseThrottleRetry. Replace values with settings and put these in default settings
-        clientBuilder.connectionTimeout(Duration.ofMillis(clientSettings.connectionTimeoutMillis));
-        clientBuilder.connectionAcquisitionTimeout(Duration.ofMillis(clientSettings.connectionAcquisitionTimeoutMillis));
-        clientBuilder.maxPendingConnectionAcquires(10_000);
-        clientBuilder.maxConcurrency(clientSettings.maxConnections);
-        clientBuilder.eventLoopGroup(SdkEventLoopGroup.create(asyncTransferEventLoopGroup.getEventLoopGroup()));
-        clientBuilder.tcpKeepAlive(true);
-
-        return clientBuilder.build();
     }
 
     // pkg private for tests
