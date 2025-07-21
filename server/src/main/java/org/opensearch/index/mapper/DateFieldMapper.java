@@ -44,6 +44,7 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -294,7 +295,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
             .acceptsNull();
-        private final Parameter<Boolean> ignoreMalformed;
+        private final Parameter<Explicit<Boolean>> ignoreMalformed;
 
         private final Resolution resolution;
         private final Version indexCreatedVersion;
@@ -309,7 +310,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             super(name);
             this.resolution = resolution;
             this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.ignoreMalformed = Parameter.explicitBoolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                ignoreMalformedByDefault
+            );
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
                 this.printFormat.setValue(dateFormatter.printPattern());
@@ -721,7 +727,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final Locale locale;
     private final String format;
     private final String printFormat;
-    private final boolean ignoreMalformed;
+    private final Explicit<Boolean> ignoreMalformed;
     private final Long nullValue;
     private final String nullValueAsString;
     private final Resolution resolution;
@@ -749,7 +755,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;
         this.resolution = resolution;
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
+        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
@@ -797,7 +803,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             try {
                 timestamp = fieldType().parse(dateAsString);
             } catch (IllegalArgumentException | OpenSearchParseException | DateTimeException | ArithmeticException e) {
-                if (ignoreMalformed) {
+                if (ignoreMalformed().value()) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;
                 } else {
@@ -819,11 +825,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public boolean getIgnoreMalformed() {
-        return ignoreMalformed;
-    }
-
     public Long getNullValue() {
         return nullValue;
+    }
+
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
+        return ignoreMalformed;
     }
 }

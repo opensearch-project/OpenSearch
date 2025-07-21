@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm.rule.sync;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
 import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
@@ -246,5 +247,18 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
         verify(ruleProcessingService, times(deletionEventCount + updateEventCount)).remove(any(Rule.class));
         // Here 1 is due to add in the second run and 10 for adding 10 rules as part of first run
         verify(ruleProcessingService, times(updateEventCount + 1 + 10)).add(any(Rule.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDoRunIgnoresIndexNotFoundException() {
+        doAnswer(invocation -> {
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            listener.onFailure(new IndexNotFoundException("rules index not found"));
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        sut.doRun();
+        verify(rulePersistenceService, times(1)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        verify(ruleProcessingService, times(0)).add(any(Rule.class));
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
     }
 }
