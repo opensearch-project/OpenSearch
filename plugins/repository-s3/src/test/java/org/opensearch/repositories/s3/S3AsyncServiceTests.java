@@ -8,6 +8,10 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+
 import org.opensearch.cli.SuppressForbidden;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.MockSecureSettings;
@@ -19,6 +23,12 @@ import org.junit.Before;
 
 import java.util.Map;
 import java.util.concurrent.Executors;
+
+import io.netty.channel.nio.NioEventLoopGroup;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPathSupport {
 
@@ -44,12 +54,24 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         final S3ClientSettings otherClientSettings = s3AsyncService.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
         final AmazonAsyncS3Reference reference = SocketAccess.doPrivileged(
-            () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
+            () -> s3AsyncService.client(
+                metadata1,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+            )
         );
         reference.close();
         s3AsyncService.close();
         final AmazonAsyncS3Reference referenceReloaded = SocketAccess.doPrivileged(
-            () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
+            () -> s3AsyncService.client(
+                metadata1,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+            )
         );
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
@@ -79,17 +101,66 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         final S3ClientSettings otherClientSettings = s3AsyncService.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
         final AmazonAsyncS3Reference reference = SocketAccess.doPrivileged(
-            () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
+            () -> s3AsyncService.client(
+                metadata1,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+            )
         );
         reference.close();
         s3AsyncService.close();
         final AmazonAsyncS3Reference referenceReloaded = SocketAccess.doPrivileged(
-            () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
+            () -> s3AsyncService.client(
+                metadata1,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+            )
         );
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
         s3AsyncService.close();
         final S3ClientSettings clientSettingsReloaded = s3AsyncService.settings(metadata1);
         assertNotSame(clientSettings, clientSettingsReloaded);
+    }
+
+    public void testBuildHttpClientWithNetty() {
+        final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
+        final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "us-east-2").build();
+        final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
+        final S3ClientSettings clientSettings = s3AsyncService.settings(metadata1);
+
+        AsyncTransferEventLoopGroup eventLoopGroup = mock(AsyncTransferEventLoopGroup.class);
+        when(eventLoopGroup.getEventLoopGroup()).thenReturn(mock(NioEventLoopGroup.class));
+
+        SdkAsyncHttpClient asyncClient = S3AsyncService.buildHttpClient(
+            clientSettings,
+            eventLoopGroup,
+            S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
+        );
+        assertNotNull(asyncClient);
+        assertTrue(asyncClient instanceof NettyNioAsyncHttpClient);
+        verify(eventLoopGroup).getEventLoopGroup();
+    }
+
+    public void testBuildHttpClientWithCRT() {
+        final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
+        final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "us-east-2").build();
+        final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
+        final S3ClientSettings clientSettings = s3AsyncService.settings(metadata1);
+
+        AsyncTransferEventLoopGroup eventLoopGroup = mock(AsyncTransferEventLoopGroup.class);
+        when(eventLoopGroup.getEventLoopGroup()).thenReturn(mock(NioEventLoopGroup.class));
+
+        SdkAsyncHttpClient asyncClient = S3AsyncService.buildHttpClient(
+            clientSettings,
+            eventLoopGroup,
+            S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+        );
+        assertNotNull(asyncClient);
+        assertTrue(asyncClient instanceof AwsCrtAsyncHttpClient);
     }
 }
