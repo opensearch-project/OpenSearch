@@ -59,7 +59,7 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
                 asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer,
-                S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
             )
         );
         reference.close();
@@ -70,7 +70,7 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
                 asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer,
-                S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
             )
         );
         assertNotSame(referenceReloaded, reference);
@@ -106,7 +106,7 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
                 asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer,
-                S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
             )
         );
         reference.close();
@@ -117,7 +117,7 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
                 asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer,
-                S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE
+                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
             )
         );
         assertNotSame(referenceReloaded, reference);
