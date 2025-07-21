@@ -96,6 +96,10 @@ public final class RemoteVersion implements Comparable<RemoteVersion> {
             return 1;
         }
 
+        if (this.isOpenSearch != other.isOpenSearch) {
+            return this.isOpenSearch ? 1 : -1;
+        }
+
         int result = Integer.compare(this.major, other.major);
         if (result != 0) {
             return result;

@@ -36,9 +36,11 @@ public class RemoteVersionTests extends OpenSearchTestCase {
         // Test compareTo()
         assertTrue(RemoteVersion.ELASTICSEARCH_1_0_0.compareTo(RemoteVersion.ELASTICSEARCH_2_0_0) < 0);
         assertTrue(RemoteVersion.ELASTICSEARCH_2_0_0.compareTo(RemoteVersion.ELASTICSEARCH_1_0_0) > 0);
+        assertTrue(RemoteVersion.ELASTICSEARCH_2_0_0.compareTo(RemoteVersion.ELASTICSEARCH_2_0_0) == 0);
 
         // Test OpenSearch vs Elasticsearch versions with same numbers
-        assertEquals(0, RemoteVersion.ELASTICSEARCH_2_0_0.compareTo(RemoteVersion.OPENSEARCH_2_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_2_0_0.compareTo(RemoteVersion.OPENSEARCH_2_0_0) < 0);
+        assertTrue(RemoteVersion.OPENSEARCH_2_0_0.compareTo(RemoteVersion.ELASTICSEARCH_2_0_0) > 0);
     }
 
     public void testVersionFromString() {
