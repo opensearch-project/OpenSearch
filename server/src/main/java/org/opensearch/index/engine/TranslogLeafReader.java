@@ -160,11 +160,7 @@ public final class TranslogLeafReader extends LeafReader {
 
     private LeafReader getInMemoryIndexReader() throws IOException {
         if (inMemoryIndexReader == null) {
-            synchronized (this) {
-                if (inMemoryIndexReader == null) {
-                    inMemoryIndexReader = createInMemoryIndexReader(operation, engineConfig);
-                }
-            }
+            inMemoryIndexReader = createInMemoryIndexReader(operation, engineConfig);
         }
         return inMemoryIndexReader;
     }
