@@ -31,6 +31,8 @@
 
 package org.opensearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.opensearch.common.SuppressForbidden;
@@ -53,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
