@@ -490,8 +490,8 @@ setup:
   - length: { profile.shards.0.fetch: 2 }
 
   # Check the top-hits fetch profile
-  - match: { profile.shards.0.fetch.0.type: "fetch_top_hits" }
-  - match: { profile.shards.0.fetch.0.description: "fetch_top_hits" }
+  - match: { profile.shards.0.fetch.0.type: "fetch_top_hits_aggregation" }
+  - match: { profile.shards.0.fetch.0.description: "fetch_top_hits_aggregation" }
   - length: { profile.shards.0.fetch.0.children: 1 }
   - match: { profile.shards.0.fetch.0.children.0.type: "FetchSourcePhase" }
 

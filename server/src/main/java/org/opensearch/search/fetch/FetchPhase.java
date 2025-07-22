@@ -122,140 +122,138 @@ public class FetchPhase {
             }
         }
 
-        try {
-            if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace("{}", new SearchContextSourcePrinter(context));
-            }
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(context));
+        }
 
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+        }
+
+        if (context.docIdsToLoadSize() == 0) {
+            // no individual hits to process, so we shortcut
+            context.fetchResult()
+                .hits(new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));
+            return;
+        }
+
+        DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
+        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+            docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
+        }
+        Arrays.sort(docs);
+
+        Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
+        FieldsVisitor fieldsVisitor = profile(
+            breakdown,
+            FetchTimingType.CREATE_STORED_FIELDS_VISITOR,
+            () -> createStoredFieldsVisitor(context, storedToRequestedFields)
+        );
+
+        FetchContext fetchContext = new FetchContext(context);
+
+        SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
+
+        List<Tuple<FetchSubPhaseProcessor, FetchSubPhase>> processors = profile(
+            breakdown,
+            FetchTimingType.BUILD_SUB_PHASE_PROCESSORS,
+            () -> getProcessors(context.shardTarget(), fetchContext)
+        );
+
+        Map<FetchSubPhaseProcessor, FetchProfileBreakdown> processorProfiles = new HashMap<>();
+        if (breakdown != null) {
+            for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
+                FetchProfileBreakdown pb = context.getProfilers().getFetchProfiler().getQueryBreakdown(p.v2().getClass().getSimpleName());
+                processorProfiles.put(p.v1(), pb);
+                if (p.v2() instanceof InnerHitsPhase) {
+                    innerHitsBreakdown = pb;
+                } else {
+                    fetchProfiler.pollLastElement();
+                }
+            }
+        }
+
+        int currentReaderIndex = -1;
+        LeafReaderContext currentReaderContext = null;
+        CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader = null;
+        boolean hasSequentialDocs = hasSequentialDocs(docs);
+        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {
                 throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
             }
-
-            if (context.docIdsToLoadSize() == 0) {
-                // no individual hits to process, so we shortcut
-                context.fetchResult()
-                    .hits(new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));
-                return;
-            }
-
-            DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
-            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-                docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
-            }
-            Arrays.sort(docs);
-
-            Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-            FieldsVisitor fieldsVisitor = profile(
-                breakdown,
-                FetchTimingType.CREATE_STORED_FIELDS_VISITOR,
-                () -> createStoredFieldsVisitor(context, storedToRequestedFields)
-            );
-
-            FetchContext fetchContext = new FetchContext(context);
-
-            SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
-
-            List<Tuple<FetchSubPhaseProcessor, FetchSubPhase>> processors = profile(
-                breakdown,
-                FetchTimingType.BUILD_SUB_PHASE_PROCESSORS,
-                () -> getProcessors(context.shardTarget(), fetchContext)
-            );
-
-            Map<FetchSubPhaseProcessor, FetchProfileBreakdown> processorProfiles = new HashMap<>();
-            if (breakdown != null) {
-                for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
-                    FetchProfileBreakdown pb = context.getProfilers()
-                        .getFetchProfiler()
-                        .getQueryBreakdown(p.v2().getClass().getSimpleName());
-                    processorProfiles.put(p.v1(), pb);
-                    if (p.v2() instanceof InnerHitsPhase) {
-                        innerHitsBreakdown = pb;
-                    } else {
-                        fetchProfiler.pollLastElement();
-                    }
-                }
-            }
-
-            int currentReaderIndex = -1;
-            LeafReaderContext currentReaderContext = null;
-            CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader = null;
-            boolean hasSequentialDocs = hasSequentialDocs(docs);
-            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-                if (context.isCancelled()) {
-                    throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
-                }
-                int docId = docs[index].docId;
-                try {
-                    int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
-                    if (currentReaderIndex != readerIndex) {
-                        currentReaderContext = profile(
-                            breakdown,
-                            FetchTimingType.NEXT_READER,
-                            () -> context.searcher().getIndexReader().leaves().get(readerIndex)
-                        );
-                        currentReaderIndex = readerIndex;
-                        if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader
-                            && hasSequentialDocs
-                            && docs.length >= 10) {
-                            // All the docs to fetch are adjacent but Lucene stored fields are optimized
-                            // for random access and don't optimize for sequential access - except for merging.
-                            // So we do a little hack here and pretend we're going to do merges in order to
-                            // get better sequential access.
-                            SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) currentReaderContext.reader();
-                            fieldReader = lf.getSequentialStoredFieldsReader()::document;
-                        } else {
-                            fieldReader = currentReaderContext.reader().storedFields()::document;
-                        }
-                        for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
-                            FetchProfileBreakdown pbd = processorProfiles.get(p.v1());
-                            LeafReaderContext readerCtx = currentReaderContext;
-                            profile(pbd, FetchTimingType.NEXT_READER, () -> {
-                                p.v1().setNextReader(readerCtx);
-                                return null;
-                            });
-                        }
-                    }
-                    assert currentReaderContext != null;
-                    HitContext hit = prepareHitContext(
-                        context,
-                        fetchContext.searchLookup(),
-                        fieldsVisitor,
-                        docId,
-                        storedToRequestedFields,
-                        currentReaderContext,
-                        fieldReader,
-                        breakdown
+            int docId = docs[index].docId;
+            try {
+                int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
+                if (currentReaderIndex != readerIndex) {
+                    currentReaderContext = profile(
+                        breakdown,
+                        FetchTimingType.NEXT_READER,
+                        () -> context.searcher().getIndexReader().leaves().get(readerIndex)
                     );
-
+                    currentReaderIndex = readerIndex;
+                    if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader
+                        && hasSequentialDocs
+                        && docs.length >= 10) {
+                        // All the docs to fetch are adjacent but Lucene stored fields are optimized
+                        // for random access and don't optimize for sequential access - except for merging.
+                        // So we do a little hack here and pretend we're going to do merges in order to
+                        // get better sequential access.
+                        SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) currentReaderContext.reader();
+                        fieldReader = lf.getSequentialStoredFieldsReader()::document;
+                    } else {
+                        fieldReader = currentReaderContext.reader().storedFields()::document;
+                    }
                     for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
                         FetchProfileBreakdown pbd = processorProfiles.get(p.v1());
-                        profile(pbd, FetchTimingType.PROCESS, () -> {
-                            p.v1().process(hit);
+                        LeafReaderContext readerCtx = currentReaderContext;
+                        profile(pbd, FetchTimingType.NEXT_READER, () -> {
+                            p.v1().setNextReader(readerCtx);
                             return null;
                         });
                     }
-                    hits[docs[index].index] = hit.hit();
-                } catch (Exception e) {
-                    throw new FetchPhaseExecutionException(context.shardTarget(), "Error running fetch phase for doc [" + docId + "]", e);
                 }
-            }
-            if (context.isCancelled()) {
-                throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
-            }
+                assert currentReaderContext != null;
+                HitContext hit = prepareHitContext(
+                    context,
+                    fetchContext.searchLookup(),
+                    fieldsVisitor,
+                    docId,
+                    storedToRequestedFields,
+                    currentReaderContext,
+                    fieldReader,
+                    breakdown
+                );
 
-            TotalHits totalHits = context.queryResult().getTotalHits();
-            profile(breakdown, FetchTimingType.BUILD_SEARCH_HITS, () -> {
-                context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
-                return null;
-            });
-
-        } finally {
-            if (breakdown != null) {
-                if (innerHitsBreakdown != null) {
-                    fetchProfiler.pollLastElement();
+                for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
+                    FetchProfileBreakdown pbd = processorProfiles.get(p.v1());
+                    profile(pbd, FetchTimingType.PROCESS, () -> {
+                        p.v1().process(hit);
+                        return null;
+                    });
                 }
+                hits[docs[index].index] = hit.hit();
+            } catch (Exception e) {
+                throw new FetchPhaseExecutionException(context.shardTarget(), "Error running fetch phase for doc [" + docId + "]", e);
+            }
+        }
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+        }
+
+        TotalHits totalHits = context.queryResult().getTotalHits();
+        profile(breakdown, FetchTimingType.BUILD_SEARCH_HITS, () -> {
+            context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
+            return null;
+        });
+
+        if (breakdown != null) {
+            if (innerHitsBreakdown != null) {
+                // InnerHitsPhase remains on the stack so nested fetch phases
+                // are recorded as its child. Pop it here once all inner hits
+                // processing is complete.
                 fetchProfiler.pollLastElement();
             }
+            fetchProfiler.pollLastElement();
         }
     }
 
