@@ -138,6 +138,12 @@ class FlightMetrics implements Writeable, ToXContentFragment {
         }
     }
 
+    long getStatusCount(boolean isClient, String status) {
+        ConcurrentHashMap<String, LongAdder> statusMap = isClient ? clientCallCompletedByStatus : serverCallCompletedByStatus;
+        LongAdder adder = statusMap.get(status);
+        return adder != null ? adder.sum() : 0;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // Client call metrics

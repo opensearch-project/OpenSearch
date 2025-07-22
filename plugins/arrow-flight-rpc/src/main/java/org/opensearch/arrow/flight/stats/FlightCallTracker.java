@@ -8,6 +8,8 @@
 
 package org.opensearch.arrow.flight.stats;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Tracks metrics for a single Flight call.
  * This class is used to collect per-call metrics that are then
@@ -17,6 +19,7 @@ public class FlightCallTracker {
     private final FlightMetrics metrics;
     private final boolean isClient;
     private final long startTimeNanos;
+    private final AtomicBoolean callEnded = new AtomicBoolean(false);
 
     /**
      * Creates a new client call tracker.
@@ -52,7 +55,7 @@ public class FlightCallTracker {
      * @param bytes The number of bytes in the request
      */
     public void recordRequestBytes(long bytes) {
-        if (bytes <= 0) return;
+        if (callEnded.get() || bytes <= 0) return;
 
         if (isClient) {
             metrics.recordClientRequestBytes(bytes);
@@ -66,6 +69,8 @@ public class FlightCallTracker {
      * Only called by client.
      */
     public void recordBatchRequested() {
+        if (callEnded.get()) return;
+
         if (isClient) {
             metrics.recordClientBatchRequested();
         }
@@ -79,6 +84,8 @@ public class FlightCallTracker {
      * @param processingTimeNanos The processing time in nanoseconds
      */
     public void recordBatchSent(long bytes, long processingTimeNanos) {
+        if (callEnded.get()) return;
+
         if (!isClient) {
             metrics.recordServerBatchSent(bytes, processingTimeNanos);
         }
@@ -92,6 +99,8 @@ public class FlightCallTracker {
      * @param processingTimeNanos The processing time in nanoseconds
      */
     public void recordBatchReceived(long bytes, long processingTimeNanos) {
+        if (callEnded.get()) return;
+
         if (isClient) {
             metrics.recordClientBatchReceived(bytes, processingTimeNanos);
         }
@@ -103,12 +112,14 @@ public class FlightCallTracker {
      * @param status The status code of the completed call
      */
     public void recordCallEnd(String status) {
-        long durationNanos = System.nanoTime() - startTimeNanos;
+        if (callEnded.compareAndSet(false, true)) {
+            long durationNanos = System.nanoTime() - startTimeNanos;
 
-        if (isClient) {
-            metrics.recordClientCallCompleted(status, durationNanos);
-        } else {
-            metrics.recordServerCallCompleted(status, durationNanos);
+            if (isClient) {
+                metrics.recordClientCallCompleted(status, durationNanos);
+            } else {
+                metrics.recordServerCallCompleted(status, durationNanos);
+            }
         }
     }
 }
