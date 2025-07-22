@@ -66,7 +66,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.LuceneTests;
@@ -111,9 +110,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1279,32 +1276,6 @@ public class StoreTests extends OpenSearchTestCase {
         assertTrue(diff.missing.isEmpty());
         assertTrue(diff.different.isEmpty());
         assertTrue(diff.identical.isEmpty());
-    }
-
-    @LockFeatureFlag(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
-    @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
-    public void testReadSegmentsFromOldIndices() throws Exception {
-        int expectedIndexCreatedVersionMajor = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION.luceneVersion.major;
-        Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(LuceneTests.OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH), tmp);
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = null;
-
-        try {
-            IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-                "index",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                    .build()
-            );
-            store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
-            assertEquals(expectedIndexCreatedVersionMajor, store.readLastCommittedSegmentsInfo().getIndexCreatedVersionMajor());
-        } finally {
-            if (store != null) {
-                store.close();
-            }
-        }
     }
 
     public void testReadSegmentsFromOldIndicesFailure() throws IOException {

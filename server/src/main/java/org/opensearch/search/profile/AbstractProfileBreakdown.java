@@ -32,6 +32,8 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -46,8 +48,9 @@ import static java.util.Collections.emptyMap;
  * A node's time may be composed of several internal attributes (rewriting, weighting,
  * scoring, etc).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "3.2.0")
 public abstract class AbstractProfileBreakdown {
 
     protected final Map<String, ProfileMetric> metrics;
