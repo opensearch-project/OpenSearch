@@ -96,9 +96,6 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
         assertFetchPhase(resp, "FetchSourcePhase", 1);
     }
 
-    /**
-     * This test verifies that the fetch profiler returns reasonable results for a match_all query with explain enabled
-     */
     public void testExplainProfile() throws Exception {
         createIndex("test");
 

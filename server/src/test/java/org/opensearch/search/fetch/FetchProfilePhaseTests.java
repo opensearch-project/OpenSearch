@@ -411,7 +411,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
-    // Simple highlighter used for profiling tests
+    // Simple highlighter
     private static class StubHighlighter implements Highlighter {
         @Override
         public HighlightField highlight(FieldHighlightContext fieldContext) {
@@ -424,7 +424,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
         }
     }
 
-    // Minimal inner hit sub context used for profiling tests
+    // Minimal inner hit sub context
     private static class DummyInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
         DummyInnerHitSubContext(String name, SearchContext context) {
             super(name, context);
@@ -838,6 +838,25 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                     .assertTimingPresent(FetchTimingType.NEXT_READER);
 
                 new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+
+                ProfileResult innerHitsPhase = children.get("InnerHitsPhase");
+                ProfileResult fetchInnerHitsBreakdown = innerHitsPhase.getProfiledChildren().getFirst();
+                assertEquals("fetch_inner_hits", fetchInnerHitsBreakdown.getQueryName());
+                assertEquals(1, innerHitsPhase.getProfiledChildren().size());
+
+
+                new TimingAssertions(fetchInnerHitsBreakdown.getTimeBreakdown()).assertTimingPresent(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
+                    .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
+                    .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
+                    .assertTimingPresent(FetchTimingType.BUILD_SEARCH_HITS)
+                    .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
+                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+
+
+                assertEquals("FetchSourcePhase", fetchInnerHitsBreakdown.getProfiledChildren().getFirst().getQueryName());
+                assertEquals(1, fetchInnerHitsBreakdown.getProfiledChildren().size());
+                new TimingAssertions(fetchInnerHitsBreakdown.getProfiledChildren().getFirst().getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
                     .assertTimingPresent(FetchTimingType.NEXT_READER);
             }
         }
