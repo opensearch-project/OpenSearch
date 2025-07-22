@@ -43,7 +43,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         IndexRoutingTable indexRouting,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
-        // noop
+        latchedActionListener.onResponse(null);
     }
 
     @Override
@@ -54,7 +54,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         StringKeyDiffProvider<IndexRoutingTable> routingTableDiff,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
-        // noop
+        latchedActionListener.onResponse(null);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
     ) {
-        // noop
+        latchedActionListener.onResponse(null);
     }
 
     @Override
@@ -82,7 +82,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         String uploadedFilename,
         LatchedActionListener<Diff<RoutingTable>> latchedActionListener
     ) {
-        // noop
+        latchedActionListener.onResponse(null);
     }
 
     @Override
