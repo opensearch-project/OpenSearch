@@ -787,7 +787,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
         CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fieldType("completion");
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> completionFieldType.getContextMappings().get("brand"));
