@@ -37,10 +37,8 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 
 public class LeafSorterOptimizationTests extends EngineTestCase {
@@ -102,7 +100,16 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                 .globalCheckpointSupplier(globalCheckpoint::get)
                 .leafSorter(java.util.Comparator.<org.apache.lucene.index.LeafReader>comparingInt(reader -> reader.maxDoc()))
                 .build();
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(readOnlyConfig, null, null, true, java.util.function.Function.identity(), true)) {
+            try (
+                ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
+                    readOnlyConfig,
+                    null,
+                    null,
+                    true,
+                    java.util.function.Function.identity(),
+                    true
+                )
+            ) {
                 try (Engine.Searcher searcher = readOnlyEngine.acquireSearcher("test")) {
                     DirectoryReader reader = (DirectoryReader) searcher.getDirectoryReader();
                     // Assert that there are multiple leaves (segments)
