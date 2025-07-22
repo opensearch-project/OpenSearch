@@ -8,8 +8,11 @@
 
 package org.opensearch.transport.stream;
 
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportException;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -21,6 +24,11 @@ import java.util.Objects;
 public class StreamException extends TransportException {
 
     private final StreamErrorCode errorCode;
+
+    public StreamException(StreamInput streamInput) throws IOException {
+        super(streamInput);
+        this.errorCode = StreamErrorCode.fromCode(streamInput.read());
+    }
 
     /**
      * Creates a new StreamException with the given error code and message.
@@ -131,5 +139,11 @@ public class StreamException extends TransportException {
      */
     public static StreamException unauthenticated(String message) {
         return new StreamException(StreamErrorCode.UNAUTHENTICATED, message);
+    }
+
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.write(errorCode.code());
     }
 }
