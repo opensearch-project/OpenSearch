@@ -13,12 +13,13 @@ import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.channel.EventLoopGroup;
 
 /**
- * Collects Flight transport statistics from various components
+ * Collects Flight transport statistics from various components.
+ * This is the main entry point for metrics collection in the Arrow Flight transport.
  */
 public class FlightStatsCollector extends AbstractLifecycleComponent {
 
@@ -26,126 +27,115 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
     private volatile ThreadPool threadPool;
     private volatile EventLoopGroup bossEventLoopGroup;
     private volatile EventLoopGroup workerEventLoopGroup;
+    private final AtomicInteger serverChannelsActive = new AtomicInteger(0);
+    private final AtomicInteger clientChannelsActive = new AtomicInteger(0);
+    private final FlightMetrics metrics = new FlightMetrics();
 
-    // Server-side metrics (receiving requests, sending responses)
-    private final AtomicLong serverRequestsReceived = new AtomicLong();
-    private final AtomicLong serverRequestsCurrent = new AtomicLong();
-    private final AtomicLong serverRequestTimeMillis = new AtomicLong();
-    private final AtomicLong serverRequestTimeMin = new AtomicLong(Long.MAX_VALUE);
-    private final AtomicLong serverRequestTimeMax = new AtomicLong();
-    private final AtomicLong serverBatchesSent = new AtomicLong();
-    private final AtomicLong serverBatchTimeMillis = new AtomicLong();
-    private final AtomicLong serverBatchTimeMin = new AtomicLong(Long.MAX_VALUE);
-    private final AtomicLong serverBatchTimeMax = new AtomicLong();
-
-    // Client-side metrics (sending requests, receiving responses)
-    private final AtomicLong clientRequestsSent = new AtomicLong();
-    private final AtomicLong clientRequestsCurrent = new AtomicLong();
-    private final AtomicLong clientBatchesReceived = new AtomicLong();
-    private final AtomicLong clientResponsesReceived = new AtomicLong();
-    private final AtomicLong clientBatchTimeMillis = new AtomicLong();
-    private final AtomicLong clientBatchTimeMin = new AtomicLong(Long.MAX_VALUE);
-    private final AtomicLong clientBatchTimeMax = new AtomicLong();
-
-    // Shared metrics
-    private final AtomicLong bytesSent = new AtomicLong();
-    private final AtomicLong bytesReceived = new AtomicLong();
-    private final AtomicLong clientApplicationErrors = new AtomicLong();
-    private final AtomicLong clientTransportErrors = new AtomicLong();
-    private final AtomicLong serverApplicationErrors = new AtomicLong();
-    private final AtomicLong serverTransportErrors = new AtomicLong();
-    private final AtomicLong clientStreamsCompleted = new AtomicLong();
-    private final AtomicLong serverStreamsCompleted = new AtomicLong();
-    private final long startTimeMillis = System.currentTimeMillis();
-
-    private final AtomicLong channelsActive = new AtomicLong();
-
-    /** Creates a new Flight stats collector */
+    /**
+     * Creates a new Flight stats collector
+     */
     public FlightStatsCollector() {}
 
-    /** Sets the Arrow buffer allocator for memory stats
-     * @param bufferAllocator the buffer allocator */
+    /**
+     * Sets the Arrow buffer allocator for memory stats
+     *
+     * @param bufferAllocator the buffer allocator
+     */
     public void setBufferAllocator(BufferAllocator bufferAllocator) {
         this.bufferAllocator = bufferAllocator;
     }
 
-    /** Sets the thread pool for thread stats
-     * @param threadPool the thread pool */
+    /**
+     * Sets the thread pool for thread stats
+     *
+     * @param threadPool the thread pool
+     */
     public void setThreadPool(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 
-    /** Sets the Netty event loop groups for thread counting
+    /**
+     * Sets the Netty event loop groups for thread counting
+     *
      * @param bossEventLoopGroup the boss event loop group
-     * @param workerEventLoopGroup the worker event loop group */
+     * @param workerEventLoopGroup the worker event loop group
+     */
     public void setEventLoopGroups(EventLoopGroup bossEventLoopGroup, EventLoopGroup workerEventLoopGroup) {
         this.bossEventLoopGroup = bossEventLoopGroup;
         this.workerEventLoopGroup = workerEventLoopGroup;
     }
 
-    /** Collects current Flight transport statistics */
-    public FlightTransportStats collectStats() {
-        long totalServerRequests = serverRequestsReceived.get();
-        long totalServerBatches = serverBatchesSent.get();
-        long totalClientBatches = clientBatchesReceived.get();
-        long totalClientResponses = clientResponsesReceived.get();
-
-        PerformanceStats performance = new PerformanceStats(
-            totalServerRequests,
-            serverRequestsCurrent.get(),
-            serverRequestTimeMillis.get(),
-            totalServerRequests > 0 ? serverRequestTimeMillis.get() / totalServerRequests : 0,
-            serverRequestTimeMin.get() == Long.MAX_VALUE ? 0 : serverRequestTimeMin.get(),
-            serverRequestTimeMax.get(),
-            serverBatchTimeMillis.get(),
-            totalServerBatches > 0 ? serverBatchTimeMillis.get() / totalServerBatches : 0,
-            serverBatchTimeMin.get() == Long.MAX_VALUE ? 0 : serverBatchTimeMin.get(),
-            serverBatchTimeMax.get(),
-            clientBatchTimeMillis.get(),
-            totalClientBatches > 0 ? clientBatchTimeMillis.get() / totalClientBatches : 0,
-            clientBatchTimeMin.get() == Long.MAX_VALUE ? 0 : clientBatchTimeMin.get(),
-            clientBatchTimeMax.get(),
-            totalClientBatches,
-            totalClientResponses,
-            totalServerBatches,
-            bytesSent.get(),
-            bytesReceived.get()
-        );
-
-        ResourceUtilizationStats resourceUtilization = collectResourceStats();
-
-        ReliabilityStats reliability = new ReliabilityStats(
-            clientApplicationErrors.get(),
-            clientTransportErrors.get(),
-            serverApplicationErrors.get(),
-            serverTransportErrors.get(),
-            clientStreamsCompleted.get(),
-            serverStreamsCompleted.get(),
-            System.currentTimeMillis() - startTimeMillis
-        );
-
-        return new FlightTransportStats(performance, resourceUtilization, reliability);
+    /**
+     * Creates a new client call tracker for tracking metrics of a client call.
+     *
+     * @return A new client call tracker
+     */
+    public FlightCallTracker createClientCallTracker() {
+        return FlightCallTracker.createClientTracker(metrics);
     }
 
-    private ResourceUtilizationStats collectResourceStats() {
+    /**
+     * Creates a new server call tracker for tracking metrics of a server call.
+     *
+     * @return A new server call tracker
+     */
+    public FlightCallTracker createServerCallTracker() {
+        return FlightCallTracker.createServerTracker(metrics);
+    }
+
+    /**
+     * Increments the count of active server channels.
+     */
+    public void incrementServerChannelsActive() {
+        serverChannelsActive.incrementAndGet();
+    }
+
+    /**
+     * Decrements the count of active server channels.
+     */
+    public void decrementServerChannelsActive() {
+        serverChannelsActive.decrementAndGet();
+    }
+
+    /**
+     * Increments the count of active client channels.
+     */
+    public void incrementClientChannelsActive() {
+        clientChannelsActive.incrementAndGet();
+    }
+
+    /**
+     * Decrements the count of active client channels.
+     */
+    public void decrementClientChannelsActive() {
+        clientChannelsActive.decrementAndGet();
+    }
+
+    /**
+     * Collects current Flight transport statistics
+     *
+     * @return The current metrics
+     */
+    public FlightMetrics collectStats() {
+        updateResourceMetrics();
+        return metrics;
+    }
+
+    private void updateResourceMetrics() {
         long arrowAllocatedBytes = 0;
         long arrowPeakBytes = 0;
 
         if (bufferAllocator != null) {
-            try {
-                arrowAllocatedBytes = bufferAllocator.getAllocatedMemory();
-                arrowPeakBytes = bufferAllocator.getPeakMemoryAllocation();
-            } catch (Exception e) {
-                // Ignore stats collection errors
-            }
+            arrowAllocatedBytes = bufferAllocator.getAllocatedMemory();
+            arrowPeakBytes = bufferAllocator.getPeakMemoryAllocation();
         }
 
-        long directMemoryUsed = 0;
+        long directMemoryBytes = 0;
         try {
             java.lang.management.MemoryMXBean memoryBean = java.lang.management.ManagementFactory.getMemoryMXBean();
-            directMemoryUsed = memoryBean.getNonHeapMemoryUsage().getUsed();
+            directMemoryBytes = memoryBean.getNonHeapMemoryUsage().getUsed();
         } catch (Exception e) {
-            directMemoryUsed = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+            directMemoryBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         }
 
         int clientThreadsActive = 0;
@@ -154,19 +144,15 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
         int serverThreadsTotal = 0;
 
         if (threadPool != null) {
-            try {
-                var allStats = threadPool.stats();
-                for (var stat : allStats) {
-                    if (ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME.equals(stat.getName())) {
-                        clientThreadsActive += stat.getActive();
-                        clientThreadsTotal += stat.getThreads();
-                    } else if (ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME.equals(stat.getName())) {
-                        serverThreadsActive += stat.getActive();
-                        serverThreadsTotal += stat.getThreads();
-                    }
+            var allStats = threadPool.stats();
+            for (var stat : allStats) {
+                if (ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME.equals(stat.getName())) {
+                    clientThreadsActive += stat.getActive();
+                    clientThreadsTotal += stat.getThreads();
+                } else if (ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME.equals(stat.getName())) {
+                    serverThreadsActive += stat.getActive();
+                    serverThreadsTotal += stat.getThreads();
                 }
-            } catch (Exception e) {
-                // Ignore thread pool stats errors
             }
         }
 
@@ -178,166 +164,26 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
             serverThreadsTotal += Runtime.getRuntime().availableProcessors() * 2;
         }
 
-        return new ResourceUtilizationStats(
+        // Update metrics with resource utilization
+        metrics.updateResourceMetrics(
             arrowAllocatedBytes,
             arrowPeakBytes,
-            directMemoryUsed,
+            directMemoryBytes,
             clientThreadsActive,
             clientThreadsTotal,
             serverThreadsActive,
             serverThreadsTotal,
-            (int) channelsActive.get(),
-            (int) channelsActive.get()
+            clientChannelsActive.get(),
+            serverChannelsActive.get()
         );
     }
 
-    // Server-side methods
-    /** Increments server requests received counter */
-    public void incrementServerRequestsReceived() {
-        serverRequestsReceived.incrementAndGet();
-    }
-
-    /** Increments current server requests counter */
-    public void incrementServerRequestsCurrent() {
-        serverRequestsCurrent.incrementAndGet();
-    }
-
-    /** Decrements current server requests counter */
-    public void decrementServerRequestsCurrent() {
-        serverRequestsCurrent.decrementAndGet();
-    }
-
-    /** Adds server request processing time
-     * @param timeMillis processing time in milliseconds */
-    public void addServerRequestTime(long timeMillis) {
-        serverRequestTimeMillis.addAndGet(timeMillis);
-        updateMin(serverRequestTimeMin, timeMillis);
-        updateMax(serverRequestTimeMax, timeMillis);
-    }
-
-    /** Increments server batches sent counter */
-    public void incrementServerBatchesSent() {
-        serverBatchesSent.incrementAndGet();
-    }
-
-    /** Adds server batch processing time
-     * @param timeMillis processing time in milliseconds */
-    public void addServerBatchTime(long timeMillis) {
-        serverBatchTimeMillis.addAndGet(timeMillis);
-        updateMin(serverBatchTimeMin, timeMillis);
-        updateMax(serverBatchTimeMax, timeMillis);
-    }
-
-    // Client-side methods
-    /** Increments client requests sent counter */
-    public void incrementClientRequestsSent() {
-        clientRequestsSent.incrementAndGet();
-    }
-
-    /** Increments current client requests counter */
-    public void incrementClientRequestsCurrent() {
-        clientRequestsCurrent.incrementAndGet();
-    }
-
-    /** Decrements current client requests counter */
-    public void decrementClientRequestsCurrent() {
-        clientRequestsCurrent.decrementAndGet();
-    }
-
-    /** Increments client responses received counter */
-    public void incrementClientResponsesReceived() {
-        clientResponsesReceived.incrementAndGet();
-    }
-
-    /** Increments client batches received counter */
-    public void incrementClientBatchesReceived() {
-        clientBatchesReceived.incrementAndGet();
-    }
-
-    /** Adds client batch processing time
-     * @param timeMillis processing time in milliseconds */
-    public void addClientBatchTime(long timeMillis) {
-        clientBatchTimeMillis.addAndGet(timeMillis);
-        updateMin(clientBatchTimeMin, timeMillis);
-        updateMax(clientBatchTimeMax, timeMillis);
-    }
-
-    // Shared methods
-    /** Adds bytes sent
-     * @param bytes number of bytes */
-    public void addBytesSent(long bytes) {
-        bytesSent.addAndGet(bytes);
-    }
-
-    /** Adds bytes received
-     * @param bytes number of bytes */
-    public void addBytesReceived(long bytes) {
-        bytesReceived.addAndGet(bytes);
-    }
-
-    /** Increments client application errors counter */
-    public void incrementClientApplicationErrors() {
-        clientApplicationErrors.incrementAndGet();
-    }
-
-    /** Increments client transport errors counter */
-    public void incrementClientTransportErrors() {
-        clientTransportErrors.incrementAndGet();
-    }
-
-    /** Increments server application errors counter */
-    public void incrementServerApplicationErrors() {
-        serverApplicationErrors.incrementAndGet();
-    }
-
-    /** Increments server transport errors counter */
-    public void incrementServerTransportErrors() {
-        serverTransportErrors.incrementAndGet();
-    }
-
-    /** Increments client streams completed counter */
-    public void incrementClientStreamsCompleted() {
-        clientStreamsCompleted.incrementAndGet();
-    }
-
-    /** Increments server streams completed counter */
-    public void incrementServerStreamsCompleted() {
-        serverStreamsCompleted.incrementAndGet();
-    }
-
-    /** Increments active channels counter */
-    public void incrementChannelsActive() {
-        channelsActive.incrementAndGet();
-    }
-
-    /** Decrements active channels counter */
-    public void decrementChannelsActive() {
-        channelsActive.decrementAndGet();
-    }
-
-    private void updateMin(AtomicLong minValue, long newValue) {
-        minValue.updateAndGet(current -> Math.min(current, newValue));
-    }
-
-    private void updateMax(AtomicLong maxValue, long newValue) {
-        maxValue.updateAndGet(current -> Math.max(current, newValue));
-    }
-
-    /** {@inheritDoc} */
     @Override
-    protected void doStart() {
-        // Initialize any resources needed for stats collection
-    }
+    protected void doStart() {}
 
-    /** {@inheritDoc} */
     @Override
-    protected void doStop() {
-        // Cleanup resources
-    }
+    protected void doStop() {}
 
-    /** {@inheritDoc} */
     @Override
-    protected void doClose() {
-        // Final cleanup
-    }
+    protected void doClose() {}
 }

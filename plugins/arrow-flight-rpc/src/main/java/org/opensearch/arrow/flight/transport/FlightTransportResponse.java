@@ -17,7 +17,6 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.Header;
@@ -44,7 +43,6 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final HeaderContext headerContext;
     private final long reqId;
-    private final FlightStatsCollector statsCollector;
 
     private final TransportResponseHandler<T> handler;
     private boolean isClosed;
@@ -56,6 +54,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private boolean streamExhausted = false;
     private boolean firstResponseConsumed = false;
     private StreamException initializationException;
+    private long currentBatchSize;
 
     /**
      * Creates a new Flight transport response.
@@ -66,14 +65,12 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         FlightClient flightClient,
         HeaderContext headerContext,
         Ticket ticket,
-        NamedWriteableRegistry namedWriteableRegistry,
-        FlightStatsCollector statsCollector
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.handler = handler;
         this.reqId = reqId;
         this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.statsCollector = statsCollector;
 
         // Initialize Flight stream with request ID header
         FlightCallHeaders callHeaders = new FlightCallHeaders();
@@ -117,7 +114,10 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
         try {
             if (flightStream.next()) {
+                currentRoot = flightStream.getRoot();
                 currentHeader = headerContext.getHeader(reqId);
+                // Capture the batch size before deserialization
+                currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(currentRoot);
                 return deserializeResponse();
             } else {
                 streamExhausted = true;
@@ -125,12 +125,20 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             }
         } catch (FlightRuntimeException e) {
             streamExhausted = true;
-            // Convert Flight exception to StreamException
             throw FlightErrorMapper.fromFlightException(e);
         } catch (Exception e) {
             streamExhausted = true;
             throw new StreamException(StreamErrorCode.INTERNAL, "Failed to fetch next batch", e);
         }
+    }
+
+    /**
+     * Gets the size of the current batch in bytes.
+     *
+     * @return the size in bytes, or 0 if no batch is available
+     */
+    public long getCurrentBatchSize() {
+        return currentBatchSize;
     }
 
     /**
@@ -187,6 +195,8 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             if (flightStream.next()) {
                 currentRoot = flightStream.getRoot();
                 currentHeader = headerContext.getHeader(reqId);
+                // Capture the batch size before deserialization
+                currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(currentRoot);
                 streamInitialized = true;
             } else {
                 streamExhausted = true;

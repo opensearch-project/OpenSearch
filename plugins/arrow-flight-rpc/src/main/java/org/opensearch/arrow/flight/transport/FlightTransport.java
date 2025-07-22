@@ -143,6 +143,9 @@ class FlightTransport extends TcpTransport {
             flightProducer = new ArrowFlightProducer(this, allocator, SERVER_HEADER_KEY, statsCollector);
             bindServer();
             success = true;
+            if (statsCollector != null) {
+                statsCollector.incrementServerChannelsActive();
+            }
         } finally {
             if (!success) {
                 doStop();
@@ -242,14 +245,14 @@ class FlightTransport extends TcpTransport {
             }
             for (ClientHolder holder : flightClients.values()) {
                 holder.flightClient().close();
-                if (statsCollector != null) {
-                    statsCollector.decrementChannelsActive();
-                }
             }
             flightClients.clear();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
             gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
             allocator.close();
+            if (statsCollector != null) {
+                statsCollector.decrementServerChannelsActive();
+            }
         } catch (Exception e) {
             logger.error("Error stopping FlightTransport", e);
         }
@@ -305,10 +308,6 @@ class FlightTransport extends TcpTransport {
             statsCollector
         );
 
-        if (statsCollector != null) {
-            statsCollector.incrementChannelsActive();
-        }
-
         return channel;
     }
 
@@ -354,8 +353,7 @@ class FlightTransport extends TcpTransport {
             keepAlive,
             requestHandlers,
             responseHandlers,
-            tracer,
-            statsCollector
+            tracer
         );
     }
 

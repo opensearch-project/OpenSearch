@@ -9,7 +9,6 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -28,8 +27,6 @@ import org.opensearch.transport.TransportKeepAlive;
 
 class FlightMessageHandler extends NativeMessageHandler {
 
-    private final FlightStatsCollector statsCollector;
-
     public FlightMessageHandler(
         String nodeName,
         Version version,
@@ -43,8 +40,7 @@ class FlightMessageHandler extends NativeMessageHandler {
         Transport.RequestHandlers requestHandlers,
         Transport.ResponseHandlers responseHandlers,
         Tracer tracer,
-        TransportKeepAlive keepAlive,
-        FlightStatsCollector statsCollector
+        TransportKeepAlive keepAlive
     ) {
         super(
             nodeName,
@@ -61,7 +57,6 @@ class FlightMessageHandler extends NativeMessageHandler {
             tracer,
             keepAlive
         );
-        this.statsCollector = statsCollector;
     }
 
     @Override
@@ -96,8 +91,7 @@ class FlightMessageHandler extends NativeMessageHandler {
             header.getFeatures(),
             header.isCompressed(),
             header.isHandshake(),
-            breakerRelease,
-            statsCollector
+            breakerRelease
         );
     }
 }
