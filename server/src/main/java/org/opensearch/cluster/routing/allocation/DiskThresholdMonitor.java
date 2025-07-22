@@ -84,7 +84,6 @@ public class DiskThresholdMonitor {
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
-    private final Supplier<Double> dataToFileCacheSizeRatioSupplier;
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
     private final NodeDiskEvaluator nodeDiskEvaluator;
@@ -124,7 +123,6 @@ public class DiskThresholdMonitor {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
         this.nodeDiskEvaluator = new NodeDiskEvaluator(diskThresholdSettings, dataToFileCacheSizeRatioSupplier);
-        this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
     }
 
     private void checkFinished() {
