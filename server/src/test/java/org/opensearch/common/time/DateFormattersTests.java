@@ -268,6 +268,22 @@ public class DateFormattersTests extends OpenSearchTestCase {
         }
     }
 
+    public void testNegativeEpochMilliWithDefaultFormatters() {
+        {
+            DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+            TemporalAccessor accessor = formatter.parse("-2177434800");
+            assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(-2177434800L));
+            assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
+        }
+
+        {
+            DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+            TemporalAccessor accessor = formatter.parse("-561600000");
+            assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(-561600000L));
+            assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
+        }
+    }
+
     public void testParsersWithMultipleInternalFormats() throws Exception {
         ZonedDateTime first = DateFormatters.from(
             DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+0100")
