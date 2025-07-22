@@ -20,25 +20,25 @@ import java.io.IOException;
  */
 class FlightNodeStats extends BaseNodeResponse {
 
-    private final FlightTransportStats flightStats;
+    private final FlightMetrics metrics;
 
     public FlightNodeStats(StreamInput in) throws IOException {
         super(in);
-        this.flightStats = new FlightTransportStats(in);
+        this.metrics = new FlightMetrics(in);
     }
 
-    public FlightNodeStats(DiscoveryNode node, FlightTransportStats flightStats) {
+    public FlightNodeStats(DiscoveryNode node, FlightMetrics metrics) {
         super(node);
-        this.flightStats = flightStats;
+        this.metrics = metrics;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        flightStats.writeTo(out);
+        metrics.writeTo(out);
     }
 
-    public FlightTransportStats getFlightStats() {
-        return flightStats;
+    public FlightMetrics getMetrics() {
+        return metrics;
     }
 }

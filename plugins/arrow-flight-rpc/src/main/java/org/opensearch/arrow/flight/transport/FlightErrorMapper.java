@@ -87,7 +87,7 @@ class FlightErrorMapper {
         };
     }
 
-    private static StreamErrorCode mapFromCallStatus(FlightRuntimeException exception) {
+    static StreamErrorCode mapFromCallStatus(FlightRuntimeException exception) {
         CallStatus status = exception.status();
         FlightStatusCode flightCode = status.code();
         return switch (flightCode) {

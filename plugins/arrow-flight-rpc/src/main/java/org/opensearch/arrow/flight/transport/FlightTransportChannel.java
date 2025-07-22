@@ -11,7 +11,6 @@ package org.opensearch.arrow.flight.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.query.QuerySearchResult;
@@ -35,7 +34,6 @@ class FlightTransportChannel extends TcpTransportChannel {
     private static final Logger logger = LogManager.getLogger(FlightTransportChannel.class);
 
     private final AtomicBoolean streamOpen = new AtomicBoolean(true);
-    private final FlightStatsCollector statsCollector;
 
     public FlightTransportChannel(
         FlightOutboundHandler outboundHandler,
@@ -46,11 +44,9 @@ class FlightTransportChannel extends TcpTransportChannel {
         Set<String> features,
         boolean compressResponse,
         boolean isHandshake,
-        Releasable breakerRelease,
-        FlightStatsCollector statsCollector
+        Releasable breakerRelease
     ) {
         super(outboundHandler, channel, action, requestId, version, features, compressResponse, isHandshake, breakerRelease);
-        this.statsCollector = statsCollector;
     }
 
     @Override
