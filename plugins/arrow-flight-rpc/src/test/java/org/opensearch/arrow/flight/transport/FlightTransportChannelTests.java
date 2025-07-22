@@ -55,8 +55,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
             Collections.emptySet(),
             false,
             false,
-            mockReleasable,
-            mockStatsCollector
+            mockReleasable
         );
     }
 

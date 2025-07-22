@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
+import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -111,6 +112,9 @@ class FlightClientChannel implements TcpChannel {
         this.closeListeners = new CopyOnWriteArrayList<>();
         this.stats = new ChannelStats();
         this.isClosed = false;
+        if (statsCollector != null) {
+            statsCollector.incrementClientChannelsActive();
+        }
         initializeConnection();
     }
 
@@ -132,6 +136,11 @@ class FlightClientChannel implements TcpChannel {
         if (isClosed) {
             return;
         }
+
+        if (statsCollector != null) {
+            statsCollector.decrementClientChannelsActive();
+        }
+
         isClosed = true;
         closeFuture.complete(null);
         notifyListeners(closeListeners, closeFuture);
@@ -193,23 +202,40 @@ class FlightClientChannel implements TcpChannel {
             listener.onFailure(new StreamException(StreamErrorCode.UNAVAILABLE, "FlightClientChannel is closed"));
             return;
         }
+
+        // Create a call tracker for metrics if stats collector is available
+        FlightCallTracker callTracker = null;
+        if (statsCollector != null) {
+            callTracker = statsCollector.createClientCallTracker();
+            callTracker.recordRequestBytes(reference.length());
+        }
+
         try {
             // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
             TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(reqId, messageListener);
+
+            long correlationId = requestIdGenerator.incrementAndGet();
+
+            if (callTracker != null) {
+                handler = new MetricsTrackingResponseHandler<>(handler, callTracker);
+            }
+
             FlightTransportResponse<?> streamResponse = new FlightTransportResponse<>(
                 handler,
-                requestIdGenerator.incrementAndGet(), // we can't use reqId directly since its already serialized; so generating a new on
-                // for header correlation
+                correlationId,
                 client,
                 headerContext,
                 ticket,
-                namedWriteableRegistry,
-                statsCollector
+                namedWriteableRegistry
             );
+
             processStreamResponseAsync(streamResponse);
             listener.onResponse(null);
         } catch (Exception e) {
+            if (callTracker != null) {
+                callTracker.recordCallEnd(StreamErrorCode.INTERNAL.name());
+            }
             listener.onFailure(new StreamException(StreamErrorCode.INTERNAL, "Failed to send message", e));
         }
     }

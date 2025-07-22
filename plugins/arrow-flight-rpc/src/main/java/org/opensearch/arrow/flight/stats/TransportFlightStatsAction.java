@@ -92,8 +92,7 @@ public class TransportFlightStatsAction extends TransportNodesAction<
      * @param request the node request */
     @Override
     protected FlightNodeStats nodeOperation(FlightStatsRequest.NodeRequest request) {
-        FlightTransportStats stats = statsCollector.collectStats();
-        return new FlightNodeStats(clusterService.localNode(), stats);
+        FlightMetrics metrics = statsCollector.collectStats();
+        return new FlightNodeStats(clusterService.localNode(), metrics);
     }
-
 }

@@ -10,14 +10,16 @@ package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
+import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.arrow.flight.stats.FlightStatsCollector;
+import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.transport.TcpChannel;
+import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
 import java.net.InetAddress;
@@ -28,6 +30,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCallStatus;
 
 /**
  * TcpChannel implementation for Arrow Flight. It is created per call in ArrowFlightProducer.
@@ -45,7 +49,7 @@ class FlightServerChannel implements TcpChannel {
     private final List<ActionListener<Void>> closeListeners = Collections.synchronizedList(new ArrayList<>());
     private final ServerHeaderMiddleware middleware;
     private Optional<VectorSchemaRoot> root = Optional.empty();
-    private final FlightStatsCollector statsCollector;
+    private final FlightCallTracker callTracker;
     private volatile long requestStartTime;
     private volatile boolean cancelled = false;
 
@@ -53,7 +57,7 @@ class FlightServerChannel implements TcpChannel {
         ServerStreamListener serverStreamListener,
         BufferAllocator allocator,
         ServerHeaderMiddleware middleware,
-        FlightStatsCollector statsCollector
+        FlightCallTracker callTracker
     ) {
         this.serverStreamListener = serverStreamListener;
         this.serverStreamListener.setUseZeroCopy(true);
@@ -66,7 +70,7 @@ class FlightServerChannel implements TcpChannel {
         });
         this.allocator = allocator;
         this.middleware = middleware;
-        this.statsCollector = statsCollector;
+        this.callTracker = callTracker;
         this.requestStartTime = System.nanoTime();
         this.localAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
         this.remoteAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
@@ -106,14 +110,9 @@ class FlightServerChannel implements TcpChannel {
         // we do not want to close the root right after putNext() call as we do not know the status of it whether
         // its transmitted at transport; we close them all at complete stream. TODO: optimize this behaviour
         serverStreamListener.putNext();
-        if (statsCollector != null) {
-            statsCollector.incrementServerBatchesSent();
-            // Track VectorSchemaRoot size - sum of all vector sizes
-            long rootSize = calculateVectorSchemaRootSize(root.get());
-            statsCollector.addBytesSent(rootSize);
-            // Track batch processing time
-            long batchTime = (System.nanoTime() - batchStartTime) / 1_000_000;
-            statsCollector.addServerBatchTime(batchTime);
+        if (callTracker != null) {
+            long rootSize = FlightUtils.calculateVectorSchemaRootSize(root.get());
+            callTracker.recordBatchSent(rootSize, System.nanoTime() - batchStartTime);
         }
     }
 
@@ -126,6 +125,7 @@ class FlightServerChannel implements TcpChannel {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }
         serverStreamListener.completed();
+        callTracker.recordCallEnd(StreamErrorCode.OK.name());
     }
 
     /**
@@ -137,12 +137,17 @@ class FlightServerChannel implements TcpChannel {
         if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }
-        middleware.setHeader(header);
-        serverStreamListener.error(
-            CallStatus.INTERNAL.withCause(error)
+        FlightRuntimeException flightExc;
+        if (error instanceof FlightRuntimeException) {
+            flightExc = (FlightRuntimeException) error;
+        } else {
+            flightExc = CallStatus.INTERNAL.withCause(error)
                 .withDescription(error.getMessage() != null ? error.getMessage() : "Stream error")
-                .toRuntimeException()
-        );
+                .toRuntimeException();
+        }
+        middleware.setHeader(header);
+        serverStreamListener.error(flightExc);
+        callTracker.recordCallEnd(mapFromCallStatus(flightExc).name());
         logger.debug(error);
     }
 
@@ -187,6 +192,7 @@ class FlightServerChannel implements TcpChannel {
         if (!open.get()) {
             return;
         }
+        open.set(false);
         root.ifPresent(VectorSchemaRoot::close);
         notifyCloseListeners();
     }
@@ -212,19 +218,5 @@ class FlightServerChannel implements TcpChannel {
             listener.onResponse(null);
         }
         closeListeners.clear();
-    }
-
-    private long calculateVectorSchemaRootSize(VectorSchemaRoot root) {
-        if (root == null) {
-            return 0;
-        }
-        long totalSize = 0;
-        for (int i = 0; i < root.getFieldVectors().size(); i++) {
-            var vector = root.getVector(i);
-            if (vector != null) {
-                totalSize += vector.getBufferSize();
-            }
-        }
-        return totalSize;
     }
 }

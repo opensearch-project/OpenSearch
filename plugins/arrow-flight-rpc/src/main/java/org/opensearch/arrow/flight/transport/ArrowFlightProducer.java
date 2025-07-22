@@ -15,6 +15,7 @@ import org.apache.arrow.flight.NoOpFlightProducer;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
+import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -59,9 +60,11 @@ class ArrowFlightProducer extends NoOpFlightProducer {
         // It is also necessary for the cancellation from client to work correctly, the grpc thread which started it must be released
         // https://github.com/apache/arrow/issues/38668
         executor.execute(() -> {
-            FlightServerChannel channel = new FlightServerChannel(listener, allocator, middleware, statsCollector);
+            FlightCallTracker callTracker = statsCollector.createServerCallTracker();
+            FlightServerChannel channel = new FlightServerChannel(listener, allocator, middleware, callTracker);
             try {
                 BytesArray buf = new BytesArray(ticket.getBytes());
+                callTracker.recordRequestBytes(buf.ramBytesUsed());
                 // TODO: check the feasibility of create InboundPipeline once
                 try (
                     InboundPipeline pipeline = new InboundPipeline(
