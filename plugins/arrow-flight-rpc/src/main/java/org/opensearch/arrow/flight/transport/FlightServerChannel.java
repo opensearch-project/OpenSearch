@@ -65,6 +65,7 @@ class FlightServerChannel implements TcpChannel {
             @Override
             public void run() {
                 cancelled = true;
+                callTracker.recordCallEnd(StreamErrorCode.CANCELLED.name());
                 close();
             }
         });
