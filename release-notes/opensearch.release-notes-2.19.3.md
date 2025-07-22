@@ -19,9 +19,3 @@
 
 ### Changed
 - Change single shard assignment log message from warn to debug ([#18186](https://github.com/opensearch-project/OpenSearch/pull/18186))
-
-### Security
-
-### Deprecated
-
-### Removed
