@@ -33,6 +33,7 @@ import org.opensearch.gateway.remote.model.RemoteGlobalMetadata;
 import org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings;
 import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
+import org.opensearch.gateway.remote.model.RemoteReadResultsVerbose;
 import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -91,7 +92,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -102,7 +104,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -113,7 +116,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -124,7 +128,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -135,7 +140,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -146,7 +152,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -157,7 +164,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setGlobalMetadataUploadTimeout);
@@ -183,6 +191,18 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
     ) {
         return ActionListener.wrap(
             response -> listener.onResponse(new RemoteReadResult(response, remoteEntity.getType(), component)),
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
+        );
+    }
+
+    @Override
+    protected ActionListener<RemoteReadResultsVerbose<Object>> getWrappedReadListenerForMetrics(
+        String component,
+        AbstractClusterMetadataWriteableBlobEntity remoteEntity,
+        ActionListener<RemoteReadResultsVerbose<Object>> listener
+    ) {
+        return ActionListener.wrap(
+            listener::onResponse,
             ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
         );
     }
