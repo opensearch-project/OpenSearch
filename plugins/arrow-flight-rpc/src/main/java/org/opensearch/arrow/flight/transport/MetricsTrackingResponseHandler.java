@@ -40,11 +40,7 @@ class MetricsTrackingResponseHandler<T extends TransportResponse> implements Tra
 
     @Override
     public void handleResponse(T response) {
-        try {
-            callTracker.recordCallEnd(StreamErrorCode.OK.name());
-        } finally {
-            delegate.handleResponse(response);
-        }
+        delegate.handleResponse(response);
     }
 
     @Override
