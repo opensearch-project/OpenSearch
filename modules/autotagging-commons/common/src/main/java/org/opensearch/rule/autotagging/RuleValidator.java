@@ -114,6 +114,11 @@ public class RuleValidator {
         if (featureType == null) {
             return List.of("Couldn't identify which feature the rule belongs to. Rule feature can't be null.");
         }
+        try {
+            featureType.getFeatureValueValidator().validate(featureValue);
+        } catch (Exception e) {
+            return List.of(e.getMessage());
+        }
         return new ArrayList<>();
     }
 

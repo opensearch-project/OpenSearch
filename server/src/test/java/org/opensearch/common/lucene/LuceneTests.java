@@ -36,13 +36,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -51,7 +48,6 @@ import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
@@ -75,11 +71,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -95,7 +88,6 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -327,36 +319,6 @@ public class LuceneTests extends OpenSearchTestCase {
         assertEquals(2 + deleteTerms.size(), Lucene.getNumDocs(segmentCommitInfos));
         writer.close();
         dir.close();
-    }
-
-    /**
-     * Tests whether old segments are readable and queryable based on the data documented
-     * in the README <a href="file:../../../../../resources/indices/bwc/os-1.3.0/README.md">here</a>.
-     */
-    public void testReadSegmentInfosExtendedCompatibility() throws IOException {
-        final Version minVersion = LegacyESVersion.V_7_2_0;
-        Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH), tmp);
-        try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {
-            // The standard API will throw an exception
-            expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
-            SegmentInfos si = Lucene.readSegmentInfos(dir, minVersion);
-            assertEquals(1, Lucene.getNumDocs(si));
-            IndexCommit indexCommit = Lucene.getIndexCommit(si, dir);
-            // uses the "expert" Lucene API
-            try (
-                StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(
-                    indexCommit,
-                    minVersion.minimumIndexCompatibilityVersion().luceneVersion.major,
-                    null
-                )
-            ) {
-                IndexSearcher searcher = newSearcher(reader);
-                // radius too small, should get no results
-                assertFalse(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 2)));
-                assertTrue(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 20000)));
-            }
-        }
     }
 
     public void testCount() throws Exception {

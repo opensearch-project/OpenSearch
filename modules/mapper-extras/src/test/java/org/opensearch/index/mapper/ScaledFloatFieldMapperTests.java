@@ -90,7 +90,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
         checker.registerUpdateCheck(
             b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed())
+            m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed().value())
         );
     }
 

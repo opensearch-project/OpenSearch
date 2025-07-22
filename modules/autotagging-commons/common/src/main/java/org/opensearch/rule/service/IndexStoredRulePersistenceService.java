@@ -16,6 +16,7 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.service.ClusterService;
@@ -183,6 +184,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private void persistRule(Rule rule, ActionListener<CreateRuleResponse> listener) {
         try {
             IndexRequest indexRequest = new IndexRequest(indexName).id(rule.getId())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
             client.index(indexRequest).get();
             listener.onResponse(new CreateRuleResponse(rule));
@@ -312,9 +314,8 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      */
     private void persistUpdatedRule(String ruleId, Rule updatedRule, ActionListener<UpdateRuleResponse> listener) {
         try {
-            UpdateRequest updateRequest = new UpdateRequest(indexName, ruleId).doc(
-                updatedRule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
-            );
+            UpdateRequest updateRequest = new UpdateRequest(indexName, ruleId).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .doc(updatedRule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
             client.update(updateRequest).get();
             listener.onResponse(new UpdateRuleResponse(updatedRule));
         } catch (Exception e) {

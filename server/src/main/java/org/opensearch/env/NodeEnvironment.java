@@ -1291,6 +1291,12 @@ public final class NodeEnvironment implements Closeable {
         return indexSubPaths;
     }
 
+    public static void processDirectoryFiles(Path path, List<Path> indexSubPaths) throws IOException {
+        try (Stream<Path> shardStream = Files.list(path)) {
+            shardStream.filter(NodeEnvironment::isShardPath).map(Path::toAbsolutePath).forEach(indexSubPaths::add);
+        }
+    }
+
     @Deprecated(forRemoval = true)
     public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
         return collectFileCacheDataPath(fileCacheNodePath, Settings.EMPTY);
@@ -1301,9 +1307,7 @@ public final class NodeEnvironment implements Closeable {
             try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(directoryPath)) {
                 for (Path indexPath : indexStream) {
                     if (Files.isDirectory(indexPath)) {
-                        try (Stream<Path> shardStream = Files.list(indexPath)) {
-                            shardStream.filter(NodeEnvironment::isShardPath).map(Path::toAbsolutePath).forEach(indexSubPaths::add);
-                        }
+                        processDirectoryFiles(indexPath, indexSubPaths);
                     }
                 }
             }

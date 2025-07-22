@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
@@ -42,8 +43,11 @@ import org.opensearch.search.profile.query.InternalQueryProfileTree;
 import org.opensearch.search.profile.query.QueryProfiler;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Wrapper around all the profilers that makes management easier.
@@ -57,21 +61,32 @@ public final class Profilers {
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
     private final boolean isConcurrentSegmentSearchEnabled;
+    private final Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics;
 
-    /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
+    /** This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
+        this(searcher, isConcurrentSegmentSearchEnabled, query -> Collections.emptyList());
+    }
+
+    /** This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
+    public Profilers(
+        ContextIndexSearcher searcher,
+        boolean isConcurrentSegmentSearchEnabled,
+        Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics
+    ) {
         this.searcher = searcher;
         this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
         this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
+        this.customPluginMetrics = customPluginMetrics;
         addQueryProfiler();
     }
 
     /** Switch to a new profile. */
     public QueryProfiler addQueryProfiler() {
         QueryProfiler profiler = isConcurrentSegmentSearchEnabled
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(customPluginMetrics), customPluginMetrics)
+            : new QueryProfiler(new InternalQueryProfileTree(customPluginMetrics));
         searcher.setProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;
