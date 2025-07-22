@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -18,6 +20,7 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -28,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCacheTests extends OpenSearchTestCase {
     // need concurrency level to be static to make these tests more deterministic because capacity per segment is dependent on
     // (total capacity) / (concurrency level) so having high concurrency level might trigger early evictions which is tolerable in real life
@@ -44,6 +48,10 @@ public class FileCacheTests extends OpenSearchTestCase {
 
     private FileCache createFileCache(long capacity) {
         return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+    }
+
+    private FileCache createFileCache(long capacity, CircuitBreaker circuitBreaker) {
+        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, circuitBreaker);
     }
 
     private FileCache createCircuitBreakingFileCache(long capacity) {
@@ -198,6 +206,20 @@ public class FileCacheTests extends OpenSearchTestCase {
         Path path = createPath("0");
         assertThrows(CircuitBreakingException.class, () -> fileCache.compute(path, (p, i) -> new StubCachedIndexInput(8 * MEGA_BYTES)));
         assertNull(fileCache.get(path));
+    }
+
+    public void testEntryNotRemovedCircuitBreaker() {
+        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
+        FileCache fileCache = createFileCache(MEGA_BYTES, circuitBreaker);
+        Path path = createPath("0");
+        fileCache.put(path, new StubCachedIndexInput(8 * MEGA_BYTES));
+        // put should succeed since circuit breaker hasn't tripped yet
+        assertEquals(fileCache.get(path).length(), 8 * MEGA_BYTES);
+        circuitBreaker.startBreaking();
+        // compute should throw CircuitBreakingException but shouldn't remove entry already present
+        assertThrows(CircuitBreakingException.class, () -> fileCache.compute(path, (p, i) -> new StubCachedIndexInput(2 * MEGA_BYTES)));
+        assertNotNull(fileCache.get(path));
+        assertEquals(fileCache.get(path).length(), 8 * MEGA_BYTES);
     }
 
     public void testRemove() {

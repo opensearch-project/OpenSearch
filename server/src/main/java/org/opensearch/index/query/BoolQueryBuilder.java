@@ -49,6 +49,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -401,6 +403,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         changed |= rewriteMustNotRangeClausesToShould(newBuilder, queryRewriteContext);
+        changed |= rewriteMustClausesToFilter(newBuilder, queryRewriteContext);
 
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
@@ -555,5 +558,54 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             }
         }
         return true;
+    }
+
+    private boolean rewriteMustClausesToFilter(BoolQueryBuilder newBuilder, QueryRewriteContext queryRewriteContext) {
+        // If we have must clauses which return the same score for all matching documents, like numeric term queries or ranges,
+        // moving them from must clauses to filter clauses improves performance in some cases.
+        // This works because it can let Lucene use MaxScoreCache to skip non-competitive docs.
+        boolean changed = false;
+        Set<QueryBuilder> mustClausesToMove = new HashSet<>();
+
+        QueryShardContext shardContext;
+        if (queryRewriteContext == null) {
+            shardContext = null;
+        } else {
+            shardContext = queryRewriteContext.convertToShardContext(); // can still be null
+        }
+
+        for (QueryBuilder clause : mustClauses) {
+            if (isClauseIrrelevantToScoring(clause, shardContext)) {
+                mustClausesToMove.add(clause);
+                changed = true;
+            }
+        }
+
+        newBuilder.mustClauses.removeAll(mustClausesToMove);
+        newBuilder.filterClauses.addAll(mustClausesToMove);
+        return changed;
+    }
+
+    private boolean isClauseIrrelevantToScoring(QueryBuilder clause, QueryShardContext context) {
+        // This is an incomplete list of clauses this might apply for; it can be expanded in future.
+
+        // If a clause is purely numeric, for example a date range, its score is unimportant as
+        // it'll be the same for all returned docs
+        if (clause instanceof RangeQueryBuilder) return true;
+        if (clause instanceof GeoBoundingBoxQueryBuilder) return true;
+
+        // Further optimizations depend on knowing whether the field is numeric.
+        // QueryBuilder.doRewrite() is called several times in the search flow, and the shard context telling us this
+        // is only available the last time, when it's called from SearchService.executeQueryPhase().
+        // Skip moving these clauses if we don't have the shard context.
+        if (context == null) return false;
+        if (!(clause instanceof WithFieldName wfn)) return false;
+        MappedFieldType fieldType = context.fieldMapper(wfn.fieldName());
+        if (!(fieldType instanceof NumberFieldMapper.NumberFieldType)) return false;
+
+        if (clause instanceof MatchQueryBuilder) return true;
+        if (clause instanceof TermQueryBuilder) return true;
+        if (clause instanceof TermsQueryBuilder) return true;
+        return false;
     }
 }
