@@ -286,6 +286,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 Float numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = HalfFloatPoint.nextUp(numericValue);
+                } else {
+                    numericValue = HalfFloatPoint.nextDown(numericValue);
+                }
                 return encodePoint(numericValue);
             }
 
@@ -468,6 +473,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 Float numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = FloatPoint.nextUp(numericValue);
+                } else {
+                    numericValue = FloatPoint.nextDown(numericValue);
+                }
                 return encodePoint(numericValue);
             }
 
@@ -641,6 +651,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 Double numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = DoublePoint.nextUp(numericValue);
+                } else {
+                    numericValue = DoublePoint.nextDown(numericValue);
+                }
                 return encodePoint(numericValue);
             }
 
