@@ -485,22 +485,22 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         QueryShardContext shardContext = getQueryShardContext(queryRewriteContext);
 
         boolean changed = false;
-        // For now, only handle the case where there's exactly 1 range query for this field.
+        // For now, only handle the case where there's exactly 1 complement-aware query for this field.
         Map<String, Integer> fieldCounts = new HashMap<>();
         Set<ComplementAwareQueryBuilder> complementAwareQueries = new HashSet<>();
         for (QueryBuilder clause : mustNotClauses) {
-            if (clause instanceof ComplementAwareQueryBuilder caq) {
-                fieldCounts.merge(caq.fieldName(), 1, Integer::sum);
-                complementAwareQueries.add(caq);
+            if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
+                fieldCounts.merge(wfn.fieldName(), 1, Integer::sum);
+                complementAwareQueries.add((ComplementAwareQueryBuilder) wfn);
             }
         }
 
         for (ComplementAwareQueryBuilder caq : complementAwareQueries) {
-            String fieldName = caq.fieldName();
+            String fieldName = ((WithFieldName) caq).fieldName();
             if (fieldCounts.getOrDefault(fieldName, 0) == 1) {
                 // Check that all docs on this field have exactly 1 value, otherwise we can't perform this rewrite
                 if (checkAllDocsHaveOneValue(leafReaderContexts, fieldName)) {
-                    List<QueryBuilder> complement = caq.getComplement(shardContext);
+                    List<? extends QueryBuilder> complement = caq.getComplement(shardContext);
                     if (complement != null) {
                         BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder();
                         nestedBoolQuery.minimumShouldMatch(1);

@@ -669,7 +669,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         String fieldName,
         IndexSearcher searcher
     ) {
-        List<QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
+        List<? extends QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
         RangeQueryBuilder expectedLower = new RangeQueryBuilder(fieldName).to(value).includeLower(true).includeUpper(false);
         RangeQueryBuilder expectedUpper = new RangeQueryBuilder(fieldName).from(value).includeLower(false).includeUpper(true);
         assertEquals(2, complement.size());

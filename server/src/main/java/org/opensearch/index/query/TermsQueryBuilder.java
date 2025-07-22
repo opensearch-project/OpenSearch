@@ -80,7 +80,7 @@ import java.util.stream.IntStream;
  *
  * @opensearch.internal
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements ComplementAwareQueryBuilder {
+public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements ComplementAwareQueryBuilder, WithFieldName {
     public static final String NAME = "terms";
 
     private final String fieldName;

@@ -549,12 +549,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder>
     }
 
     @Override
-    public List<QueryBuilder> getComplement(QueryShardContext context) {
+    public List<? extends QueryBuilder> getComplement(QueryShardContext context) {
         // This implementation doesn't need info from QueryShardContext
         if (relation != null && relation != ShapeRelation.INTERSECTS) {
             return null;
         }
-        List<QueryBuilder> complement = new ArrayList<>();
+        List<RangeQueryBuilder> complement = new ArrayList<>();
         if (from != null) {
             RangeQueryBuilder belowRange = new RangeQueryBuilder(fieldName);
             belowRange.to(from);
@@ -570,13 +570,13 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder>
         }
 
         if (format != null) {
-            for (QueryBuilder rq : complement) {
-                ((RangeQueryBuilder) rq).format(format);
+            for (RangeQueryBuilder rq : complement) {
+                rq.format(format);
             }
         }
         if (timeZone != null) {
-            for (QueryBuilder rq : complement) {
-                ((RangeQueryBuilder) rq).timeZone = timeZone;
+            for (RangeQueryBuilder rq : complement) {
+                rq.timeZone = timeZone;
             }
         }
 

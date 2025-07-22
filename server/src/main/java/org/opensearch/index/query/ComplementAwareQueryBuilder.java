@@ -13,11 +13,11 @@ import java.util.List;
 /**
  * A QueryBuilder which can provide QueryBuilders that make up the complement of the original query.
  */
-public interface ComplementAwareQueryBuilder extends WithFieldName {
+public interface ComplementAwareQueryBuilder {
     /**
      * Returns a list of RangeQueryBuilder whose elements, when combined, form the complement of this range query.
      * May be null, in which case the complement couldn't be determined.
      * @return the complement
      */
-    List<QueryBuilder> getComplement(QueryShardContext context);
+    List<? extends QueryBuilder> getComplement(QueryShardContext context);
 }
