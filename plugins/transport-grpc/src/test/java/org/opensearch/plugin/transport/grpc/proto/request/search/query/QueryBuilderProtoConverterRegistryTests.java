@@ -7,12 +7,16 @@
  */
 package org.opensearch.plugin.transport.grpc.proto.request.search.query;
 
-import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.TermQuery;
 import org.opensearch.test.OpenSearchTestCase;
 
+/**
+ * Test class for QueryBuilderProtoConverterRegistry to verify the map-based optimization.
+ */
 public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase {
 
     private QueryBuilderProtoConverterRegistry registry;
@@ -20,116 +24,111 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        // Create an empty registry for testing
-        registry = new EmptyQueryBuilderProtoConverterRegistry();
+        registry = new QueryBuilderProtoConverterRegistry();
     }
 
-    public void testRegisterAndConvertQuery() {
-        // Create a converter
-        MatchAllQueryBuilderProtoConverter converter = new MatchAllQueryBuilderProtoConverter();
+    public void testMatchAllQueryConversion() {
+        // Create a MatchAll query container
+        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build();
 
-        // Register the converter
-        registry.registerConverter(converter);
-
-        // Create a QueryContainer with MatchAllQuery
-        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
-        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
-
-        // Convert the query
+        // Convert using the registry
         QueryBuilder queryBuilder = registry.fromProto(queryContainer);
 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
-        assertTrue("QueryBuilder should be a MatchAllQueryBuilder", queryBuilder instanceof MatchAllQueryBuilder);
+        assertEquals(
+            "Should be a MatchAllQueryBuilder",
+            "org.opensearch.index.query.MatchAllQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
     }
 
-    public void testConvertQueryForUnregisteredType() {
-        // Create a QueryContainer with MatchAllQuery (no converter registered)
-        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
-        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
+    public void testTermQueryConversion() {
+        // Create a Term query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setTerm(
+                TermQuery.newBuilder().setField("test_field").setValue(FieldValue.newBuilder().setStringValue("test_value").build()).build()
+            )
+            .build();
 
-        // Convert the query, should throw IllegalArgumentException
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto(queryContainer));
-
-        // Verify the exception message
-        assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
-    }
-
-    public void testFromProto() {
-        // Register a converter
-        registry.registerConverter(new MatchAllQueryBuilderProtoConverter());
-
-        // Create a QueryContainer with MatchAllQuery
-        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
-        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
-
-        // Convert the query
+        // Convert using the registry
         QueryBuilder queryBuilder = registry.fromProto(queryContainer);
 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
-        assertTrue("QueryBuilder should be a MatchAllQueryBuilder", queryBuilder instanceof MatchAllQueryBuilder);
+        assertEquals("Should be a TermQueryBuilder", "org.opensearch.index.query.TermQueryBuilder", queryBuilder.getClass().getName());
     }
 
-    public void testFromProtoWithUnregisteredType() {
-        // Create a QueryContainer with MatchAllQuery (no converter registered)
-        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
-        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
-
-        // Convert the query, should throw IllegalArgumentException
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto(queryContainer));
-
-        // Verify the exception message
-        assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
+    public void testNullQueryContainer() {
+        expectThrows(IllegalArgumentException.class, () -> registry.fromProto(null));
     }
 
-    public void testFromProtoWithNullQueryContainer() {
-        // Call fromProto with null, should throw IllegalArgumentException
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto(null));
-
-        // Verify the exception message
-        assertEquals("Query container cannot be null", exception.getMessage());
+    public void testUnsupportedQueryType() {
+        // Create an empty query container (no query type set)
+        QueryContainer queryContainer = QueryContainer.newBuilder().build();
+        expectThrows(IllegalArgumentException.class, () -> registry.fromProto(queryContainer));
     }
 
-    public void testRegisterNullConverter() {
-        // Register a null converter
-        registry.registerConverter(null);
-
-        // Create a QueryContainer with MatchAllQuery
-        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
-        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
-
-        // Convert the query, should throw IllegalArgumentException since no converter is registered
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto(queryContainer));
-
-        // Verify the exception message
-        assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
-    }
-
-    public void testLoadExternalConverters() {
-        // Create a registry that will load external converters
-        QueryBuilderProtoConverterRegistry registryWithExternalConverters = new QueryBuilderProtoConverterRegistry() {
+    public void testConverterRegistration() {
+        // Create a custom converter for testing
+        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
             @Override
-            protected void registerBuiltInConverters() {
-                // Don't register any built-in converters
+            public QueryContainer.QueryContainerCase getHandledQueryCase() {
+                return QueryContainer.QueryContainerCase.MATCH_ALL;
             }
 
             @Override
-            protected void loadExternalConverters() {
-                // Register a converter manually to simulate external loading
-                registerConverter(new MatchAllQueryBuilderProtoConverter());
+            public QueryBuilder fromProto(QueryContainer queryContainer) {
+                // Return a mock QueryBuilder for testing
+                return new org.opensearch.index.query.MatchAllQueryBuilder();
             }
         };
 
-        // Create a QueryContainer with MatchAllQuery
-        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
-        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
+        // Register the custom converter
+        registry.registerConverter(customConverter);
 
-        // Convert the query
-        QueryBuilder queryBuilder = registryWithExternalConverters.fromProto(queryContainer);
+        // Test that it works
+        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build();
 
-        // Verify the result
-        assertNotNull("QueryBuilder should not be null", queryBuilder);
-        assertTrue("QueryBuilder should be a MatchAllQueryBuilder", queryBuilder instanceof MatchAllQueryBuilder);
+        QueryBuilder result = registry.fromProto(queryContainer);
+        assertNotNull("Result should not be null", result);
+    }
+
+    public void testNullConverter() {
+        expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(null));
+    }
+
+    public void testNullHandledQueryCase() {
+        // Create a custom converter that returns null for getHandledQueryCase
+        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
+            @Override
+            public QueryContainer.QueryContainerCase getHandledQueryCase() {
+                return null;
+            }
+
+            @Override
+            public QueryBuilder fromProto(QueryContainer queryContainer) {
+                return new org.opensearch.index.query.MatchAllQueryBuilder();
+            }
+        };
+
+        expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
+    }
+
+    public void testNotSetHandledQueryCase() {
+        // Create a custom converter that returns QUERYCONTAINER_NOT_SET for getHandledQueryCase
+        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
+            @Override
+            public QueryContainer.QueryContainerCase getHandledQueryCase() {
+                return QueryContainer.QueryContainerCase.QUERYCONTAINER_NOT_SET;
+            }
+
+            @Override
+            public QueryBuilder fromProto(QueryContainer queryContainer) {
+                return new org.opensearch.index.query.MatchAllQueryBuilder();
+            }
+        };
+
+        expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
     }
 }

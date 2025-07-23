@@ -106,6 +106,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
      * @param clusterSettings The cluster settings
      * @param tracer The tracer
      * @return A map of transport names to transport suppliers
+     * @throws IllegalStateException if queryRegistry is not initialized
      */
     @Override
     public Map<String, Supplier<AuxTransport>> getAuxTransports(
@@ -120,17 +121,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new RuntimeException("client cannot be null");
         }
 
-        // Create the registry if it doesn't exist
         if (queryRegistry == null) {
-            queryRegistry = new QueryBuilderProtoConverterRegistry();
-
-            // Register external converters
-            for (QueryBuilderProtoConverter converter : queryConverters) {
-                queryRegistry.registerConverter(converter);
-            }
-
-            // Set the registry in AbstractQueryBuilderProtoUtils
-            AbstractQueryBuilderProtoUtils.setRegistry(queryRegistry);
+            throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
         }
 
         List<BindableService> grpcServices = registerGRPCServices(new DocumentServiceImpl(client), new SearchServiceImpl(client));
@@ -151,6 +143,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
      * @param tracer The tracer
      * @param secureAuxTransportSettingsProvider provides ssl context params
      * @return A map of transport names to transport suppliers
+     * @throws IllegalStateException if queryRegistry is not initialized
      */
     @Override
     public Map<String, Supplier<AuxTransport>> getSecureAuxTransports(
@@ -166,17 +159,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new RuntimeException("client cannot be null");
         }
 
-        // Create the registry if it doesn't exist
         if (queryRegistry == null) {
-            queryRegistry = new QueryBuilderProtoConverterRegistry();
-
-            // Register external converters
-            for (QueryBuilderProtoConverter converter : queryConverters) {
-                queryRegistry.registerConverter(converter);
-            }
-
-            // Set the registry in AbstractQueryBuilderProtoUtils
-            AbstractQueryBuilderProtoUtils.setRegistry(queryRegistry);
+            throw new IllegalStateException("createComponents must be called before getSecureAuxTransports to initialize the registry");
         }
 
         List<BindableService> grpcServices = registerGRPCServices(new DocumentServiceImpl(client), new SearchServiceImpl(client));
@@ -223,7 +207,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
     /**
      * Creates components used by the plugin.
-     * Stores the client for later use in creating gRPC services.
+     * Stores the client for later use in creating gRPC services, and the query registry which registers the types of supported GRPC Search queries.
      *
      * @param client The client
      * @param clusterService The cluster service

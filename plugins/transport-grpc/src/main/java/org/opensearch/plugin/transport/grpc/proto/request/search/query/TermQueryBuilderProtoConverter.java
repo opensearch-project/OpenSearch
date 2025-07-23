@@ -25,16 +25,16 @@ public class TermQueryBuilderProtoConverter implements QueryBuilderProtoConverte
     }
 
     @Override
-    public boolean canHandle(QueryContainer queryContainer) {
-        return queryContainer != null && queryContainer.getTermCount() > 0;
+    public QueryContainer.QueryContainerCase getHandledQueryCase() {
+        return QueryContainer.QueryContainerCase.TERM;
     }
 
     @Override
     public QueryBuilder fromProto(QueryContainer queryContainer) {
-        if (!canHandle(queryContainer)) {
+        if (queryContainer == null || queryContainer.getQueryContainerCase() != QueryContainer.QueryContainerCase.TERM) {
             throw new IllegalArgumentException("QueryContainer does not contain a Term query");
         }
 
-        return TermQueryBuilderProtoUtils.fromProto(queryContainer.getTermMap());
+        return TermQueryBuilderProtoUtils.fromProto(queryContainer.getTerm());
     }
 }

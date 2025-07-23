@@ -25,13 +25,13 @@ public class MatchNoneQueryBuilderProtoConverter implements QueryBuilderProtoCon
     }
 
     @Override
-    public boolean canHandle(QueryContainer queryContainer) {
-        return queryContainer != null && queryContainer.hasMatchNone();
+    public QueryContainer.QueryContainerCase getHandledQueryCase() {
+        return QueryContainer.QueryContainerCase.MATCH_NONE;
     }
 
     @Override
     public QueryBuilder fromProto(QueryContainer queryContainer) {
-        if (!canHandle(queryContainer)) {
+        if (queryContainer == null || !queryContainer.hasMatchNone()) {
             throw new IllegalArgumentException("QueryContainer does not contain a MatchNone query");
         }
 

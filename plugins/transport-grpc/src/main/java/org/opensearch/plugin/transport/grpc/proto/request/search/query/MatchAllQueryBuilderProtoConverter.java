@@ -25,13 +25,13 @@ public class MatchAllQueryBuilderProtoConverter implements QueryBuilderProtoConv
     }
 
     @Override
-    public boolean canHandle(QueryContainer queryContainer) {
-        return queryContainer != null && queryContainer.hasMatchAll();
+    public QueryContainer.QueryContainerCase getHandledQueryCase() {
+        return QueryContainer.QueryContainerCase.MATCH_ALL;
     }
 
     @Override
     public QueryBuilder fromProto(QueryContainer queryContainer) {
-        if (!canHandle(queryContainer)) {
+        if (queryContainer == null || !queryContainer.hasMatchAll()) {
             throw new IllegalArgumentException("QueryContainer does not contain a MatchAll query");
         }
 

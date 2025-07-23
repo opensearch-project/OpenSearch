@@ -17,12 +17,11 @@ import org.opensearch.protobufs.QueryContainer;
 public interface QueryBuilderProtoConverter {
 
     /**
-     * Checks if this converter can handle the given query container.
+     * Returns the QueryContainerCase this converter handles.
      *
-     * @param queryContainer The query container from the protobuf message
-     * @return true if this converter can handle the query container, false otherwise
+     * @return The QueryContainerCase
      */
-    boolean canHandle(QueryContainer queryContainer);
+    QueryContainer.QueryContainerCase getHandledQueryCase();
 
     /**
      * Converts a protobuf query container to an OpenSearch QueryBuilder.

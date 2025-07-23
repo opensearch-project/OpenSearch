@@ -25,13 +25,13 @@ public class TermsQueryBuilderProtoConverter implements QueryBuilderProtoConvert
     }
 
     @Override
-    public boolean canHandle(QueryContainer queryContainer) {
-        return queryContainer != null && queryContainer.hasTerms();
+    public QueryContainer.QueryContainerCase getHandledQueryCase() {
+        return QueryContainer.QueryContainerCase.TERMS;
     }
 
     @Override
     public QueryBuilder fromProto(QueryContainer queryContainer) {
-        if (!canHandle(queryContainer)) {
+        if (queryContainer == null || !queryContainer.hasTerms()) {
             throw new IllegalArgumentException("QueryContainer does not contain a Terms query");
         }
 

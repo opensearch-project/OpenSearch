@@ -16,15 +16,6 @@ import org.opensearch.protobufs.QueryContainer;
  * Utility class for converting Protocol Buffer query representations to OpenSearch QueryBuilder objects.
  * This class provides methods to parse different types of query containers and transform them
  * into their corresponding OpenSearch QueryBuilder implementations for search operations.
- * <p>
- * Supported query types include:
- * <ul>
- *   <li>MatchAll - Returns all documents</li>
- *   <li>MatchNone - Returns no documents</li>
- *   <li>Term - Exact term matching</li>
- *   <li>Terms - Multiple terms matching</li>
- *   <li>KNN - K-nearest neighbors vector search</li>
- * </ul>
  */
 public class AbstractQueryBuilderProtoUtils {
 

@@ -15,8 +15,10 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.ServiceLoader;
 
 /**
@@ -28,6 +30,7 @@ public class QueryBuilderProtoConverterRegistry {
 
     private static final Logger logger = LogManager.getLogger(QueryBuilderProtoConverterRegistry.class);
     private final List<QueryBuilderProtoConverter> converters = new ArrayList<>();
+    private final Map<QueryContainer.QueryContainerCase, QueryBuilderProtoConverter> converterMap = new HashMap<>();
 
     /**
      * Creates a new registry and loads all available converters.
@@ -47,13 +50,12 @@ public class QueryBuilderProtoConverterRegistry {
      */
     protected void registerBuiltInConverters() {
         // Add built-in converters
-        converters.add(new MatchAllQueryBuilderProtoConverter());
-        converters.add(new MatchNoneQueryBuilderProtoConverter());
-        converters.add(new TermQueryBuilderProtoConverter());
-        converters.add(new TermsQueryBuilderProtoConverter());
-        // converters.add(new KNNQueryBuilderProtoConverter());
+        registerConverter(new MatchAllQueryBuilderProtoConverter());
+        registerConverter(new MatchNoneQueryBuilderProtoConverter());
+        registerConverter(new TermQueryBuilderProtoConverter());
+        registerConverter(new TermsQueryBuilderProtoConverter());
 
-        logger.debug("Registered {} built-in query converters", converters.size());
+        logger.info("Registered {} built-in query converters", converters.size());
     }
 
     /**
@@ -65,14 +67,20 @@ public class QueryBuilderProtoConverterRegistry {
         Iterator<QueryBuilderProtoConverter> iterator = serviceLoader.iterator();
 
         int count = 0;
+        int failedCount = 0;
         while (iterator.hasNext()) {
-            QueryBuilderProtoConverter converter = iterator.next();
-            converters.add(converter);
-            count++;
-            logger.debug("Loaded external query converter: {}", converter.getClass().getName());
+            try {
+                QueryBuilderProtoConverter converter = iterator.next();
+                registerConverter(converter);
+                count++;
+                logger.info("Loaded external query converter for {}: {}", converter.getHandledQueryCase(), converter.getClass().getName());
+            } catch (Exception e) {
+                failedCount++;
+                logger.error("Failed to load external query converter", e);
+            }
         }
 
-        logger.debug("Loaded {} external query converters", count);
+        logger.info("Loaded {} external query converters ({} failed)", count, failedCount);
     }
 
     /**
@@ -87,24 +95,53 @@ public class QueryBuilderProtoConverterRegistry {
             throw new IllegalArgumentException("Query container cannot be null");
         }
 
-        for (QueryBuilderProtoConverter converter : converters) {
-            if (converter.canHandle(queryContainer)) {
-                return converter.fromProto(queryContainer);
-            }
+        // Use direct map lookup for better performance
+        QueryContainer.QueryContainerCase queryCase = queryContainer.getQueryContainerCase();
+        QueryBuilderProtoConverter converter = converterMap.get(queryCase);
+
+        if (converter != null) {
+            logger.debug("Using converter for {}: {}", queryCase, converter.getClass().getName());
+            return converter.fromProto(queryContainer);
         }
 
-        throw new IllegalArgumentException("Unsupported query type in container: " + queryContainer);
+        throw new IllegalArgumentException("Unsupported query type in container: " + queryContainer + " (case: " + queryCase + ")");
     }
 
     /**
      * Registers a new converter.
      *
      * @param converter The converter to register
+     * @throws IllegalArgumentException if the converter is null or its handled query case is invalid
      */
     public void registerConverter(QueryBuilderProtoConverter converter) {
-        if (converter != null) {
-            converters.add(converter);
-            logger.debug("Manually registered query converter: {}", converter.getClass().getName());
+        if (converter == null) {
+            throw new IllegalArgumentException("Converter cannot be null");
         }
+
+        QueryContainer.QueryContainerCase queryCase = converter.getHandledQueryCase();
+
+        if (queryCase == null) {
+            throw new IllegalArgumentException("Handled query case cannot be null for converter: " + converter.getClass().getName());
+        }
+
+        if (queryCase == QueryContainer.QueryContainerCase.QUERYCONTAINER_NOT_SET) {
+            throw new IllegalArgumentException(
+                "Cannot register converter for QUERYCONTAINER_NOT_SET case: " + converter.getClass().getName()
+            );
+        }
+
+        converters.add(converter);
+
+        QueryBuilderProtoConverter existingConverter = converterMap.put(queryCase, converter);
+        if (existingConverter != null) {
+            logger.warn(
+                "Replacing existing converter for query type {}: {} -> {}",
+                queryCase,
+                existingConverter.getClass().getName(),
+                converter.getClass().getName()
+            );
+        }
+
+        logger.debug("Registered query converter for {}: {}", queryCase, converter.getClass().getName());
     }
 }
