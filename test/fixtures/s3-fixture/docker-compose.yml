@@ -46,7 +46,6 @@ services:
       - "80"
 
   s3-fixture-with-session-token:
-    image: img4
     build:
       context: .
       args:
