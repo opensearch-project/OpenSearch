@@ -19,7 +19,7 @@ import org.opensearch.search.internal.SearchContext;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.0.0")
+@PublicApi(since = "3.2.0")
 public interface QueryPhaseExtension {
 
     /**
@@ -39,4 +39,15 @@ public interface QueryPhaseExtension {
      * @param searchContext the current search context
      */
     void afterScoreCollection(SearchContext searchContext);
+
+    /**
+     * Determines whether failures in this extension should fail the entire query.
+     * When true, exceptions thrown by this extension will propagate and fail the search.
+     * When false (default), exceptions are logged and the search continues.
+     *
+     * @return true if extension failures should fail the query, false otherwise
+     */
+    default boolean failOnError() {
+        return false;
+    }
 }

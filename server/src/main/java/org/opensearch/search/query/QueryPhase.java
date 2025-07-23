@@ -451,7 +451,17 @@ public class QueryPhase {
                 try {
                     extension.beforeScoreCollection(searchContext);
                 } catch (Exception e) {
-                    LOGGER.warn(new ParameterizedMessage("Failed to execute beforeScoreCollection extension [{}]", extension.getClass().getName()), e);
+                    if (extension.failOnError()) {
+                        throw new QueryPhaseExecutionException(
+                            searchContext.shardTarget(),
+                            "Failed to execute beforeScoreCollection extension [" + extension.getClass().getName() + "]",
+                            e
+                        );
+                    }
+                    LOGGER.warn(
+                        new ParameterizedMessage("Failed to execute beforeScoreCollection extension [{}]", extension.getClass().getName()),
+                        e
+                    );
                 }
             }
 
@@ -471,7 +481,20 @@ public class QueryPhase {
                     try {
                         extension.afterScoreCollection(searchContext);
                     } catch (Exception e) {
-                        LOGGER.warn(new ParameterizedMessage("Failed to execute afterScoreCollection extension [{}]", extension.getClass().getName()), e);
+                        if (extension.failOnError()) {
+                            throw new QueryPhaseExecutionException(
+                                searchContext.shardTarget(),
+                                "Failed to execute afterScoreCollection extension [" + extension.getClass().getName() + "]",
+                                e
+                            );
+                        }
+                        LOGGER.warn(
+                            new ParameterizedMessage(
+                                "Failed to execute afterScoreCollection extension [{}]",
+                                extension.getClass().getName()
+                            ),
+                            e
+                        );
                     }
                 }
             }
