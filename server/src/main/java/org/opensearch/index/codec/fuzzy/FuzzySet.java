@@ -13,15 +13,17 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.CheckedSupplier;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Fuzzy Filter interface
  */
-public interface FuzzySet extends Accountable, Closeable {
+public interface FuzzySet<T extends FuzzySet.Meta> extends Accountable, Closeable {
 
     /**
      * Name used for a codec to be aware of what fuzzy set has been used.
@@ -58,32 +60,34 @@ public interface FuzzySet extends Accountable, Closeable {
      * Enum to declare supported properties and mappings for a fuzzy set implementation.
      */
     enum SetType {
-        BLOOM_FILTER_V1("bloom_filter_v1", BloomFilter::new, List.of("bloom_filter"));
+        BLOOM_FILTER_V1("bloom_filter_v1", List.of("bloom_filter"), (in) -> {
+            BloomFilter.BloomMeta meta = new BloomFilter.BloomMeta(in);
+            return () -> new BloomFilter(meta);
+        });
 
         /**
          * Name persisted in postings file. This will be used when reading to determine the bloom filter implementation.
          */
         private final String setName;
 
-        /**
-         * Interface for reading the actual fuzzy set implementation into java object.
-         */
-        private final CheckedFunction<IndexInput, ? extends FuzzySet, IOException> deserializer;
+        private final CheckedFunction<IndexInput, CheckedSupplier<? extends FuzzySet, IOException>, IOException> metaExtractor;
 
-        SetType(String setName, CheckedFunction<IndexInput, ? extends FuzzySet, IOException> deserializer, List<String> aliases) {
+        SetType(String setName,
+                List<String> aliases,
+                CheckedFunction<IndexInput, CheckedSupplier<? extends FuzzySet, IOException>, IOException> metaExtractor) {
             if (aliases.size() < 1) {
                 throw new IllegalArgumentException("Alias list is empty. Could not create Set Type: " + setName);
             }
             this.setName = setName;
-            this.deserializer = deserializer;
+            this.metaExtractor = metaExtractor;
         }
 
         public String getSetName() {
             return setName;
         }
 
-        public CheckedFunction<IndexInput, ? extends FuzzySet, IOException> getDeserializer() {
-            return deserializer;
+        public CheckedSupplier<? extends FuzzySet, IOException> extractMetaAndGetSupplier(IndexInput in) throws IOException {
+            return metaExtractor.apply(in);
         }
 
         public static SetType from(String name) {
@@ -94,5 +98,9 @@ public interface FuzzySet extends Accountable, Closeable {
             }
             throw new IllegalArgumentException("There is no implementation for fuzzy set: " + name);
         }
+    }
+
+    interface Meta {
+
     }
 }
