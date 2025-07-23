@@ -48,6 +48,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -104,6 +105,7 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -203,6 +205,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile TimeValue refreshInterval;
     private volatile boolean shardLevelRefreshEnabled;
 
+    @InternalApi
     public IndexService(
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
@@ -344,6 +347,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    @InternalApi
     public IndexService(
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
@@ -586,6 +590,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    @Deprecated(forRemoval = true)
     public synchronized IndexShard createShard(
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
@@ -597,6 +602,34 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Nullable DiscoveryNode sourceNode,
         DiscoveryNodes discoveryNodes,
         MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+    ) throws IOException {
+        return createShard(
+            routing,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            checkpointPublisher,
+            remoteStoreStatsTrackerFactory,
+            repositoriesService,
+            targetNode,
+            sourceNode,
+            discoveryNodes,
+            mergedSegmentWarmerFactory,
+            null
+        );
+    }
+
+    public synchronized IndexShard createShard(
+        final ShardRouting routing,
+        final Consumer<ShardId> globalCheckpointSyncer,
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final RepositoriesService repositoriesService,
+        final DiscoveryNode targetNode,
+        @Nullable DiscoveryNode sourceNode,
+        DiscoveryNodes discoveryNodes,
+        MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        MergedSegmentPublisher mergedSegmentPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -728,7 +761,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 fixedRefreshIntervalSchedulingEnabled,
                 this::getRefreshInterval,
                 refreshMutex,
-                clusterService.getClusterApplierService()
+                clusterService.getClusterApplierService(),
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

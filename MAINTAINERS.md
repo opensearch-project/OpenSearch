@@ -11,6 +11,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Andriy Redko      | [reta](https://github.com/reta)                         | Independent |
 | Ankit Jain        | [jainankitk](https://github.com/jainankitk)             | Amazon      |
 | Ashish Singh      | [ashking94](https://github.com/ashking94)               | Amazon      |
+| Bharathwaj G      | [bharath-techie](https://github.com/bharath-techie)     | Amazon      |
 | Bukhtawar Khan    | [Bukhtawar](https://github.com/Bukhtawar)               | Amazon      |
 | Charlotte Henkle  | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
 | Craig Perkins     | [cwperks](https://github.com/cwperks)                   | Amazon      |
@@ -27,6 +28,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Owais Kazi        | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Pan Guixin        | [bugmakerrrrrr](https://github.com/bugmakerrrrrr)       | ByteDance   |
 | Peter Nied        | [peternied](https://github.com/peternied)               | Amazon      |
+| Prudhvi Godithi   | [prudhvigodithi](https://github.com/prudhvigodithi)     | Amazon      |
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
 | Rishikesh Pasham  | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Sachin Kale       | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |

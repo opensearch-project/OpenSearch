@@ -49,6 +49,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -401,6 +403,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         changed |= rewriteMustNotRangeClausesToShould(newBuilder, queryRewriteContext);
+        changed |= rewriteMustClausesToFilter(newBuilder, queryRewriteContext);
 
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
@@ -482,31 +485,33 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return false;
         }
 
+        QueryShardContext shardContext = getQueryShardContext(queryRewriteContext);
+
         boolean changed = false;
-        // For now, only handle the case where there's exactly 1 range query for this field.
+        // For now, only handle the case where there's exactly 1 complement-aware query for this field.
         Map<String, Integer> fieldCounts = new HashMap<>();
-        Set<RangeQueryBuilder> rangeQueries = new HashSet<>();
+        Set<ComplementAwareQueryBuilder> complementAwareQueries = new HashSet<>();
         for (QueryBuilder clause : mustNotClauses) {
-            if (clause instanceof RangeQueryBuilder rq) {
-                fieldCounts.merge(rq.fieldName(), 1, Integer::sum);
-                rangeQueries.add(rq);
+            if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
+                fieldCounts.merge(wfn.fieldName(), 1, Integer::sum);
+                complementAwareQueries.add((ComplementAwareQueryBuilder) wfn);
             }
         }
 
-        for (RangeQueryBuilder rq : rangeQueries) {
-            String fieldName = rq.fieldName();
+        for (ComplementAwareQueryBuilder caq : complementAwareQueries) {
+            String fieldName = ((WithFieldName) caq).fieldName();
             if (fieldCounts.getOrDefault(fieldName, 0) == 1) {
                 // Check that all docs on this field have exactly 1 value, otherwise we can't perform this rewrite
                 if (checkAllDocsHaveOneValue(leafReaderContexts, fieldName)) {
-                    List<RangeQueryBuilder> complement = rq.getComplement();
+                    List<? extends QueryBuilder> complement = caq.getComplement(shardContext);
                     if (complement != null) {
                         BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder();
                         nestedBoolQuery.minimumShouldMatch(1);
-                        for (RangeQueryBuilder complementComponent : complement) {
+                        for (QueryBuilder complementComponent : complement) {
                             nestedBoolQuery.should(complementComponent);
                         }
                         newBuilder.must(nestedBoolQuery);
-                        newBuilder.mustNotClauses.remove(rq);
+                        newBuilder.mustNotClauses.remove(caq);
                         changed = true;
                     }
                 }
@@ -534,6 +539,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return indexSearcher.getIndexReader().leaves();
     }
 
+    private QueryShardContext getQueryShardContext(QueryRewriteContext queryRewriteContext) {
+        return queryRewriteContext == null ? null : queryRewriteContext.convertToShardContext(); // Note this can still be null
+    }
+
     private boolean checkAllDocsHaveOneValue(List<LeafReaderContext> contexts, String fieldName) {
         for (LeafReaderContext lrc : contexts) {
             PointValues values;
@@ -549,5 +558,54 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             }
         }
         return true;
+    }
+
+    private boolean rewriteMustClausesToFilter(BoolQueryBuilder newBuilder, QueryRewriteContext queryRewriteContext) {
+        // If we have must clauses which return the same score for all matching documents, like numeric term queries or ranges,
+        // moving them from must clauses to filter clauses improves performance in some cases.
+        // This works because it can let Lucene use MaxScoreCache to skip non-competitive docs.
+        boolean changed = false;
+        Set<QueryBuilder> mustClausesToMove = new HashSet<>();
+
+        QueryShardContext shardContext;
+        if (queryRewriteContext == null) {
+            shardContext = null;
+        } else {
+            shardContext = queryRewriteContext.convertToShardContext(); // can still be null
+        }
+
+        for (QueryBuilder clause : mustClauses) {
+            if (isClauseIrrelevantToScoring(clause, shardContext)) {
+                mustClausesToMove.add(clause);
+                changed = true;
+            }
+        }
+
+        newBuilder.mustClauses.removeAll(mustClausesToMove);
+        newBuilder.filterClauses.addAll(mustClausesToMove);
+        return changed;
+    }
+
+    private boolean isClauseIrrelevantToScoring(QueryBuilder clause, QueryShardContext context) {
+        // This is an incomplete list of clauses this might apply for; it can be expanded in future.
+
+        // If a clause is purely numeric, for example a date range, its score is unimportant as
+        // it'll be the same for all returned docs
+        if (clause instanceof RangeQueryBuilder) return true;
+        if (clause instanceof GeoBoundingBoxQueryBuilder) return true;
+
+        // Further optimizations depend on knowing whether the field is numeric.
+        // QueryBuilder.doRewrite() is called several times in the search flow, and the shard context telling us this
+        // is only available the last time, when it's called from SearchService.executeQueryPhase().
+        // Skip moving these clauses if we don't have the shard context.
+        if (context == null) return false;
+        if (!(clause instanceof WithFieldName wfn)) return false;
+        MappedFieldType fieldType = context.fieldMapper(wfn.fieldName());
+        if (!(fieldType instanceof NumberFieldMapper.NumberFieldType)) return false;
+
+        if (clause instanceof MatchQueryBuilder) return true;
+        if (clause instanceof TermQueryBuilder) return true;
+        if (clause instanceof TermsQueryBuilder) return true;
+        return false;
     }
 }

@@ -8,9 +8,12 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.breaker.TestCircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -18,14 +21,22 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.utils.FileTypeUtils;
+import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCacheTests extends OpenSearchTestCase {
     // need concurrency level to be static to make these tests more deterministic because capacity per segment is dependent on
     // (total capacity) / (concurrency level) so having high concurrency level might trigger early evictions which is tolerable in real life
@@ -44,6 +55,10 @@ public class FileCacheTests extends OpenSearchTestCase {
         return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
     }
 
+    private FileCache createFileCache(long capacity, CircuitBreaker circuitBreaker) {
+        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, circuitBreaker);
+    }
+
     private FileCache createCircuitBreakingFileCache(long capacity) {
         TestCircuitBreaker testCircuitBreaker = new TestCircuitBreaker();
         testCircuitBreaker.startBreaking();
@@ -60,6 +75,18 @@ public class FileCacheTests extends OpenSearchTestCase {
             .resolve(indexName)
             .resolve(shardId)
             .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
+        Path filePath = folderPath.resolve(fileName);
+        Files.createDirectories(folderPath);
+        Files.createFile(filePath);
+        Files.write(filePath, "test-data".getBytes());
+    }
+
+    @SuppressForbidden(reason = "creating a test file for cache")
+    private void createWarmIndexFile(String indexName, String shardId, String fileName) throws IOException {
+        Path folderPath = path.resolve(NodeEnvironment.INDICES_FOLDER)
+            .resolve(indexName)
+            .resolve(shardId)
+            .resolve(FileTypeUtils.INDICES_FOLDER_IDENTIFIER);
         Path filePath = folderPath.resolve(fileName);
         Files.createDirectories(folderPath);
         Files.createFile(filePath);
@@ -184,6 +211,20 @@ public class FileCacheTests extends OpenSearchTestCase {
         Path path = createPath("0");
         assertThrows(CircuitBreakingException.class, () -> fileCache.compute(path, (p, i) -> new StubCachedIndexInput(8 * MEGA_BYTES)));
         assertNull(fileCache.get(path));
+    }
+
+    public void testEntryNotRemovedCircuitBreaker() {
+        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
+        FileCache fileCache = createFileCache(MEGA_BYTES, circuitBreaker);
+        Path path = createPath("0");
+        fileCache.put(path, new StubCachedIndexInput(8 * MEGA_BYTES));
+        // put should succeed since circuit breaker hasn't tripped yet
+        assertEquals(fileCache.get(path).length(), 8 * MEGA_BYTES);
+        circuitBreaker.startBreaking();
+        // compute should throw CircuitBreakingException but shouldn't remove entry already present
+        assertThrows(CircuitBreakingException.class, () -> fileCache.compute(path, (p, i) -> new StubCachedIndexInput(2 * MEGA_BYTES)));
+        assertNotNull(fileCache.get(path));
+        assertEquals(fileCache.get(path).length(), 8 * MEGA_BYTES);
     }
 
     public void testRemove() {
@@ -357,10 +398,158 @@ public class FileCacheTests extends OpenSearchTestCase {
         assertEquals(0, fileCache.activeUsage());
     }
 
+    public void testCloseIndexInputReferences() throws IOException {
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        // Add some entries to cache
+        int numEntries = 2;
+        Path tempDir = createTempDir();
+        Path path1 = tempDir.resolve("test1.tmp");
+        Path path2 = tempDir.resolve("test2.tmp");
+
+        // Create the files
+        Files.createFile(path1);
+        Files.createFile(path2);
+
+        try {
+            fileCache.put(path1, new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.incRef(path1); // Increase reference count
+            fileCache.put(path2, new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.incRef(path2); // Increase reference count
+            // Verify initial state
+            assertEquals(numEntries, fileCache.size());
+            // Close all references
+            fileCache.closeIndexInputReferences();
+            // Verify cache is empty
+            assertEquals(0, fileCache.size());
+            // Verify all entries are removed
+            assertNull(fileCache.get(path1));
+            assertNull(fileCache.get(path2));
+            // Verify path still exists
+            assertTrue(Files.exists(path1));
+            assertTrue(Files.exists(path2));
+        } finally {
+            Files.deleteIfExists(path1);
+            Files.deleteIfExists(path2);
+        }
+    }
+
+    public void testRestoreFromEmptyDirectory() throws IOException {
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        Path emptyDir = createTempDir();
+        fileCache.restoreFromDirectory(List.of(emptyDir));
+        assertEquals(0, fileCache.usage());
+        assertEquals(0, fileCache.activeUsage());
+    }
+
+    public void testRestoreWithNonExistentDirectory() {
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        Path nonExistentPath = path.resolve("non-existent");
+
+        fileCache.restoreFromDirectory(List.of(nonExistentPath));
+        assertEquals(0, fileCache.usage());
+    }
+
+    public void testWarmIndexCacheRestore() throws IOException {
+        String indexName = "test-warm-index";
+        String shardId = "0";
+        createWarmIndexFile(indexName, shardId, "test.0");
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        assertEquals(0, fileCache.usage());
+        Path indicesCachePath = path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexName).resolve(shardId);
+        fileCache.restoreFromDirectory(List.of(indicesCachePath));
+        assertTrue(fileCache.usage() > 0);
+        assertEquals(0, fileCache.activeUsage());
+    }
+
+    public void testRestoreFromMultipleDirectories() throws IOException {
+        String index1 = "test-index-1";
+        String index2 = "test-warm-index-2";
+        String shardId = "0";
+
+        // Create files in both cache and indices directories
+        createFile(index1, shardId, "test1.0");
+        createWarmIndexFile(index2, shardId, "test2.0");
+
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        Path cachePath = path.resolve(NodeEnvironment.CACHE_FOLDER).resolve(index1).resolve(shardId);
+        Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(index2).resolve(shardId);
+
+        fileCache.restoreFromDirectory(List.of(cachePath, indicesPath));
+        assertTrue(fileCache.usage() > 0);
+        assertEquals(0, fileCache.activeUsage());
+    }
+
+    public void testRestoreWithInvalidWarmIndexFiles() throws IOException {
+        String indexName = "test-warm-index";
+        String shardId = "0";
+
+        // Create a valid warm index file
+        createWarmIndexFile(indexName, shardId, "valid.0");
+
+        // Create an invalid/corrupt warm index file
+        Path invalidFilePath = path.resolve(NodeEnvironment.INDICES_FOLDER)
+            .resolve(indexName)
+            .resolve(shardId)
+            .resolve(FileTypeUtils.INDICES_FOLDER_IDENTIFIER)
+            .resolve("invalid.0");
+        Files.createDirectories(invalidFilePath.getParent());
+        Files.createFile(invalidFilePath);
+        // Make file unreadable
+        Files.setPosixFilePermissions(invalidFilePath, PosixFilePermissions.fromString("---------"));
+
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER).resolve(indexName).resolve(shardId);
+
+        // Should handle the invalid file gracefully
+        fileCache.restoreFromDirectory(List.of(indicesPath));
+        assertTrue("File cache should contain at least the valid file", fileCache.usage() > 0);
+        assertEquals("No files should be actively used", 0, fileCache.activeUsage());
+    }
+
     private void putAndDecRef(FileCache cache, int path, long indexInputSize) {
         final Path key = createPath(Integer.toString(path));
         cache.put(key, new StubCachedIndexInput(indexInputSize));
         cache.decRef(key);
+    }
+
+    public void testConcurrentRestore() throws IOException {
+        String index = "test-index-";
+        String warmIndex = "test-warm-index-";
+
+        for (int i = 1; i <= 100; i++) {
+            for (int j = 0; j < 10; j++) {
+                createFile(index + i, String.valueOf(j), "_" + j + "_block_" + j);
+                createWarmIndexFile(warmIndex + i, String.valueOf(j), "_" + j + "_block_" + j);
+                // Remove known extra files - "extra0" file is added by the ExtrasFS, which is part of Lucene's test framework
+                Files.deleteIfExists(
+                    path.resolve(NodeEnvironment.CACHE_FOLDER)
+                        .resolve(index + i)
+                        .resolve(String.valueOf(j))
+                        .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION)
+                        .resolve("extra0")
+                );
+                Files.deleteIfExists(
+                    path.resolve(NodeEnvironment.INDICES_FOLDER)
+                        .resolve(warmIndex + i)
+                        .resolve(String.valueOf(j))
+                        .resolve(FileTypeUtils.INDICES_FOLDER_IDENTIFIER)
+                        .resolve("extra0")
+                );
+            }
+        }
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        assertEquals(0, fileCache.size());
+        Path cachePath = path.resolve(NodeEnvironment.CACHE_FOLDER);
+        Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER);
+        ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
+        SetOnce<UncheckedIOException> exception = new SetOnce<>();
+        ForkJoinTask<Void> task1 = pool.submit(new FileCache.LoadTask(indicesPath, fileCache, exception));
+        ForkJoinTask<Void> task2 = pool.submit(new FileCache.LoadTask(cachePath, fileCache, exception));
+        task2.join();
+        task1.join();
+        pool.shutdown();
+        logger.info(fileCache);
+        assertEquals(2000, fileCache.size());
     }
 
     public static class StubCachedIndexInput implements CachedIndexInput {

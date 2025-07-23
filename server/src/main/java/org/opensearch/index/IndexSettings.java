@@ -43,7 +43,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -70,14 +69,12 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_7_0;
-import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
@@ -790,13 +787,6 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    public static final Setting<Boolean> INDEX_DERIVED_SOURCE_SETTING = Setting.boolSetting(
-        "index.derived_source.enabled",
-        false,
-        Property.IndexScope,
-        Property.Final
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -812,7 +802,6 @@ public final class IndexSettings {
     private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
     private boolean autoForcemergeEnabled;
-    private Version extendedCompatibilitySnapshotVersion;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -847,7 +836,6 @@ public final class IndexSettings {
     private final RemoteStorePathStrategy remoteStorePathStrategy;
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
-    private final boolean derivedSourceEnabled;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1027,13 +1015,6 @@ public final class IndexSettings {
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
         this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
-
-        if (isRemoteSnapshot() && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
-            extendedCompatibilitySnapshotVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
-        } else {
-            extendedCompatibilitySnapshotVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-        }
-
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.shouldCleanupUnreferencedFiles = INDEX_UNREFERENCED_FILE_CLEANUP.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -1088,7 +1069,6 @@ public final class IndexSettings {
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
-        derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -1448,13 +1428,11 @@ public final class IndexSettings {
     }
 
     /**
-     * If this is a remote snapshot and the extended compatibility
-     * feature flag is enabled, this returns the minimum {@link Version}
-     * supported. In all other cases, the return value is the
-     * {@link Version#minimumIndexCompatibilityVersion()} of {@link Version#CURRENT}.
+     * @deprecated Experimental feature has been removed. Do not use.
      */
+    @Deprecated
     public Version getExtendedCompatibilitySnapshotVersion() {
-        return extendedCompatibilitySnapshotVersion;
+        throw new UnsupportedOperationException("Experimental feature has been removed");
     }
 
     /**
@@ -2114,9 +2092,5 @@ public final class IndexSettings {
 
     public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
         this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
-    }
-
-    public boolean isDerivedSourceEnabled() {
-        return derivedSourceEnabled;
     }
 }

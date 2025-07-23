@@ -94,6 +94,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
         request.setScriptType(ScriptType.INLINE);
         request.setScript("{\"query\": { \"match\" : { \"{{my_field}}\" : \"{{my_value}}\" } } }");
         request.setProfile(true);
+        request.setSearchPipeline("pipeline");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("my_field", "foo");
@@ -110,6 +111,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
             .endObject()
             .field("explain", false)
             .field("profile", true)
+            .field("search_pipeline", "pipeline")
             .endObject();
 
         XContentBuilder actualRequest = MediaTypeRegistry.contentBuilder(contentType);
@@ -124,6 +126,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
         request.setScriptType(ScriptType.STORED);
         request.setScript("match_template");
         request.setExplain(true);
+        request.setSearchPipeline("pipeline");
 
         Map<String, Object> params = new HashMap<>();
         params.put("my_field", "foo");
@@ -140,6 +143,7 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
             .endObject()
             .field("explain", true)
             .field("profile", false)
+            .field("search_pipeline", "pipeline")
             .endObject();
 
         XContentBuilder actualRequest = MediaTypeRegistry.contentBuilder(contentType);

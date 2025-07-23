@@ -34,6 +34,7 @@ package org.opensearch.cluster.service;
 
 import org.opensearch.Version;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -58,6 +59,7 @@ public class PendingClusterTask implements Writeable {
     private boolean executing;
     private long timeInExecution;
 
+    @InternalApi
     public PendingClusterTask(StreamInput in) throws IOException {
         insertOrder = in.readVLong();
         priority = Priority.readFrom(in);
@@ -69,6 +71,7 @@ public class PendingClusterTask implements Writeable {
         }
     }
 
+    @InternalApi
     public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing, long timeInExecution) {
         assert timeInQueue >= 0 : "got a negative timeInQueue [" + timeInQueue + "]";
         assert insertOrder >= 0 : "got a negative insertOrder [" + insertOrder + "]";

@@ -11,6 +11,7 @@ package org.opensearch.index.store.remote.filecache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
@@ -23,13 +24,19 @@ import org.opensearch.index.store.remote.utils.cache.stats.RefCountedCacheStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.RecursiveAction;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
+import static org.opensearch.env.NodeEnvironment.processDirectoryFiles;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
+import static org.opensearch.index.store.remote.utils.FileTypeUtils.INDICES_FOLDER_IDENTIFIER;
 
 /**
  * File Cache (FC) is introduced to solve the problem that the local disk cannot hold
@@ -67,8 +74,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     @Override
     public CachedIndexInput put(Path filePath, CachedIndexInput indexInput) {
+        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.put(filePath, indexInput);
-        checkParentBreaker(filePath);
         return cachedIndexInput;
     }
 
@@ -77,8 +84,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         Path key,
         BiFunction<? super Path, ? super CachedIndexInput, ? extends CachedIndexInput> remappingFunction
     ) {
+        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.compute(key, remappingFunction);
-        checkParentBreaker(key);
         return cachedIndexInput;
     }
 
@@ -192,15 +199,18 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         theCache.logCurrentState();
     }
 
+    // To be used only in testing framework.
+    public void closeIndexInputReferences() {
+        theCache.closeIndexInputReferences();
+    }
+
     /**
      * Ensures that the PARENT breaker is not tripped when an entry is added to the cache
-     * @param filePath the path key for which entry is added
      */
-    private void checkParentBreaker(Path filePath) {
+    private void checkParentBreaker() {
         try {
             circuitBreaker.addEstimateBytesAndMaybeBreak(0, "filecache_entry");
         } catch (CircuitBreakingException ex) {
-            theCache.remove(filePath);
             throw new CircuitBreakingException(
                 "Unable to create file cache entries",
                 ex.getBytesWanted(),
@@ -216,32 +226,29 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
      * directory within the provided file cache path.
      */
     public void restoreFromDirectory(List<Path> fileCacheDataPaths) {
-        fileCacheDataPaths.stream()
-            .filter(Files::isDirectory)
-            .map(path -> path.resolve(LOCAL_STORE_LOCATION))
-            .filter(Files::isDirectory)
-            .flatMap(dir -> {
-                try {
-                    return Files.list(dir);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(
-                        "Unable to process file cache directory. Please clear the file cache for node startup.",
-                        e
-                    );
-                }
-            })
-            .filter(Files::isRegularFile)
-            .forEach(path -> {
-                try {
-                    put(path.toAbsolutePath(), new RestoredCachedIndexInput(Files.size(path)));
-                    decRef(path.toAbsolutePath());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(
-                        "Unable to retrieve cache file details. Please clear the file cache for node startup.",
-                        e
-                    );
-                }
-            });
+        Stream.concat(
+            fileCacheDataPaths.stream()
+                .filter(Files::isDirectory)
+                .map(path -> path.resolve(LOCAL_STORE_LOCATION))
+                .filter(Files::isDirectory),
+            fileCacheDataPaths.stream()
+                .filter(Files::isDirectory)
+                .map(path -> path.resolve(INDICES_FOLDER_IDENTIFIER))
+                .filter(Files::isDirectory)
+        ).flatMap(dir -> {
+            try {
+                return Files.list(dir);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to process file cache directory. Please clear the file cache for node startup.", e);
+            }
+        }).filter(Files::isRegularFile).forEach(path -> {
+            try {
+                put(path.toAbsolutePath(), new RestoredCachedIndexInput(Files.size(path)));
+                decRef(path.toAbsolutePath());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to retrieve cache file details. Please clear the file cache for node startup.", e);
+            }
+        });
     }
 
     /**
@@ -308,10 +315,10 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
      * These entries are eligible for eviction so if nothing needs to reference
      * them they will be deleted when the disk-based local cache fills up.
      */
-    private static class RestoredCachedIndexInput implements CachedIndexInput {
+    public static class RestoredCachedIndexInput implements CachedIndexInput {
         private final long length;
 
-        private RestoredCachedIndexInput(long length) {
+        public RestoredCachedIndexInput(long length) {
             this.length = length;
         }
 
@@ -332,5 +339,66 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
         @Override
         public void close() throws Exception {}
+    }
+
+    /**
+     * A recursive task for loading file cache entries from disk during node startup.
+     * Uses fork-join parallelism to efficiently scan directories and restore cached files.
+     */
+    public static class LoadTask extends RecursiveAction {
+        private final Path path;
+        private final FileCache fc;
+        private final boolean processedDirectory;
+        private final SetOnce<UncheckedIOException> exception;
+
+        public LoadTask(Path path, FileCache fc, SetOnce<UncheckedIOException> exception) {
+            this.path = path;
+            this.fc = fc;
+            this.exception = exception;
+            this.processedDirectory = false;
+        }
+
+        public LoadTask(Path path, FileCache fc, SetOnce<UncheckedIOException> exception, boolean processedDirectory) {
+            this.path = path;
+            this.fc = fc;
+            this.exception = exception;
+            this.processedDirectory = processedDirectory;
+        }
+
+        @Override
+        public void compute() {
+            List<LoadTask> subTasks = new ArrayList<>();
+            try {
+                if (processedDirectory) {
+                    this.fc.restoreFromDirectory(List.of(path));
+                } else {
+                    if (Files.isDirectory(path)) {
+                        try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(path)) {
+                            for (Path indexPath : indexStream) {
+                                if (Files.isDirectory(indexPath)) {
+                                    List<Path> indexSubPaths = new ArrayList<>();
+                                    processDirectoryFiles(indexPath, indexSubPaths);
+                                    for (Path indexSubPath : indexSubPaths) {
+                                        subTasks.add(new LoadTask(indexSubPath, fc, exception, true));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (IOException | UncheckedIOException e) {
+                try {
+                    if (e instanceof UncheckedIOException) {
+                        exception.set((UncheckedIOException) e);
+                    } else {
+                        exception.set(new UncheckedIOException("Unable to process directories.", (IOException) e));
+                    }
+                } catch (SetOnce.AlreadySetException ignore) {
+
+                }
+                return;
+            }
+            invokeAll(subTasks);
+        }
     }
 }
