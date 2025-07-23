@@ -1179,8 +1179,7 @@ public class MetadataCreateIndexService {
                 translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
                 segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
                 if (segmentRepo != null) {
-                    settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                        .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
+                    settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true).put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
                     if (translogRepo != null) {
                         settingsBuilder.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
                     } else if (isMigratingToRemoteStore(clusterSettings)) {
