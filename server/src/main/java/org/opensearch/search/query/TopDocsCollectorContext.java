@@ -360,13 +360,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             int hitCountThreshold
         ) {
             if (sortAndFormats == null) {
-                // See please https://github.com/apache/lucene/pull/450, should be fixed in 9.x
                 if (searchAfter != null) {
-                    return TopScoreDocCollector.createSharedManager(
-                        numHits,
-                        new FieldDoc(searchAfter.doc, searchAfter.score),
-                        hitCountThreshold
-                    );
+                    return TopScoreDocCollector.createSharedManager(numHits, searchAfter, hitCountThreshold);
                 } else {
                     return TopScoreDocCollector.createSharedManager(numHits, null, hitCountThreshold);
                 }
