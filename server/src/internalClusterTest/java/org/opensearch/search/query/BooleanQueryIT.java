@@ -250,10 +250,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         for (int i = 0; i < numDocs; i++) {
             String termValue = textFieldValues.get(i % 2);
-            client.prepareIndex(indexName)
-                .setId(Integer.toString(i))
-                .setSource(intField, i, textField, termValue)
-                .get();
+            client.prepareIndex(indexName).setId(Integer.toString(i)).setSource(intField, i, textField, termValue).get();
         }
         afterIndexing();
         int lte = 3000;
@@ -264,7 +261,8 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
             .get();
         assertTrue(response.isTerminatedEarly());
-        assertHitCount(response, trackTotalHitsUpTo, EQUAL_TO); // TODO: Seems this actually is EQUAL_TO - is this ok? I think so?
+        // Note: queries that have finished early with terminate_after will return "eq" for hit relation
+        assertHitCount(response, trackTotalHitsUpTo, EQUAL_TO);
 
         // Queries with other clauses should not terminate early
         response = client().prepareSearch()
@@ -323,14 +321,12 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .setScroll(TimeValue.timeValueSeconds(30))
             .get();
         assertNull(response.isTerminatedEarly());
-        assertHitCount(response, lte/2);
+        assertHitCount(response, lte / 2);
 
         response = client().prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
         assertNull(response.isTerminatedEarly());
-        assertHitCount(response, lte/2);
+        assertHitCount(response, lte / 2);
         clearScroll(response.getScrollId());
-
-        // TODO: Test whatever I decide is correct for concurrent segment search
     }
 
     private String padZeros(int value, int length) {

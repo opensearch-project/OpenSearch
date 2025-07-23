@@ -1208,32 +1208,32 @@ final class DefaultSearchContext extends SearchContext {
         return false;
     }
 
-    void tryEnablingEarlyTermination() {
+    /**
+     * Checks if early termination can be enabled for this search, and enables it if so.
+     * @return whether early termination was applied
+     */
+    boolean tryEnablingEarlyTermination() {
         // This method should only be called after queries are rewritten and parsed, and terminateAfter and size have already been set.
         assert size != -1 : "Cannot call `tryEnablingEarlyTermination` until after `size` has been set";
         assert from != -1 : "Cannot call `tryEnablingEarlyTermination` until after `from` has been set";
         assert query != null : "Cannot call `tryEnablingEarlyTermination` until after `query` has been set";
 
-        if (terminateAfter != DEFAULT_TERMINATE_AFTER) return;
-        if (!(query instanceof BooleanQuery bq)) return;
+        if (terminateAfter != DEFAULT_TERMINATE_AFTER) return false;
+        if (!(query instanceof BooleanQuery bq)) return false;
 
-        if (aggregations() != null) return;
-        if (from > 0 || searchAfter != null) return;
-        if (sort != null) return;
-        if (sliceBuilder != null || scrollContext() != null) return;
-
-        // TODO: After discussing with Jay, I don't think concurrent segment search should cause any issues so long as user has not
-        // explicitly set terminate_after.
-        // But, need to bmark to determine whether CSS/no CSS is significantly faster with terminate_after of 10k, to decide which to use in
-        // this case.
+        if (aggregations() != null) return false;
+        if (from > 0 || searchAfter != null) return false;
+        if (sort != null) return false;
+        if (sliceBuilder != null || scrollContext() != null) return false;
 
         // We can only set terminateAfter to trackTotalHitsUpTo if we only have filter and must_not clauses
         if (bq.getClauses(Occur.MUST).isEmpty() && bq.getClauses(Occur.SHOULD).isEmpty()) {
             terminateAfter = Math.max(size, trackTotalHitsUpTo);
+            return true;
+            // TODO: Disabling concurrent segment search can speed this up even further for default trackTotalHitsUpTo of 10k,
+            // but at this point the CSS logic already assumes it can't be changed. We can revisit this in future.
         }
-
-        // TODO: Per discussion with Harsha + Sawan, this is basically the same as approximate range query framework, and we can do similar
-        // things for standalone range queries, any constant score query, etc
-
+        // TODO: In future we can do the same for any constant-score query
+        return false;
     }
 }
