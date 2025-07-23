@@ -361,11 +361,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         ) {
             if (sortAndFormats == null) {
                 if (searchAfter != null) {
-                    return TopScoreDocCollector.createSharedManager(
-                        numHits,
-                        searchAfter,
-                        hitCountThreshold
-                    );
+                    return TopScoreDocCollector.createSharedManager(numHits, searchAfter, hitCountThreshold);
                 } else {
                     return TopScoreDocCollector.createSharedManager(numHits, null, hitCountThreshold);
                 }
