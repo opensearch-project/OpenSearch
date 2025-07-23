@@ -28,6 +28,7 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -59,6 +60,7 @@ public class CompositeDirectory extends FilterDirectory {
     protected final RemoteSegmentStoreDirectory remoteDirectory;
     protected final FileCache fileCache;
     protected final TransferManager transferManager;
+    private final ThreadPool threadPool;
 
     /**
      * Constructor to initialise the composite directory
@@ -66,12 +68,13 @@ public class CompositeDirectory extends FilterDirectory {
      * @param remoteDirectory corresponding to the remote directory
      * @param fileCache used to cache the remote files locally
      */
-    public CompositeDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache) {
+    public CompositeDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache, ThreadPool threadPool) {
         super(localDirectory);
         validate(localDirectory, remoteDirectory, fileCache);
         this.localDirectory = (FSDirectory) localDirectory;
         this.remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectory;
         this.fileCache = fileCache;
+        this.threadPool = threadPool;
         transferManager = new TransferManager(
             (name, position, length) -> new InputStreamIndexInput(
                 CompositeDirectory.this.remoteDirectory.openBlockInput(name, position, length, IOContext.DEFAULT),

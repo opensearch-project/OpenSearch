@@ -59,7 +59,8 @@ public class DefaultCompositeDirectoryFactoryTests extends BaseRemoteSegmentStor
             shardPath,
             localDirectoryFactory,
             remoteSegmentStoreDirectory,
-            fileCache
+            fileCache,
+            threadPool
         );
         assertNotNull(directory);
         assert (directory instanceof CompositeDirectory);
