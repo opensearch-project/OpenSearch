@@ -176,10 +176,13 @@ class S3Repository extends MeteredBlobStoreRepository {
     });
 
     /**
-     * Type of Async client to be used for S3 Uploads.
-     * Defaults to crt.
+     * Type of Async client to be used for S3 Uploads. Defaults to crt.
      */
-    static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString("s3_async_client_type", "crt");
+    static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(
+        "s3_async_client_type",
+        "crt",
+        Setting.Property.NodeScope
+    );
 
     /**
      * Maximum size of files that can be uploaded using a single upload request.
@@ -341,7 +344,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     private volatile boolean serverSideEncryptionBucketKey;
     private volatile String serverSideEncryptionEncryptionContext;
     private volatile String expectedBucketOwner;
-    private String asyncHttpClientType;
 
     private volatile String storageClass;
 
@@ -427,6 +429,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.normalPrioritySizeBasedBlockingQ = normalPrioritySizeBasedBlockingQ;
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
         this.genericStatsMetricPublisher = genericStatsMetricPublisher;
+
         validateRepositoryMetadata(metadata);
         readRepositoryMetadata();
     }
@@ -497,8 +500,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             serverSideEncryptionKmsKey,
             serverSideEncryptionBucketKey,
             serverSideEncryptionEncryptionContext,
-            expectedBucketOwner,
-            asyncHttpClientType
+            expectedBucketOwner
         );
     }
 
@@ -561,7 +563,6 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
         this.bulkDeletesSize = BULK_DELETE_SIZE.get(metadata.settings());
-        this.asyncHttpClientType = S3_ASYNC_HTTP_CLIENT_TYPE.get(metadata.settings());
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             // provided repository settings
             deprecationLogger.deprecate(
@@ -620,13 +621,9 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     private void validateHttpClientType(String httpClientType) {
-        if (Strings.isEmpty(httpClientType)) {
-            throw new BlobStoreException("Http client Type can't be null/empty.");
-        }
-
         if (!(httpClientType.equalsIgnoreCase(NETTY_ASYNC_HTTP_CLIENT_TYPE)
             || httpClientType.equalsIgnoreCase(CRT_ASYNC_HTTP_CLIENT_TYPE))) {
-            throw new BlobStoreException("Invalid http client type.");
+            throw new BlobStoreException("Invalid http client type. `" + httpClientType + "`");
         }
     }
 

@@ -117,8 +117,7 @@ class S3AsyncService implements Closeable {
         RepositoryMetadata repositoryMetadata,
         AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
-        AsyncExecutorContainer normalExecutorBuilder,
-        String asyncHttpClientType
+        AsyncExecutorContainer normalExecutorBuilder
     ) {
         final S3ClientSettings clientSettings = settings(repositoryMetadata);
         {
@@ -133,6 +132,7 @@ class S3AsyncService implements Closeable {
                 return existing;
             }
 
+            String asyncHttpClientType = repositoryMetadata.settings().get(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.getKey());
             final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
                 buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder, asyncHttpClientType)
             );
@@ -253,6 +253,7 @@ class S3AsyncService implements Closeable {
         AsyncTransferEventLoopGroup asyncTransferEventLoopGroup,
         final String asyncHttpClientType
     ) {
+        logger.info("S3 Http client type [{}]", asyncHttpClientType);
         if (S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE.equals(asyncHttpClientType)) {
             return buildAsyncNettyHttpClient(clientSettings, asyncTransferEventLoopGroup);
         }

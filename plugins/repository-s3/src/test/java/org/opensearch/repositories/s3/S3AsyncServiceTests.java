@@ -54,24 +54,12 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         final S3ClientSettings otherClientSettings = s3AsyncService.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
         final AmazonAsyncS3Reference reference = SocketAccess.doPrivileged(
-            () -> s3AsyncService.client(
-                metadata1,
-                asyncExecutorContainer,
-                asyncExecutorContainer,
-                asyncExecutorContainer,
-                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
-            )
+            () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
         reference.close();
         s3AsyncService.close();
         final AmazonAsyncS3Reference referenceReloaded = SocketAccess.doPrivileged(
-            () -> s3AsyncService.client(
-                metadata1,
-                asyncExecutorContainer,
-                asyncExecutorContainer,
-                asyncExecutorContainer,
-                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
-            )
+            () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
@@ -101,24 +89,12 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         final S3ClientSettings otherClientSettings = s3AsyncService.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
         final AmazonAsyncS3Reference reference = SocketAccess.doPrivileged(
-            () -> s3AsyncService.client(
-                metadata1,
-                asyncExecutorContainer,
-                asyncExecutorContainer,
-                asyncExecutorContainer,
-                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
-            )
+            () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
         reference.close();
         s3AsyncService.close();
         final AmazonAsyncS3Reference referenceReloaded = SocketAccess.doPrivileged(
-            () -> s3AsyncService.client(
-                metadata1,
-                asyncExecutorContainer,
-                asyncExecutorContainer,
-                asyncExecutorContainer,
-                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
-            )
+            () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();

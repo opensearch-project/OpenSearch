@@ -31,6 +31,8 @@
 
 package org.opensearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.io.SdkDigestInputStream;
 import software.amazon.awssdk.utils.internal.Base16;
@@ -118,6 +120,7 @@ import static org.hamcrest.Matchers.is;
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
  */
 @SuppressForbidden(reason = "use a http server")
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase implements ConfigPathSupport {
 
     private S3Service service;
@@ -277,8 +280,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.getDefault(Settings.EMPTY),
                 SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.getDefault(Settings.EMPTY),
                 SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.getDefault(Settings.EMPTY),
-                EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY),
-                S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE
+                EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY)
             )
         ) {
             @Override

@@ -371,7 +371,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.REDIRECT_LARGE_S3_UPLOAD,
             S3Repository.UPLOAD_RETRY_ENABLED,
             S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
-            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED
+            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED,
+            S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE
         );
     }
 

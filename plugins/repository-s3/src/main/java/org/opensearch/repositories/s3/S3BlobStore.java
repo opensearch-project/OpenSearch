@@ -111,7 +111,6 @@ public class S3BlobStore implements BlobStore {
     private final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
     private final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
     private final GenericStatsMetricPublisher genericStatsMetricPublisher;
-    private final String asyncHttpClientType;
 
     S3BlobStore(
         S3Service service,
@@ -134,8 +133,7 @@ public class S3BlobStore implements BlobStore {
         String serverSideEncryptionKmsKey,
         boolean serverSideEncryptionBucketKey,
         String serverSideEncryptionEncryptionContext,
-        String expectedBucketOwner,
-        String asyncHttpClientType
+        String expectedBucketOwner
     ) {
         this.service = service;
         this.s3AsyncService = s3AsyncService;
@@ -162,7 +160,6 @@ public class S3BlobStore implements BlobStore {
         this.serverSideEncryptionBucketKey = serverSideEncryptionBucketKey;
         this.serverSideEncryptionEncryptionContext = serverSideEncryptionEncryptionContext;
         this.expectedBucketOwner = expectedBucketOwner;
-        this.asyncHttpClientType = asyncHttpClientType;
     }
 
     @Override
@@ -193,13 +190,7 @@ public class S3BlobStore implements BlobStore {
     }
 
     public AmazonAsyncS3Reference asyncClientReference() {
-        return s3AsyncService.client(
-            repositoryMetadata,
-            urgentExecutorBuilder,
-            priorityExecutorBuilder,
-            normalExecutorBuilder,
-            asyncHttpClientType
-        );
+        return s3AsyncService.client(repositoryMetadata, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder);
     }
 
     int getMaxRetries() {
