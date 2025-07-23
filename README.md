@@ -1,12 +1,10 @@
 <img src="https://opensearch.org/assets/img/opensearch-logo-themed.svg" height="64px">
 
-[![Chat](https://img.shields.io/badge/chat-on%20forums-blue)](https://forum.opensearch.org/c/opensearch/)
-[![Documentation](https://img.shields.io/badge/documentation-reference-blue)](https://opensearch.org/docs/latest/opensearch/index/)
-[![codecov](https://codecov.io/gh/opensearch-project/OpenSearch/branch/2.x/graph/badge.svg)](https://codecov.io/gh/opensearch-project/OpenSearch)
-[![GHA gradle check](https://github.com/opensearch-project/OpenSearch/actions/workflows/gradle-check.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/gradle-check.yml)
-[![GHA validate pull request](https://github.com/opensearch-project/OpenSearch/actions/workflows/wrapper.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/wrapper.yml)
-[![GHA precommit](https://github.com/opensearch-project/OpenSearch/actions/workflows/precommit.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/precommit.yml)
-[![Jenkins gradle check job](https://img.shields.io/jenkins/build?jobUrl=https%3A%2F%2Fbuild.ci.opensearch.org%2Fjob%2Fgradle-check%2F&label=Jenkins%20Gradle%20Check)](https://build.ci.opensearch.org/job/gradle-check/)
+[![LFX Health Score](https://insights.production.lfx.dev/api/badge/health-score?project=opensearch-foundation)](https://insights.linuxfoundation.org/project/opensearch-foundation)
+[![LFX Active Contributors](https://insights.production.lfx.dev/api/badge/active-contributors?project=opensearch-foundation&repos=https://github.com/opensearch-project/OpenSearch)](https://insights.linuxfoundation.org/project/opensearch-foundation/repository/opensearch-project-opensearch)
+[![Code Coverage](https://codecov.io/gh/opensearch-project/OpenSearch/branch/main/graph/badge.svg)](https://codecov.io/gh/opensearch-project/OpenSearch)
+![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/opensearch-project/OpenSearch?sort=semver)
+
 
 
 - [Welcome!](#welcome)
@@ -24,10 +22,9 @@
 ## Project Resources
 
 * [Project Website](https://opensearch.org/)
-* [Downloads](https://opensearch.org/downloads.html)
-* [Documentation](https://opensearch.org/docs/)
-* Need help? Try [Forums](https://discuss.opendistrocommunity.dev/)
-* [Project Principles](https://opensearch.org/#principles)
+* [Downloads](https://opensearch.org/downloads/)
+* [Documentation](https://docs.opensearch.org/)
+* Need help? Try [Forums](https://discuss.opendistrocommunity.dev/) or [Slack](https://opensearch.org/slack/)
 * [Contributing to OpenSearch](CONTRIBUTING.md)
 * [Maintainer Responsibilities](MAINTAINERS.md)
 * [Release Management](RELEASING.md)
