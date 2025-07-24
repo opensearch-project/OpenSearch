@@ -2497,7 +2497,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        
+
         ParsedDocument parsedDoc = mapperWithDynamic.parse(source(b -> b.field("source_field", "test value")));
         if (parsedDoc.dynamicMappingsUpdate() != null) {
             merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
@@ -2558,7 +2558,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        
+
         ParsedDocument parsedDoc = mapperWithDynamic.parse(source(b -> {
             b.startObject("nested");
             {
