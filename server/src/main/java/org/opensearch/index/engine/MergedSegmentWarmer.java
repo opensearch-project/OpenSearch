@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexWriter;
@@ -16,6 +15,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.transport.TransportService;
@@ -23,7 +23,8 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 
 /**
- * Implementation of a {@link IndexWriter.IndexReaderWarmer} for local on-disk and remote store enabled domains.
+ * Implementation of a {@link IndexWriter.IndexReaderWarmer} for merged segment replication in
+ * local on-disk and remote store enabled domains.
  *
  * @opensearch.internal
  */
@@ -33,7 +34,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
     private final ClusterService clusterService;
     private final IndexShard indexShard;
 
-    private final Logger logger = LogManager.getLogger(MergedSegmentWarmer.class);
+    private final Logger logger;
 
     public MergedSegmentWarmer(
         TransportService transportService,
@@ -45,6 +46,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.indexShard = indexShard;
+        this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
     }
 
     @Override
@@ -54,24 +56,19 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         long startTime = System.currentTimeMillis();
 
         SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
-        if (logger.isTraceEnabled()) {
-            logger.trace(() -> new ParameterizedMessage("[ShardId {}] Warming segment: {}", indexShard.shardId(), segmentCommitInfo));
-        }
+        logger.trace(() -> new ParameterizedMessage("Warming segment: {}", segmentCommitInfo));
         indexShard.publishMergedSegment(segmentCommitInfo);
-        if (logger.isTraceEnabled()) {
-            logger.trace(() -> {
-                long segmentSize = -1;
-                try {
-                    segmentCommitInfo.sizeInBytes();
-                } catch (IOException ignored) {}
-                return new ParameterizedMessage(
-                    "[ShardId {}] Completed segment warming for {}. Size: {}, Timing: {}s",
-                    indexShard.shardId(),
-                    segmentCommitInfo.info.name,
-                    segmentSize,
-                    (System.currentTimeMillis() - startTime) / 1000.0
-                );
-            });
-        }
+        logger.trace(() -> {
+            long segmentSize = -1;
+            try {
+                segmentSize = segmentCommitInfo.sizeInBytes();
+            } catch (IOException ignored) {}
+            return new ParameterizedMessage(
+                "Completed segment warming for {}. Size: {}B, Timing: {}s",
+                segmentCommitInfo.info.name,
+                segmentSize,
+                (System.currentTimeMillis() - startTime) / 1000.0
+            );
+        });
     }
 }

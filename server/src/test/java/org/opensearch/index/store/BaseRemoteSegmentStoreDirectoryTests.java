@@ -16,13 +16,13 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
-import org.opensearch.indices.replication.ActiveMergesRegistry;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -78,7 +78,7 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             mdLockManager,
             threadPool,
             indexShard.shardId(),
-            new ActiveMergesRegistry()
+            new HashMap<>()
         );
         try (Store store = indexShard.store()) {
             segmentInfos = store.readLastCommittedSegmentsInfo();

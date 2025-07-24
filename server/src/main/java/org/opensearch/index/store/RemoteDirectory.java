@@ -32,7 +32,6 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
-import org.opensearch.indices.replication.ActiveMergesRegistry;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -42,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,7 +70,7 @@ public class RemoteDirectory extends Directory {
 
     private final DownloadRateLimiterProvider downloadRateLimiterProvider;
 
-    final ActiveMergesRegistry activeMergesRegistry;
+    final Map<String, String> pendingDownloadMergedSegments;
     /**
      * Number of bytes in the segment file to store checksum
      */
@@ -90,13 +90,13 @@ public class RemoteDirectory extends Directory {
         UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
         UnaryOperator<InputStream> downloadRateLimiter,
         UnaryOperator<InputStream> lowPriorityDownloadRateLimiter,
-        ActiveMergesRegistry activeMergesRegistry
+        Map<String, String> pendingDownloadMergedSegments
     ) {
         this.blobContainer = blobContainer;
         this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
         this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
-        this.activeMergesRegistry = activeMergesRegistry;
+        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
     }
 
     /**
@@ -486,6 +486,15 @@ public class RemoteDirectory extends Directory {
         return new ByteArrayIndexInput(name, bytes);
     }
 
+    private boolean isMergedSegment(String remoteFilename) {
+        return pendingDownloadMergedSegments.containsValue(remoteFilename);
+    }
+
+    /**
+     * DownloadRateLimiterProvider returns a low-priority rate limiter if the segment
+     * being downloaded is a merged segment as part of the pre-copy (warm) phase of
+     * {@link org.opensearch.index.engine.MergedSegmentWarmer}.
+     */
     private class DownloadRateLimiterProvider {
         private final UnaryOperator<InputStream> downloadRateLimiter;
         private final UnaryOperator<InputStream> lowPriorityDownloadRateLimiter;
@@ -499,7 +508,7 @@ public class RemoteDirectory extends Directory {
         }
 
         public UnaryOperator<InputStream> get(final String filename) {
-            if (activeMergesRegistry != null && activeMergesRegistry.containsRemoteFile(filename)) {
+            if (isMergedSegment(filename)) {
                 return lowPriorityDownloadRateLimiter;
             }
             return downloadRateLimiter;

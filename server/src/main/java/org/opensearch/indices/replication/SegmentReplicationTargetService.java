@@ -682,7 +682,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             }
             if (replicaShard.shouldProcessMergedSegmentCheckpoint(receivedCheckpoint)) {
                 CountDownLatch latch = new CountDownLatch(1);
-                final ActiveMergesRegistry activeMergesRegistry = replicaShard.getRemoteDirectory().getActiveMergesRegistry();
+                final boolean isRemoteStoreEnabled = replicaShard.indexSettings().isRemoteStoreEnabled();
                 startMergedSegmentReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
@@ -695,8 +695,11 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                                 state.getTimingData()
                             )
                         );
-                        receivedCheckpoint.getMetadataMap().forEach((key, value) -> activeMergesRegistry.setStateProcessed(key));
                         latch.countDown();
+                        if (isRemoteStoreEnabled) {
+                            replicaShard.getRemoteDirectory()
+                                .unmarkPendingDownloadMergedSegments(receivedCheckpoint.getMetadataMap().keySet());
+                        }
                     }
 
                     @Override
@@ -705,14 +708,10 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
-                        try {
-                            logReplicationFailure(state, e, replicaShard);
-                            if (sendShardFailure == true) {
-                                failShard(e, replicaShard);
-                            }
-                            receivedCheckpoint.getMetadataMap().forEach((key, value) -> activeMergesRegistry.unregister(key));
-                        } finally {
-                            latch.countDown();
+                        latch.countDown();
+                        if (isRemoteStoreEnabled) {
+                            replicaShard.getRemoteDirectory()
+                                .unmarkPendingDownloadMergedSegments(receivedCheckpoint.getMetadataMap().keySet());
                         }
                     }
                 });

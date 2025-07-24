@@ -656,6 +656,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         restoreRateLimiter = getRateLimiter(RESTORE_BYTES_PER_SEC_SETTING, metadata.settings());
         remoteUploadRateLimiter = getRateLimiter(MAX_REMOTE_UPLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
         remoteUploadLowPriorityRateLimiter = getRateLimiter(MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
+        // TODO: Assert MAX_REMOTE_LOW_PRIORITY_DOWNLOAD_BYTES_PER_SEC_SETTING < MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC_SETTING
         remoteDownloadRateLimiter = getRateLimiter(MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
         remoteDownloadLowPriorityRateLimiter = getRateLimiter(MAX_REMOTE_LOW_PRIORITY_DOWNLOAD_BYTES_PER_SEC_SETTING, metadata.settings());
         readOnly = READONLY_SETTING.get(metadata.settings());

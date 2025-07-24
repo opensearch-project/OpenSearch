@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -32,6 +33,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -167,30 +170,45 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         BiConsumer<String, Long> fileProgressTracker,
         ActionListener<GetSegmentFilesResponse> listener
     ) {
+        assert checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
+
+        if (filesToFetch.isEmpty()) {
+            listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+            return;
+        }
+
+        RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = (RemoteStoreMergedSegmentCheckpoint) checkpoint;
+
+        final Directory storeDirectory = indexShard.store().directory();
+
+        Map<String, String> localToRemoteSegmentFileNameMap = mergedSegmentCheckpoint.getLocalToRemoteSegmentFilenameMap();
+        List<String> toDownloadSegmentNames = localToRemoteSegmentFileNameMap.keySet().stream().toList();
+        CountDownLatch latch = new CountDownLatch(1);
+        indexShard.getFileDownloader()
+            .downloadAsync(
+                cancellableThreads,
+                indexShard.getRemoteDirectory(),
+                storeDirectory,
+                toDownloadSegmentNames,
+                ActionListener.map(listener, r -> {
+                    latch.countDown();
+                    return new GetSegmentFilesResponse(filesToFetch);
+                })
+            );
         try {
-            assert checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
-
-            if (filesToFetch.isEmpty()) {
-                listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
-                return;
-            }
-
-            RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = (RemoteStoreMergedSegmentCheckpoint) checkpoint;
-
-            final Directory storeDirectory = indexShard.store().directory();
-
-            Map<String, String> localToRemoteSegmentFileNameMap = mergedSegmentCheckpoint.getLocalToRemoteSegmentFilenameMap();
-            List<String> toDownloadSegmentNames = localToRemoteSegmentFileNameMap.keySet().stream().toList();
-            indexShard.getFileDownloader()
-                .download(
-                    indexShard.getRemoteDirectory(),
-                    storeDirectory,
-                    null,
-                    toDownloadSegmentNames,
-                    () -> listener.onResponse(new GetSegmentFilesResponse(filesToFetch))
+            if (latch.await(
+                indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().millis(),
+                TimeUnit.MILLISECONDS
+            ) == false) {
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Merged segments download from remote store timed out. Segments: {}",
+                        toDownloadSegmentNames
+                    )
                 );
-        } catch (InterruptedException | IOException e) {
-            listener.onFailure(e);
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
     }
 
