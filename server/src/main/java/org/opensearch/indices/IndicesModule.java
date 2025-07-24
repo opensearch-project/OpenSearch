@@ -83,8 +83,6 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.mapper.MapperRegistry;
-import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
-import org.opensearch.indices.replication.checkpoint.PublishMergedSegmentActionProvider;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
@@ -302,8 +300,6 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
         bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
-        bind(MergedSegmentPublisher.PublishAction.class).toProvider(PublishMergedSegmentActionProvider.class).asEagerSingleton();
-        bind(MergedSegmentPublisher.class).asEagerSingleton();
         bind(SegmentReplicationPressureService.class).asEagerSingleton();
         bind(RemoteStorePressureService.class).asEagerSingleton();
     }
@@ -314,5 +310,4 @@ public class IndicesModule extends AbstractModule {
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
     }
-
 }
