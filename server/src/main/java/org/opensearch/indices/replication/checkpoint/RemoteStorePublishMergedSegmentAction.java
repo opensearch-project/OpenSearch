@@ -21,16 +21,15 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.shard.RemoteStoreUploader;
+import org.opensearch.index.shard.RemoteStoreUploaderService;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.ActiveMergesRegistry;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -84,11 +83,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
     protected void doReplicaOperation(RemoteStorePublishMergedSegmentRequest shardRequest, IndexShard replica) {
         RemoteStoreMergedSegmentCheckpoint checkpoint = shardRequest.getMergedSegment();
         if (checkpoint.getShardId().equals(replica.shardId())) {
-            if (Objects.equals(checkpoint.getPrimaryTerm(), replica.getOperationPrimaryTerm()) == false) {
-                logger.warn(() -> new ParameterizedMessage("Skipping checkpoint {} updated primary term.", checkpoint));
-                return;
-            }
-            updateActiveMergesRegistry(checkpoint, replica.getRemoteDirectory().getActiveMergesRegistry());
+            replica.getRemoteDirectory().markPendingMergedSegmentsDownload(checkpoint.getLocalToRemoteSegmentFilenameMap());
             replicationService.onNewMergedSegmentCheckpoint(checkpoint, replica);
         }
     }
@@ -108,20 +103,15 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             throw new AssertionError("Expected checkpoint to be an instance of " + MergedSegmentCheckpoint.class);
         }
 
-        long startTimeSecs = System.currentTimeMillis() / 1000;
-        long endTimeSecs;
-        Map<String, String> localToRemoteStoreFilenames;
-        try {
-            localToRemoteStoreFilenames = uploadMergedSegmentsToRemoteStore(indexShard, mergedSegmentCheckpoint);
-        } finally {
-            endTimeSecs = System.currentTimeMillis() / 1000;
-        }
+        long startTimeMillis = System.currentTimeMillis();
+        Map<String, String> localToRemoteStoreFilenames = uploadMergedSegmentsToRemoteStore(indexShard, mergedSegmentCheckpoint);
+        long endTimeMillis = System.currentTimeMillis();
 
-        long elapsedTimeSecs = endTimeSecs - startTimeSecs;
-        long timeoutSecs = indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().seconds();
-        long timeLeftSecs = Math.max(0, timeoutSecs - elapsedTimeSecs);
+        long elapsedTimeMillis = endTimeMillis - startTimeMillis;
+        long timeoutMillis = indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().millis();
+        long timeLeftMillis = Math.max(0, timeoutMillis - elapsedTimeMillis);
 
-        if (timeLeftSecs > 0) {
+        if (timeLeftMillis > 0) {
             RemoteStoreMergedSegmentCheckpoint remoteStoreMergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
                 mergedSegmentCheckpoint,
                 localToRemoteStoreFilenames
@@ -132,52 +122,32 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
                 new RemoteStorePublishMergedSegmentRequest(remoteStoreMergedSegmentCheckpoint),
                 "segrep_remote_publish_merged_segment",
                 true,
-                TimeValue.timeValueSeconds(timeLeftSecs)
+                TimeValue.timeValueMillis(timeLeftMillis)
             );
         } else {
             logger.warn(
                 () -> new ParameterizedMessage(
                     "Unable to confirm upload of merged segment {} to remote store. Timeout of {}s exceeded. Skipping pre-copy.",
                     mergedSegmentCheckpoint,
-                    timeoutSecs
+                    TimeValue.timeValueMillis(elapsedTimeMillis).toHumanReadableString(3)
                 )
             );
         }
     }
 
-    private void updateActiveMergesRegistry(RemoteStoreMergedSegmentCheckpoint checkpoint, ActiveMergesRegistry registry) {
-        final Map<String, String> localToRemoteFilenameMap = checkpoint.getLocalToRemoteSegmentFilenameMap();
-        checkpoint.getMetadataMap()
-            .forEach(
-                ((localFilename, storeFileMetadata) -> registry.register(
-                    localFilename,
-                    new RemoteSegmentStoreDirectory.UploadedSegmentMetadata(
-                        localFilename,
-                        localToRemoteFilenameMap.get(localFilename),
-                        storeFileMetadata.checksum(),
-                        storeFileMetadata.length()
-                    )
-                ))
-            );
-    }
-
     private Map<String, String> uploadMergedSegmentsToRemoteStore(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
         Collection<String> segmentsToUpload = checkpoint.getMetadataMap().keySet();
         Map<String, String> localToRemoteStoreFilenames = new ConcurrentHashMap<>();
-        ActiveMergesRegistry activeMergesRegistry = indexShard.getRemoteDirectory().getActiveMergesRegistry();
 
         Map<String, Long> segmentsSizeMap = checkpoint.getMetadataMap()
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().length()));
         final CountDownLatch latch = new CountDownLatch(1);
-
-        indexShard.getRemoteStoreUploaderService().uploadSegments(segmentsToUpload, segmentsSizeMap, new ActionListener<>() {
+        getRemoteStoreUploaderService(indexShard).uploadSegments(segmentsToUpload, segmentsSizeMap, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                if (logger.isTraceEnabled() == true) {
-                    logger.trace(() -> new ParameterizedMessage("Successfully uploaded segments {} to remote store", segmentsToUpload));
-                }
+                logger.trace(() -> new ParameterizedMessage("Successfully uploaded segments {} to remote store", segmentsToUpload));
                 latch.countDown();
             }
 
@@ -188,19 +158,16 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             }
         }, (x) -> new UploadListener() {
             @Override
-            public void beforeUpload(String file) {
-                activeMergesRegistry.register(file);
-            }
+            public void beforeUpload(String file) {}
 
             @Override
             public void onSuccess(String file) {
-                localToRemoteStoreFilenames.put(file, activeMergesRegistry.get(file).getMetadata().getUploadedFilename());
+                localToRemoteStoreFilenames.put(file, indexShard.getRemoteDirectory().getExistingRemoteFilename(file));
             }
 
             @Override
             public void onFailure(String file) {
                 logger.warn("Unable to upload segments during merge. Continuing.");
-                activeMergesRegistry.unregister(file);
             }
         }, true);
         try {
@@ -213,5 +180,9 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         }
 
         return localToRemoteStoreFilenames;
+    }
+
+    private RemoteStoreUploader getRemoteStoreUploaderService(IndexShard indexShard) {
+        return new RemoteStoreUploaderService(indexShard, indexShard.store().directory(), indexShard.getRemoteDirectory());
     }
 }

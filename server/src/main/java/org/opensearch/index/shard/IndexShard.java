@@ -382,7 +382,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
     private final ClusterApplierService clusterApplierService;
-    private final RemoteStoreUploaderService remoteStoreUploaderService;
     private final MergedSegmentPublisher mergedSegmentPublisher;
 
     @InternalApi
@@ -531,8 +530,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
         this.clusterApplierService = clusterApplierService;
-        this.remoteStoreUploaderService = new RemoteStoreUploaderService(this, store().directory(), getRemoteDirectory());
-
         this.mergedSegmentPublisher = mergedSegmentPublisher;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
@@ -556,10 +553,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public ThreadPool getThreadPool() {
         return this.threadPool;
-    }
-
-    public RemoteStoreUploaderService getRemoteStoreUploaderService() {
-        return this.remoteStoreUploaderService;
     }
 
     public Store store() {
@@ -4139,8 +4132,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     this,
                     this.checkpointPublisher,
                     remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId()),
-                    remoteStoreSettings,
-                    remoteStoreUploaderService
+                    remoteStoreSettings
                 )
             );
         }

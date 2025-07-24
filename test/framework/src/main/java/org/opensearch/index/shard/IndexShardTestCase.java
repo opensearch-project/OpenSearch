@@ -134,7 +134,6 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
 import org.opensearch.indices.replication.AbstractSegmentReplicationTarget;
-import org.opensearch.indices.replication.ActiveMergesRegistry;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
 import org.opensearch.indices.replication.MergedSegmentReplicationTarget;
@@ -175,6 +174,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -827,7 +827,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             remoteStoreLockManager,
             threadPool,
             shardId,
-            new ActiveMergesRegistry()
+            new HashMap<>()
         );
     }
 
