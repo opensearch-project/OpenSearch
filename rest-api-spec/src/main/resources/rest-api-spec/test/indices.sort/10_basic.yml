@@ -179,6 +179,9 @@
 
 ---
 "Index sort with nested fields":
+  - skip:
+        version: " - 3.1.0"
+        reason: "Index sort on nested field is only supported after 3.1.0"
   - do:
       indices.create:
         index: test_nested_sort
@@ -254,6 +257,9 @@
 
 ---
 "Index sort with nested field as sort field validation":
+  - skip:
+      version: " - 3.1.0"
+      reason: "Index sort on nested field is only supported after 3.1.0"
   - do:
       catch: bad_request
       indices.create:

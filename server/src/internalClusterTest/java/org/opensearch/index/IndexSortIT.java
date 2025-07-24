@@ -36,6 +36,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.action.search.SearchResponse;
@@ -203,7 +204,8 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
 
     public void testIndexSortOnNestedField() throws IOException {
         boolean ascending = randomBoolean();
-        SortField regularSort = new SortedNumericSortField("foo", SortField.Type.INT, !ascending);
+        SortedNumericSelector.Type selector = ascending ? SortedNumericSelector.Type.MIN : SortedNumericSelector.Type.MAX;
+        SortField regularSort = new SortedNumericSortField("foo", SortField.Type.INT, !ascending, selector);
         regularSort.setMissingValue(ascending ? Integer.MAX_VALUE : Integer.MIN_VALUE);
 
         Sort indexSort = new Sort(regularSort);
