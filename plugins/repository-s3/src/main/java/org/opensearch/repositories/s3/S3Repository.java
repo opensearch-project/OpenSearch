@@ -620,7 +620,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         validateHttpClientType(S3_ASYNC_HTTP_CLIENT_TYPE.get(settings));
     }
 
-    private void validateHttpClientType(String httpClientType) {
+    // package access for tests
+    void validateHttpClientType(String httpClientType) {
         if (!(httpClientType.equalsIgnoreCase(NETTY_ASYNC_HTTP_CLIENT_TYPE)
             || httpClientType.equalsIgnoreCase(CRT_ASYNC_HTTP_CLIENT_TYPE))) {
             throw new BlobStoreException("Invalid http client type. `" + httpClientType + "`");

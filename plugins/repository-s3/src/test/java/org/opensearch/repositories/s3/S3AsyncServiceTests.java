@@ -104,8 +104,24 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
     }
 
     public void testBuildHttpClientWithNetty() {
+        final int port = randomIntBetween(10, 1080);
+        final String userName = randomAlphaOfLength(10);
+        final String password = randomAlphaOfLength(10);
+        final String proxyType = randomFrom("http", "https", "socks");
         final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
-        final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "us-east-2").build();
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.proxy.username", userName);
+        secureSettings.setString("s3.client.default.proxy.password", password);
+
+        final Settings settings = Settings.builder()
+            .put("endpoint", "http://first")
+            .put("region", "us-east-2")
+            .put("s3.client.default.proxy.type", proxyType)
+            .put("s3.client.default.proxy.host", randomFrom("127.0.0.10"))
+            .put("s3.client.default.proxy.port", randomFrom(port))
+            .setSecureSettings(secureSettings)
+            .build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final S3ClientSettings clientSettings = s3AsyncService.settings(metadata1);
 
@@ -123,8 +139,25 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
     }
 
     public void testBuildHttpClientWithCRT() {
+        final int port = randomIntBetween(10, 1080);
+        final String userName = randomAlphaOfLength(10);
+        final String password = randomAlphaOfLength(10);
+        final String proxyType = randomFrom("http", "https", "socks");
         final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
-        final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "us-east-2").build();
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.proxy.username", userName);
+        secureSettings.setString("s3.client.default.proxy.password", password);
+
+        final Settings settings = Settings.builder()
+            .put("endpoint", "http://first")
+            .put("region", "us-east-2")
+            .put("s3.client.default.proxy.type", proxyType)
+            .put("s3.client.default.proxy.host", randomFrom("127.0.0.10"))
+            .put("s3.client.default.proxy.port", randomFrom(port))
+            .setSecureSettings(secureSettings)
+            .build();
+
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final S3ClientSettings clientSettings = s3AsyncService.settings(metadata1);
 
