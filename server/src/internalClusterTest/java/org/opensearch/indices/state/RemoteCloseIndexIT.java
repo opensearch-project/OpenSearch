@@ -10,7 +10,6 @@ package org.opensearch.indices.state;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -25,7 +24,6 @@ import java.util.Collection;
 
 import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18695")
 public class RemoteCloseIndexIT extends CloseIndexIT {
 
     public RemoteCloseIndexIT(Settings nodeSettings) {

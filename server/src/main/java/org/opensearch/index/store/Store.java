@@ -231,11 +231,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
         failIfCorrupted();
         try {
-            if (indexSettings.isRemoteSnapshot() && indexSettings.getExtendedCompatibilitySnapshotVersion() != null) {
-                return readSegmentInfosExtendedCompatibility(directory(), indexSettings.getExtendedCompatibilitySnapshotVersion());
-            } else {
-                return readSegmentsInfo(null, directory());
-            }
+            return readSegmentsInfo(null, directory());
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -245,7 +241,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns the segments info for the given commit or for the latest commit if the given commit is <code>null</code>.
      * This method will throw an exception if the index is older than the standard backwards compatibility
-     * policy ( current major - 1). See also {@link #readSegmentInfosExtendedCompatibility(Directory, org.opensearch.Version)}.
+     * policy ( current major - 1).
      *
      * @throws IOException if the index is corrupted or the segments file is not present
      */
@@ -260,27 +256,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
         } catch (Exception ex) {
             throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
-        }
-    }
-
-    /**
-     * Returns the segments info for the latest commit in the given directory. Unlike
-     * {@link #readSegmentsInfo(IndexCommit, Directory)}, this method supports reading
-     * older Lucene indices on a best-effort basis.
-     *
-     * @throws IOException if the index is corrupted or the segments file is not present
-     */
-    private static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
-        throws IOException {
-        try {
-            return Lucene.readSegmentInfos(directory, minimumVersion);
-        } catch (EOFException eof) {
-            // TODO this should be caught by lucene - EOF is almost certainly an index corruption
-            throw new CorruptIndexException("Read past EOF while reading segment infos", "<latest-commit>", eof);
-        } catch (IOException exception) {
-            throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
-        } catch (Exception ex) {
-            throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "<latest-commit>", ex);
         }
     }
 
