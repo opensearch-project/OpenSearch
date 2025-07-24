@@ -556,13 +556,7 @@ final class DocumentParser {
                     throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), mapper.fullPath(), currentFieldName);
                 case TRUE:
                 case STRICT_ALLOW_TEMPLATES:
-                    builder = findTemplateBuilder(
-                        context,
-                        currentFieldName,
-                        XContentFieldType.OBJECT,
-                        dynamic,
-                        mapper.fullPath()
-                    );
+                    builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.OBJECT, dynamic, mapper.fullPath());
 
                     if (builder == null) {
                         builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
@@ -575,18 +569,15 @@ final class DocumentParser {
                     context.path().remove();
                     break;
                 case FALSE_ALLOW_TEMPLATES:
-                    builder = findTemplateBuilder(
-                        context,
-                        currentFieldName,
-                        XContentFieldType.OBJECT,
-                        dynamic,
-                        mapper.fullPath()
-                    );
+                    builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.OBJECT, dynamic, mapper.fullPath());
 
                     if (builder == null) {
                         context.parser().skipChildren();
                     } else {
-                        Mapper.BuilderContext templateBuilderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
+                        Mapper.BuilderContext templateBuilderContext = new Mapper.BuilderContext(
+                            context.indexSettings().getSettings(),
+                            context.path()
+                        );
                         objectMapper = builder.build(templateBuilderContext);
                         context.addDynamicMapper(objectMapper);
                         context.path().add(currentFieldName);
@@ -637,13 +628,7 @@ final class DocumentParser {
                         );
                     case TRUE:
                     case STRICT_ALLOW_TEMPLATES:
-                        builder = findTemplateBuilder(
-                            context,
-                            arrayFieldName,
-                            XContentFieldType.OBJECT,
-                            dynamic,
-                            parentMapper.fullPath()
-                        );
+                        builder = findTemplateBuilder(context, arrayFieldName, XContentFieldType.OBJECT, dynamic, parentMapper.fullPath());
                         if (builder == null) {
                             parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                         } else {
@@ -664,13 +649,7 @@ final class DocumentParser {
                         }
                         break;
                     case FALSE_ALLOW_TEMPLATES:
-                        builder = findTemplateBuilder(
-                            context,
-                            arrayFieldName,
-                            XContentFieldType.OBJECT,
-                            dynamic,
-                            parentMapper.fullPath()
-                        );
+                        builder = findTemplateBuilder(context, arrayFieldName, XContentFieldType.OBJECT, dynamic, parentMapper.fullPath());
                         if (builder == null) {
                             context.parser().skipChildren();
                         } else {
@@ -1067,13 +1046,7 @@ final class DocumentParser {
                         throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), parent.fullPath(), paths[i]);
                     case STRICT_ALLOW_TEMPLATES:
                     case TRUE:
-                        builder = findTemplateBuilder(
-                            context,
-                            paths[i],
-                            XContentFieldType.OBJECT,
-                            dynamic,
-                            parent.fullPath()
-                        );
+                        builder = findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT, dynamic, parent.fullPath());
                         if (builder == null) {
                             builder = new ObjectMapper.Builder(paths[i]).enabled(true);
                         }
@@ -1092,13 +1065,7 @@ final class DocumentParser {
                         context.addDynamicMapper(mapper);
                         break;
                     case FALSE_ALLOW_TEMPLATES:
-                        builder = findTemplateBuilder(
-                            context,
-                            paths[i],
-                            XContentFieldType.OBJECT,
-                            dynamic,
-                            parent.fullPath()
-                        );
+                        builder = findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT, dynamic, parent.fullPath());
                         if (builder == null) {
                             return new Tuple<>(pathsAdded, parent);
                         }
