@@ -45,9 +45,12 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.gateway.GatewayService;
+import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.os.OsStats;
+import org.opensearch.node.Node;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -73,6 +76,20 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterStatsIT extends OpenSearchIntegTestCase {
+
+    @Override
+    protected boolean addMockIndexStorePlugin() {
+        return false;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .build();
+    }
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, Map<String, Integer> roles) {
         assertThat(counts.getTotal(), equalTo(total));
@@ -829,6 +846,35 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getCount());
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getIndexWriterMemoryInBytes());
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getVersionMapMemoryInBytes());
+    }
+
+    public void testWarmNodeFSStats() {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startWarmOnlyNodes(1);
+        ensureGreen();
+
+        ClusterStatsResponse statsResponseWarmFSMetrics = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .requestMetrics(Set.of(Metric.FS))
+            .computeAllMetrics(false)
+            .get();
+        assertNotNull(statsResponseWarmFSMetrics);
+        assertNotNull(statsResponseWarmFSMetrics.getNodesStats());
+        validateNodeStatsOutput(Set.of(Metric.FS), statsResponseWarmFSMetrics);
+        FsInfo warmFsInfo = statsResponseWarmFSMetrics.getNodes()
+            .stream()
+            .filter(nodeResponse -> nodeResponse.getNode().isWarmNode())
+            .findFirst()
+            .map(nodeResponse -> nodeResponse.nodeStats().getFs())
+            .orElseThrow(() -> new IllegalStateException("No warm node found"));
+
+        for (FsInfo.Path path : warmFsInfo) {
+            assertEquals(path.getPath(), "/warm");
+            assertEquals(path.getFileCacheReserved(), new ByteSizeValue(16, ByteSizeUnit.GB));
+            assertEquals(path.getTotal(), new ByteSizeValue(16 * 5, ByteSizeUnit.GB));
+        }
     }
 
     private void validateNodeStatsOutput(Set<ClusterStatsRequest.Metric> expectedMetrics, ClusterStatsResponse clusterStatsResponse) {
