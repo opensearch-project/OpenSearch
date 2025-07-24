@@ -80,8 +80,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.logger;
-
 /**
  * A filter for a field based on several terms matching on any of them.
  *
@@ -544,15 +542,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         if (termsLookup != null && (termsLookup.query() != null || termsLookup.id() != null)) {
             String key = cacheKey();
             SetOnce<List<Object>> fetchedTerms = fetchedTermsCache.get(key);
-            logger.info("[DO-TO-QUERY] Checking fetchedTerms presence for key: " + key);
-            logger.info(
-                "In doToQuery for field "
-                    + fieldName
-                    + ", fetchedTerms is "
-                    + (fetchedTerms == null ? "null"
-                        : fetchedTerms.get() == null ? "not yet set"
-                        : "set with " + fetchedTerms.get().size() + " terms")
-            );
             // This should NEVER be null here—rewrite must guarantee terms are fetched!
             if (fetchedTerms == null || fetchedTerms.get() == null) {
                 throw new IllegalStateException("Rewrite first");
@@ -713,10 +702,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                 return null;
             })));
             return new TermsQueryBuilder(this.fieldName, supplier::get, valueType);
-        }
-        // If values are present, use them directly
-        else if (values != null && !values.isEmpty()) {
-            return this;
         }
 
         if (values == null || values.isEmpty()) {
