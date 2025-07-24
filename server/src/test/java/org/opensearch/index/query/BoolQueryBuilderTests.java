@@ -574,7 +574,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         IOUtils.close(w, reader, dir);
     }
 
-    public void testMultipleMustNotRangesNotRewritten() throws Exception {
+    public void testMultipleComplementAwareOnSameFieldNotRewritten() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
         addDocument(w, INT_FIELD_NAME, 1);
@@ -591,6 +591,16 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         assertTrue(rewritten.mustNot().contains(rq1of2));
         assertTrue(rewritten.mustNot().contains(rq2of2));
+        assertEquals(0, rewritten.should().size());
+
+        // Similarly 1 range query and 1 match query on the same field shouldn't be rewritten
+        qb = new BoolQueryBuilder();
+        qb.mustNot(rq1of2);
+        QueryBuilder matchQuery = new MatchQueryBuilder(INT_FIELD_NAME, 200);
+        qb.mustNot(matchQuery);
+        rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
+        assertTrue(rewritten.mustNot().contains(rq1of2));
+        assertTrue(rewritten.mustNot().contains(matchQuery));
         assertEquals(0, rewritten.should().size());
 
         IOUtils.close(w, reader, dir);
@@ -627,6 +637,41 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
         assertTrue(rewritten.mustNot().contains(rq));
+
+        IOUtils.close(w, reader, dir);
+    }
+
+    public void testOneMustNotNumericMatchQueryRewritten() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        addDocument(w, INT_FIELD_NAME, 1);
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        BoolQueryBuilder qb = new BoolQueryBuilder();
+        int excludedValue = 200;
+        QueryBuilder matchQuery = new MatchQueryBuilder(INT_FIELD_NAME, excludedValue);
+        qb.mustNot(matchQuery);
+
+        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
+        assertFalse(rewritten.mustNot().contains(matchQuery));
+
+        QueryBuilder expectedLowerQuery = getRangeQueryBuilder(INT_FIELD_NAME, null, excludedValue, true, false);
+        QueryBuilder expectedUpperQuery = getRangeQueryBuilder(INT_FIELD_NAME, excludedValue, null, false, true);
+        assertEquals(1, rewritten.must().size());
+
+        BoolQueryBuilder nestedBoolQuery = (BoolQueryBuilder) rewritten.must().get(0);
+        assertEquals(2, nestedBoolQuery.should().size());
+        assertEquals("1", nestedBoolQuery.minimumShouldMatch());
+        assertTrue(nestedBoolQuery.should().contains(expectedLowerQuery));
+        assertTrue(nestedBoolQuery.should().contains(expectedUpperQuery));
+
+        // When the QueryShardContext is null, we should not rewrite any match queries as we can't confirm if they're on numeric fields.
+        QueryRewriteContext nullContext = mock(QueryRewriteContext.class);
+        when(nullContext.convertToShardContext()).thenReturn(null);
+        BoolQueryBuilder rewrittenNoContext = (BoolQueryBuilder) Rewriteable.rewrite(qb, nullContext);
+        assertTrue(rewrittenNoContext.mustNot().contains(matchQuery));
+        assertTrue(rewrittenNoContext.should().isEmpty());
 
         IOUtils.close(w, reader, dir);
     }
@@ -718,7 +763,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         w.commit();
     }
 
-    private IndexSearcher getIndexSearcher(DirectoryReader reader) throws Exception {
+    static IndexSearcher getIndexSearcher(DirectoryReader reader) throws Exception {
         SearchContext searchContext = mock(SearchContext.class);
         return new ContextIndexSearcher(
             reader,
