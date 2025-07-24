@@ -70,8 +70,8 @@
       get:
         index: test_1
         id: 1
-  - match: 
-      _source: 
+  - match:
+      _source:
         url: "https://example.com"
         date_timestamp: "2024-06-25T05:11:51.243Z"
         stringField: "bar"
@@ -88,4 +88,4 @@
   - match: {test_1.mappings.properties.date_timestamp.type:     date}
   - match: {test_1.mappings.properties.stringField.type:     keyword}
   - match: {test_1.mappings.properties.objectField.properties.bar1.type:     keyword}
-  - match: {test_1.mappings.properties.objectField.properties.bar2.type:     text} 
+  - match: {test_1.mappings.properties.objectField.properties.bar2.type:     text}
