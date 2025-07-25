@@ -88,6 +88,14 @@ public class ArchivedIndexSettingsIT extends OpenSearchIntegTestCase {
             startsWith("Can't update non dynamic settings [[archived.index.dummy]] for open indices [[test")
         );
 
+        // Verify that a random unrelated setting can be updated when archived settings are present.
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put("index.max_terms_count", 1024).build())
+            .execute()
+            .actionGet();
+
         // close the index.
         client().admin().indices().prepareClose("test").get();
 
