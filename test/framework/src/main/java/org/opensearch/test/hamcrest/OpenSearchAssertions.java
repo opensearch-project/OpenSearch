@@ -324,6 +324,9 @@ public class OpenSearchAssertions {
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount, TotalHits.Relation relation) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
+        if (totalHits.value() != expectedHitCount) {
+            fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+        }
         if (totalHits.relation() != relation) {
             fail(
                 "Count relation is "
@@ -333,9 +336,6 @@ public class OpenSearchAssertions {
                     + " was expected. "
                     + formatShardStatus(countResponse)
             );
-        }
-        if (totalHits.value() != expectedHitCount) {
-            fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
     }
 

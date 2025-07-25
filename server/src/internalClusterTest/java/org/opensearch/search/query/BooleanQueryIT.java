@@ -37,9 +37,9 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
 import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
@@ -236,8 +236,10 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     public void testFilterEarlyTermination() throws Exception {
         int numDocs = 6_000;
         String intField = "int_field";
-        String textField = "text_field";
-        List<String> textFieldValues = List.of("even", "odd");
+        String textField1 = "text_field_1";
+        List<String> textField1Values = List.of("even", "odd");
+        String textField2 = "text_field_2";
+        List<String> textField2Values = List.of("a", "b", "c");
         Client client = client();
         String indexName = "test";
         // Set trackTotalHitsUpTo to 500 rather than default 10k, so we have to index fewer docs
@@ -248,7 +250,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             client.admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setMapping(intField, "type=integer", textField, "type=text")
+                .setMapping(intField, "type=integer", textField1, "type=text", textField2, "type=text")
                 .setSettings(
                     Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
@@ -256,8 +258,12 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         );
 
         for (int i = 0; i < numDocs; i++) {
-            String termValue = textFieldValues.get(i % 2);
-            client.prepareIndex(indexName).setId(Integer.toString(i)).setSource(intField, i, textField, termValue).get();
+            String textValue1 = textField1Values.get(i % 2);
+            String textValue2 = textField2Values.get(i % 3);
+            client.prepareIndex(indexName)
+                .setId(Integer.toString(i))
+                .setSource(intField, i, textField1, textValue1, textField2, textValue2)
+                .get();
         }
         afterIndexing();
         int lte = 3000;
@@ -265,22 +271,23 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         // A query with only filter or must_not clauses should be able to terminate early
         SearchResponse response = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
-            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
             .get();
         assertTrue(response.isTerminatedEarly());
         // Note: queries that have finished early with terminate_after will return "eq" for hit relation
         assertHitCount(response, trackTotalHitsUpTo, EQUAL_TO);
 
-        // Force the same query to not terminate early by setting terminateAfter to some non-default high value, so we can check the hits are identical
+        // Force the same query to not terminate early by setting terminateAfter to some non-default high value, so we can check the hits
+        // are identical
         SearchResponse originalQueryResponse = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
-            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
             .setTerminateAfter(1_000_000)
             .get();
         assertFalse(originalQueryResponse.isTerminatedEarly()); // Returns false not null when TA was set but not reached
         assertHitCount(originalQueryResponse, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
         List<String> terminatedEarlyIds = new ArrayList<>();
-        for (Iterator<SearchHit> it = response.getHits().iterator(); it.hasNext(); ) {
+        for (Iterator<SearchHit> it = response.getHits().iterator(); it.hasNext();) {
             SearchHit terminatedEarlyHit = it.next();
             terminatedEarlyIds.add(terminatedEarlyHit.getId());
         }
@@ -289,14 +296,14 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         // Queries with other clauses should not terminate early
         response = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
-            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).must(rangeQuery(intField).lte(lte)))
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).must(termQuery(textField2, "a")))
             .get();
         assertNull(response.isTerminatedEarly());
         assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
 
         response = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
-            .setQuery(boolQuery().must(rangeQuery(intField).lte(lte)).should(termQuery(textField, "odd")))
+            .setQuery(boolQuery().must(rangeQuery(intField).lte(lte)).should(termQuery(textField1, "odd")))
             .get();
         assertNull(response.isTerminatedEarly());
         assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
@@ -304,7 +311,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         // Queries with aggregations shouldn't terminate early
         response = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
-            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
             .addAggregation(cardinality("cardinality").field(intField))
             .get();
         assertNull(response.isTerminatedEarly());
@@ -313,7 +320,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         // Queries with sorting shouldn't terminate early
         response = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
-            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
             .addSort(intField, SortOrder.DESC)
             .get();
         assertNull(response.isTerminatedEarly());
@@ -322,7 +329,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         // Queries with pagination shouldn't terminate early
         response = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
-            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
             .setFrom(10)
             .get();
         assertNull(response.isTerminatedEarly());
@@ -330,8 +337,8 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         response = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
-            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
-            .searchAfter(new Object[]{0})
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .searchAfter(new Object[] { 0 })
             .addSort(intField, SortOrder.DESC)
             .get();
         assertNull(response.isTerminatedEarly());
@@ -339,7 +346,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         // Scroll queries shouldn't terminate early
         response = client().prepareSearch()
-            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
             .setScroll(TimeValue.timeValueSeconds(30))
             .get();
         assertNull(response.isTerminatedEarly());
