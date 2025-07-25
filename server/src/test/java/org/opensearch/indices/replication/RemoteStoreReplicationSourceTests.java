@@ -22,12 +22,16 @@ import org.opensearch.index.shard.RemoteStoreRefreshListenerTests;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -175,6 +179,77 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         ExecutionException exception = assertThrows(ExecutionException.class, () -> res3.get());
         assertTrue(exception.getCause() instanceof IllegalStateException);
         assertTrue(exception.getCause().getMessage().contains("Remote metadata file can't be null if shard is active"));
+    }
+
+    public void testGetMergedSegmentFiles() throws IOException, ExecutionException, InterruptedException {
+        final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
+        Map<String, String> localToRemoteFilenameMap = new HashMap<>() {
+            {
+                Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard
+                    .getRemoteDirectory()
+                    .getSegmentsUploadedToRemoteStore();
+                segmentsUploadedToRemoteStore.forEach((segment, metadata) -> {
+                    if (segment.startsWith("segments_") == false) put(segment, metadata.getUploadedFilename());
+                });
+            }
+        };
+        replicaShard.getRemoteDirectory().markPendingMergedSegmentsDownload(localToRemoteFilenameMap);
+        RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
+            new MergedSegmentCheckpoint(
+                replicaShard.shardId(),
+                primaryTerm,
+                checkpoint.getLength(),
+                checkpoint.getCodec(),
+                checkpoint.getMetadataMap(),
+                "_0"
+            ),
+            localToRemoteFilenameMap
+        );
+        List<StoreFileMetadata> filesToFetch = primaryShard.getSegmentMetadataMap().values().stream().collect(Collectors.toList());
+        final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
+        replicationSource = new RemoteStoreReplicationSource(primaryShard);
+        replicationSource.getMergedSegmentFiles(
+            REPLICATION_ID,
+            mergedSegmentCheckpoint,
+            filesToFetch,
+            replicaShard,
+            (fileName, bytesRecovered) -> {},
+            res
+        );
+        GetSegmentFilesResponse response = res.get();
+        assertEquals(response.files.size(), filesToFetch.size());
+        assertTrue(response.files.containsAll(filesToFetch));
+        closeShards(replicaShard);
+    }
+
+    public void testGetMergedSegmentFilesFailure() throws IOException {
+        // Testing failure scenario where segments are not a part of RemoteSegmentStoreDirectory.pendingMergedSegmentsDownloads
+        final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
+        Map<String, String> localToRemoteFilenameMap = Map.of("invalid.si", "invalid.si__uuid", "invalid.cfs", "invalid.cfs__uuid");
+        RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
+            new MergedSegmentCheckpoint(
+                replicaShard.shardId(),
+                primaryTerm,
+                checkpoint.getLength(),
+                checkpoint.getCodec(),
+                checkpoint.getMetadataMap(),
+                "_0"
+            ),
+            localToRemoteFilenameMap
+        );
+        List<StoreFileMetadata> filesToFetch = primaryShard.getSegmentMetadataMap().values().stream().collect(Collectors.toList());
+        final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
+        replicationSource = new RemoteStoreReplicationSource(primaryShard);
+        replicationSource.getMergedSegmentFiles(
+            REPLICATION_ID,
+            mergedSegmentCheckpoint,
+            filesToFetch,
+            replicaShard,
+            (fileName, bytesRecovered) -> {},
+            res
+        );
+        assertThrows(ExecutionException.class, () -> res.get());
+        closeShards(replicaShard);
     }
 
     private void buildIndexShardBehavior(IndexShard mockShard, IndexShard indexShard) {
