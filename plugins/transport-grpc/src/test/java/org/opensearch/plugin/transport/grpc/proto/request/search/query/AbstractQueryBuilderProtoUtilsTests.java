@@ -28,6 +28,13 @@ import java.util.Map;
 
 public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        // Set up the registry with all built-in converters
+        QueryBuilderProtoTestUtils.setupRegistry();
+    }
+
     public void testParseInnerQueryBuilderProtoWithMatchAll() {
         // Create a QueryContainer with MatchAllQuery
         MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
@@ -56,17 +63,13 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseInnerQueryBuilderProtoWithTerm() {
         // Create a QueryContainer with Term query
-        Map<String, TermQuery> termMap = new HashMap<>();
-
         // Create a FieldValue for the term value
         FieldValue fieldValue = FieldValue.newBuilder().setStringValue("test-value").build();
 
-        // Create a TermQuery with the FieldValue
-        TermQuery termQuery = TermQuery.newBuilder().setValue(fieldValue).build();
+        // Create a TermQuery with the FieldValue and field name
+        TermQuery termQuery = TermQuery.newBuilder().setField("test-field").setValue(fieldValue).build();
 
-        termMap.put("test-field", termQuery);
-
-        QueryContainer queryContainer = QueryContainer.newBuilder().putAllTerm(termMap).build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
         // Call parseInnerQueryBuilderProto
         QueryBuilder queryBuilder = AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(queryContainer);
@@ -117,13 +120,13 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create an empty QueryContainer (no query type specified)
         QueryContainer queryContainer = QueryContainer.newBuilder().build();
 
-        // Call parseInnerQueryBuilderProto, should throw UnsupportedOperationException
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
+        // Call parseInnerQueryBuilderProto, should throw IllegalArgumentException
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
             () -> AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(queryContainer)
         );
 
         // Verify the exception message
-        assertTrue("Exception message should mention 'not supported yet'", exception.getMessage().contains("not supported yet"));
+        assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
     }
 }
