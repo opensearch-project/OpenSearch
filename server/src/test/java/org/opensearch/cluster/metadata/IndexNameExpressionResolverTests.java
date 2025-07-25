@@ -45,6 +45,7 @@ import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata.State;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver.ExpressionResolver;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
@@ -2518,6 +2519,20 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-*");
         assertThat(names, empty());
+    }
+
+    static class FakeExpressionResolver implements IndexNameExpressionResolver.ExpressionResolver {
+        @Override
+        public List<String> resolve(IndexNameExpressionResolver.Context context, List<String> expressions) {
+            throw new UnsupportedOperationException("resolve operation not supported on FakeExpressionResolver");
+        }
+    }
+
+    public void testAddCustomResolver() {
+        FakeExpressionResolver customResolver = new FakeExpressionResolver();
+        List<ExpressionResolver> customResolvers = Collections.singletonList(customResolver);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, customResolvers);
+        assertEquals(indexNameExpressionResolver.getExpressionResolvers().get(0), customResolver);
     }
 
     private ClusterState systemIndexTestClusterState() {

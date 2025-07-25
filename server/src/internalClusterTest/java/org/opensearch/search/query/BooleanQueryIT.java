@@ -25,11 +25,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.termsQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -328,7 +331,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         response = client().prepareSearch()
             .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
             .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
-            .searchAfter(new Object[] { 0 })
+            .searchAfter(new Object[]{0})
             .addSort(intField, SortOrder.DESC)
             .get();
         assertNull(response.isTerminatedEarly());
@@ -346,6 +349,73 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertNull(response.isTerminatedEarly());
         assertHitCount(response, lte / 2);
         clearScroll(response.getScrollId());
+    }
+
+    public void testMustNotNumericMatchOrTermQueryRewrite() throws Exception {
+        Map<Integer, Integer> statusToDocCountMap = Map.of(200, 1000, 404, 30, 500, 1, 400, 1293);
+        String statusField = "status";
+        createIndex("test");
+        int totalDocs = 0;
+        for (Map.Entry<Integer, Integer> entry : statusToDocCountMap.entrySet()) {
+            for (int i = 0; i < entry.getValue(); i++) {
+                client().prepareIndex("test").setSource(statusField, entry.getKey()).get();
+            }
+            totalDocs += entry.getValue();
+        }
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
+
+        int excludedValue = randomFrom(statusToDocCountMap.keySet());
+        int expectedHitCount = totalDocs - statusToDocCountMap.get(excludedValue);
+
+        // Check the rewritten match query behaves as expected
+        assertHitCount(
+            client().prepareSearch("test").setQuery(boolQuery().mustNot(matchQuery(statusField, excludedValue))).get(),
+            expectedHitCount
+        );
+
+        // Check the rewritten term query behaves as expected
+        assertHitCount(
+            client().prepareSearch("test").setQuery(boolQuery().mustNot(termQuery(statusField, excludedValue))).get(),
+            expectedHitCount
+        );
+
+        // Check a rewritten terms query behaves as expected
+        List<Integer> excludedValues = new ArrayList<>();
+        excludedValues.add(excludedValue);
+        int secondExcludedValue = randomFrom(statusToDocCountMap.keySet());
+        expectedHitCount = totalDocs - statusToDocCountMap.get(excludedValue);
+        if (secondExcludedValue != excludedValue) {
+            excludedValues.add(secondExcludedValue);
+            expectedHitCount -= statusToDocCountMap.get(secondExcludedValue);
+        }
+
+        assertHitCount(
+            client().prepareSearch("test").setQuery(boolQuery().mustNot(termsQuery(statusField, excludedValues))).get(),
+            expectedHitCount
+        );
+    }
+
+    public void testMustToFilterRewrite() throws Exception {
+        // Check we still get expected behavior after rewriting must clauses --> filter clauses.
+        String intField = "int_field";
+        createIndex("test");
+        int numDocs = 100;
+
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, i).get();
+        }
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
+
+        int gt = 22;
+        int lt = 92;
+        int expectedHitCount = lt - gt - 1;
+        assertHitCount(client().prepareSearch().setQuery(boolQuery().must(rangeQuery(intField).lt(lt).gt(gt))).get(), expectedHitCount);
     }
 
     private String padZeros(int value, int length) {

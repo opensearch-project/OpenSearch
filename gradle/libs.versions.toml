@@ -1,6 +1,6 @@
 [versions]
 opensearch        = "3.2.0"
-lucene            = "10.2.1"
+lucene            = "10.2.2"
 
 bundled_jdk_vendor = "adoptium"
 bundled_jdk = "24.0.1+9"
@@ -62,11 +62,12 @@ hadoop3           = "3.3.6"
 #  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
 #  - distribution/tools/plugin-cli
 bouncycastle_jce  = "2.0.0"
-bouncycastle_tls  = "2.0.19"
-bouncycastle_pkix = "2.0.7"
-bouncycastle_pg   = "2.0.10"
+bouncycastle_tls  = "2.0.20"
+bouncycastle_pkix = "2.0.8"
+bouncycastle_pg   = "2.0.11"
 bouncycastle_util = "2.0.3"
-password4j        = "1.8.2"
+password4j        = "1.8.3"
+
 # test dependencies
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"

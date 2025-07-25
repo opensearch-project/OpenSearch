@@ -9,6 +9,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -71,7 +72,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).format,
             getDefaultDateTimeFormatter().pattern()
         );
-        private final Parameter<Boolean> ignoreMalformed;
+        private final Parameter<Explicit<Boolean>> ignoreMalformed;
 
         private static Map<String, Object> parseProperties(String name, Object propertiesObject) {
             if (propertiesObject instanceof Map == false) {
@@ -114,7 +115,12 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             if (defaultDateFormatter != null) {
                 this.format.setValue(defaultDateFormatter.pattern());
             }
-            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, defaultIgnoreMalformed);
+            this.ignoreMalformed = Parameter.explicitBoolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                defaultIgnoreMalformed
+            );
         }
 
         public Builder(
@@ -136,7 +142,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
                 this.format.setValue(derivedField.getFormat());
             }
             if (derivedField.getIgnoreMalformed()) {
-                this.ignoreMalformed.setValue(derivedField.getIgnoreMalformed());
+                this.ignoreMalformed.setValue(new Explicit<>(derivedField.getIgnoreMalformed(), true));
             }
         }
 
@@ -158,7 +164,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
                 derivedField.setFormat(format.getValue());
             }
             if (ignoreMalformed.isConfigured()) {
-                derivedField.setIgnoreMalformed(ignoreMalformed.getValue());
+                derivedField.setIgnoreMalformed(ignoreMalformed.getValue().value());
             }
             FieldMapper fieldMapper = DerivedFieldSupportedTypes.getFieldMapperFromType(type.getValue(), name, context, indexAnalyzers);
             Function<Object, IndexableField> fieldFunction = DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(
@@ -193,7 +199,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
     private final Script script;
     private final String prefilterField;
     private final Map<String, Object> properties;
-    private final boolean ignoreMalformed;
+    private final Explicit<Boolean> ignoreMalformed;
     private final boolean defaultIgnoreMalformed;
     private final DateFormatter defaultDateFormatter;
     private final String format;
@@ -257,4 +263,8 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
         return script;
     }
 
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
+        return ignoreMalformed;
+    }
 }

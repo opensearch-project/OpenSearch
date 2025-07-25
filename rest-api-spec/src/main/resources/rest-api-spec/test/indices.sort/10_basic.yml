@@ -176,3 +176,106 @@
   # This should failed with 400 as half_float is not supported for index sort
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
+
+---
+"Index sort with nested fields":
+  - skip:
+        version: " - 3.1.0"
+        reason: "Index sort on nested field is only supported after 3.1.0"
+  - do:
+      indices.create:
+        index: test_nested_sort
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.sort.field: foo
+            index.sort.order: desc
+          mappings:
+            properties:
+              foo:
+                type: integer
+              foo1:
+                type: keyword
+              contacts:
+                type: nested
+                properties:
+                  name:
+                    type: keyword
+                  age:
+                    type: integer
+
+  - do:
+      index:
+        index: test_nested_sort
+        id: "1"
+        body:
+          foo: 100
+          foo1: "A"
+          contacts:
+            - name: "Alice"
+              age: 30
+
+  - do:
+      index:
+        index: test_nested_sort
+        id: "2"
+        body:
+          foo: 200
+          foo1: "B"
+          contacts:
+            - name: "Bob"
+              age: 40
+
+  - do:
+      index:
+        index: test_nested_sort
+        id: "3"
+        body:
+          foo: 150
+          foo1: "C"
+          contacts:
+            - name: "Charlie"
+              age: 25
+
+  - do:
+      indices.refresh:
+        index: test_nested_sort
+
+  - do:
+      search:
+        index: test_nested_sort
+        body:
+          sort:
+            - foo: desc
+          size: 3
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"Index sort with nested field as sort field validation":
+  - skip:
+      version: " - 3.1.0"
+      reason: "Index sort on nested field is only supported after 3.1.0"
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_nested_sort
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.sort.field: contacts.age
+          mappings:
+            properties:
+              contacts:
+                type: nested
+                properties:
+                  age:
+                    type: integer
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "index sorting on nested fields is not supported: found nested sort field [contacts.age] in [test_nested_sort]" }

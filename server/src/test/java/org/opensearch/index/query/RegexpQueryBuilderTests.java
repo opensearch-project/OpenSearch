@@ -55,7 +55,15 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             List<RegexpFlag> flags = new ArrayList<>();
             int iter = randomInt(5);
             for (int i = 0; i < iter; i++) {
-                flags.add(randomFrom(RegexpFlag.values()));
+                // Exclude COMPLEMENT from random selection to avoid deprecation warnings
+                RegexpFlag[] availableFlags = {
+                    RegexpFlag.INTERSECTION,
+                    RegexpFlag.EMPTY,
+                    RegexpFlag.ANYSTRING,
+                    RegexpFlag.INTERVAL,
+                    RegexpFlag.NONE,
+                    RegexpFlag.ALL };
+                flags.add(randomFrom(availableFlags));
             }
             query.flags(flags.toArray(new RegexpFlag[0]));
         }
@@ -161,5 +169,33 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         String shortJson = "{\n" + "    \"regexp\": {\n" + "      \"user1\": \"k.*y\",\n" + "      \"user2\": \"k.*y\"\n" + "    }\n" + "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
+    }
+
+    // Test that COMPLEMENT flag triggers deprecation warning
+    public void testComplementFlagDeprecation() throws IOException {
+        RegexpQueryBuilder query = new RegexpQueryBuilder("field", "a~bc");
+        query.flags(RegexpFlag.COMPLEMENT);
+        QueryShardContext context = createShardContext();
+        Query luceneQuery = query.toQuery(context);
+        assertNotNull(luceneQuery);
+        assertThat(luceneQuery, instanceOf(RegexpQuery.class));
+        assertWarnings(
+            "The complement operator (~) for arbitrary patterns in regexp queries is deprecated "
+                + "and will be removed in a future version. Consider rewriting your query to use character class negation [^...] or other query types."
+        );
+    }
+
+    // Separate test for COMPLEMENT flag Cacheability
+    public void testComplementFlagCacheability() throws IOException {
+        RegexpQueryBuilder queryBuilder = new RegexpQueryBuilder("field", "pattern");
+        queryBuilder.flags(RegexpFlag.COMPLEMENT);
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder, context.isCacheable());
+        assertWarnings(
+            "The complement operator (~) for arbitrary patterns in regexp queries is deprecated "
+                + "and will be removed in a future version. Consider rewriting your query to use character class negation [^...] or other query types."
+        );
     }
 }
