@@ -104,7 +104,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
     }
 
     public void testInitializeWithoutSecureTransportSettingsProvider() {
-        Settings sslSettings = Settings.builder().put(settings).put("arrow.ssl.enable", true).build();
+        Settings sslSettings = Settings.builder().put(settings).put("flight.ssl.enable", true).build();
         ServerConfig.init(sslSettings);
         try (FlightService sslService = new FlightService(sslSettings)) {
             // Should throw exception when initializing without provider

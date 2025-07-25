@@ -167,7 +167,7 @@ public class OSFlightServer {
                 }
                 case LocationSchemes.GRPC_TLS:
                 {
-                    if (certChain == null) {
+                    if (certChain == null && sslContext == null) {
                         throw new IllegalArgumentException(
                             "Must provide a certificate and key to serve gRPC over TLS");
                     }

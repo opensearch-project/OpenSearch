@@ -26,7 +26,7 @@ public class ServerConfigTests extends OpenSearchTestCase {
             .put("arrow.enable_null_check_for_get", false)
             .put("arrow.enable_unsafe_memory_access", true)
             .put("arrow.memory.debug.allocator", false)
-            .put("arrow.ssl.enable", true)
+            .put("flight.ssl.enable", true)
             .put("thread_pool.flight-server.min", 1)
             .put("thread_pool.flight-server.max", 4)
             .put("thread_pool.flight-server.keep_alive", TimeValue.timeValueMinutes(5))
