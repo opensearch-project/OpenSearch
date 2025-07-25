@@ -196,4 +196,30 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testBuildAggregationAlgorithmSelection() throws IOException {
+        List<Long> dataSet = new ArrayList<>();
+        for (long i = 0; i < 100; i++) {
+            dataSet.add(i);
+        }
+
+        // HeapSort
+        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(2), agg -> {
+            assertEquals(2, agg.getBuckets().size());
+            for (int i = 0; i < 2; i++) {
+                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
+                assertThat(bucket.getKey(), equalTo((long) i));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }
+        }, ValueType.NUMERIC);
+
+        // QuickSelect
+        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(20), agg -> {
+            assertEquals(20, agg.getBuckets().size());
+            for (int i = 0; i < agg.getBuckets().size(); i++) {
+                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
+                assertThat(bucket.getKey(), equalTo((long) i));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }
+        }, ValueType.NUMERIC);
+    }
 }

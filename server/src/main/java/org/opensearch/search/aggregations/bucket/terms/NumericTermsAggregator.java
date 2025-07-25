@@ -31,15 +31,18 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import joptsimple.internal.Strings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -94,6 +97,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
     private final String fieldName;
+    private String resultSelectionStrategy;
 
     public NumericTermsAggregator(
         String name,
@@ -118,6 +122,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         this.fieldName = (this.valuesSource instanceof ValuesSource.Numeric.FieldData)
             ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.resultSelectionStrategy = Strings.EMPTY;
     }
 
     @Override
@@ -239,6 +244,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds.size());
+        add.accept("result_selection_strategy", resultSelectionStrategy);
     }
 
     /**
@@ -255,40 +261,80 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 checkCancelled();
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
-
                 int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
-                PriorityQueue<B> ordered = buildPriorityQueue(size);
                 B spare = null;
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                while (ordsEnum.next()) {
-                    long docCount = bucketDocCount(ordsEnum.ord());
-                    otherDocCounts[ordIdx] += docCount;
-                    if (docCount < localBucketCountThresholds.getMinDocCount()) {
-                        continue;
-                    }
-                    if (spare == null) {
-                        spare = emptyBucketBuilder.get();
-                    }
-                    updateBucket(spare, ordsEnum, docCount);
-                    spare = ordered.insertWithOverflow(spare);
-                }
 
-                // Get the top buckets
-                B[] bucketsForOrd = buildBuckets(ordered.size());
-                topBucketsPerOrd[ordIdx] = bucketsForOrd;
-                if (isKeyOrder(order)) {
-                    for (int b = ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
+                if (!FeatureFlags.isEnabled(FeatureFlags.TERMS_AGGREGATION_OPTIMIZATION_ENABLE_SETTING)
+                    || (size < 0.2 * bucketsInOrd)
+                    || isKeyOrder(order)) {
+                    resultSelectionStrategy = "priority_queue";
+                    PriorityQueue<B> ordered = buildPriorityQueue(size);
+                    while (ordsEnum.next()) {
+                        long docCount = bucketDocCount(ordsEnum.ord());
+                        otherDocCounts[ordIdx] += docCount;
+                        if (docCount < localBucketCountThresholds.getMinDocCount()) {
+                            continue;
+                        }
+                        if (spare == null) {
+                            spare = emptyBucketBuilder.get();
+                        }
+                        updateBucket(spare, ordsEnum, docCount);
+                        spare = ordered.insertWithOverflow(spare);
+                    }
+                    // Get the top buckets
+                    topBucketsPerOrd[ordIdx] = buildBuckets(ordered.size());
+                    if (isKeyOrder(order)) {
+                        for (int b = ordered.size() - 1; b >= 0; --b) {
+                            topBucketsPerOrd[ordIdx][b] = ordered.pop();
+                            otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                        }
+                    } else {
+                        // sorted buckets not needed as they will be sorted by key in buildResult() which is different from
+                        // order in priority queue ordered
+                        Iterator<B> itr = ordered.iterator();
+                        for (int b = ordered.size() - 1; b >= 0; --b) {
+                            topBucketsPerOrd[ordIdx][b] = itr.next();
+                            otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                        }
                     }
                 } else {
-                    // sorted buckets not needed as they will be sorted by key in buildResult() which is different from
-                    // order in priority queue ordered
-                    Iterator<B> itr = ordered.iterator();
-                    for (int b = ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = itr.next();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                    resultSelectionStrategy = "quick_select";
+                    B[] bucketsForOrd = buildBuckets((int) bucketsInOrd);
+                    int validBucketCount = 0;
+
+                    // Collect all valid buckets
+                    while (ordsEnum.next()) {
+                        long docCount = bucketDocCount(ordsEnum.ord());
+                        otherDocCounts[ordIdx] += docCount;
+                        if (docCount < localBucketCountThresholds.getMinDocCount()) {
+                            continue;
+                        }
+                        spare = emptyBucketBuilder.get();
+                        updateBucket(spare, ordsEnum, docCount);
+                        bucketsForOrd[validBucketCount++] = spare;
+                    }
+
+                    if (validBucketCount > size && partiallyBuiltBucketComparator != null) {
+                        // Use quick select to find top N buckets
+                        ArrayUtil.select(
+                            bucketsForOrd,
+                            0,
+                            validBucketCount,
+                            size,
+                            ((b1, b2) -> partiallyBuiltBucketComparator.compare((InternalTerms.Bucket<?>) b1, (InternalTerms.Bucket<?>) b2))
+                        );
+                        topBucketsPerOrd[ordIdx] = Arrays.copyOf(bucketsForOrd, size);
+                        // Adjust other doc counts by subtracting the doc counts of selected top buckets
+                        for (int b = 0; b < size; b++) {
+                            otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                        }
+                    } else {
+                        // All buckets fit within the required size, no selection needed
+                        topBucketsPerOrd[ordIdx] = Arrays.copyOf(bucketsForOrd, validBucketCount);
+                        otherDocCounts[ordIdx] = 0L;
                     }
                 }
             }
