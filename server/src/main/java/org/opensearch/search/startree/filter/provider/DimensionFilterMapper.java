@@ -22,6 +22,7 @@ import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -161,7 +162,9 @@ public interface DimensionFilterMapper {
             org.opensearch.index.mapper.KeywordFieldMapper.CONTENT_TYPE,
             new KeywordFieldMapper(),
             UNSIGNED_LONG.typeName(),
-            new UnsignedLongFieldMapperNumeric()
+            new UnsignedLongFieldMapperNumeric(),
+            IpFieldMapper.CONTENT_TYPE,
+            new StarTreeIpFieldMapper()
         );
 
         public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType, SearchContext searchContext) {
