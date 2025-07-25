@@ -35,7 +35,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAccessInput {
+public abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAccessInput {
     private static final Logger logger = LogManager.getLogger(OnDemandBlockIndexInput.class);
 
     public static final String CLEANER_THREAD_NAME_PREFIX = "index-input-cleaner";
@@ -372,6 +372,10 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
         return new Builder();
     }
 
+    /**
+     * Builder for {@link OnDemandBlockIndexInput}. The default block size is 8MiB
+     * (see {@link Builder#DEFAULT_BLOCK_SIZE_SHIFT}).
+     */
     public static class Builder {
         // Block size shift (default value is 23 == 2^23 == 8MiB)
         public static final int DEFAULT_BLOCK_SIZE_SHIFT = 23;
@@ -407,7 +411,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
             return this;
         }
 
-        Builder blockSizeShift(int blockSizeShift) {
+        public Builder blockSizeShift(int blockSizeShift) {
             assert blockSizeShift < 31 : "blockSizeShift must be < 31";
             this.blockSizeShift = blockSizeShift;
             this.blockSize = 1 << blockSizeShift;

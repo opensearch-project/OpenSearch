@@ -43,6 +43,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -104,7 +105,8 @@ public interface IndexStorePlugin {
             ShardPath shardPath,
             DirectoryFactory localDirectoryFactory,
             Directory remoteDirectory,
-            FileCache fileCache
+            FileCache fileCache,
+            ThreadPool threadPool
         ) throws IOException;
     }
 
