@@ -1825,6 +1825,7 @@ public class IndexShardTests extends IndexShardTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
                 .build()
         );
         RemoteSegmentTransferTracker remoteSegmentTransferTracker = shard.getRemoteStoreStatsTrackerFactory()
