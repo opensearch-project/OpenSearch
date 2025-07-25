@@ -27,10 +27,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -38,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
@@ -51,6 +50,7 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     protected MMapDirectory directory;
     protected TransferManager transferManager;
     protected ThreadPool threadPool;
+    protected ExecutorService executorService;
 
     @Before
     public void setUp() throws Exception {
@@ -58,10 +58,13 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         threadPool = mock(ThreadPool.class);
         directory = new MMapDirectory(createTempDir(), SimpleFSLockFactory.INSTANCE);
         initializeTransferManager();
+        executorService = Executors.newFixedThreadPool(3);
+        doReturn(executorService).when(threadPool).executor(ThreadPool.Names.REMOTE_RECOVERY);
     }
 
     @After
     public void tearDown() throws Exception {
+        executorService.shutdownNow();
         super.tearDown();
     }
 
@@ -81,11 +84,9 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     }
 
     public void testSingleAccessAsynchronous() throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(3);
         IndexInput indexInput = null;
         try {
-            indexInput = asyncFetchBlobWithName("file", executor);
-            ;
+            indexInput = asyncFetchBlobWithName("file");
             assertIndexInputIsFunctional(indexInput);
             MatcherAssert.assertThat(fileCache.activeUsage(), equalTo((long) EIGHT_MB));
         } finally {
@@ -95,7 +96,6 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         }
         MatcherAssert.assertThat(fileCache.activeUsage(), equalTo(0L));
         MatcherAssert.assertThat(fileCache.usage(), equalTo((long) EIGHT_MB));
-        executor.shutdownNow();
     }
 
     public void testConcurrentAccess() throws Exception {
@@ -127,21 +127,21 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     public void testConcurrentAccessAsynchronous() throws Exception {
         // Kick off multiple threads that all concurrently request the same resource
         final String blobname = "file";
-        ExecutorService executor = Executors.newFixedThreadPool(3);
+        ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
-            final List<CompletableFuture<IndexInput>> futures = new ArrayList<>();
+            final List<Future<IndexInput>> futures = new ArrayList<>();
             for (int i = 0; i < 8; i++) {
-                futures.add(asyncFetchBlob(blobname, executor));
+                futures.add(executor.submit(() -> asyncFetchBlobWithName(blobname)));
             }
             // Wait for all threads to complete
-            for (CompletableFuture<IndexInput> future : futures) {
+            for (Future<IndexInput> future : futures) {
                 future.get(1, TimeUnit.SECONDS);
             }
             // Assert that all IndexInputs are independently positioned by seeking
             // to the end and closing each one. If not independent, then this would
             // result in EOFExceptions and/or NPEs.
-            for (CompletableFuture<IndexInput> future : futures) {
-                try (IndexInput i = future.join().clone()) {
+            for (Future<IndexInput> future : futures) {
+                try (IndexInput i = future.get()) {
                     assertIndexInputIsFunctional(i);
                 }
             }
@@ -198,10 +198,10 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     public void testOverflowDisabledAsynchronous() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(3);
         initializeTransferManager();
-        IndexInput i1 = asyncFetchBlobWithName("1", executor);
-        IndexInput i2 = asyncFetchBlobWithName("2", executor);
+        IndexInput i1 = asyncFetchBlobWithName("1");
+        IndexInput i2 = asyncFetchBlobWithName("2");
 
-        assertThrows(IOException.class, () -> { IndexInput i3 = asyncFetchBlobWithName("3", executor); });
+        assertThrows(IOException.class, () -> { IndexInput i3 = asyncFetchBlobWithName("3"); });
         executor.shutdownNow();
     }
 
@@ -219,19 +219,19 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
 
     public void testDownloadFailsAsyncDownload() throws Exception {
         mockExceptionWhileReading();
-        ExecutorService executor = Executors.newFixedThreadPool(3);
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         blobParts.add(new BlobFetchRequest.BlobPart("failure-blob", 0, EIGHT_MB));
-        expectThrows(
-            CompletionException.class,
-            () -> transferManager.fetchBlobAsync(
-                BlobFetchRequest.builder().fileName("file").directory(directory).blobParts(blobParts).build(),
-                executor
-            ).join().clone()
-        );
+        expectThrows(IOException.class, () -> {
+            BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
+                .fileName("file")
+                .directory(directory)
+                .blobParts(blobParts)
+                .build();
+            transferManager.fetchBlobAsync(blobFetchRequest);
+            try (IndexInput indexInput = transferManager.fetchBlob(blobFetchRequest)) {}
+        });
         MatcherAssert.assertThat(fileCache.activeUsage(), equalTo(0L));
         MatcherAssert.assertThat(fileCache.usage(), equalTo(0L));
-        executor.shutdownNow();
     }
 
     public void testFetchesToDifferentBlobsDoNotBlockOnEachOther() throws Exception {
@@ -285,7 +285,7 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         blockingThread.start();
 
         // Assert that a different blob can be fetched and will not block on the first blob
-        try (IndexInput i = asyncFetchBlobWithName("file", executor)) {
+        try (IndexInput i = asyncFetchBlobWithName("file")) {
             assertIndexInputIsFunctional(i);
         }
 
@@ -294,6 +294,22 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         blockingThread.join(5_000);
         assertFalse(blockingThread.isAlive());
         executor.shutdownNow();
+    }
+
+    public void testRefCount() throws IOException, InterruptedException {
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        String blobname = "test-blob";
+        blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
+        BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build();
+        // It will trigger async load
+        transferManager.fetchBlobAsync(blobFetchRequest);
+        Thread.sleep(2000);
+        assertEquals(Optional.of(0), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
+        assertNotNull(fileCache.get(blobFetchRequest.getFilePath()));
+        fileCache.decRef(blobFetchRequest.getFilePath());
+        // Making the read call to fetch from file cache
+        IndexInput indexInput = transferManager.fetchBlob(blobFetchRequest);
+        assertEquals(Optional.of(1), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
     }
 
     protected abstract void initializeTransferManager() throws IOException;
@@ -308,23 +324,12 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         return transferManager.fetchBlob(BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build());
     }
 
-    private CompletableFuture<IndexInput> asyncFetchBlob(String blobname, Executor executor) throws IOException {
-        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
-        blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
-        // It will trigger async load
-        return transferManager.fetchBlobAsync(
-            BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build(),
-            executor
-        );
-    }
-
-    private IndexInput asyncFetchBlobWithName(String blobname, Executor executor) throws IOException {
+    private IndexInput asyncFetchBlobWithName(String blobname) throws IOException {
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build();
         // It will trigger async load
-        transferManager.fetchBlobAsync(blobFetchRequest, executor);
-
+        transferManager.fetchBlobAsync(blobFetchRequest);
         assertNotNull(fileCache.get(blobFetchRequest.getFilePath()));
         fileCache.decRef(blobFetchRequest.getFilePath());
         // Making the read call to fetch from file cache
