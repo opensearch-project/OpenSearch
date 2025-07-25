@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
+import org.opensearch.cluster.DiskUsage;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.DiskThresholdEvaluator;
@@ -49,6 +50,7 @@ import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -111,11 +113,14 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             return Decision.ALWAYS;
         }
 
-        final Decision decision = earlyTerminate(node, allocation);
+        ClusterInfo clusterInfo = allocation.clusterInfo();
+        Map<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+        final Decision decision = earlyTerminate(node, allocation, usages);
         if (decision != null) {
             return decision;
         }
 
+        DiskUsage usage = usages.get(node.nodeId());
         final long shardSize = DiskThresholdDecider.getExpectedShardSize(
             shardRouting,
             0L,
@@ -125,18 +130,21 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             allocation.routingTable()
         );
 
-        final long totalAddressableSpace = calculateTotalAddressableSpace(node, allocation);
-        final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, false);
-        final long freeSpace = Math.max(totalAddressableSpace - currentNodeRemoteShardSize, 0);
-        final long freeSpaceAfterAllocation = Math.max(freeSpace - shardSize, 0);
-        final long freeSpaceLowThreshold = diskThresholdEvaluator.getFreeSpaceLowThreshold(totalAddressableSpace);
+        final DiskUsage usageAfterShardAssigned = new DiskUsage(
+            usage.getNodeId(),
+            usage.getNodeName(),
+            usage.getPath(),
+            usage.getTotalBytes(),
+            Math.max(0, usage.getFreeBytes() - shardSize)
+        );
+        final long freeSpaceLowThreshold = diskThresholdEvaluator.getFreeSpaceLowThreshold(usage.getTotalBytes());
 
         final ByteSizeValue freeSpaceLowThresholdInByteSize = new ByteSizeValue(freeSpaceLowThreshold);
-        final ByteSizeValue freeSpaceInByteSize = new ByteSizeValue(freeSpace);
-        final ByteSizeValue freeSpaceAfterAllocationInByteSize = new ByteSizeValue(freeSpaceAfterAllocation);
+        final ByteSizeValue freeSpaceInByteSize = new ByteSizeValue(usage.getFreeBytes());
+        final ByteSizeValue freeSpaceAfterAllocationInByteSize = new ByteSizeValue(usageAfterShardAssigned.getFreeBytes());
         final ByteSizeValue shardSizeInByteSize = new ByteSizeValue(shardSize);
 
-        if (freeSpaceAfterAllocation < freeSpaceLowThreshold) {
+        if (diskThresholdEvaluator.isNodeExceedingLowWatermark(usageAfterShardAssigned)) {
             logger.warn(
                 "after allocating [{}] node [{}] would have less than the required threshold of "
                     + "{} free (currently {} free, estimated shard size is {}), preventing allocation",
@@ -180,21 +188,29 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             return Decision.ALWAYS;
         }
 
-        final Decision decision = earlyTerminate(node, allocation);
+        ClusterInfo clusterInfo = allocation.clusterInfo();
+        Map<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+        final Decision decision = earlyTerminate(node, allocation, usages);
         if (decision != null) {
             return decision;
         }
 
-        final long totalAddressableSpace = calculateTotalAddressableSpace(node, allocation);
-        final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, true);
-        final long freeSpace = Math.max(totalAddressableSpace - currentNodeRemoteShardSize, 0);
+        final long leavingRemoteShardSize = calculateCurrentNodeLeavingRemoteShardSize(node, allocation);
+        final DiskUsage usage = usages.get(node.nodeId());
+        final DiskUsage usageAfterSubtractingLeavingShard = new DiskUsage(
+            usage.getNodeId(),
+            usage.getNodeName(),
+            usage.getPath(),
+            usage.getTotalBytes(),
+            Math.min(usage.getFreeBytes() + leavingRemoteShardSize, usage.getTotalBytes())
+        );
 
-        final long freeSpaceHighThreshold = diskThresholdEvaluator.getFreeSpaceHighThreshold(totalAddressableSpace);
+        final long freeSpaceHighThreshold = diskThresholdEvaluator.getFreeSpaceHighThreshold(usage.getTotalBytes());
 
         final ByteSizeValue freeSpaceHighThresholdInByteSize = new ByteSizeValue(freeSpaceHighThreshold);
-        final ByteSizeValue freeSpaceInByteSize = new ByteSizeValue(freeSpace);
+        final ByteSizeValue freeSpaceInByteSize = new ByteSizeValue(usageAfterSubtractingLeavingShard.getFreeBytes());
 
-        if (freeSpace < freeSpaceHighThreshold) {
+        if (diskThresholdEvaluator.isNodeExceedingHighWatermark(usageAfterSubtractingLeavingShard)) {
             logger.warn(
                 "less than the required {} of free remote addressable space threshold left ({} free) on node [{}], shard cannot remain",
                 freeSpaceHighThresholdInByteSize,
@@ -220,18 +236,14 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         );
     }
 
-    private long calculateCurrentNodeRemoteShardSize(RoutingNode node, RoutingAllocation allocation, boolean subtractLeavingShards) {
-        final List<ShardRouting> remoteShardsOnNode = StreamSupport.stream(node.spliterator(), false)
-            .filter(
-                shard -> shard.primary()
-                    && REMOTE_CAPABLE.equals(getShardPool(shard, allocation))
-                    && (subtractLeavingShards == false || shard.relocating() == false)
-            )
+    private long calculateCurrentNodeLeavingRemoteShardSize(RoutingNode node, RoutingAllocation allocation) {
+        final List<ShardRouting> leavingRemoteShardsOnNode = StreamSupport.stream(node.spliterator(), false)
+            .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getShardPool(shard, allocation)) && (shard.relocating() == true))
             .collect(Collectors.toList());
 
-        var remoteShardSize = 0L;
-        for (ShardRouting shard : remoteShardsOnNode) {
-            remoteShardSize += DiskThresholdDecider.getExpectedShardSize(
+        var leavingRemoteShardSize = 0L;
+        for (ShardRouting shard : leavingRemoteShardsOnNode) {
+            leavingRemoteShardSize += DiskThresholdDecider.getExpectedShardSize(
                 shard,
                 0L,
                 allocation.clusterInfo(),
@@ -241,19 +253,10 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             );
         }
 
-        return remoteShardSize;
+        return leavingRemoteShardSize;
     }
 
-    private long calculateTotalAddressableSpace(RoutingNode node, RoutingAllocation allocation) {
-        ClusterInfo clusterInfo = allocation.clusterInfo();
-        // TODO: Change the default value to 5 instead of 0
-        final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
-        final AggregateFileCacheStats fileCacheStats = clusterInfo.getNodeFileCacheStats().getOrDefault(node.nodeId(), null);
-        final long nodeCacheSize = fileCacheStats != null ? fileCacheStats.getTotal().getBytes() : 0;
-        return (long) dataToFileCacheSizeRatio * nodeCacheSize;
-    }
-
-    private Decision earlyTerminate(RoutingNode node, RoutingAllocation allocation) {
+    private Decision earlyTerminate(RoutingNode node, RoutingAllocation allocation, final Map<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isWarmThresholdEnabled() == false) {
             return allocation.decision(Decision.YES, NAME, "the warm disk threshold decider is disabled");
@@ -285,9 +288,12 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "File Cache Stat is unavailable");
         }
 
-        double remoteDataRatio = fileCacheSettings.getRemoteDataRatio();
-        if (remoteDataRatio == 0) {
-            return allocation.decision(Decision.YES, NAME, "Remote data ratio is set to 0, no limit on allocation");
+        // Fail open if there are no disk usages available
+        if (usages.isEmpty() || usages.containsKey(node.nodeId()) == false) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("unable to determine disk usages for disk-aware allocation, allowing allocation");
+            }
+            return allocation.decision(Decision.YES, NAME, "disk usages are unavailable");
         }
 
         return null;
