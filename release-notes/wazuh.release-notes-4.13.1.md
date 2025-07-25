@@ -1,4 +1,4 @@
-## 2025-07-30 Version 4.13.1 Release Notes
+## 2025-08-06 Version 4.13.1 Release Notes
 
 ## [4.13.1]
 ### Added
