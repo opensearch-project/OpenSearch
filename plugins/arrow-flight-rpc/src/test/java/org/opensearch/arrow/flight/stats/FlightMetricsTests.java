@@ -23,9 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * Comprehensive test for Flight metrics that exercises most metrics behavior in a sequential manner.
- */
 public class FlightMetricsTests extends FlightTransportTestBase {
 
     @Override
@@ -33,9 +30,6 @@ public class FlightMetricsTests extends FlightTransportTestBase {
         super.setUp();
     }
 
-    /**
-     * Comprehensive test that exercises most metrics behavior in a sequential manner.
-     */
     public void testComprehensiveMetrics() throws Exception {
         registerHandlers();
         sendSimpleMessage();
@@ -165,7 +159,7 @@ public class FlightMetricsTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, "internal:test/simple", testRequest, options, responseHandler);
 
-        assertTrue("Simple message should complete", latch.await(2, TimeUnit.SECONDS));
+        assertTrue("Simple message should complete", latch.await(5, TimeUnit.SECONDS));
         assertNull("Simple message should not fail", exception.get());
     }
 

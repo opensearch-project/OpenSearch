@@ -88,7 +88,7 @@ public class ServerConfig {
     );
 
     static final Setting<Boolean> ARROW_SSL_ENABLE = Setting.boolSetting(
-        "arrow.ssl.enable",
+        "flight.ssl.enable",
         false, // TODO: get default from security enabled
         Setting.Property.NodeScope
     );
