@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
+- Add support for plugins having dependency on other dependent plugins ([#18719](https://github.com/opensearch-project/OpenSearch/pull/18719))
 - Add support for Warm Indices Write Block on Flood Watermark breach ([#18375](https://github.com/opensearch-project/OpenSearch/pull/18375))
 - FS stats for warm nodes based on addressable space ([#18767](https://github.com/opensearch-project/OpenSearch/pull/18767))
 - Add support for custom index name resolver from cluster plugin ([#18593](https://github.com/opensearch-project/OpenSearch/pull/18593))
@@ -49,7 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.logging.log4j:log4j-core` from 2.24.3 to 2.25.1 ([#18589](https://github.com/opensearch-project/OpenSearch/pull/18589), [#18744](https://github.com/opensearch-project/OpenSearch/pull/18744))
 - Bump `com.google.code.gson:gson` from 2.13.0 to 2.13.1 ([#18585](https://github.com/opensearch-project/OpenSearch/pull/18585))
 - Bump `com.azure:azure-core-http-netty` from 1.15.11 to 1.15.12 ([#18586](https://github.com/opensearch-project/OpenSearch/pull/18586))
-- Bump `com.squareup.okio:okio` from 3.13.0 to 3.15.0 ([#18645](https://github.com/opensearch-project/OpenSearch/pull/18645), [#18689](https://github.com/opensearch-project/OpenSearch/pull/18689))
+- Bump `com.squareup.okio:okio` from 3.13.0 to 3.14.0 ([#18645](https://github.com/opensearch-project/OpenSearch/pull/18645))
 - Bump `com.netflix.nebula.ospackage-base` from 11.11.2 to 12.0.0 ([#18646](https://github.com/opensearch-project/OpenSearch/pull/18646))
 - Bump `com.azure:azure-storage-blob` from 12.30.0 to 12.30.1 ([#18644](https://github.com/opensearch-project/OpenSearch/pull/18644))
 - Bump `com.google.guava:failureaccess` from 1.0.1 to 1.0.2 ([#18672](https://github.com/opensearch-project/OpenSearch/pull/18672))
