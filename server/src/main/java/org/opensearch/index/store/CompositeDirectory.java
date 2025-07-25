@@ -80,7 +80,8 @@ public class CompositeDirectory extends FilterDirectory {
                 CompositeDirectory.this.remoteDirectory.openBlockInput(name, position, length, IOContext.DEFAULT),
                 length
             ),
-            fileCache
+            fileCache,
+            threadPool
         );
     }
 

@@ -16,6 +16,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -51,10 +52,12 @@ public class TransferManager {
 
     private final StreamReader streamReader;
     private final FileCache fileCache;
+    private final ThreadPool threadPool;
 
-    public TransferManager(final StreamReader streamReader, final FileCache fileCache) {
+    public TransferManager(final StreamReader streamReader, final FileCache fileCache, ThreadPool threadPool) {
         this.streamReader = streamReader;
         this.fileCache = fileCache;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -110,7 +113,7 @@ public class TransferManager {
     }
 
     @ExperimentalApi
-    public CompletableFuture<IndexInput> fetchBlobAsync(BlobFetchRequest blobFetchRequest, Executor executor) throws IOException {
+    public void fetchBlobAsync(BlobFetchRequest blobFetchRequest) throws IOException {
         final Path key = blobFetchRequest.getFilePath();
         logger.trace("Asynchronous fetchBlob called for {}", key.toString());
         try {
@@ -128,12 +131,15 @@ public class TransferManager {
             // Cache entry was either retrieved from the cache or newly added, either
             // way the reference count has been incremented by one. We can only
             // decrement this reference _after_ creating the clone to be returned.
+            // Making sure remote recovery thread-pool take care of background download
             try {
-                return cacheEntry.asyncLoadIndexInput(executor);
-            } finally {
+                cacheEntry.asyncLoadIndexInput(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY));
+            } catch (Exception exception) {
                 fileCache.decRef(key);
+                throw exception;
             }
         } catch (Exception cause) {
+            logger.error("Exception while asynchronous fetching blob key:{}, Exception {}", key, cause.getMessage());
             throw (RuntimeException) cause;
         }
     }
@@ -241,6 +247,7 @@ public class TransferManager {
                         throw new CompletionException(e);
                     }
                 }, executor).handle((indexInput, throwable) -> {
+                    fileCache.decRef(request.getFilePath());
                     if (throwable != null) {
                         result.completeExceptionally(throwable);
                     } else {
