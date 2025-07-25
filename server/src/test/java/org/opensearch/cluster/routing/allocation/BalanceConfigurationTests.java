@@ -619,29 +619,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         }
     }
 
-    private void verifySkewedPrimaryBalance(ClusterState clusterState, int delta) throws Exception {
-        assertBusy(() -> {
-            RoutingNodes nodes = clusterState.getRoutingNodes();
-            int totalPrimaryShards = 0;
-            for (final IndexRoutingTable index : clusterState.getRoutingTable().indicesRouting().values()) {
-                totalPrimaryShards += index.primaryShardsActive();
-            }
-            final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / clusterState.getRoutingNodes().size());
-            int maxPrimaryShardOnNode = Integer.MIN_VALUE;
-            int minPrimaryShardOnNode = Integer.MAX_VALUE;
-            for (RoutingNode node : nodes) {
-                final int primaryCount = node.shardsWithState(STARTED)
-                    .stream()
-                    .filter(ShardRouting::primary)
-                    .collect(Collectors.toList())
-                    .size();
-                maxPrimaryShardOnNode = Math.max(maxPrimaryShardOnNode, primaryCount);
-                minPrimaryShardOnNode = Math.min(minPrimaryShardOnNode, primaryCount);
-            }
-            assertTrue(maxPrimaryShardOnNode - minPrimaryShardOnNode < delta);
-        }, 60, TimeUnit.SECONDS);
-    }
-
     private void verifyPrimaryBalance(ClusterState clusterState, float buffer) throws Exception {
         assertBusy(() -> {
             RoutingNodes nodes = clusterState.getRoutingNodes();

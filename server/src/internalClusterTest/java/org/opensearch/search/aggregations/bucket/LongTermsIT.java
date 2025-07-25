@@ -414,20 +414,20 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     /*
-
+    
     [1, 2]
     [2, 3]
     [3, 4]
     [4, 5]
     [5, 6]
-
+    
     1 - count: 1 - sum: 1
     2 - count: 2 - sum: 4
     3 - count: 2 - sum: 6
     4 - count: 2 - sum: 8
     5 - count: 2 - sum: 10
     6 - count: 1 - sum: 6
-
+    
     */
 
     public void testScriptSingleValue() throws Exception {

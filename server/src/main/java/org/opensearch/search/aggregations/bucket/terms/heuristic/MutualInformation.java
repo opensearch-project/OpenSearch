@@ -120,7 +120,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
                 + N01 / N * Math.log((N * N01) / (N0_ * N_1))
                 + N10 / N * Math.log((N * N10) / (N1_ * N_0))
                 + N00 / N * Math.log((N * N00) / (N0_ * N_0));
-
+    
         but we get many NaN if we do not take case of the 0s */
 
     double getMITerm(double Nxy, double Nx_, double N_y, double N) {

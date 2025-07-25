@@ -142,22 +142,22 @@ public class PublishTests extends GradleUnitTestCase {
         // and how these tasks are chained. The problem is that there is a known gradle issue (#20301) that does
         // not allow for it ATM. If, however, it is fixed in the future the following is the code that can
         // be used...
-
+        
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply(Publish.class);
         // add publications via API
-
+        
         // evaluate the project
         ((DefaultProject)project).evaluate();
-
+        
         // - Check that "validatePluginZipPom" and/or "publishPluginZipPublicationToZipStagingRepository"
         //   tasks have dependencies on "generatePomFileForNebulaPublication".
         // - Check that there is the staging repository added.
-
+        
         // However, due to known issue(1): https://github.com/gradle/gradle/issues/20301
         // it is impossible to reach to individual tasks and work with them.
         // (1): https://docs.gradle.org/7.4/release-notes.html#known-issues
-
+        
         // I.e.: The following code throws exception, basically any access to individual tasks fails.
         project.getTasks().getByName("validatePluginZipPom");
          ------------------------------- */

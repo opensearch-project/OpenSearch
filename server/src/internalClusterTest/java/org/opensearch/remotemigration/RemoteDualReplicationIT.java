@@ -232,14 +232,14 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
     public void testRetentionLeasePresentOnDocrepReplicaButNotRemote() throws Exception {
         /* Reducing indices.memory.shard_inactive_time to force a flush and trigger translog sync,
         instead of relying on Global CKP Sync action which doesn't run on remote enabled copies
-
+        
         Under steady state, RetentionLeases would be on (GlobalCkp + 1) on a
         docrep enabled shard copy and (GlobalCkp) for a remote enabled shard copy.
         This is because we block translog sync on remote enabled shard copies during the GlobalCkpSync background task.
-
+        
         RLs on remote enabled copies are brought up to (GlobalCkp + 1) upon a flush request issued by IndexingMemoryController
         when the shard becomes inactive after SHARD_INACTIVE_TIME_SETTING interval.
-
+        
         Flush triggers a force sync of translog which bumps the RetentionLease sequence number along with it
         */
         extraSettings = Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), "3s").build();
@@ -668,10 +668,10 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
 
     /*
     Performs the same experiment as testRemotePrimaryDocRepReplica.
-
+    
     This ensures that the primary shard for the index has moved over to remote
     enabled node whereas the replica copy is still left behind on the docrep nodes
-
+    
     At this stage, segrep lag computation shouldn't consider the docrep shard copy while calculating bytes lag
      */
     public void testZeroSegrepLagForShardsWithMixedReplicationGroup() throws Exception {

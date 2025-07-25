@@ -215,7 +215,7 @@ public class RemoteFsTranslog extends Translog {
         In Primary to Primary relocation , there can be concurrent upload and download of translog.
         While translog files are getting downloaded by new primary, it might hence be deleted by the primary
         Hence we retry if tlog/ckp files are not found .
-
+        
         This doesn't happen in last download , where it is ensured that older primary has stopped modifying tlog data.
          */
         IOException ex = null;

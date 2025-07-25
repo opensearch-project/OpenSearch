@@ -1617,7 +1617,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             /*
             Shard assignment is stuck because recovery is blocked at CLEAN_FILES stage. Once, it times out after 60s the replica shards get assigned.
             https://github.com/opensearch-project/OpenSearch/issues/18098.
-
+            
             Stack trace:
             Caused by: org.opensearch.transport.ReceiveTimeoutTransportException: [node_t3][127.0.0.1:56648][internal:index/shard/recovery/clean_files] request_id [20] timed out after [60026ms]
             at org.opensearch.transport.TransportService$TimeoutHandler.run(TransportService.java:1399) ~[main/:?]

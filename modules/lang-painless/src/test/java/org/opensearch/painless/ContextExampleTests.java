@@ -47,12 +47,12 @@ public class ContextExampleTests extends ScriptTestCase {
     // **** Docs Generator Code ****
 
     /*
-
+    
     import java.io.FileWriter;
     import java.io.IOException;
-
+    
     public class Generator {
-
+    
     public final static String[] theatres = new String[] {"Down Port", "Graye", "Skyline", "Courtyard"};
     public final static String[] plays = new String[] {"Driving", "Pick It Up", "Sway and Pull", "Harriot",
             "The Busline", "Ants Underground", "Exploria", "Line and Single", "Shafted", "Sunnyside Down",
@@ -61,7 +61,7 @@ public class ContextExampleTests extends ScriptTestCase {
             "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller", "Sarah Notch",
             "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue",
             "Mike Candlestick", "Jacey Bell"};
-
+    
     public static void writeSeat(FileWriter writer, int id, String theatre, String play, String[] actors,
                                  String date, String time, int row, int number, double cost, boolean sold) throws IOException {
         StringBuilder builder = new StringBuilder();
@@ -94,11 +94,11 @@ public class ContextExampleTests extends ScriptTestCase {
         builder.append(" }\n");
         writer.write(builder.toString());
     }
-
+    
     public static void main(String args[]) throws IOException {
         FileWriter writer = new FileWriter("/home/jdconrad/test/seats.json");
         int id = 0;
-
+    
         for (int playCount = 0; playCount < 12; ++playCount) {
             String play = plays[playCount];
             String theatre;
@@ -106,7 +106,7 @@ public class ContextExampleTests extends ScriptTestCase {
             int startMonth;
             int endMonth;
             String time;
-
+    
             if (playCount == 0) {
                 theatre = theatres[0];
                 actor = new String[] {actors[0], actors[1], actors[2], actors[3]};
@@ -184,10 +184,10 @@ public class ContextExampleTests extends ScriptTestCase {
             } else {
                 throw new RuntimeException("too many plays");
             }
-
+    
             int rows;
             int number;
-
+    
             if (playCount < 6) {
                rows = 3;
                number = 12;
@@ -200,32 +200,32 @@ public class ContextExampleTests extends ScriptTestCase {
             } else {
                 throw new RuntimeException("too many seats");
             }
-
+    
             for (int month = startMonth; month <= endMonth; ++month) {
                 for (int day = 1; day <= 14; ++day) {
                     for (int row = 1; row <= rows; ++row) {
                         for (int count = 1; count <= number; ++count) {
                             String date = "2018-" + month + "-" + day;
                             double cost = (25 - row) * 1.25;
-
+    
                             writeSeat(writer, ++id, theatre, play, actor, date, time, row, count, cost, false);
                         }
                     }
                 }
             }
         }
-
+    
         writer.write("\n");
         writer.close();
         }
     }
-
+    
     */
 
     // **** Initial Mappings ****
 
     /*
-
+    
     curl -X PUT "localhost:9200/seats" -H 'Content-Type: application/json' -d'
     {
       "mappings": {
@@ -246,13 +246,13 @@ public class ContextExampleTests extends ScriptTestCase {
       }
     }
     '
-
+    
     */
 
     // Create Ingest to Modify Dates:
 
     /*
-
+    
     curl -X PUT "localhost:9200/_ingest/pipeline/seats" -H 'Content-Type: application/json' -d'
     {
         "description": "update datetime for seats",
@@ -265,7 +265,7 @@ public class ContextExampleTests extends ScriptTestCase {
         ]
     }
     '
-
+    
     */
 
     public void testIngestProcessorScript() {
@@ -304,9 +304,9 @@ public class ContextExampleTests extends ScriptTestCase {
     // Post Generated Data:
 
     /*
-
+    
     curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/home/jdconrad/test/seats.json"
-
+    
     */
 
     // Use script_fields API to add two extra fields to the hits
