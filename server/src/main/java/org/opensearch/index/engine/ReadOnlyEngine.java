@@ -54,6 +54,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.transport.Transports;
@@ -256,12 +257,14 @@ public class ReadOnlyEngine extends Engine {
             Translog translog = config.getTranslogFactory()
                 .newTranslog(
                     translogConfig,
+
                     translogUuid,
                     translogDeletionPolicy,
                     config.getGlobalCheckpointSupplier(),
                     config.getPrimaryTermSupplier(),
                     seqNo -> {},
-                    config.getStartedPrimarySupplier()
+                    config.getStartedPrimarySupplier(),
+                    TranslogOperationHelper.create(config)
                 )
         ) {
             return translog.stats();
