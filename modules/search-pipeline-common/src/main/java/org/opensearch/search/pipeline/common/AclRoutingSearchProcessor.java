@@ -15,7 +15,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.ingest.ConfigurationUtils;
-import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
@@ -31,18 +30,24 @@ import java.util.Map;
  */
 public class AclRoutingSearchProcessor extends AbstractProcessor implements SearchRequestProcessor {
 
+    /**
+     * The type name for this processor.
+     */
     public static final String TYPE = "acl_routing_search";
 
     private final String aclField;
     private final boolean extractFromQuery;
 
-    public AclRoutingSearchProcessor(
-        String tag,
-        String description,
-        boolean ignoreFailure,
-        String aclField,
-        boolean extractFromQuery
-    ) {
+    /**
+     * Constructor for AclRoutingSearchProcessor.
+     *
+     * @param tag processor tag
+     * @param description processor description
+     * @param ignoreFailure whether to ignore failures
+     * @param aclField the field to extract ACL values from
+     * @param extractFromQuery whether to extract ACL values from query
+     */
+    public AclRoutingSearchProcessor(String tag, String description, boolean ignoreFailure, String aclField, boolean extractFromQuery) {
         super(tag, description, ignoreFailure);
         this.aclField = aclField;
         this.extractFromQuery = extractFromQuery;
@@ -70,19 +75,17 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
         }
 
         // Generate routing values
-        String[] routingValues = aclValues.stream()
-            .map(this::generateRoutingValue)
-            .toArray(String[]::new);
+        String[] routingValues = aclValues.stream().map(this::generateRoutingValue).toArray(String[]::new);
 
         // Set routing on the request
         request.routing(routingValues);
-        
+
         return request;
     }
 
     private List<String> extractAclValues(QueryBuilder query) {
         List<String> aclValues = new ArrayList<>();
-        
+
         if (query instanceof TermQueryBuilder) {
             TermQueryBuilder termQuery = (TermQueryBuilder) query;
             if (aclField.equals(termQuery.fieldName())) {
@@ -95,17 +98,17 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
             }
         } else if (query instanceof BoolQueryBuilder) {
             BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
-            
+
             // Check must clauses
             for (QueryBuilder mustClause : boolQuery.must()) {
                 aclValues.addAll(extractAclValues(mustClause));
             }
-            
+
             // Check filter clauses
             for (QueryBuilder filterClause : boolQuery.filter()) {
                 aclValues.addAll(extractAclValues(filterClause));
             }
-            
+
             // Check should clauses if minimum_should_match > 0
             if (boolQuery.minimumShouldMatch() != null && !boolQuery.should().isEmpty()) {
                 for (QueryBuilder shouldClause : boolQuery.should()) {
@@ -113,7 +116,7 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
                 }
             }
         }
-        
+
         return aclValues;
     }
 
@@ -121,12 +124,12 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
         // Use MurmurHash3 for consistent hashing (same as ingest processor)
         byte[] bytes = aclValue.getBytes(StandardCharsets.UTF_8);
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
-        
+
         // Convert to base64 for routing value
         byte[] hashBytes = new byte[16];
         System.arraycopy(longToBytes(hash.h1), 0, hashBytes, 0, 8);
         System.arraycopy(longToBytes(hash.h2), 0, hashBytes, 8, 8);
-        
+
         return Base64.getUrlEncoder().withoutPadding().encodeToString(hashBytes);
     }
 
@@ -139,7 +142,15 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
         return result;
     }
 
+    /**
+     * Factory for creating ACL routing search processors.
+     */
     public static class Factory implements Processor.Factory<SearchRequestProcessor> {
+
+        /**
+         * Constructor for Factory.
+         */
+        public Factory() {}
 
         @Override
         public AclRoutingSearchProcessor create(
@@ -152,7 +163,7 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
         ) throws Exception {
             String aclField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "acl_field");
             boolean extractFromQuery = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "extract_from_query", true);
-            
+
             return new AclRoutingSearchProcessor(tag, description, ignoreFailure, aclField, extractFromQuery);
         }
     }

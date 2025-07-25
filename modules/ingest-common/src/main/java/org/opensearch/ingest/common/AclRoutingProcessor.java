@@ -48,7 +48,7 @@ public final class AclRoutingProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         Object aclValue = document.getFieldValue(aclField, Object.class, ignoreMissing);
-        
+
         if (aclValue == null) {
             if (ignoreMissing) {
                 return document;
@@ -63,7 +63,7 @@ public final class AclRoutingProcessor extends AbstractProcessor {
 
         String routingValue = generateRoutingValue(aclValue.toString());
         document.setFieldValue(targetField, routingValue);
-        
+
         return document;
     }
 
@@ -71,12 +71,12 @@ public final class AclRoutingProcessor extends AbstractProcessor {
         // Use MurmurHash3 for consistent hashing
         byte[] bytes = aclValue.getBytes(StandardCharsets.UTF_8);
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
-        
+
         // Convert to base64 for routing value
         byte[] hashBytes = new byte[16];
         System.arraycopy(longToBytes(hash.h1), 0, hashBytes, 0, 8);
         System.arraycopy(longToBytes(hash.h2), 0, hashBytes, 8, 8);
-        
+
         return Base64.getUrlEncoder().withoutPadding().encodeToString(hashBytes);
     }
 
@@ -107,7 +107,7 @@ public final class AclRoutingProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "_routing");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean overrideExisting = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override_existing", true);
-            
+
             return new AclRoutingProcessor(processorTag, description, aclField, targetField, ignoreMissing, overrideExisting);
         }
     }
