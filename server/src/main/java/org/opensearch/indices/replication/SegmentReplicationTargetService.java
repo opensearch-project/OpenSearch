@@ -146,19 +146,19 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.REPLICATION,
             FileChunkRequest::new,
             new FileChunkTransportRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.FORCE_SYNC,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.REPLICATION,
             ForceSyncRequest::new,
             new ForceSyncTransportRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.MERGED_SEGMENT_FILE_CHUNK,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.REPLICATION,
             FileChunkRequest::new,
             new MergedSegmentFileChunkTransportRequestHandler()
         );
