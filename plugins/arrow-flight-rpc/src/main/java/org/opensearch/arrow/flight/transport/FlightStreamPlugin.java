@@ -172,12 +172,10 @@ public class FlightStreamPlugin extends Plugin
         if (isArrowStreamsEnabled) {
             flightService.setSecureTransportSettingsProvider(secureTransportSettingsProvider);
         }
-        if (isStreamTransportEnabled) {
-            SslContextProvider sslContextProvider = ServerConfig.isSslEnabled()
-                ? new DefaultSslContextProvider(secureTransportSettingsProvider)
-                : null;
+        if (isStreamTransportEnabled && ServerConfig.isSslEnabled()) {
+            SslContextProvider sslContextProvider = new DefaultSslContextProvider(secureTransportSettingsProvider);
             return Collections.singletonMap(
-                "FLIGHT",
+                "FLIGHT-SECURE",
                 () -> new FlightTransport(
                     settings,
                     Version.CURRENT,
@@ -216,7 +214,7 @@ public class FlightStreamPlugin extends Plugin
         NetworkService networkService,
         Tracer tracer
     ) {
-        if (isStreamTransportEnabled) {
+        if (isStreamTransportEnabled && !ServerConfig.isSslEnabled()) {
             return Collections.singletonMap(
                 "FLIGHT",
                 () -> new FlightTransport(

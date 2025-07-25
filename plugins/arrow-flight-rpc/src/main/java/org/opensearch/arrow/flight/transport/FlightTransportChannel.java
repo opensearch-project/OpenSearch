@@ -116,4 +116,9 @@ class FlightTransportChannel extends TcpTransportChannel {
         getChannel().close();
         super.release(isExceptionResponse);
     }
+
+    @Override
+    public String getChannelType() {
+        return "stream-transport";
+    }
 }

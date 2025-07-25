@@ -203,7 +203,6 @@ class FlightClientChannel implements TcpChannel {
             return;
         }
 
-        // Create a call tracker for metrics if stats collector is available
         FlightCallTracker callTracker = null;
         if (statsCollector != null) {
             callTracker = statsCollector.createClientCallTracker();
@@ -214,7 +213,6 @@ class FlightClientChannel implements TcpChannel {
             // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
             TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(reqId, messageListener);
-
             long correlationId = requestIdGenerator.incrementAndGet();
 
             if (callTracker != null) {
