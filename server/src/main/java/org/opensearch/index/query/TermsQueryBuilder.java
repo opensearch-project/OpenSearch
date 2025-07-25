@@ -76,7 +76,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -96,7 +95,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
     private ValueType valueType = ValueType.DEFAULT;
-    private static final Map<String, SetOnce<List<Object>>> fetchedTermsCache = new ConcurrentHashMap<>();
 
     /**
      * Terms query may accept different types of value
@@ -538,21 +536,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        // All remote fetching for termsLookup must be completed in the rewrite phase.
-        // doToQuery should only use cached results from rewrite, never perform I/O!
-        if (termsLookup != null && (termsLookup.query() != null || termsLookup.id() != null)) {
-            String key = cacheKey();
-            SetOnce<List<Object>> fetchedTerms = fetchedTermsCache.get(key);
-            // This should NEVER be null here—rewrite must guarantee terms are fetched!
-            if (fetchedTerms == null || fetchedTerms.get() == null) {
-                throw new IllegalStateException("Rewrite first");
-            }
-            return context.fieldMapper(fieldName).termsQuery(fetchedTerms.get(), context);
-        }
-
         // This section ensures no on-demand fetching for other cases as well
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
-            throw new UnsupportedOperationException("query must be rewritten first");
+            throw new IllegalStateException("Rewrite first");
         }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
         if (values.size() > maxTermsCount) {
@@ -752,19 +738,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             || numberType.equals(NumberFieldMapper.NumberType.LONG)
             || numberType.equals(NumberFieldMapper.NumberType.SHORT);
         return ComplementHelperUtils.numberValuesToComplement(fieldName, numberValues, isWholeNumber);
-    }
-
-    private String cacheKey() {
-        if (termsLookup == null) {
-            return "";
-        }
-        // Compose a unique key based on index, path, routing, and query string
-        String index = termsLookup.index();
-        String path = termsLookup.path();
-        String routing = termsLookup.routing() == null ? "" : termsLookup.routing();
-        String queryString = termsLookup.query() == null ? "" : termsLookup.query().toString();
-
-        return index + "|" + path + "|" + routing + "|" + queryString;
     }
 
 }

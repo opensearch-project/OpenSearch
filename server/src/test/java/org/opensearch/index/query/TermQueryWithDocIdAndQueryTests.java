@@ -116,8 +116,8 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         QueryShardContext context = mock(QueryShardContext.class);
         when(context.getIndexSettings()).thenReturn(newTestIndexSettings());
         when(context.fieldMapper(any())).thenReturn(mock(MappedFieldType.class));
-        Exception ex = expectThrows(UnsupportedOperationException.class, () -> builder.doToQuery(context));
-        assertTrue(ex.getMessage().contains("query must be rewritten first"));
+        Exception ex = expectThrows(IllegalStateException.class, () -> builder.doToQuery(context));
+        assertEquals("Rewrite first", ex.getMessage());
     }
 
     public void testDoToQueryTooManyTerms() {
