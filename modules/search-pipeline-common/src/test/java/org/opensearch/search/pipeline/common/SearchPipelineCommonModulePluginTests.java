@@ -82,7 +82,7 @@ public class SearchPipelineCommonModulePluginTests extends OpenSearchTestCase {
         final Settings settings = Settings.EMPTY;
         try (SearchPipelineCommonModulePlugin plugin = new SearchPipelineCommonModulePlugin()) {
             assertEquals(
-                Set.of("oversample", "filter_query", "script", "hierarchical_routing_search"),
+                Set.of("oversample", "filter_query", "script", "hierarchical_routing_search", "acl_routing_search"),
                 plugin.getRequestProcessors(createParameters(settings)).keySet()
             );
             assertEquals(
