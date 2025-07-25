@@ -32,11 +32,20 @@
 
 package org.opensearch.search.fetch;
 
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestSearchContext;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -114,6 +124,50 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         assertArrayEquals(fieldsVisitor.excludes(), excludes);
         assertArrayEquals(fieldsVisitor.includes(), includes);
 
+    }
+
+    public void testTaskCancellationDuringFetch() {
+        FetchPhase fetchPhase = new FetchPhase(Collections.emptyList());
+
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchContext context = mock(SearchContext.class);
+        when(context.isCancelled()).thenReturn(false, true);
+        when(context.getTask()).thenReturn(task);
+
+        when(context.docIdsToLoadSize()).thenReturn(1);
+        when(context.docIdsToLoad()).thenReturn(new int[] { 0 });
+        when(context.docIdsToLoadFrom()).thenReturn(0);
+        when(context.hasScriptFields()).thenReturn(false);
+        when(context.hasFetchSourceContext()).thenReturn(false);
+        when(context.storedFieldsContext()).thenReturn(null);
+        when(context.fetchSourceContext(any(FetchSourceContext.class))).thenReturn(null);
+        when(context.fetchSourceContext()).thenReturn(new FetchSourceContext(true));
+
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        SearchLookup lookup = new SearchLookup(mock(MapperService.class), (ft, sl) -> null);
+        when(queryShardContext.newFetchLookup()).thenReturn(lookup);
+        when(context.getQueryShardContext()).thenReturn(queryShardContext);
+
+        SearchShardTarget target = new SearchShardTarget("node", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE);
+        when(context.shardTarget()).thenReturn(target);
+
+        task.cancel("test");
+
+        TaskCancelledException ex = expectThrows(TaskCancelledException.class, () -> fetchPhase.execute(context));
+        assertEquals("cancelled task with reason: test", ex.getMessage());
+    }
+
+    public void testExecuteCancelledTaskThrows() {
+        FetchPhase fetchPhase = new FetchPhase(new ArrayList<>());
+        TestSearchContext context = new TestSearchContext(null, null, null);
+
+        SearchShardTask task = mock(SearchShardTask.class);
+        when(task.isCancelled()).thenReturn(true);
+        when(task.getReasonCancelled()).thenReturn("test reason");
+        context.setTask(task);
+
+        TaskCancelledException ex = expectThrows(TaskCancelledException.class, () -> fetchPhase.execute(context));
+        assertEquals("cancelled task with reason: test reason", ex.getMessage());
     }
 
 }
