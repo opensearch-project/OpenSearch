@@ -44,7 +44,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -94,7 +94,7 @@ public class Netty4Transport extends TcpTransport {
 
     public static final Setting<Integer> WORKER_COUNT = new Setting<>(
         "transport.netty.worker_count",
-        (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s)),
+        (s) -> Integer.toString(OpenSearchExecutorsUtils.allocatedProcessors(s)),
         (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"),
         Property.NodeScope
     );
@@ -136,7 +136,7 @@ public class Netty4Transport extends TcpTransport {
         Tracer tracer
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
-        Netty4Utils.setAvailableProcessors(OpenSearchExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        Netty4Utils.setAvailableProcessors(OpenSearchExecutorsUtils.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 

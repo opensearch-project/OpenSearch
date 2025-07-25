@@ -327,6 +327,9 @@ public class HeaderWarning {
         }
     }
 
+    /**
+     * TODO: Can be replaced by {@link RequestHeaderContext#getXOpaqueId()}
+     */
     public static String getXOpaqueId() {
         return THREAD_CONTEXT.stream()
             .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)

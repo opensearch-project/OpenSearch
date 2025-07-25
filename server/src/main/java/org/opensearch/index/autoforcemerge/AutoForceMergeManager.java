@@ -19,7 +19,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.SegmentsStats;
@@ -96,7 +96,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         this.configurationValidator = new ConfigurationValidator();
         this.nodeValidator = new NodeValidator();
         this.shardValidator = new ShardValidator();
-        this.allocatedProcessors = OpenSearchExecutors.allocatedProcessors(clusterService.getSettings());
+        this.allocatedProcessors = OpenSearchExecutorsUtils.allocatedProcessors(clusterService.getSettings());
         this.resourceTrackers = ResourceTrackerProvider.create(threadPool);
     }
 

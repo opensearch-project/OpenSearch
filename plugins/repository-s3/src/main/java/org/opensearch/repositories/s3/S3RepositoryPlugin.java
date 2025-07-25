@@ -38,7 +38,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -184,7 +184,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private static int allocatedProcessors(Settings settings) {
-        return OpenSearchExecutors.allocatedProcessors(settings);
+        return OpenSearchExecutorsUtils.allocatedProcessors(settings);
     }
 
     private static int urgentPoolCount(Settings settings) {

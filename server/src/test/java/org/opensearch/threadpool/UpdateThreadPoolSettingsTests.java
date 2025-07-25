@@ -34,7 +34,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.threadpool.ThreadPool.Names;
 
@@ -76,7 +76,7 @@ public class UpdateThreadPoolSettingsTests extends OpenSearchThreadPoolTestCase 
     }
 
     public void testWriteThreadPoolsMaxSize() throws InterruptedException {
-        final int maxSize = 1 + OpenSearchExecutors.allocatedProcessors(Settings.EMPTY);
+        final int maxSize = 1 + OpenSearchExecutorsUtils.allocatedProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
         // try to create a too big thread pool
@@ -104,7 +104,7 @@ public class UpdateThreadPoolSettingsTests extends OpenSearchThreadPoolTestCase 
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
         if (name.equals(ThreadPool.Names.WRITE) || name.equals(Names.SYSTEM_WRITE)) {
-            return Math.min(size, OpenSearchExecutors.allocatedProcessors(settings));
+            return Math.min(size, OpenSearchExecutorsUtils.allocatedProcessors(settings));
         } else {
             return size;
         }
@@ -208,7 +208,7 @@ public class UpdateThreadPoolSettingsTests extends OpenSearchThreadPoolTestCase 
             final ScalingExecutorBuilder scaling = new ScalingExecutorBuilder(
                 "my_pool1",
                 1,
-                OpenSearchExecutors.allocatedProcessors(Settings.EMPTY),
+                OpenSearchExecutorsUtils.allocatedProcessors(Settings.EMPTY),
                 TimeValue.timeValueMinutes(1)
             );
 

@@ -51,7 +51,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
@@ -275,7 +275,7 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     public static Setting<Integer> S3_TRANSFER_QUEUE_CONSUMERS = new Setting<>(
         "s3_transfer_queue_consumers",
-        (s) -> Integer.toString(Math.max(5, OpenSearchExecutors.allocatedProcessors(s) * 2)),
+        (s) -> Integer.toString(Math.max(5, OpenSearchExecutorsUtils.allocatedProcessors(s) * 2)),
         (s) -> Setting.parseInt(s, 5, "s3_transfer_queue_consumers"),
         Setting.Property.NodeScope
     );

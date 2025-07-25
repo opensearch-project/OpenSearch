@@ -41,7 +41,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -218,7 +218,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Tracer tracer
     ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, tracer);
-        Netty4Utils.setAvailableProcessors(OpenSearchExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        Netty4Utils.setAvailableProcessors(OpenSearchExecutorsUtils.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 
