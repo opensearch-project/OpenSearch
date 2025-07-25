@@ -14,13 +14,16 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
@@ -33,6 +36,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
 import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
@@ -263,6 +267,21 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertTrue(response.isTerminatedEarly());
         // Note: queries that have finished early with terminate_after will return "eq" for hit relation
         assertHitCount(response, trackTotalHitsUpTo, EQUAL_TO);
+
+        // Force the same query to not terminate early by setting terminateAfter to some non-default high value, so we can check the hits are identical
+        SearchResponse originalQueryResponse = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setTerminateAfter(1_000_000)
+            .get();
+        assertFalse(originalQueryResponse.isTerminatedEarly()); // Returns false not null when TA was set but not reached
+        assertHitCount(originalQueryResponse, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+        List<String> terminatedEarlyIds = new ArrayList<>();
+        for (Iterator<SearchHit> it = response.getHits().iterator(); it.hasNext(); ) {
+            SearchHit terminatedEarlyHit = it.next();
+            terminatedEarlyIds.add(terminatedEarlyHit.getId());
+        }
+        assertOrderedSearchHits(originalQueryResponse, terminatedEarlyIds.toArray(new String[0]));
 
         // Queries with other clauses should not terminate early
         response = client().prepareSearch()
