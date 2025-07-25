@@ -27,7 +27,10 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.RemoteDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -39,7 +42,9 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -183,7 +188,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         }));
     }
 
-    public void testPublishMergedSegmentActionOnReplica() {
+    public void testPublishMergedSegmentActionOnReplica() throws IOException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -192,12 +197,26 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         final int id = randomIntBetween(0, 4);
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexService.getShard(id)).thenReturn(indexShard);
-
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.indexSettings()).thenReturn(
-            createIndexSettings(false, Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "SEGMENT").build())
+            createIndexSettings(
+                false,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "SEGMENT")
+                    .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+                    .build()
+            )
         );
+        RemoteSegmentStoreDirectory rssd = new RemoteSegmentStoreDirectory(
+            mock(RemoteDirectory.class),
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            threadPool,
+            shardId,
+            new HashMap<>()
+        );
+        when(indexShard.getRemoteDirectory()).thenReturn(rssd);
         final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
         final RemoteStorePublishMergedSegmentAction action = new RemoteStorePublishMergedSegmentAction(
@@ -303,5 +322,4 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
             Map.of("_1", "_1__uuid")
         );
     }
-
 }

@@ -185,16 +185,13 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         List<String> toDownloadSegmentNames = localToRemoteSegmentFileNameMap.keySet().stream().toList();
         CountDownLatch latch = new CountDownLatch(1);
         indexShard.getFileDownloader()
-            .downloadAsync(
-                cancellableThreads,
-                indexShard.getRemoteDirectory(),
-                storeDirectory,
-                toDownloadSegmentNames,
-                ActionListener.map(listener, r -> {
-                    latch.countDown();
-                    return new GetSegmentFilesResponse(filesToFetch);
-                })
-            );
+            .downloadAsync(cancellableThreads, remoteDirectory, storeDirectory, toDownloadSegmentNames, ActionListener.wrap(r -> {
+                latch.countDown();
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }, e -> {
+                latch.countDown();
+                listener.onFailure(e);
+            }));
         try {
             if (latch.await(
                 indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().millis(),
