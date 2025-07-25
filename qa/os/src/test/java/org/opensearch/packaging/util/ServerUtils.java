@@ -95,7 +95,7 @@ public class ServerUtils {
             try (InputStream inStream = Files.newInputStream(caCert)) {
                 CertificateFactory cf = CertificateFactory.getInstance("X.509");
                 X509Certificate cert = (X509Certificate) cf.generateCertificate(inStream);
-                KeyStore truststore = KeyStore.getInstance(KeyStore.getDefaultType());
+                KeyStore truststore = KeyStore.getInstance("BCFKS");
                 truststore.load(null, null);
                 truststore.setCertificateEntry("myClusterCA", cert);
                 KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
