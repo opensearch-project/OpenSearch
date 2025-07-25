@@ -1623,7 +1623,7 @@ public class Node implements Closeable {
                             .to(RemoteStorePublishMergedSegmentAction.class)
                             .asEagerSingleton();
                     } else {
-                        b.bind(MergedSegmentPublisher.PublishAction.class).to(PublishMergedSegmentAction.class);
+                        b.bind(MergedSegmentPublisher.PublishAction.class).to(PublishMergedSegmentAction.class).asEagerSingleton();
                     }
                 } else {
                     b.bind(MergedSegmentPublisher.PublishAction.class).toInstance((shard, checkpoint) -> {});

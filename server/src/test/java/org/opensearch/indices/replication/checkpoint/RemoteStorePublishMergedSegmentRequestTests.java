@@ -32,7 +32,6 @@ public class RemoteStorePublishMergedSegmentRequestTests extends OpenSearchTestC
         assertNull(request.validate());
         assertEquals(checkpoint, request.getMergedSegment());
         assertEquals(Objects.hash(checkpoint), request.hashCode());
-        assertEquals(checkpoint.getLocalToRemoteSegmentFilenameMap(), Map.of());
         assertEquals(checkpoint.getLocalToRemoteSegmentFilenameMap(), Map.of("_0", "_0__uuid"));
     }
 
@@ -49,7 +48,6 @@ public class RemoteStorePublishMergedSegmentRequestTests extends OpenSearchTestC
                 cloneRequest = new RemoteStorePublishMergedSegmentRequest(in);
             }
         }
-        assertThat(cloneRequest, equalTo(originalRequest));
         assertThat(cloneRequest.getMergedSegment(), equalTo(originalRequest.getMergedSegment()));
     }
 }

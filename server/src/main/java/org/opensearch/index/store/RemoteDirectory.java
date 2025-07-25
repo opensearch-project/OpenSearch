@@ -487,7 +487,7 @@ public class RemoteDirectory extends Directory {
     }
 
     private boolean isMergedSegment(String remoteFilename) {
-        return pendingDownloadMergedSegments.containsValue(remoteFilename);
+        return pendingDownloadMergedSegments != null && pendingDownloadMergedSegments.containsValue(remoteFilename);
     }
 
     /**
