@@ -505,7 +505,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             remoteMetadataDirectory,
             mdLockManager,
             threadPool,
-            indexShard.shardId()
+            indexShard.shardId(),
+            new HashMap<>()
         );
 
         populateMetadata();
@@ -549,7 +550,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             remoteMetadataDirectory,
             mdLockManager,
             threadPool,
-            indexShard.shardId()
+            indexShard.shardId(),
+            new HashMap<>()
         );
         when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any())).thenReturn(remoteSegmentDirectory);
         String repositoryName = "test-repository";

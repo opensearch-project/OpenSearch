@@ -98,6 +98,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private final ThreadPool threadPool;
 
     /**
+     only relevant for remote-store-enabled domains on replica shards
+     to store localSegmentFilename -> remoteSegmentFilename mappings
+     */
+    private final Map<String, String> pendingDownloadMergedSegments;
+
+    /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
      * This map acts as a cache layer for uploaded segment filenames which helps avoid calling listAll() each time.
      * It is important to initialize this map on creation of RemoteSegmentStoreDirectory and update it on each upload and delete.
@@ -130,7 +136,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
         ThreadPool threadPool,
-        ShardId shardId
+        ShardId shardId,
+        Map<String, String> pendingDownloadMergedSegments
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
@@ -139,6 +146,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         this.threadPool = threadPool;
         this.metadataFilePinnedTimestampMap = new HashMap<>();
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
         init();
     }
 
@@ -311,7 +319,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
          */
         private int writtenByMajor;
 
-        UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length) {
+        public UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length) {
             this.originalFilename = originalFilename;
             this.uploadedFilename = uploadedFilename;
             this.checksum = checksum;
@@ -352,6 +360,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         public String getOriginalFilename() {
             return originalFilename;
+        }
+
+        public String getUploadedFilename() {
+            return uploadedFilename;
         }
 
         public void setWrittenByMajor(int writtenByMajor) {
@@ -503,9 +515,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String remoteFilename = getExistingRemoteFilename(name);
         if (remoteFilename != null) {
             return remoteDataDirectory.fileLength(remoteFilename);
-        } else {
-            throw new NoSuchFileException(name);
         }
+        throw new NoSuchFileException(name);
     }
 
     /**
@@ -693,8 +704,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @return true if file exists in cache and checksum matches.
      */
     public boolean containsFile(String localFilename, String checksum) {
-        return segmentsUploadedToRemoteStore.containsKey(localFilename)
-            && segmentsUploadedToRemoteStore.get(localFilename).checksum.equals(checksum);
+        return (segmentsUploadedToRemoteStore.containsKey(localFilename)
+            && segmentsUploadedToRemoteStore.get(localFilename).checksum.equals(checksum));
     }
 
     /**
@@ -817,12 +828,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
-    private String getExistingRemoteFilename(String localFilename) {
+    public String getExistingRemoteFilename(String localFilename) {
         if (segmentsUploadedToRemoteStore.containsKey(localFilename)) {
             return segmentsUploadedToRemoteStore.get(localFilename).uploadedFilename;
-        } else {
-            return null;
+        } else if (isMergedSegmentPendingDownload(localFilename)) {
+            return pendingDownloadMergedSegments.get(localFilename);
         }
+        return null;
     }
 
     private String getNewRemoteSegmentFilename(String localFilename) {
@@ -1106,5 +1118,34 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     @Override
     public void close() throws IOException {
         deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
+    }
+
+    /**
+     * [REPLICA SHARD] Marks merged segments that are pending download from the remote store.
+     * We mark segments as pending-download after receiving a MergedSegmentCheckpoint from the primary shard.
+     *
+     * @param localToRemoteFilenames Map of local filenames to their corresponding remote filenames
+     */
+    public void markPendingMergedSegmentsDownload(Map<String, String> localToRemoteFilenames) {
+        pendingDownloadMergedSegments.putAll(localToRemoteFilenames);
+    }
+
+    /**
+     * [REPLICA SHARD] Removes segments from the pending download list after they have been downloaded.
+     *
+     * @param localFilenames Set of local filenames to remove from pending downloads
+     */
+    public void unmarkPendingDownloadMergedSegments(Set<String> localFilenames) {
+        localFilenames.forEach(pendingDownloadMergedSegments::remove);
+    }
+
+    /**
+     * [REPLICA SHARD] Checks if a segment is a merged segment in pending-download state.
+     *
+     * @param localFilename Local filename to check
+     * @return true if segment is pending download, false otherwise
+     */
+    public boolean isMergedSegmentPendingDownload(String localFilename) {
+        return pendingDownloadMergedSegments.containsKey(localFilename);
     }
 }

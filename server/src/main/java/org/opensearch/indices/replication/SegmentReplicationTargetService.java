@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
@@ -654,7 +655,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             logger.trace(() -> "Ignoring merged segment checkpoint, Shard is closed");
             return;
         }
-
         if (replicaShard.state().equals(IndexShardState.STARTED) == true) {
             // Checks if received checkpoint is already present
             List<MergedSegmentReplicationTarget> ongoingReplicationTargetList = getMergedSegmentReplicationTarget(replicaShard.shardId());
@@ -682,6 +682,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             }
             if (replicaShard.shouldProcessMergedSegmentCheckpoint(receivedCheckpoint)) {
                 CountDownLatch latch = new CountDownLatch(1);
+                final boolean isRemoteStoreEnabled = replicaShard.indexSettings().isRemoteStoreEnabled();
                 startMergedSegmentReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
@@ -695,6 +696,10 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                             )
                         );
                         latch.countDown();
+                        if (isRemoteStoreEnabled) {
+                            replicaShard.getRemoteDirectory()
+                                .unmarkPendingDownloadMergedSegments(receivedCheckpoint.getMetadataMap().keySet());
+                        }
                     }
 
                     @Override
@@ -703,18 +708,21 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
-                        try {
-                            logReplicationFailure(state, e, replicaShard);
-                            if (sendShardFailure == true) {
-                                failShard(e, replicaShard);
-                            }
-                        } finally {
-                            latch.countDown();
+                        latch.countDown();
+                        if (isRemoteStoreEnabled) {
+                            replicaShard.getRemoteDirectory()
+                                .unmarkPendingDownloadMergedSegments(receivedCheckpoint.getMetadataMap().keySet());
                         }
                     }
                 });
                 try {
-                    latch.await();
+                    if (latch.await(recoverySettings.getMergedSegmentReplicationTimeout().seconds(), TimeUnit.SECONDS) == false) {
+                        logger.warn(
+                            "Merged segment replication for {} timed out after [{}] seconds",
+                            receivedCheckpoint,
+                            recoverySettings.getMergedSegmentReplicationTimeout().seconds()
+                        );
+                    }
                 } catch (InterruptedException e) {
                     logger.warn(
                         () -> new ParameterizedMessage("Interrupted while waiting for pre copy merged segment [{}]", receivedCheckpoint),

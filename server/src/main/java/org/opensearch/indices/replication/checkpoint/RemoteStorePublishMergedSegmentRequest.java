@@ -16,21 +16,21 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Replication request responsible for publishing merged segment request to a replica shard.
+ * Replication request responsible for publishing remote store merged segment request to a replica shard.
  *
  * @opensearch.internal
  */
-public class PublishMergedSegmentRequest extends ReplicationRequest<PublishMergedSegmentRequest> {
-    private final MergedSegmentCheckpoint mergedSegment;
+public class RemoteStorePublishMergedSegmentRequest extends ReplicationRequest<RemoteStorePublishMergedSegmentRequest> {
+    private final RemoteStoreMergedSegmentCheckpoint mergedSegment;
 
-    public PublishMergedSegmentRequest(MergedSegmentCheckpoint mergedSegment) {
+    public RemoteStorePublishMergedSegmentRequest(RemoteStoreMergedSegmentCheckpoint mergedSegment) {
         super(mergedSegment.getShardId());
         this.mergedSegment = mergedSegment;
     }
 
-    public PublishMergedSegmentRequest(StreamInput in) throws IOException {
+    public RemoteStorePublishMergedSegmentRequest(StreamInput in) throws IOException {
         super(in);
-        this.mergedSegment = new MergedSegmentCheckpoint(in);
+        this.mergedSegment = new RemoteStoreMergedSegmentCheckpoint(in);
     }
 
     @Override
@@ -40,23 +40,16 @@ public class PublishMergedSegmentRequest extends ReplicationRequest<PublishMerge
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof PublishMergedSegmentRequest that)) return false;
-        return Objects.equals(mergedSegment, that.mergedSegment);
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(mergedSegment);
     }
 
     @Override
     public String toString() {
-        return "PublishMergedSegmentRequest{" + "mergedSegment=" + mergedSegment + '}';
+        return "RemoteStorePublishMergedSegmentRequest{mergedSegment=" + mergedSegment + '}';
     }
 
-    public MergedSegmentCheckpoint getMergedSegment() {
+    public RemoteStoreMergedSegmentCheckpoint getMergedSegment() {
         return mergedSegment;
     }
 }
