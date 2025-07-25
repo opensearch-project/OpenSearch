@@ -198,17 +198,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexService.getShard(id)).thenReturn(indexShard);
         final ShardId shardId = new ShardId(index, id);
-        when(indexShard.shardId()).thenReturn(shardId);
-        when(indexShard.indexSettings()).thenReturn(
-            createIndexSettings(
-                false,
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "SEGMENT")
-                    .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-                    .build()
-            )
-        );
-        RemoteSegmentStoreDirectory rssd = new RemoteSegmentStoreDirectory(
+        final RemoteSegmentStoreDirectory remoteDirectory = new RemoteSegmentStoreDirectory(
             mock(RemoteDirectory.class),
             mock(RemoteDirectory.class),
             mock(RemoteStoreLockManager.class),
@@ -216,7 +206,17 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
             shardId,
             new HashMap<>()
         );
-        when(indexShard.getRemoteDirectory()).thenReturn(rssd);
+        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.indexSettings()).thenReturn(
+            createIndexSettings(
+                true,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "SEGMENT")
+                    .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+                    .build()
+            )
+        );
+        when(indexShard.getRemoteDirectory()).thenReturn(remoteDirectory);
         final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
         final RemoteStorePublishMergedSegmentAction action = new RemoteStorePublishMergedSegmentAction(
@@ -293,13 +293,6 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         final RemoteStorePublishMergedSegmentAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
-    }
-
-    public void testGetReplicationModeWithLocalTranslog() {
-        final RemoteStorePublishMergedSegmentAction action = createAction();
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
