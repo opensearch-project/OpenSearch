@@ -113,6 +113,7 @@ public class Lucene {
     public static final String LATEST_CODEC = "Lucene101";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
+    public static final String PARENT_FIELD = "__nested_parent";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
