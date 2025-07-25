@@ -447,6 +447,9 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
             this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()) + 1);
         }
         if (context.request() != null && context.request().source() != null) {
+            if (context.request().source().sorts() != null && context.request().source().sorts().size() > 1) {
+                return false;
+            }
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
             if (primarySortField != null) {
                 if (!primarySortField.fieldName().equals(pointRangeQuery.getField())) {
