@@ -34,6 +34,7 @@ package org.opensearch.search.query;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
@@ -446,8 +447,57 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
-            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
-            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
+            for (QueryPhaseExtension extension : queryPhaseExtensions()) {
+                try {
+                    extension.beforeScoreCollection(searchContext);
+                } catch (Exception e) {
+                    if (extension.failOnError()) {
+                        throw new QueryPhaseExecutionException(
+                            searchContext.shardTarget(),
+                            "Failed to execute beforeScoreCollection extension [" + extension.getClass().getName() + "]",
+                            e
+                        );
+                    }
+                    LOGGER.warn(
+                        new ParameterizedMessage("Failed to execute beforeScoreCollection extension [{}]", extension.getClass().getName()),
+                        e
+                    );
+                }
+            }
+
+            try {
+                QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
+                return QueryPhase.searchWithCollector(
+                    searchContext,
+                    searcher,
+                    query,
+                    collectors,
+                    queryCollectorContext,
+                    hasFilterCollector,
+                    hasTimeout
+                );
+            } finally {
+                for (QueryPhaseExtension extension : queryPhaseExtensions()) {
+                    try {
+                        extension.afterScoreCollection(searchContext);
+                    } catch (Exception e) {
+                        if (extension.failOnError()) {
+                            throw new QueryPhaseExecutionException(
+                                searchContext.shardTarget(),
+                                "Failed to execute afterScoreCollection extension [" + extension.getClass().getName() + "]",
+                                e
+                            );
+                        }
+                        LOGGER.warn(
+                            new ParameterizedMessage(
+                                "Failed to execute afterScoreCollection extension [{}]",
+                                extension.getClass().getName()
+                            ),
+                            e
+                        );
+                    }
+                }
+            }
         }
 
         private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector) throws IOException {

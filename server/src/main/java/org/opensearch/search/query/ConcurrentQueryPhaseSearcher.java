@@ -49,15 +49,61 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        return searchWithCollectorManager(
-            searchContext,
-            searcher,
-            query,
-            collectors,
-            queryCollectorContext,
-            hasFilterCollector,
-            hasTimeout
-        );
+        // Execute extensions before score collection
+        for (QueryPhaseExtension extension : queryPhaseExtensions()) {
+            try {
+                extension.beforeScoreCollection(searchContext);
+            } catch (Exception e) {
+                if (extension.failOnError()) {
+                    throw new QueryPhaseExecutionException(
+                        searchContext.shardTarget(),
+                        "Failed to execute beforeScoreCollection extension [" + extension.getClass().getName() + "]",
+                        e
+                    );
+                }
+                LOGGER.warn(
+                    new org.apache.logging.log4j.message.ParameterizedMessage(
+                        "Failed to execute beforeScoreCollection extension [{}]",
+                        extension.getClass().getName()
+                    ),
+                    e
+                );
+            }
+        }
+
+        try {
+            return searchWithCollectorManager(
+                searchContext,
+                searcher,
+                query,
+                collectors,
+                queryCollectorContext,
+                hasFilterCollector,
+                hasTimeout
+            );
+        } finally {
+            // Execute extensions after score collection
+            for (QueryPhaseExtension extension : queryPhaseExtensions()) {
+                try {
+                    extension.afterScoreCollection(searchContext);
+                } catch (Exception e) {
+                    if (extension.failOnError()) {
+                        throw new QueryPhaseExecutionException(
+                            searchContext.shardTarget(),
+                            "Failed to execute afterScoreCollection extension [" + extension.getClass().getName() + "]",
+                            e
+                        );
+                    }
+                    LOGGER.warn(
+                        new org.apache.logging.log4j.message.ParameterizedMessage(
+                            "Failed to execute afterScoreCollection extension [{}]",
+                            extension.getClass().getName()
+                        ),
+                        e
+                    );
+                }
+            }
+        }
     }
 
     private static boolean searchWithCollectorManager(
