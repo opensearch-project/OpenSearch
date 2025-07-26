@@ -118,14 +118,31 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
 
     /**
      * Reset the exhausted state so the conjunction can continue after ResumableDISIs are expanded.
-     * Preserves the current document position to avoid reprocessing documents.
+     * Ensures all iterators are positioned correctly to continue from where we left off.
      */
-    public void resetAfterExpansion() {
+    public void resetAfterExpansion() throws IOException {
         // Only reset if we're not truly exhausted (i.e., some ResumableDISI was expanded)
         if (canExpandAnyResumableDISI()) {
             exhausted = false;
-            // Set doc to the last valid document we processed
-            // The next call to nextDoc() will advance from this position
+            
+            // Position all iterators to continue from after the last valid document
+            // This ensures we don't reprocess documents we've already seen
+            int targetDoc = lastValidDoc + 1;
+            
+            // Advance the lead iterator to the target position
+            if (lead.docID() < targetDoc) {
+                lead.advance(targetDoc);
+            }
+            
+            // Advance all other iterators to the target position
+            for (DocIdSetIterator other : others) {
+                if (other.docID() < targetDoc) {
+                    other.advance(targetDoc);
+                }
+            }
+            
+            // Set doc to lastValidDoc so the next nextDoc() call will advance from there
+            // This prevents reprocessing documents we've already seen
             doc = lastValidDoc;
         }
     }
