@@ -10,7 +10,7 @@ package org.opensearch.transport.reactor.netty4;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 
 import reactor.netty.tcp.TcpServer;
 
@@ -23,7 +23,7 @@ public class ReactorNetty4Transport {
      */
     public static final Setting<Integer> SETTING_WORKER_COUNT = new Setting<>(
         "transport.netty.worker_count",
-        (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s)),
+        (s) -> Integer.toString(OpenSearchExecutorsUtils.allocatedProcessors(s)),
         (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"),
         Property.NodeScope
     );

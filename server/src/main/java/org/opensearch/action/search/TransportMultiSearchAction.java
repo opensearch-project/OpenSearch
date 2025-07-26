@@ -40,7 +40,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -82,7 +82,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
+        this.allocatedProcessors = OpenSearchExecutorsUtils.allocatedProcessors(settings);
         this.relativeTimeProvider = System::nanoTime;
         this.client = client;
     }

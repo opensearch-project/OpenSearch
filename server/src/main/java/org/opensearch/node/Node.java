@@ -103,6 +103,7 @@ import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.NodeAndClusterIdStateListener;
+import org.opensearch.common.logging.RequestHeaderContext;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -625,7 +626,12 @@ public class Node implements Closeable {
             resourcesToClose.add(resourceWatcherService);
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
-            resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
+            // initializes RequestHeaderContext with a supplier of current ThreadContext's headers
+            RequestHeaderContext.setHeaderSupplier(() -> threadPool.getThreadContext().getHeaders());
+            resourcesToClose.add(() -> {
+                HeaderWarning.removeThreadContext(threadPool.getThreadContext());
+                RequestHeaderContext.removeHeaderSupplier(() -> threadPool.getThreadContext().getHeaders());
+            });
 
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private

@@ -479,11 +479,11 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
     }
 
     public void testNodeProcessorsBound() {
-        runProcessorsBoundTest(OpenSearchExecutors.NODE_PROCESSORS_SETTING);
+        runProcessorsBoundTest(OpenSearchExecutorsUtils.NODE_PROCESSORS_SETTING);
     }
 
     public void testProcessorsBound() {
-        runProcessorsBoundTest(OpenSearchExecutors.PROCESSORS_SETTING);
+        runProcessorsBoundTest(OpenSearchExecutorsUtils.PROCESSORS_SETTING);
     }
 
     private void runProcessorsBoundTest(final Setting<Integer> processorsSetting) {

@@ -85,7 +85,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
         );
         parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request, deprecationLogger, getName());
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
-        settingsFilter.addFilterSettingParams(request);
+        settingsFilter.addFilterSettingParams(request.params());
         return channel -> client.admin().cluster().getRepositories(getRepositoriesRequest, new RestToXContentListener<>(channel));
     }
 

@@ -22,7 +22,7 @@ import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
@@ -125,7 +125,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(jvmService.stats()).thenReturn(jvmStats);
         when(jvmStats.getMem()).thenReturn(jvm);
 
-        allocatedProcessors = OpenSearchExecutors.allocatedProcessors(Settings.EMPTY);
+        allocatedProcessors = OpenSearchExecutorsUtils.allocatedProcessors(Settings.EMPTY);
     }
 
     @After

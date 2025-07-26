@@ -37,7 +37,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 
 /**
  * The merge scheduler (<code>ConcurrentMergeScheduler</code>) controls the execution of
@@ -51,7 +51,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
  * <li> <code>index.merge.scheduler.max_thread_count</code>:
  * <p>
  *     The maximum number of threads that may be merging at once. Defaults to
- *     <code>Math.max(1, Math.min(4, {@link OpenSearchExecutors#allocatedProcessors(Settings)} / 2))</code>
+ *     <code>Math.max(1, Math.min(4, {@link OpenSearchExecutorsUtils#allocatedProcessors(Settings)} / 2))</code>
  *     which works well for a good solid-state-disk (SSD).  If your index is on
  *     spinning platter drives instead, decrease this to 1.
  *
@@ -72,7 +72,7 @@ public final class MergeSchedulerConfig {
 
     public static final Setting<Integer> MAX_THREAD_COUNT_SETTING = new Setting<>(
         "index.merge.scheduler.max_thread_count",
-        (s) -> Integer.toString(Math.max(1, Math.min(4, OpenSearchExecutors.allocatedProcessors(s) / 2))),
+        (s) -> Integer.toString(Math.max(1, Math.min(4, OpenSearchExecutorsUtils.allocatedProcessors(s) / 2))),
         (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"),
         Property.Dynamic,
         Property.IndexScope
