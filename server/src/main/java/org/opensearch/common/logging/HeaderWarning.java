@@ -144,6 +144,9 @@ public class HeaderWarning {
         if (THREAD_CONTEXT.add(threadContext) == false) {
             throw new IllegalStateException("Double-setting ThreadContext not allowed!");
         }
+
+        // set up XOpaqueIdProvider to use HeaderWarning's X-Opaque-Id retrieval for DeprecationLogger
+        XOpaqueIdProvider.setXOpaqueIdSupplier(HeaderWarning::getXOpaqueId);
     }
 
     /**

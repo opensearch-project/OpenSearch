@@ -157,7 +157,7 @@ public class SettingsFilterTests extends OpenSearchTestCase {
 
         // Test using toXContent filtering
         RestRequest request = new FakeRestRequest();
-        settingsFilter.addFilterSettingParams(request);
+        settingsFilter.addFilterSettingParams(request.params());
         XContentBuilder xContentBuilder = XContentBuilder.builder(JsonXContent.jsonXContent);
         xContentBuilder.startObject();
         source.toXContent(xContentBuilder, request);

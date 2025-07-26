@@ -77,6 +77,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.set.Sets;
@@ -534,7 +535,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         builder.put(
-            OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(),
+            OpenSearchExecutorsUtils.NODE_PROCESSORS_SETTING.getKey(),
             1 + random.nextInt(Math.min(4, Runtime.getRuntime().availableProcessors()))
         );
         if (random.nextBoolean()) {

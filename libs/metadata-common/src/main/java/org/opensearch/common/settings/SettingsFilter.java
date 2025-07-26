@@ -35,13 +35,13 @@ package org.opensearch.common.settings;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent.Params;
-import org.opensearch.rest.RestRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -85,9 +85,9 @@ public final class SettingsFilter {
         return AbstractScopedSettings.isValidKey(pattern) || Regex.isSimpleMatchPattern(pattern);
     }
 
-    public void addFilterSettingParams(RestRequest request) {
+    public void addFilterSettingParams(Map<String, String> params) {
         if (patterns.isEmpty() == false) {
-            request.params().put(SETTINGS_FILTER_PARAM, patternString);
+            params.put(SETTINGS_FILTER_PARAM, patternString);
         }
     }
 

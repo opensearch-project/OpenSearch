@@ -91,7 +91,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.HandshakingTransportAddressConnector;
@@ -574,8 +574,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ClusterName.CLUSTER_NAME_SETTING,
                 Client.CLIENT_TYPE_SETTING_S,
                 ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
-                OpenSearchExecutors.PROCESSORS_SETTING,
-                OpenSearchExecutors.NODE_PROCESSORS_SETTING,
+                OpenSearchExecutorsUtils.PROCESSORS_SETTING,
+                OpenSearchExecutorsUtils.NODE_PROCESSORS_SETTING,
                 ThreadContext.DEFAULT_HEADERS_SETTING,
                 Loggers.LOG_DEFAULT_LEVEL_SETTING,
                 Loggers.LOG_LEVEL_SETTING,

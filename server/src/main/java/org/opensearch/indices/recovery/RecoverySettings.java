@@ -42,7 +42,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
@@ -125,7 +125,7 @@ public class RecoverySettings {
      */
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING = new Setting<>(
         "indices.recovery.max_concurrent_remote_store_streams",
-        (s) -> Integer.toString(Math.max(1, OpenSearchExecutors.allocatedProcessors(s) / 2)),
+        (s) -> Integer.toString(Math.max(1, OpenSearchExecutorsUtils.allocatedProcessors(s) / 2)),
         (s) -> Setting.parseInt(s, 1, "indices.recovery.max_concurrent_remote_store_streams"),
         Property.Dynamic,
         Property.NodeScope

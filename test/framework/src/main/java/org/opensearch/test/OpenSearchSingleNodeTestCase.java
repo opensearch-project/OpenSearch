@@ -51,7 +51,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
@@ -241,7 +241,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             // This needs to tie into the OpenSearchIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
-            .put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
+            .put(OpenSearchExecutorsUtils.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
             .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(dataNode())

@@ -623,7 +623,7 @@ public class Node implements Closeable {
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
-            // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
+            // adds the ThreadContext to access request/response headers without explicit injection
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 

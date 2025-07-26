@@ -35,7 +35,7 @@ package org.opensearch.threadpool;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.common.util.concurrent.OpenSearchExecutorsUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 
 import java.util.List;
@@ -66,7 +66,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
     protected int applyHardSizeLimit(final Settings settings, final String name) {
         if (name.equals("bulk") || name.equals(ThreadPool.Names.WRITE) || name.equals(ThreadPool.Names.SYSTEM_WRITE)) {
-            return 1 + OpenSearchExecutors.allocatedProcessors(settings);
+            return 1 + OpenSearchExecutorsUtils.allocatedProcessors(settings);
         } else {
             return Integer.MAX_VALUE;
         }

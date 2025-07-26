@@ -149,7 +149,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
             clusterStateRequest.customs(metrics.contains(ClusterState.Metric.CUSTOMS));
         }
-        settingsFilter.addFilterSettingParams(request);
+        settingsFilter.addFilterSettingParams(request.params());
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override

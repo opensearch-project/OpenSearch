@@ -44,10 +44,10 @@ import org.opensearch.common.annotation.PublicApi;
  * <code>deprecation</code> logger defined in log4j2.properties.
  * <p>
  * Logs are emitted at the custom {@link #DEPRECATION} level, and routed wherever they need to go using log4j. For example,
- * to disk using a rolling file appender, or added as a response header using {@link HeaderWarningAppender}.
+ * to disk using a rolling file appender, or added as a response header using {org.opensearch.common.logging.HeaderWarningAppender}.
  * <p>
  * Deprecation messages include a <code>key</code>, which is used for rate-limiting purposes. The log4j configuration
- * uses {@link RateLimitingFilter} to prevent the same message being logged repeatedly in a short span of time. This
+ * uses {org.opensearch.common.logging.RateLimitingFilter} to prevent the same message being logged repeatedly in a short span of time. This
  * key is combined with the <code>X-Opaque-Id</code> request header value, if supplied, which allows for per-client
  * message limiting.
  *
@@ -118,7 +118,7 @@ public class DeprecationLogger {
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
             // Check if the logger is enabled to skip the overhead of deduplicating messages if the logger is disabled
             if (logger.isEnabled(DEPRECATION)) {
-                DeprecatedMessage deprecationMessage = new DeprecatedMessage(key, HeaderWarning.getXOpaqueId(), msg, params);
+                DeprecatedMessage deprecationMessage = new DeprecatedMessage(key, XOpaqueIdProvider.getXOpaqueId(), msg, params);
                 if (!deprecationMessage.isAlreadyLogged()) {
                     logger.log(DEPRECATION, deprecationMessage);
                 }
