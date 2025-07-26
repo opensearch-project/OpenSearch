@@ -58,7 +58,8 @@ public class ResumableDISI extends DocIdSetIterator {
 
     /**
      * Initializes or resets the internal DocIdSetIterator.
-     * Creates a new DISI only when we need a new batch.
+     * For approximatable queries, this leverages their existing resumable mechanism.
+     * For non-approximatable queries, this creates new scorers as needed.
      *
      * @return The current DocIdSetIterator
      * @throws IOException If there's an error getting the scorer
@@ -70,12 +71,17 @@ public class ResumableDISI extends DocIdSetIterator {
 
         if (currentDisi == null || needsNewBatch) {
             // Get a new scorer and its iterator
+            // For approximatable queries, the scorer supplier will handle resumable state internally
             Scorer scorer = scorerSupplier.get(scorerSupplier.cost());
             currentDisi = scorer.iterator();
 
-            // If we have a last document ID, advance to the next one
+            // For non-approximatable queries, we need to advance past the last document
+            // For approximatable queries, they handle this internally via their BKD state
             if (lastDocID >= 0) {
-                currentDisi.advance(lastDocID + 1);
+                // Check if we need to advance (for non-approximatable queries)
+                if (currentDisi.docID() <= lastDocID) {
+                    currentDisi.advance(lastDocID + 1);
+                }
             }
 
             // Mark that we've created a new batch

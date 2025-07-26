@@ -171,7 +171,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
         @Override
         public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
-            // Create an ApproximateConjunctionDISI to coordinate the clause iterators
+            // Create an ApproximateConjunctionDISI once and reuse it (preserve conjunction state)
             ApproximateConjunctionDISI conjunctionDISI = new ApproximateConjunctionDISI(clauseIterators);
 
             // Create a scorer for the collector
@@ -184,8 +184,34 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             int collected = 0;
             int docID;
 
-            // Collect documents until we reach the threshold or exhaust the iterator
-            while (collected < threshold && (docID = conjunctionDISI.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            // Continue collecting until we reach the threshold
+            while (collected < threshold) {
+                // Get the next document from the conjunction
+                docID = conjunctionDISI.nextDoc();
+
+                if (docID == DocIdSetIterator.NO_MORE_DOCS) {
+                    // No more documents in current state - try to expand ResumableDISIs
+                    boolean anyExpanded = false;
+                    for (DocIdSetIterator disi : clauseIterators) {
+                        if (disi instanceof ResumableDISI) {
+                            ResumableDISI resumableDISI = (ResumableDISI) disi;
+                            if (!resumableDISI.isExhausted()) {
+                                resumableDISI.resetForNextBatch(); // This expands the document set
+                                anyExpanded = true;
+                            }
+                        }
+                    }
+
+                    // If no ResumableDISIs were expanded, we're truly done
+                    if (!anyExpanded) {
+                        break;
+                    }
+
+                    // Reset the conjunction so it can continue with expanded iterators
+                    conjunctionDISI.resetAfterExpansion();
+                    continue;
+                }
+
                 if (docID >= max) {
                     // We've reached the end of the range
                     return docID;
@@ -198,35 +224,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                 }
             }
 
-            // If we haven't collected enough documents and the iterator isn't exhausted,
-            // we need to rescore the clauses and continue
-            if (collected < threshold && !conjunctionDISI.isExhausted()) {
-                // Reset only the ResumableDISI iterators for the next batch
-                for (DocIdSetIterator disi : clauseIterators) {
-                    if (disi instanceof ResumableDISI) {
-                        ((ResumableDISI) disi).resetForNextBatch();
-                    }
-                }
-
-                // Create a new conjunction DISI with the reset iterators
-                conjunctionDISI = new ApproximateConjunctionDISI(clauseIterators);
-
-                // Continue collecting documents
-                while (collected < threshold && (docID = conjunctionDISI.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    if (docID >= max) {
-                        // We've reached the end of the range
-                        return docID;
-                    }
-
-                    if (docID >= min && (acceptDocs == null || acceptDocs.get(docID))) {
-                        // Collect the document
-                        collector.collect(docID);
-                        collected++;
-                    }
-                }
-            }
-
-            // We've either collected enough documents or exhausted the iterator
+            // We've either collected enough documents or exhausted all possibilities
             return DocIdSetIterator.NO_MORE_DOCS;
         }
 
