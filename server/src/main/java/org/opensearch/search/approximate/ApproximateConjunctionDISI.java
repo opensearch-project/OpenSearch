@@ -22,6 +22,7 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
     private final DocIdSetIterator lead;
     private final DocIdSetIterator[] others;
     private int doc = -1;
+    private int lastValidDoc = -1; // Track the last valid document before NO_MORE_DOCS
     private boolean exhausted = false;
 
     /**
@@ -64,6 +65,11 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
         doc = lead.nextDoc();
 
         if (doc == NO_MORE_DOCS) {
+            // Before marking as exhausted, check if any ResumableDISI can be expanded
+            if (canExpandAnyResumableDISI()) {
+                // Don't mark as exhausted yet - caller can expand and try again
+                return doc;
+            }
             exhausted = true;
             return doc;
         }
@@ -82,12 +88,46 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
         doc = lead.advance(target);
 
         if (doc == NO_MORE_DOCS) {
+            // Before marking as exhausted, check if any ResumableDISI can be expanded
+            if (canExpandAnyResumableDISI()) {
+                // Don't mark as exhausted yet - caller can expand and try again
+                return doc;
+            }
             exhausted = true;
             return doc;
         }
 
         // Try to align all other iterators
         return doNext(doc);
+    }
+
+    /**
+     * Check if any ResumableDISI in the iterators can be expanded (not exhausted)
+     */
+    private boolean canExpandAnyResumableDISI() {
+        for (DocIdSetIterator iterator : iterators) {
+            if (iterator instanceof ResumableDISI) {
+                ResumableDISI resumableDISI = (ResumableDISI) iterator;
+                if (!resumableDISI.isExhausted()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Reset the exhausted state so the conjunction can continue after ResumableDISIs are expanded.
+     * Preserves the current document position to avoid reprocessing documents.
+     */
+    public void resetAfterExpansion() {
+        // Only reset if we're not truly exhausted (i.e., some ResumableDISI was expanded)
+        if (canExpandAnyResumableDISI()) {
+            exhausted = false;
+            // Set doc to the last valid document we processed
+            // The next call to nextDoc() will advance from this position
+            doc = lastValidDoc;
+        }
     }
 
     /**
@@ -104,6 +144,11 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
                         // This iterator is ahead, advance the lead to catch up
                         doc = lead.advance(next);
                         if (doc == NO_MORE_DOCS) {
+                            // Before marking as exhausted, check if any ResumableDISI can be expanded
+                            if (canExpandAnyResumableDISI()) {
+                                // Don't mark as exhausted yet - caller can expand and try again
+                                return this.doc = NO_MORE_DOCS;
+                            }
                             exhausted = true;
                             return this.doc = NO_MORE_DOCS;
                         }
@@ -113,6 +158,7 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
             }
 
             // All iterators are aligned at the current doc
+            lastValidDoc = doc; // Remember this valid document
             return this.doc = doc;
         }
     }
