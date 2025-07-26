@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -27,7 +28,7 @@ import java.util.List;
  * for each clause and coordinates their usage in the boolean query context.
  */
 public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
-    private final List<ScorerSupplier> clauseScorerSuppliers;
+    private final List<Weight> clauseWeights;
     private final ScoreMode scoreMode;
     private final float boost;
     private final int threshold;
@@ -51,17 +52,17 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
         int threshold,
         LeafReaderContext context
     ) throws IOException {
-        this.clauseScorerSuppliers = new ArrayList<>(clauseWeights.size());
+        this.clauseWeights = new ArrayList<>();
         this.scoreMode = scoreMode;
         this.boost = boost;
         this.threshold = threshold;
         this.context = context;
 
-        // Create scorer suppliers for each clause
+        // Store weights that have valid scorer suppliers
         for (Weight clauseWeight : clauseWeights) {
             ScorerSupplier supplier = clauseWeight.scorerSupplier(context);
             if (supplier != null) {
-                clauseScorerSuppliers.add(supplier);
+                this.clauseWeights.add(clauseWeight);
             }
         }
     }
@@ -73,15 +74,25 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
      */
     @Override
     public Scorer get(long leadCost) throws IOException {
-        if (clauseScorerSuppliers.isEmpty()) {
+        if (clauseWeights.isEmpty()) {
             return null;
         }
 
-        // Create ResumableDISIs for each clause
-        List<ResumableDISI> clauseIterators = new ArrayList<>(clauseScorerSuppliers.size());
-        for (ScorerSupplier supplier : clauseScorerSuppliers) {
-            ResumableDISI disi = new ResumableDISI(supplier);
-            clauseIterators.add(disi);
+        // Create appropriate iterators for each clause - ResumableDISI only for approximatable queries
+        List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
+        for (Weight weight : clauseWeights) {
+            Query query = weight.getQuery();
+            ScorerSupplier supplier = weight.scorerSupplier(context);
+
+            if (query instanceof ApproximateQuery) {
+                // Use ResumableDISI for approximatable queries
+                ResumableDISI disi = new ResumableDISI(supplier);
+                clauseIterators.add(disi);
+            } else {
+                // Use regular DocIdSetIterator for non-approximatable queries
+                Scorer scorer = supplier.get(leadCost);
+                clauseIterators.add(scorer.iterator());
+            }
         }
 
         // Create an ApproximateConjunctionScorer with the clause iterators
@@ -93,15 +104,25 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
      */
     @Override
     public BulkScorer bulkScorer() throws IOException {
-        if (clauseScorerSuppliers.isEmpty()) {
+        if (clauseWeights.isEmpty()) {
             return null;
         }
 
-        // Create ResumableDISIs for each clause
-        List<ResumableDISI> clauseIterators = new ArrayList<>(clauseScorerSuppliers.size());
-        for (ScorerSupplier supplier : clauseScorerSuppliers) {
-            ResumableDISI disi = new ResumableDISI(supplier);
-            clauseIterators.add(disi);
+        // Create appropriate iterators for each clause - ResumableDISI only for approximatable queries
+        List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
+        for (Weight weight : clauseWeights) {
+            Query query = weight.getQuery();
+            ScorerSupplier supplier = weight.scorerSupplier(context);
+
+            if (query instanceof ApproximateQuery) {
+                // Use ResumableDISI for approximatable queries
+                ResumableDISI disi = new ResumableDISI(supplier);
+                clauseIterators.add(disi);
+            } else {
+                // Use regular DocIdSetIterator for non-approximatable queries
+                Scorer scorer = supplier.get(supplier.cost());
+                clauseIterators.add(scorer.iterator());
+            }
         }
 
         // Create an ApproximateBooleanBulkScorer with the clause iterators
@@ -115,10 +136,18 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
     public long cost() {
         if (cost == -1) {
             // Estimate cost as the minimum cost of all clauses (conjunction)
-            if (!clauseScorerSuppliers.isEmpty()) {
+            if (!clauseWeights.isEmpty()) {
                 cost = Long.MAX_VALUE;
-                for (ScorerSupplier supplier : clauseScorerSuppliers) {
-                    cost = Math.min(cost, supplier.cost());
+                for (Weight weight : clauseWeights) {
+                    try {
+                        ScorerSupplier supplier = weight.scorerSupplier(context);
+                        if (supplier != null) {
+                            cost = Math.min(cost, supplier.cost());
+                        }
+                    } catch (IOException e) {
+                        // If we can't get the cost, use a default
+                        cost = Math.min(cost, 1000);
+                    }
                 }
             } else {
                 cost = 0;
@@ -128,14 +157,14 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
     }
 
     /**
-     * A BulkScorer implementation that coordinates multiple ResumableDISIs to implement
+     * A BulkScorer implementation that coordinates multiple DocIdSetIterators (including ResumableDISIs) to implement
      * the circular scoring process described in the blog.
      */
     private static class ApproximateBooleanBulkScorer extends BulkScorer {
-        private final List<ResumableDISI> clauseIterators;
+        private final List<DocIdSetIterator> clauseIterators;
         private final int threshold;
 
-        public ApproximateBooleanBulkScorer(List<ResumableDISI> clauseIterators, int threshold) {
+        public ApproximateBooleanBulkScorer(List<DocIdSetIterator> clauseIterators, int threshold) {
             this.clauseIterators = clauseIterators;
             this.threshold = threshold;
         }
@@ -172,9 +201,11 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             // If we haven't collected enough documents and the iterator isn't exhausted,
             // we need to rescore the clauses and continue
             if (collected < threshold && !conjunctionDISI.isExhausted()) {
-                // Reset each clause iterator for the next batch
-                for (ResumableDISI disi : clauseIterators) {
-                    disi.resetForNextBatch();
+                // Reset only the ResumableDISI iterators for the next batch
+                for (DocIdSetIterator disi : clauseIterators) {
+                    if (disi instanceof ResumableDISI) {
+                        ((ResumableDISI) disi).resetForNextBatch();
+                    }
                 }
 
                 // Create a new conjunction DISI with the reset iterators
