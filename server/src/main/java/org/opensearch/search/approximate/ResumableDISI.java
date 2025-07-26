@@ -31,9 +31,10 @@ public class ResumableDISI extends DocIdSetIterator {
     private final int batchSize;
     private boolean exhausted = false;
 
-    // State tracking
+    // State tracking - track batches, not individual document movements
     private int lastDocID = -1;
-    private int docsScored = 0;
+    private int batchCount = 0;  // How many batches we've created
+    private boolean needsNewBatch = true;  // Whether we need to create a new batch
 
     /**
      * Creates a new ResumableDISI with the default batch size of 10,000 documents.
@@ -57,8 +58,7 @@ public class ResumableDISI extends DocIdSetIterator {
 
     /**
      * Initializes or resets the internal DocIdSetIterator.
-     * If this is the first call or we've reached the batch limit, a new DISI is created.
-     * Otherwise, the existing DISI is reused.
+     * Creates a new DISI only when we need a new batch.
      *
      * @return The current DocIdSetIterator
      * @throws IOException If there's an error getting the scorer
@@ -68,7 +68,7 @@ public class ResumableDISI extends DocIdSetIterator {
             return currentDisi; // Already exhausted, no need to create a new one
         }
 
-        if (currentDisi == null || docsScored >= batchSize) {
+        if (currentDisi == null || needsNewBatch) {
             // Get a new scorer and its iterator
             Scorer scorer = scorerSupplier.get(scorerSupplier.cost());
             currentDisi = scorer.iterator();
@@ -78,8 +78,9 @@ public class ResumableDISI extends DocIdSetIterator {
                 currentDisi.advance(lastDocID + 1);
             }
 
-            // Reset the docs scored counter for this batch
-            docsScored = 0;
+            // Mark that we've created a new batch
+            batchCount++;
+            needsNewBatch = false;
         }
 
         return currentDisi;
@@ -100,7 +101,6 @@ public class ResumableDISI extends DocIdSetIterator {
 
         if (doc != NO_MORE_DOCS) {
             lastDocID = doc;
-            docsScored++;
         } else {
             exhausted = true;
         }
@@ -115,7 +115,6 @@ public class ResumableDISI extends DocIdSetIterator {
 
         if (doc != NO_MORE_DOCS) {
             lastDocID = doc;
-            docsScored++;
         } else {
             exhausted = true;
         }
@@ -134,17 +133,17 @@ public class ResumableDISI extends DocIdSetIterator {
      */
     public void resetForNextBatch() {
         if (!exhausted) {
-            currentDisi = null; // Force creation of a new DISI on next call
+            needsNewBatch = true; // Mark that we need a new batch on next access
         }
     }
 
     /**
-     * Returns the number of documents scored in the current batch.
+     * Returns the number of batches created so far.
      *
-     * @return The number of documents scored
+     * @return The number of batches created
      */
-    public int getDocsScored() {
-        return docsScored;
+    public int getBatchCount() {
+        return batchCount;
     }
 
     /**

@@ -30,9 +30,9 @@ public class ApproximateConjunctionScorer extends Scorer {
      *
      * @param boost The boost factor
      * @param scoreMode The score mode
-     * @param iterators The iterators to coordinate
+     * @param iterators The iterators to coordinate (mix of ResumableDISI and regular DocIdSetIterator)
      */
-    public ApproximateConjunctionScorer(float boost, ScoreMode scoreMode, List<ResumableDISI> iterators) {
+    public ApproximateConjunctionScorer(float boost, ScoreMode scoreMode, List<DocIdSetIterator> iterators) {
         // Scorer doesn't have a constructor that takes arguments
         this.approximateConjunctionDISI = new ApproximateConjunctionDISI(iterators);
         this.score = boost;
@@ -45,12 +45,12 @@ public class ApproximateConjunctionScorer extends Scorer {
 
     @Override
     public float score() throws IOException {
-        return score;
+        return 0.0f;
     }
 
     @Override
     public float getMaxScore(int upTo) throws IOException {
-        return score;
+        return 0.0f;
     }
 
     @Override

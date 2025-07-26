@@ -14,22 +14,22 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * A custom conjunction coordinator that understands resumable iterators.
- * This class coordinates multiple ResumableDISIs to find documents that match all clauses.
+ * A custom conjunction coordinator that understands both resumable and regular iterators.
+ * This class coordinates multiple DocIdSetIterators (which may include ResumableDISIs) to find documents that match all clauses.
  */
 public class ApproximateConjunctionDISI extends DocIdSetIterator {
-    private final List<ResumableDISI> iterators;
-    private final ResumableDISI lead;
-    private final ResumableDISI[] others;
+    private final List<DocIdSetIterator> iterators;
+    private final DocIdSetIterator lead;
+    private final DocIdSetIterator[] others;
     private int doc = -1;
     private boolean exhausted = false;
 
     /**
      * Creates a new ApproximateConjunctionDISI.
      *
-     * @param iterators The iterators to coordinate
+     * @param iterators The iterators to coordinate (mix of ResumableDISI and regular DocIdSetIterator)
      */
-    public ApproximateConjunctionDISI(List<ResumableDISI> iterators) {
+    public ApproximateConjunctionDISI(List<DocIdSetIterator> iterators) {
         if (iterators.isEmpty()) {
             throw new IllegalArgumentException("No iterators provided");
         }
@@ -43,7 +43,7 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
         this.lead = iterators.get(0);
 
         // Store the other iterators
-        this.others = new ResumableDISI[iterators.size() - 1];
+        this.others = new DocIdSetIterator[iterators.size() - 1];
         for (int i = 1; i < iterators.size(); i++) {
             others[i - 1] = iterators.get(i);
         }
@@ -92,12 +92,12 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
 
     /**
      * Coordinates multiple iterators to find documents that match all clauses.
-     * This is similar to ConjunctionDISI.doNext() but adapted for resumable iterators.
+     * This is similar to ConjunctionDISI.doNext() but adapted for mixed iterator types.
      */
     private int doNext(int doc) throws IOException {
         advanceHead: for (;;) {
             // Try to align all other iterators with the lead
-            for (ResumableDISI other : others) {
+            for (DocIdSetIterator other : others) {
                 if (other.docID() < doc) {
                     final int next = other.advance(doc);
                     if (next > doc) {
