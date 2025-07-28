@@ -438,7 +438,10 @@ public class FetchPhase {
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
             if (fieldsVisitor.source() != null) {
-                hitContext.sourceLookup().setSource(fieldsVisitor.source());
+                profile(breakdown, FetchTimingType.LOAD_SOURCE, () -> {
+                    hitContext.sourceLookup().setSource(fieldsVisitor.source());
+                    return null;
+                });
             }
             return hitContext;
         }

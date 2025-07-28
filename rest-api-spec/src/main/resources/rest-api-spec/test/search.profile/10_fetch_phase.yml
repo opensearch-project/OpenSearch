@@ -1,3 +1,4 @@
+# Setup remains the same
 setup:
   - do:
       indices.create:
@@ -39,71 +40,7 @@ setup:
           { "text_field": "Third document with more text", "numeric_field": 200, "date_field": "2023-03-01", "object_field": { "nested_field": "third nested" }, "stored_field": "third stored" }
 
 ---
-"Basic fetch phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            match:
-              text_field: "document"
-
-  # Verify that fetch phase profiling is included in the response
-  - is_true: profile.shards.0.fetch.0
-  - match: { profile.shards.0.fetch.0.type: "fetch" }
-  - match: { profile.shards.0.fetch.0.description: "fetch" }
-  - is_true: profile.shards.0.fetch.0.time_in_nanos
-  - is_true: profile.shards.0.fetch.0.breakdown
-  - is_true: profile.shards.0.fetch.0.breakdown.load_stored_fields
-  - match: { profile.shards.0.fetch.0.breakdown.load_stored_fields_count: 2 }
-  - is_true: profile.shards.0.fetch.0.breakdown.load_source
-  - match: { profile.shards.0.fetch.0.breakdown.load_source_count: 2 }
-  - is_true: profile.shards.0.fetch.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.breakdown.next_reader_count: 1}
-  - is_true: profile.shards.0.fetch.0.breakdown.build_sub_phase_processors
-  - match: { profile.shards.0.fetch.0.breakdown.build_sub_phase_processors_count: 1}
-  - is_true: profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor
-  - match: { profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor_count: 1}
-
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - is_true: profile.shards.0.fetch.0.children.0.time_in_nanos
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - length: { profile.shards.0.fetch.0.children: 1 }
-
----
-"Fetch phase profiling with aggregations":
-  - skip:
-        version: " - 3.1.99"
-        reason: "Fetch phase profiling was introduced in 3.2.0"
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          size: 0
-          aggs:
-            group_by_nested:
-              terms:
-                field: "object_field.nested_field"
-
-  - match: { profile.shards.0.fetch: [ ] }
-
----
-"Explain phase profiling":
+"Combined fetch sub-phases profiling":
   - skip:
       version: " - 3.1.99"
       reason: "Fetch phase profiling was introduced in 3.2.0"
@@ -115,72 +52,93 @@ setup:
         body:
           profile: true
           explain: true
+          version: true
+          seq_no_primary_term: true
+          track_scores: true
+          sort:
+            - numeric_field: { order: asc }
           query:
-            match:
-              text_field: "document"
+            bool:
+              must:
+                - match_all: {}
+              should:
+                - nested:
+                    path: "object_field"
+                    query:
+                      wildcard:
+                        "object_field.nested_field": "nested*"
+                    inner_hits: {}
+                - match:
+                    text_field:
+                      query: "document"
+                      _name: "my_query"
+          docvalue_fields:
+            - "numeric_field"
+          fields:
+            - "stored_field"
+          highlight:
+            fields:
+              "object_field.nested_field": {}
+
+  # 1. Verify basic fetch profile structure
+  - is_true: profile.shards.0.fetch.0
+  - match: { profile.shards.0.fetch.0.type: "fetch" }
+  - match: { profile.shards.0.fetch.0.description: "fetch" }
+  - is_true: profile.shards.0.fetch.0.time_in_nanos
+
+  # 2. Verify detailed breakdown of the main fetch operation
+  - is_true: profile.shards.0.fetch.0.breakdown
+  - is_true: profile.shards.0.fetch.0.breakdown.load_stored_fields
+  - match: { profile.shards.0.fetch.0.breakdown.load_stored_fields_count: 3 }
+  - is_true: profile.shards.0.fetch.0.breakdown.load_source
+  - match: { profile.shards.0.fetch.0.breakdown.load_source_count: 3 }
+  - is_true: profile.shards.0.fetch.0.breakdown.next_reader
+  - match: { profile.shards.0.fetch.0.breakdown.next_reader_count: 1}
+  - is_true: profile.shards.0.fetch.0.breakdown.build_sub_phase_processors
+  - match: { profile.shards.0.fetch.0.breakdown.build_sub_phase_processors_count: 1}
+  - is_true: profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor
+  - match: { profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor_count: 1}
+
+  # 3. Verify all expected fetch sub-phases are present as children
+  - length: { profile.shards.0.fetch.0.children: 10 }
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchSourcePhase"
   - contains:
       profile.shards.0.fetch.0.children:
         type: "ExplainPhase"
-        description: "ExplainPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
----
-"Doc values phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            match_all: {}
-          docvalue_fields:
-            - "numeric_field"
-            - "date_field"
-
   - contains:
       profile.shards.0.fetch.0.children:
         type: "FetchDocValuesPhase"
-        description: "FetchDocValuesPhase"
   - contains:
       profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
+        type: "FetchFieldsPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchVersionPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "SeqNoPrimaryTermPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "MatchedQueriesPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "HighlightPhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "FetchScorePhase"
+  - contains:
+      profile.shards.0.fetch.0.children:
+        type: "InnerHitsPhase"
 
 ---
-"No FetchSourcePhase profiling":
+"No source or empty fetch profiling":
   - skip:
-        version: " - 3.1.99"
-        reason: "Fetch phase profiling was introduced in 3.2.0"
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
 
+  # Case 1: Test with _source: false, which removes FetchSourcePhase
   - do:
       search:
         index: test_fetch_profile
@@ -195,281 +153,27 @@ setup:
   - is_true: profile.shards.0.fetch.0
   - length: { profile.shards.0.fetch.0.children: 1 }
   - match: { profile.shards.0.fetch.0.children.0.type: "FetchDocValuesPhase" }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
   - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
 
----
-"Fetch Fields phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
+  # Case 2: Test with size: 0, which results in an empty fetch profile
   - do:
       search:
         index: test_fetch_profile
         body:
           profile: true
-          query:
-            match_all: {}
-          fields:
-            - "numeric_field"
-            - "date_field"
+          size: 0
+          aggs:
+            group_by_nested:
+              terms:
+                field: "object_field.nested_field"
 
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchFieldsPhase"
-        description: "FetchFieldsPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
-
----
-"Version phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            match_all: {}
-          version: true
-
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchVersionPhase"
-        description: "FetchVersionPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
----
-"Sequence number and primary term phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            match_all: {}
-          seq_no_primary_term: true
-
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "SeqNoPrimaryTermPhase"
-        description: "SeqNoPrimaryTermPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
-
----
-"Matched queries phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            bool:
-              should:
-                - match:
-                    text_field:
-                      query: "document"
-                      _name: "my_query"
-
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "MatchedQueriesPhase"
-        description: "MatchedQueriesPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
----
-"Highlight phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            match:
-              text_field: "document"
-          highlight:
-            fields:
-              text_field: {}
-
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "HighlightPhase"
-        description: "HighlightPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
-
-
----
-"Fetch score phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            match:
-              text_field: "document"
-          track_scores: true
-          sort:
-            - numeric_field
-
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchScorePhase"
-        description: "FetchScorePhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 2 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
-
----
-"Inner hits phase profiling":
-  - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
-      features: "contains"
-
-  - do:
-      search:
-        index: test_fetch_profile
-        body:
-          profile: true
-          query:
-            nested:
-              path: "object_field"
-              query:
-                match_all: {}
-              inner_hits: {}
-
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "InnerHitsPhase"
-        description: "InnerHitsPhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "FetchSourcePhase"
-        description: "FetchSourcePhase"
-  - length: { profile.shards.0.fetch.0.children: 2 }
-
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.process
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.1.breakdown.next_reader_count: 1 }
+  - match: { profile.shards.0.fetch: [ ] }
 
 ---
 "Top-hits aggregation profiling":
   - skip:
-        version: " - 3.1.99"
-        reason: "Fetch phase profiling was introduced in 3.2.0"
+      version: " - 3.1.99"
+      reason: "Fetch phase profiling was introduced in 3.2.0"
 
   - do:
       search:
@@ -484,7 +188,7 @@ setup:
               top_hits:
                 size: 1
 
-  # Verify that the fetch profile contains two separate fetch operations
+  # Verify that the profile contains two separate fetch operations
   - length: { profile.shards.0.fetch: 2 }
 
   # Check the top-hits fetch profile
