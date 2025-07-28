@@ -1,6 +1,9 @@
 # refactored from rest-api-spec/src/main/resources/rest-api-spec/test/search/270_wildcard_fieldtype_queries.yml
 ---
 "search after upgrade":
+  - skip:
+      version: " - 3.1.99"
+      reason: "after 3.2.0 doc_values no longer use SORTED_SET"
   # "term query matches exact value"
   - do:
       search:
