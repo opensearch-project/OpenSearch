@@ -396,6 +396,9 @@ setup:
 
 ---
 "sort on doc value enabled wildcard":
+  - skip:
+      version: " - 3.1.99"
+      reason: "sorting on doc value enabled wildcard has bug before 3.2.0"
   - do:
       search:
         index: test
