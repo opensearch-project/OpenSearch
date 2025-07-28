@@ -15,6 +15,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
@@ -31,10 +32,11 @@ public class DefaultCompositeDirectoryFactory implements IndexStorePlugin.Compos
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory localDirectoryFactory,
         Directory remoteDirectory,
-        FileCache fileCache
+        FileCache fileCache,
+        ThreadPool threadPool
     ) throws IOException {
         logger.trace("Creating composite directory from core - Default CompositeDirectoryFactory");
         Directory localDirectory = localDirectoryFactory.newDirectory(indexSettings, shardPath);
-        return new CompositeDirectory(localDirectory, remoteDirectory, fileCache);
+        return new CompositeDirectory(localDirectory, remoteDirectory, fileCache, threadPool);
     }
 }

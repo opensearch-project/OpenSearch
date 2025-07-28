@@ -15,40 +15,40 @@ import org.opensearch.index.shard.IndexShard;
 import java.util.Objects;
 
 /**
- * Publish merged segment.
+ * Publish primary shard referenced segments.
  *
  * @opensearch.api
  */
 @ExperimentalApi
-public class MergedSegmentPublisher {
+public class ReferencedSegmentsPublisher {
     private final PublishAction publishAction;
 
     // This Component is behind feature flag so we are manually binding this in IndicesModule.
     @Inject
-    public MergedSegmentPublisher(PublishMergedSegmentAction publishAction) {
+    public ReferencedSegmentsPublisher(PublishReferencedSegmentsAction publishAction) {
         this(publishAction::publish);
     }
 
-    public MergedSegmentPublisher(PublishAction publishAction) {
+    public ReferencedSegmentsPublisher(PublishAction publishAction) {
         this.publishAction = Objects.requireNonNull(publishAction);
     }
 
-    public void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
+    public void publish(IndexShard indexShard, ReferencedSegmentsCheckpoint checkpoint) {
         publishAction.publish(indexShard, checkpoint);
     }
 
     /**
-     * Represents an action that is invoked to publish merged segment to replica shard
+     * Represents an action that is invoked to publish referenced segments checkpoint to replica shard
      *
      * @opensearch.api
      */
     @ExperimentalApi
     public interface PublishAction {
-        void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint);
+        void publish(IndexShard indexShard, ReferencedSegmentsCheckpoint checkpoint);
     }
 
     /**
      * NoOp Checkpoint publisher
      */
-    public static final MergedSegmentPublisher EMPTY = new MergedSegmentPublisher((indexShard, checkpoint) -> {});
+    public static final ReferencedSegmentsPublisher EMPTY = new ReferencedSegmentsPublisher((indexShard, checkpoint) -> {});
 }
