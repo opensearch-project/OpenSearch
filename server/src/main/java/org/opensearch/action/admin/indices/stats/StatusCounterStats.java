@@ -68,13 +68,13 @@ public class StatusCounterStats implements Writeable, ToXContentFragment {
     }
 
     public StatusCounterStats(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
             docStatusStats = in.readOptionalWriteable(DocStatusStats::new);
         } else {
             docStatusStats = null;
         }
 
-        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
             searchResponseStatusStats = in.readOptionalWriteable(SearchResponseStatusStats::new);
         } else {
             searchResponseStatusStats = null;
@@ -105,11 +105,11 @@ public class StatusCounterStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             out.writeOptionalWriteable(docStatusStats.getSnapshot());
         }
 
-        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             out.writeOptionalWriteable(searchResponseStatusStats.getSnapshot());
         }
     }

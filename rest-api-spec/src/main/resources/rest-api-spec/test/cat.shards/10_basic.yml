@@ -105,7 +105,7 @@
       cat.shards:
         help: true
       node_selector:
-        version: "2.14.0 - 3.1.99"
+        version: "2.14.0 - 3.2.99"
 
   - match:
       $body: |

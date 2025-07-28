@@ -95,7 +95,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             statsByShard = readStatsByShard(in);
         }
 
-        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
             statusCounterStats = new StatusCounterStats(in);
         }
     }
@@ -319,7 +319,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             writeStatsByShards(out);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             if (statusCounterStats != null) {
                 statusCounterStats.writeTo(out);
             }
