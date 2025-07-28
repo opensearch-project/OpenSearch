@@ -855,9 +855,12 @@ final class DocumentParser {
 
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING, dynamic, fullPath);
             if (builder == null) {
-                return handleNoTemplateFound(dynamic, () -> new TextFieldMapper.Builder(currentFieldName, context.mapperService().getIndexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
-                ));
+                return handleNoTemplateFound(
+                    dynamic,
+                    () -> new TextFieldMapper.Builder(currentFieldName, context.mapperService().getIndexAnalyzers()).addMultiField(
+                        new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
+                    )
+                );
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -878,7 +881,10 @@ final class DocumentParser {
                         // no templates are defined, we use float by default instead of double
                         // since this is much more space-efficient and should be enough most of
                         // the time
-                        return handleNoTemplateFound(dynamic, () -> newFloatBuilder(currentFieldName, context.indexSettings().getSettings()));
+                        return handleNoTemplateFound(
+                            dynamic,
+                            () -> newFloatBuilder(currentFieldName, context.indexSettings().getSettings())
+                        );
                     }
                     return builder;
                 }
@@ -907,7 +913,10 @@ final class DocumentParser {
         );
     }
 
-    private static Mapper.Builder<?> handleNoTemplateFound(ObjectMapper.Dynamic dynamic, java.util.function.Supplier<Mapper.Builder<?>> builderSupplier) {
+    private static Mapper.Builder<?> handleNoTemplateFound(
+        ObjectMapper.Dynamic dynamic,
+        java.util.function.Supplier<Mapper.Builder<?>> builderSupplier
+    ) {
         if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
             return null;
         }
