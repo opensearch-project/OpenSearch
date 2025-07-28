@@ -17,8 +17,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
-import org.opensearch.search.suggest.SuggestBuilders;
-import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
