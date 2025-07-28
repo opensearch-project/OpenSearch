@@ -917,13 +917,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             size,
                             ((b1, b2) -> partiallyBuiltBucketComparator.compare((InternalTerms.Bucket<?>) b1, (InternalTerms.Bucket<?>) b2))
                         );
-                    }
 
-                    // Get the top buckets and update the otherDocCount
-                    topBucketsPreOrd[ordIdx] = buildBuckets(tot[0]);
-                    for (int i = tot[0] - 1; i >= 0; --i) {
-                        topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket((TB) bucketsForOrdArr[i]);
-                        otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                        // Get the top buckets and update the otherDocCount
+                        topBucketsPreOrd[ordIdx] = buildBuckets(size);
+                        for (int i = 0; i < size; i++) {
+                            topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket((TB) bucketsForOrdArr[i]);
+                            otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                        }
+                    } else {
+                        // All buckets fit within the required size, no selection needed
+                        topBucketsPreOrd[ordIdx] = buildBuckets(tot[0]);
+                        for (int i = 0; i < tot[0]; i++) {
+                            topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket((TB) bucketsForOrdArr[i]);
+                        }
+                        otherDocCount[ordIdx] = 0;
                     }
                 }
             }
