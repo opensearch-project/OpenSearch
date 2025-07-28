@@ -87,10 +87,6 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                     breakdown.containsKey(FetchTimingType.LOAD_STORED_FIELDS.toString())
                 );
                 assertTrue("LOAD_SOURCE timing should be present", breakdown.containsKey(FetchTimingType.LOAD_SOURCE.toString()));
-                assertTrue(
-                    "BUILD_SEARCH_HITS timing should be present",
-                    breakdown.containsKey(FetchTimingType.BUILD_SEARCH_HITS.toString())
-                );
             }
         }
         assertFetchPhase(resp, "FetchSourcePhase", 1);

@@ -141,6 +141,7 @@ public class FetchPhase {
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
         }
+        // make sure that we iterate in doc id order
         Arrays.sort(docs);
 
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
@@ -241,10 +242,7 @@ public class FetchPhase {
         }
 
         TotalHits totalHits = context.queryResult().getTotalHits();
-        profile(breakdown, FetchTimingType.BUILD_SEARCH_HITS, () -> {
-            context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
-            return null;
-        });
+        context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
 
         if (breakdown != null) {
             if (innerHitsBreakdown != null) {
@@ -440,10 +438,7 @@ public class FetchPhase {
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
             if (fieldsVisitor.source() != null) {
-                profile(breakdown, FetchTimingType.LOAD_SOURCE, () -> {
-                    hitContext.sourceLookup().setSource(fieldsVisitor.source());
-                    return null;
-                });
+                hitContext.sourceLookup().setSource(fieldsVisitor.source());
             }
             return hitContext;
         }
@@ -484,14 +479,8 @@ public class FetchPhase {
 
             if (needSource) {
                 SourceLookup rootLookup = innerHitsContext.getRootLookup();
-                Tuple<Map<String, Object>, MediaType> source = profile(breakdown, FetchTimingType.LOAD_SOURCE, () -> {
-                    Map<String, Object> map = rootLookup.loadSourceIfNeeded();
-                    MediaType type = rootLookup.sourceContentType();
-                    return new Tuple<>(map, type);
-                });
-
-                rootSourceAsMap = source.v1();
-                rootSourceContentType = source.v2();
+                rootSourceAsMap = profile(breakdown, FetchTimingType.LOAD_SOURCE, rootLookup::loadSourceIfNeeded);
+                rootSourceContentType = rootLookup.sourceContentType();
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
@@ -504,14 +493,9 @@ public class FetchPhase {
 
             if (needSource) {
                 if (rootFieldsVisitor.source() != null) {
-                    Tuple<Map<String, Object>, MediaType> source = profile(breakdown, FetchTimingType.LOAD_SOURCE, () -> {
-                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootFieldsVisitor.source(), false);
-                        Map<String, Object> map = tuple.v2();
-                        MediaType type = tuple.v1();
-                        return new Tuple<>(map, type);
-                    });
-                    rootSourceAsMap = source.v1();
-                    rootSourceContentType = source.v2();
+                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootFieldsVisitor.source(), false);
+                    rootSourceAsMap = tuple.v2();
+                    rootSourceContentType = tuple.v1();
                 } else {
                     rootSourceAsMap = Collections.emptyMap();
                 }
@@ -595,12 +579,8 @@ public class FetchPhase {
                 }
             }
 
-            MediaType type = rootSourceContentType;
-            profile(breakdown, FetchTimingType.LOAD_SOURCE, () -> {
-                hitContext.sourceLookup().setSource(nestedSourceAsMap);
-                hitContext.sourceLookup().setSourceContentType(type);
-                return null;
-            });
+            hitContext.sourceLookup().setSource(nestedSourceAsMap);
+            hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
         }
         return hitContext;
     }

@@ -25,9 +25,7 @@ public enum FetchTimingType {
     /** Time spent loading the document _source */
     LOAD_SOURCE,
     /** Time spent executing a fetch sub-phase */
-    PROCESS,
-    /** Time spent assembling SearchHit objects */
-    BUILD_SEARCH_HITS;
+    PROCESS;
 
     @Override
     public String toString() {

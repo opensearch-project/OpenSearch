@@ -454,7 +454,6 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                     .assertTimingPresent(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
                     .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
                     .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
-                    .assertTimingPresent(FetchTimingType.BUILD_SEARCH_HITS)
                     .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
                     .assertTimingPresent(FetchTimingType.NEXT_READER);
             }
@@ -850,7 +849,6 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 )
                     .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
                     .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
-                    .assertTimingPresent(FetchTimingType.BUILD_SEARCH_HITS)
                     .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
                     .assertTimingPresent(FetchTimingType.NEXT_READER);
 
