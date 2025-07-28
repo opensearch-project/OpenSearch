@@ -712,7 +712,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isWarmIndex()) {
-                directory = compositeDirectoryFactory.newDirectory(this.indexSettings, path, directoryFactory, remoteDirectory, fileCache);
+                directory = compositeDirectoryFactory.newDirectory(
+                    this.indexSettings,
+                    path,
+                    directoryFactory,
+                    remoteDirectory,
+                    fileCache,
+                    threadPool
+                );
             } else {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
