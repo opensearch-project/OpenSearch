@@ -69,7 +69,7 @@ public class FetchProfilerTests extends OpenSearchTestCase {
         ProfileResult profileResult = results.get(0);
         assertEquals("fetch", profileResult.getQueryName());
         Map<String, Long> map = profileResult.getTimeBreakdown();
-        assertEquals(6 * 3, map.size());
+        assertEquals(5 * 3, map.size());
         long sum = 0;
         for (FetchTimingType type : FetchTimingType.values()) {
             if (type == FetchTimingType.PROCESS) {
