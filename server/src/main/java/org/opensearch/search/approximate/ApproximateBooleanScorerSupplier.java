@@ -175,7 +175,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             ApproximateConjunctionDISI conjunctionDISI = new ApproximateConjunctionDISI(clauseIterators);
 
             // Create a scorer for the collector
-            ApproximateConjunctionScorer scorer = new ApproximateConjunctionScorer(1.0f, ScoreMode.COMPLETE, clauseIterators);
+            ApproximateConjunctionScorer scorer = new ApproximateConjunctionScorer(0.0f, ScoreMode.COMPLETE, clauseIterators);
 
             // Set the scorer on the collector
             collector.setScorer(scorer);
@@ -209,7 +209,14 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
                     // Reset the conjunction so it can continue with expanded iterators
                     conjunctionDISI.resetAfterExpansion();
-                    continue;
+                    
+                    // After expansion, check if we're already positioned on a valid document
+                    docID = conjunctionDISI.docID();
+                    if (docID == DocIdSetIterator.NO_MORE_DOCS) {
+                        // Still no document, try nextDoc() in the next iteration
+                        continue;
+                    }
+                    // Fall through to process the current document
                 }
 
                 if (docID >= max) {
