@@ -40,14 +40,4 @@ public interface QueryPhaseExtension {
      */
     void afterScoreCollection(SearchContext searchContext);
 
-    /**
-     * Determines whether failures in this extension should fail the entire query.
-     * When true, exceptions thrown by this extension will propagate and fail the search.
-     * When false (default), exceptions are logged and the search continues.
-     *
-     * @return true if extension failures should fail the query, false otherwise
-     */
-    default boolean failOnError() {
-        return false;
-    }
 }

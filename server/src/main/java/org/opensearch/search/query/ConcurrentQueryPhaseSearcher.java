@@ -70,13 +70,6 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
             try {
                 extension.beforeScoreCollection(searchContext);
             } catch (Exception e) {
-                if (extension.failOnError()) {
-                    throw new QueryPhaseExecutionException(
-                        searchContext.shardTarget(),
-                        "Failed to execute beforeScoreCollection extension [" + extension.getClass().getName() + "]",
-                        e
-                    );
-                }
                 LOGGER.warn(
                     new ParameterizedMessage("Failed to execute beforeScoreCollection extension [{}]", extension.getClass().getName()),
                     e
@@ -101,13 +94,6 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
                 try {
                     extension.afterScoreCollection(searchContext);
                 } catch (Exception e) {
-                    if (extension.failOnError()) {
-                        throw new QueryPhaseExecutionException(
-                            searchContext.shardTarget(),
-                            "Failed to execute afterScoreCollection extension [" + extension.getClass().getName() + "]",
-                            e
-                        );
-                    }
                     LOGGER.warn(
                         new ParameterizedMessage("Failed to execute afterScoreCollection extension [{}]", extension.getClass().getName()),
                         e
