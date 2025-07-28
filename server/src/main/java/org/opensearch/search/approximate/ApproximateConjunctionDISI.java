@@ -14,184 +14,130 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * A custom conjunction coordinator that understands both resumable and regular iterators.
- * This class coordinates multiple DocIdSetIterators (which may include ResumableDISIs) to find documents that match all clauses.
+ * A conjunction of DocIdSetIterators with support for ResumableDISI expansion.
+ * Closely mirrors Lucene's ConjunctionDISI architecture with lead1, lead2, and others.
  */
 public class ApproximateConjunctionDISI extends DocIdSetIterator {
-    private final List<DocIdSetIterator> iterators;
-    private final DocIdSetIterator lead;
-    private final DocIdSetIterator[] others;
-    private int doc = -1;
-    private int lastValidDoc = -1; // Track the last valid document before NO_MORE_DOCS
-    private boolean exhausted = false;
 
-    /**
-     * Creates a new ApproximateConjunctionDISI.
-     *
-     * @param iterators The iterators to coordinate (mix of ResumableDISI and regular DocIdSetIterator)
-     */
+    final DocIdSetIterator lead1, lead2;
+    final DocIdSetIterator[] others;
+
+    private final List<DocIdSetIterator> allIterators;
+
     public ApproximateConjunctionDISI(List<DocIdSetIterator> iterators) {
-        if (iterators.isEmpty()) {
-            throw new IllegalArgumentException("No iterators provided");
+        if (iterators.size() < 2) {
+            throw new IllegalArgumentException("Cannot make a ConjunctionDISI of less than 2 iterators");
         }
 
-        this.iterators = iterators;
+        this.allIterators = iterators;
 
-        // Sort iterators by cost (ascending)
-        iterators.sort((a, b) -> Long.compare(a.cost(), b.cost()));
-
-        // Use the cheapest iterator as the lead
-        this.lead = iterators.get(0);
-
-        // Store the other iterators
-        this.others = new DocIdSetIterator[iterators.size() - 1];
-        for (int i = 1; i < iterators.size(); i++) {
-            others[i - 1] = iterators.get(i);
-        }
+        // Follow Lucene's exact structure
+        this.lead1 = iterators.get(0);
+        this.lead2 = iterators.get(1);
+        this.others = iterators.subList(2, iterators.size()).toArray(new DocIdSetIterator[0]);
     }
 
     @Override
     public int docID() {
-        return doc;
+        return lead1.docID();
     }
 
     @Override
     public int nextDoc() throws IOException {
-        if (exhausted) {
-            return doc = NO_MORE_DOCS;
-        }
-
-        // Advance the lead iterator
-        doc = lead.nextDoc();
-
-        if (doc == NO_MORE_DOCS) {
-            // Before marking as exhausted, check if any ResumableDISI can be expanded
-            if (canExpandAnyResumableDISI()) {
-                // Don't mark as exhausted yet - caller can expand and try again
-                return doc;
-            }
-            exhausted = true;
-            return doc;
-        }
-
-        // Try to align all other iterators
-        return doNext(doc);
+        return doNext(lead1.nextDoc());
     }
 
     @Override
     public int advance(int target) throws IOException {
-        if (exhausted) {
-            return doc = NO_MORE_DOCS;
-        }
-
-        // Advance the lead iterator
-        doc = lead.advance(target);
-
-        if (doc == NO_MORE_DOCS) {
-            // Before marking as exhausted, check if any ResumableDISI can be expanded
-            if (canExpandAnyResumableDISI()) {
-                // Don't mark as exhausted yet - caller can expand and try again
-                return doc;
-            }
-            exhausted = true;
-            return doc;
-        }
-
-        // Try to align all other iterators
-        return doNext(doc);
+        return doNext(lead1.advance(target));
     }
 
     /**
-     * Check if any ResumableDISI in the iterators can be expanded (not exhausted)
-     */
-    private boolean canExpandAnyResumableDISI() {
-        for (DocIdSetIterator iterator : iterators) {
-            if (iterator instanceof ResumableDISI) {
-                ResumableDISI resumableDISI = (ResumableDISI) iterator;
-                if (!resumableDISI.isExhausted()) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Reset the exhausted state so the conjunction can continue after ResumableDISIs are expanded.
-     * Ensures all iterators are positioned correctly to continue from where we left off.
-     */
-    public void resetAfterExpansion() throws IOException {
-        // Only reset if we're not truly exhausted (i.e., some ResumableDISI was expanded)
-        if (canExpandAnyResumableDISI()) {
-            exhausted = false;
-            
-            // Position all iterators to continue from after the last valid document
-            // This ensures we don't reprocess documents we've already seen
-            int targetDoc = lastValidDoc + 1;
-            
-            // Advance the lead iterator to the target position
-            if (lead.docID() < targetDoc) {
-                lead.advance(targetDoc);
-            }
-            
-            // Advance all other iterators to the target position
-            for (DocIdSetIterator other : others) {
-                if (other.docID() < targetDoc) {
-                    other.advance(targetDoc);
-                }
-            }
-            
-            // Set doc to lastValidDoc so the next nextDoc() call will advance from there
-            // This prevents reprocessing documents we've already seen
-            doc = lastValidDoc;
-        }
-    }
-
-    /**
-     * Coordinates multiple iterators to find documents that match all clauses.
-     * This is similar to ConjunctionDISI.doNext() but adapted for mixed iterator types.
+     * Core conjunction logic adapted from Lucene's ConjunctionDISI.doNext()
+     * with resumable expansion support.
      */
     private int doNext(int doc) throws IOException {
-        advanceHead: for (;;) {
-            // Try to align all other iterators with the lead
+        advanceHead:
+        for (; ; ) {
+            // Handle NO_MORE_DOCS with resumable expansion
+            if (doc == NO_MORE_DOCS) {
+                if (tryExpandResumableDISIs()) {
+                    // After expansion, get the next document from lead1
+                    doc = lead1.nextDoc();
+                    if (doc == NO_MORE_DOCS) {
+                        return NO_MORE_DOCS; // Truly exhausted
+                    }
+                    // Continue with the new document
+                } else {
+                    return NO_MORE_DOCS; // No expansion possible
+                }
+            }
+
+            // Find agreement between the two iterators with the lower costs
+            // We special case them because they do not need the
+            // 'other.docID() < doc' check that the 'others' iterators need
+            final int next2 = lead2.advance(doc);
+            if (next2 != doc) {
+                doc = lead1.advance(next2);
+                if (next2 != doc) {
+                    continue;
+                }
+            }
+
+            // Then find agreement with other iterators
             for (DocIdSetIterator other : others) {
+                // other.docID() may already be equal to doc if we "continued advanceHead"
+                // on the previous iteration and the advance on the lead exactly matched.
                 if (other.docID() < doc) {
                     final int next = other.advance(doc);
+
                     if (next > doc) {
-                        // This iterator is ahead, advance the lead to catch up
-                        doc = lead.advance(next);
-                        if (doc == NO_MORE_DOCS) {
-                            // Before marking as exhausted, check if any ResumableDISI can be expanded
-                            if (canExpandAnyResumableDISI()) {
-                                // Don't mark as exhausted yet - caller can expand and try again
-                                return this.doc = NO_MORE_DOCS;
-                            }
-                            exhausted = true;
-                            return this.doc = NO_MORE_DOCS;
-                        }
+                        // iterator beyond the current doc - advance lead and continue to the new highest doc.
+                        doc = lead1.advance(next);
                         continue advanceHead;
                     }
                 }
             }
 
-            // All iterators are aligned at the current doc
-            lastValidDoc = doc; // Remember this valid document
-            return this.doc = doc;
+            // Success - all iterators are on the same doc
+            return doc;
         }
+    }
+
+    /**
+     * Try to expand ResumableDISIs when we hit NO_MORE_DOCS
+     * @return true if any ResumableDISI was expanded
+     */
+    private boolean tryExpandResumableDISIs() throws IOException {
+        boolean anyExpanded = false;
+
+        // Check all iterators for expansion
+        for (DocIdSetIterator iterator : allIterators) {
+            if (iterator instanceof ResumableDISI) {
+                ResumableDISI resumable = (ResumableDISI) iterator;
+                if (!resumable.isExhausted()) {
+                    resumable.resetForNextBatch();
+                    anyExpanded = true;
+                }
+            }
+        }
+
+        return anyExpanded;
     }
 
     @Override
     public long cost() {
-        // Return the cost of the cheapest iterator
-        return lead.cost();
+        long minCost = Long.MAX_VALUE;
+        for (DocIdSetIterator iterator : allIterators) {
+            minCost = Math.min(minCost, iterator.cost());
+        }
+        return minCost;
     }
 
     /**
-     * Returns whether this iterator has been exhausted.
-     *
-     * @return true if there are no more documents to score
+     * Reset method for compatibility (no longer needed with new architecture)
      */
-    public boolean isExhausted() {
-        return exhausted;
+    public void resetAfterExpansion() throws IOException {
+        // No-op - expansion is now handled directly in doNext()
     }
 }
