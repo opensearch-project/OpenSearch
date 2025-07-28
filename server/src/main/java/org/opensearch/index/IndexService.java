@@ -106,6 +106,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -178,6 +179,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
     private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
     private volatile AsyncReplicationTask asyncReplicationTask;
+    private volatile AsyncPublishReferencedSegmentsTask asyncPublishReferencedSegmentsTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -330,6 +332,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
         this.asyncReplicationTask = new AsyncReplicationTask(this);
+        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)) {
+            this.asyncPublishReferencedSegmentsTask = new AsyncPublishReferencedSegmentsTask(this);
+        }
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
@@ -441,6 +446,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     // visible for tests
     AsyncReplicationTask getReplicationTask() {
         return asyncReplicationTask;
+    }
+
+    // visible for tests
+    AsyncPublishReferencedSegmentsTask getPublishReferencedSegmentsTask() {
+        return asyncPublishReferencedSegmentsTask;
     }
 
     /**
@@ -614,6 +624,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             sourceNode,
             discoveryNodes,
             mergedSegmentWarmerFactory,
+            null,
             null
         );
     }
@@ -629,7 +640,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Nullable DiscoveryNode sourceNode,
         DiscoveryNodes discoveryNodes,
         MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
-        MergedSegmentPublisher mergedSegmentPublisher
+        MergedSegmentPublisher mergedSegmentPublisher,
+        ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -712,7 +724,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isWarmIndex()) {
-                directory = compositeDirectoryFactory.newDirectory(this.indexSettings, path, directoryFactory, remoteDirectory, fileCache);
+                directory = compositeDirectoryFactory.newDirectory(
+                    this.indexSettings,
+                    path,
+                    directoryFactory,
+                    remoteDirectory,
+                    fileCache,
+                    threadPool
+                );
             } else {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
@@ -762,7 +781,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this::getRefreshInterval,
                 refreshMutex,
                 clusterService.getClusterApplierService(),
-                this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null,
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -1169,6 +1189,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
             updateReplicationTask();
+            if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)) {
+                updatePublishReferencedSegmentsTask();
+            }
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
@@ -1179,6 +1202,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             asyncReplicationTask.close();
         } finally {
             asyncReplicationTask = new AsyncReplicationTask(this);
+        }
+    }
+
+    private void updatePublishReferencedSegmentsTask() {
+        if (getIndexSettings().getPublishReferencedSegmentsInterval().equals(asyncPublishReferencedSegmentsTask.getInterval())) {
+            return;
+        }
+        try {
+            asyncPublishReferencedSegmentsTask.close();
+        } finally {
+            asyncPublishReferencedSegmentsTask = new AsyncPublishReferencedSegmentsTask(this);
         }
     }
 
@@ -1505,6 +1539,52 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 } catch (IndexShardClosedException | AlreadyClosedException ex) {
                     // do nothing
                 }
+            }
+        }
+    }
+
+    /**
+     * Publish primary shard referenced segments in a defined interval.
+     *
+     * @opensearch.internal
+     */
+    final class AsyncPublishReferencedSegmentsTask extends BaseAsyncTask {
+
+        AsyncPublishReferencedSegmentsTask(IndexService indexService) {
+            super(indexService, indexService.getIndexSettings().getPublishReferencedSegmentsInterval());
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.maybePublishReferencedSegments();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "publish_primary_referenced_segments";
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
+        }
+    }
+
+    private void maybePublishReferencedSegments() {
+        for (IndexShard shard : this.shards.values()) {
+            try {
+                // Only the primary shard publish referenced segments.
+                // The replicas cleans up the redundant pending merge segments according to the primary shard request.
+                if (shard.isPrimaryMode() && shard.routingEntry().active()) {
+                    shard.publishReferencedSegments();
+                }
+            } catch (IOException ex) {
+                logger.warn(() -> new ParameterizedMessage("failed to publish primary referenced segments"), ex);
             }
         }
     }
