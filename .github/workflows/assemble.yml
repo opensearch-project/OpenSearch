@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         java: [ 21, 23 ]
-        os: [ubuntu-latest, windows-latest, macos-13, ubuntu-24.04-arm]
+        os: [ubuntu-latest, windows-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK ${{ matrix.java }}
@@ -16,25 +16,14 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
-      - name: Setup docker (missing on MacOS)
-        id: setup_docker
-        if: runner.os == 'macos'
-        continue-on-error: true
-        run: |
-          brew install docker colima coreutils
-          gtimeout 15m colima start
-        shell: bash
-      - name: Run Gradle (assemble)
-        if: runner.os == 'macos' && steps.setup_docker.outcome != 'success'
-        run: |
-          # Report success even if previous step failed (Docker on MacOS runner is very unstable)
-          exit 0;
+        # GitHub Actions still not supporting arm64 dind yet
+        # https://github.com/douglascamata/setup-docker-macos-action?tab=readme-ov-file#arm64-processors-m-series-used-on-macos-14-images-and-beyond-are-unsupported
+        # And they are deprecating the x64 macos-13 runner by 2025/11/14
+        # https://github.blog/changelog/2025-07-11-upcoming-changes-to-macos-hosted-runners-macos-latest-migration-and-xcode-support-policy-updates/
+        # All new macos-* are arm64 runner by default and x64 runner requires `larger` runner
+        # https://github.com/actions/runner-images?tab=readme-ov-file#available-images
+        # Only use non-arm64 agent in this workflow
       - name: Run Gradle (assemble)
         shell: bash
-        if: runner.os != 'macos'
         run: |
           ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE 
-      - name: Run Gradle (assemble)
-        if: runner.os == 'macos' && steps.setup_docker.outcome == 'success'
-        run: |
-          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE
