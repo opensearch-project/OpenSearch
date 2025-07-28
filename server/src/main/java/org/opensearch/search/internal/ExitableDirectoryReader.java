@@ -108,7 +108,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public PointValues getPointValues(String field) throws IOException {
-            if (field == null) {
+            if (Strings.isEmpty(field)) {
                 return null;
             }
             final PointValues pointValues = in.getPointValues(field);
