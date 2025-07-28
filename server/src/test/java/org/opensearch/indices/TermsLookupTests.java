@@ -150,20 +150,19 @@ public class TermsLookupTests extends OpenSearchTestCase {
 
     public void testQuerySetterCoversChainAndNull() {
         // Covers: public TermsLookup query(QueryBuilder query)
-        TermsLookup tl = new TermsLookup("idx", "docid", "path");
+        TermsLookup tl = new TermsLookup("idx", "docid", "path"); // id non-null
         QueryBuilder qb = new MatchAllQueryBuilder();
         TermsLookup returned = tl.query(qb);
         assertSame(tl, returned);
         assertEquals(qb, tl.query());
 
-        // Covers: setting null
+        // Setting null query is allowed, resets to null
         returned = tl.query(null);
         assertSame(tl, returned);
         assertNull(tl.query());
     }
 
     public void testSetQueryThrowsWhenIdPresent() {
-        // Covers: public void setQuery(QueryBuilder query)
         TermsLookup tl = new TermsLookup("idx", "docid", "path");
         QueryBuilder qb = new MatchAllQueryBuilder();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> tl.setQuery(qb));
@@ -172,8 +171,10 @@ public class TermsLookupTests extends OpenSearchTestCase {
 
     public void testSetQuerySetsWhenIdNull() {
         TermsLookup tl = new TermsLookup("idx", null, "path", new MatchAllQueryBuilder());
-        tl.setQuery(new MatchAllQueryBuilder()); // Should work, id is null, query is set
-        assertEquals(new MatchAllQueryBuilder(), tl.query());
+        // Setting another query is allowed if id is null
+        QueryBuilder qb2 = new MatchAllQueryBuilder();
+        tl.setQuery(qb2);
+        assertEquals(qb2, tl.query());
     }
 
     public void testIdThrowsWhenQueryPresent() {
@@ -183,8 +184,8 @@ public class TermsLookupTests extends OpenSearchTestCase {
     }
 
     public void testIdSetsWhenQueryNull() {
-        TermsLookup tl = new TermsLookup("idx", "foo", "path"); // id is non-null
-        TermsLookup returned = tl.id("bar");
+        TermsLookup tl = new TermsLookup("idx", "foo", "path"); // id is non-null, query null
+        TermsLookup returned = tl.id("bar"); // allowed, updating id
         assertSame(tl, returned);
         assertEquals("bar", tl.id());
     }
