@@ -1269,12 +1269,13 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 Collections.emptyList()
             );
 
-            // Test we can't run this method until all of size, from, and query are set
+            // Test we can't run this method until size and from are set
             assertThrows(AssertionError.class, context::tryEnablingEarlyTermination);
             context.size(10);
             assertThrows(AssertionError.class, context::tryEnablingEarlyTermination);
             context.from(0);
-            assertThrows(AssertionError.class, context::tryEnablingEarlyTermination);
+            // If no query is set yet, should return false.
+            assertFalse(context.tryEnablingEarlyTermination());
             // This should return true with a BooleanQuery with only filter/must_not clauses.
             Query query = boolQuery().mustNot(rangeQuery("dummyField").gte(3))
                 .filter(rangeQuery("dummyField2").lte(1))

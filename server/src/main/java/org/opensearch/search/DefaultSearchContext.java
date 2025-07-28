@@ -1216,7 +1216,7 @@ final class DefaultSearchContext extends SearchContext {
         // This method should only be called after queries are rewritten and parsed, and terminateAfter and size have already been set.
         assert size != -1 : "Cannot call `tryEnablingEarlyTermination` until after `size` has been set";
         assert from != -1 : "Cannot call `tryEnablingEarlyTermination` until after `from` has been set";
-        assert query != null : "Cannot call `tryEnablingEarlyTermination` until after `query` has been set";
+        if (query == null) return false;
 
         if (terminateAfter != DEFAULT_TERMINATE_AFTER) return false;
         if (!(query instanceof BooleanQuery bq)) return false;
@@ -1225,6 +1225,7 @@ final class DefaultSearchContext extends SearchContext {
         if (from > 0 || searchAfter != null) return false;
         if (sort != null) return false;
         if (sliceBuilder != null || scrollContext() != null) return false;
+        if (suggest != null) return false;
 
         // We can only set terminateAfter to trackTotalHitsUpTo if we only have filter and must_not clauses
         if (bq.getClauses(Occur.MUST).isEmpty() && bq.getClauses(Occur.SHOULD).isEmpty()) {

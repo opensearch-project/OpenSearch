@@ -16,6 +16,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.suggest.SuggestBuilder;
+import org.opensearch.search.suggest.SuggestBuilders;
+import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
@@ -356,6 +359,20 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertNull(response.isTerminatedEarly());
         assertHitCount(response, lte / 2);
         clearScroll(response.getScrollId());
+
+        // Suggest queries shouldn't terminate early
+        response = client().prepareSearch()
+            .suggest(new SuggestBuilder())
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+
+        // Search responses missing a query shouldn't terminate early or throw an error
+        response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
     }
 
     public void testMustNotNumericMatchOrTermQueryRewrite() throws Exception {
