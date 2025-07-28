@@ -35,6 +35,8 @@ package org.opensearch.indices;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -144,5 +146,56 @@ public class TermsLookupTests extends OpenSearchTestCase {
         return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10).replace('.', '_')).routing(
             randomBoolean() ? randomAlphaOfLength(10) : null
         ).store(randomBoolean());
+    }
+
+    public void testQuerySetterCoversChainAndNull() {
+        // Covers: public TermsLookup query(QueryBuilder query)
+        TermsLookup tl = new TermsLookup("idx", "docid", "path");
+        QueryBuilder qb = new MatchAllQueryBuilder();
+        TermsLookup returned = tl.query(qb);
+        assertSame(tl, returned);
+        assertEquals(qb, tl.query());
+
+        // Covers: setting null
+        returned = tl.query(null);
+        assertSame(tl, returned);
+        assertNull(tl.query());
+    }
+
+    public void testSetQueryThrowsWhenIdPresent() {
+        // Covers: public void setQuery(QueryBuilder query)
+        TermsLookup tl = new TermsLookup("idx", "docid", "path");
+        QueryBuilder qb = new MatchAllQueryBuilder();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> tl.setQuery(qb));
+        assertThat(ex.getMessage(), containsString("query lookup element cannot specify both id and query"));
+    }
+
+    public void testSetQuerySetsWhenIdNull() {
+        TermsLookup tl = new TermsLookup("idx", null, "path", new MatchAllQueryBuilder());
+        tl.setQuery(new MatchAllQueryBuilder()); // Should work, id is null, query is set
+        assertEquals(new MatchAllQueryBuilder(), tl.query());
+    }
+
+    public void testIdThrowsWhenQueryPresent() {
+        TermsLookup tl = new TermsLookup("idx", null, "path", new MatchAllQueryBuilder());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> tl.id("foo"));
+        assertThat(ex.getMessage(), containsString("query lookup element cannot specify both id and query"));
+    }
+
+    public void testIdSetsWhenQueryNull() {
+        TermsLookup tl = new TermsLookup("idx", "foo", "path"); // id is non-null
+        TermsLookup returned = tl.id("bar");
+        assertSame(tl, returned);
+        assertEquals("bar", tl.id());
+    }
+
+    public void testToXContentWithQuery() throws IOException {
+        TermsLookup tl = new TermsLookup("idx", null, "path", new MatchAllQueryBuilder());
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        tl.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String output = builder.toString();
+        assertThat(output, containsString("\"query\""));
+        assertThat(output, containsString("match_all"));
     }
 }
