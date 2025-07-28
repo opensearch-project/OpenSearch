@@ -459,7 +459,7 @@ jobs:
           sudo apt-get remove --purge wazuh-indexer -y
 
       - name: Test DEB package update stopping the indexer
-        if: ${{ matrix.distribution == 'deb' && (matrix.architecture == 'x64' || (needs.setup.outputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
+        if: ${{ matrix.distribution == 'deb' && needs.setup.outputs.previous_version >= '5.0' }}
         run: |
           sudo bash build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo systemctl stop wazuh-indexer
@@ -468,12 +468,11 @@ jobs:
           sudo apt-get remove --purge wazuh-indexer -y
 
       - name: Test DEB package update without stopping the indexer
-        if: ${{ matrix.distribution == 'deb' && (matrix.architecture == 'x64' || (needs.setup.outputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
+        if: ${{ matrix.distribution == 'deb' && needs.setup.outputs.previous_version >= '5.0' }}
         run: |
 
           sudo bash build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo DEBIAN_FRONTEND=noninteractive dpkg -i --force-confnew "artifacts/dist/${{ steps.package.outputs.name }}"
-
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
