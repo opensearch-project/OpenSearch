@@ -42,14 +42,35 @@ public class SearchSourceBuilderProtoUtils {
     }
 
     /**
-     * Parses a protobuf SearchRequestBody into a SearchSourceBuilder.
+     * Parses a protobuf SearchRequestBody into a SearchSourceBuilder using an instance-based query utils.
      * This method is equivalent to {@link SearchSourceBuilder#parseXContent(XContentParser, boolean)}
      *
      * @param searchSourceBuilder The SearchSourceBuilder to populate
      * @param protoRequest The Protocol Buffer SearchRequest to parse
+     * @param queryUtils The query utils instance to use for parsing queries
      * @throws IOException if there's an error during parsing
      */
-    protected static void parseProto(SearchSourceBuilder searchSourceBuilder, SearchRequestBody protoRequest) throws IOException {
+    public static void parseProto(
+        SearchSourceBuilder searchSourceBuilder,
+        SearchRequestBody protoRequest,
+        AbstractQueryBuilderProtoUtils queryUtils
+    ) throws IOException {
+        // Parse all non-query fields
+        parseNonQueryFields(searchSourceBuilder, protoRequest);
+
+        // Handle queries using the instance-based approach
+        if (protoRequest.hasQuery()) {
+            searchSourceBuilder.query(queryUtils.parseInnerQueryBuilderProto(protoRequest.getQuery()));
+        }
+        if (protoRequest.hasPostFilter()) {
+            searchSourceBuilder.postFilter(queryUtils.parseInnerQueryBuilderProto(protoRequest.getPostFilter()));
+        }
+    }
+
+    /**
+     * Parses all fields except queries from the protobuf SearchRequestBody.
+     */
+    private static void parseNonQueryFields(SearchSourceBuilder searchSourceBuilder, SearchRequestBody protoRequest) throws IOException {
         // TODO what to do about parser.getDeprecationHandler() for protos?
 
         if (protoRequest.hasFrom()) {
@@ -110,12 +131,6 @@ public class SearchSourceBuilderProtoUtils {
         }
         if (protoRequest.hasVerbosePipeline()) {
             searchSourceBuilder.verbosePipeline(protoRequest.getVerbosePipeline());
-        }
-        if (protoRequest.hasQuery()) {
-            searchSourceBuilder.query(AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(protoRequest.getQuery()));
-        }
-        if (protoRequest.hasPostFilter()) {
-            searchSourceBuilder.postFilter(AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(protoRequest.getPostFilter()));
         }
         if (protoRequest.hasSource()) {
             searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getSource()));

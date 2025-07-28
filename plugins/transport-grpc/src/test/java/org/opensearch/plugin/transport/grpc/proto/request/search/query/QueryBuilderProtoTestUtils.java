@@ -17,11 +17,12 @@ public class QueryBuilderProtoTestUtils {
     }
 
     /**
-     * Sets up the registry with all built-in converters for testing.
-     * This method should be called in the setUp method of test classes
-     * that use AbstractQueryBuilderProtoUtils.
+     * Creates an AbstractQueryBuilderProtoUtils instance with all built-in converters for testing.
+     * This method should be called in test methods that need query parsing functionality.
+     *
+     * @return AbstractQueryBuilderProtoUtils instance configured for testing
      */
-    public static void setupRegistry() {
+    public static AbstractQueryBuilderProtoUtils createQueryUtils() {
         // Create a new registry
         QueryBuilderProtoConverterRegistry registry = new QueryBuilderProtoConverterRegistry();
 
@@ -31,7 +32,20 @@ public class QueryBuilderProtoTestUtils {
         registry.registerConverter(new TermQueryBuilderProtoConverter());
         registry.registerConverter(new TermsQueryBuilderProtoConverter());
 
-        // Set the registry in AbstractQueryBuilderProtoUtils
-        AbstractQueryBuilderProtoUtils.setRegistry(registry);
+        // Return an instance with the configured registry
+        return new AbstractQueryBuilderProtoUtils(registry);
+    }
+
+    /**
+     * Sets up the registry with all built-in converters for testing.
+     * This method should be called in the setUp method of test classes
+     * that use AbstractQueryBuilderProtoUtils.
+     *
+     * @deprecated Use createQueryUtils() for instance-based approach instead
+     */
+    @Deprecated
+    public static void setupRegistry() {
+        // This method is no longer used in the instance-based approach
+        // Kept for any remaining legacy test compatibility
     }
 }

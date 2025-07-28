@@ -65,6 +65,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     private Client client;
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
     private QueryBuilderProtoConverterRegistry queryRegistry;
+    private AbstractQueryBuilderProtoUtils queryUtils;
 
     /**
      * Creates a new GrpcPlugin instance.
@@ -93,6 +94,19 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
      */
     public List<QueryBuilderProtoConverter> getQueryConverters() {
         return Collections.unmodifiableList(queryConverters);
+    }
+
+    /**
+     * Get the query utils instance.
+     *
+     * @return The query utils instance
+     * @throws IllegalStateException if queryUtils is not initialized
+     */
+    public AbstractQueryBuilderProtoUtils getQueryUtils() {
+        if (queryUtils == null) {
+            throw new IllegalStateException("Query utils not initialized. Make sure createComponents has been called.");
+        }
+        return queryUtils;
     }
 
     /**
@@ -125,7 +139,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
         }
 
-        List<BindableService> grpcServices = registerGRPCServices(new DocumentServiceImpl(client), new SearchServiceImpl(client));
+        List<BindableService> grpcServices = registerGRPCServices(
+            new DocumentServiceImpl(client),
+            new SearchServiceImpl(client, queryUtils)
+        );
         AuxTransport transport = new Netty4GrpcServerTransport(settings, grpcServices, networkService);
         return Collections.singletonMap(transport.settingKey(), () -> transport);
     }
@@ -163,7 +180,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getSecureAuxTransports to initialize the registry");
         }
 
-        List<BindableService> grpcServices = registerGRPCServices(new DocumentServiceImpl(client), new SearchServiceImpl(client));
+        List<BindableService> grpcServices = registerGRPCServices(
+            new DocumentServiceImpl(client),
+            new SearchServiceImpl(client, queryUtils)
+        );
         AuxTransport transport = new SecureNetty4GrpcServerTransport(
             settings,
             grpcServices,
@@ -241,13 +261,13 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         // Create the registry
         this.queryRegistry = new QueryBuilderProtoConverterRegistry();
 
+        // Create the query utils instance
+        this.queryUtils = new AbstractQueryBuilderProtoUtils(queryRegistry);
+
         // Register external converters
         for (QueryBuilderProtoConverter converter : queryConverters) {
             queryRegistry.registerConverter(converter);
         }
-
-        // Set the registry in AbstractQueryBuilderProtoUtils
-        AbstractQueryBuilderProtoUtils.setRegistry(queryRegistry);
 
         return super.createComponents(
             client,

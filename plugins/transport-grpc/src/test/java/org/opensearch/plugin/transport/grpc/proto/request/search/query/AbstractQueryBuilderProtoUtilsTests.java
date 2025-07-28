@@ -28,11 +28,13 @@ import java.util.Map;
 
 public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
+    private AbstractQueryBuilderProtoUtils queryUtils;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        // Set up the registry with all built-in converters
-        QueryBuilderProtoTestUtils.setupRegistry();
+        // Create an instance with all built-in converters
+        queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
     }
 
     public void testParseInnerQueryBuilderProtoWithMatchAll() {
@@ -41,7 +43,7 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
 
         // Call parseInnerQueryBuilderProto
-        QueryBuilder queryBuilder = AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(queryContainer);
+        QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
@@ -54,7 +56,7 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         QueryContainer queryContainer = QueryContainer.newBuilder().setMatchNone(matchNoneQuery).build();
 
         // Call parseInnerQueryBuilderProto
-        QueryBuilder queryBuilder = AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(queryContainer);
+        QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
@@ -72,7 +74,7 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
         // Call parseInnerQueryBuilderProto
-        QueryBuilder queryBuilder = AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(queryContainer);
+        QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
@@ -104,7 +106,7 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
 
         // Call parseInnerQueryBuilderProto
-        QueryBuilder queryBuilder = AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(queryContainer);
+        QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
@@ -123,7 +125,7 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Call parseInnerQueryBuilderProto, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(queryContainer)
+            () -> queryUtils.parseInnerQueryBuilderProto(queryContainer)
         );
 
         // Verify the exception message

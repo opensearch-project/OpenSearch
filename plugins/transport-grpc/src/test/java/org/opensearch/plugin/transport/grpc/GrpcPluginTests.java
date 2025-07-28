@@ -13,7 +13,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.plugin.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.plugin.transport.grpc.proto.request.search.query.QueryBuilderProtoConverter;
 import org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.plugins.ExtensiblePlugin;
@@ -267,7 +266,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             null  // Supplier<RepositoriesService>
         );
 
-        // Verify that the registry was created and set in AbstractQueryBuilderProtoUtils
-        assertNotNull(AbstractQueryBuilderProtoUtils.getRegistry());
+        // Verify that the queryUtils instance was created and is available
+        assertNotNull("QueryUtils should be initialized after createComponents", newPlugin.getQueryUtils());
     }
 }

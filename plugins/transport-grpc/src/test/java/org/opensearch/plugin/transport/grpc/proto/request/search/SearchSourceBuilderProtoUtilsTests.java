@@ -11,6 +11,7 @@ package org.opensearch.plugin.transport.grpc.proto.request.search;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.plugin.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
@@ -41,13 +42,14 @@ import static org.mockito.Mockito.mock;
 public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     private NamedWriteableRegistry mockRegistry;
+    private AbstractQueryBuilderProtoUtils queryUtils;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         mockRegistry = mock(NamedWriteableRegistry.class);
-        // Set up the registry with all built-in converters
-        QueryBuilderProtoTestUtils.setupRegistry();
+        // Create an instance with all built-in converters
+        queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
     }
 
     public void testParseProtoWithFrom() throws IOException {
@@ -58,7 +60,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("From should match", 10, searchSourceBuilder.from());
@@ -72,7 +74,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("Size should match", 20, searchSourceBuilder.size());
@@ -86,7 +88,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("Timeout should match", TimeValue.timeValueSeconds(5), searchSourceBuilder.timeout());
@@ -100,7 +102,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("TerminateAfter should match", 100, searchSourceBuilder.terminateAfter());
@@ -114,7 +116,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("MinScore should match", 0.5f, searchSourceBuilder.minScore(), 0.0f);
@@ -128,7 +130,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertTrue("Version should be true", searchSourceBuilder.version());
@@ -142,7 +144,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertTrue("SeqNoPrimaryTerm should be true", searchSourceBuilder.seqNoAndPrimaryTerm());
@@ -156,7 +158,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertTrue("Explain should be true", searchSourceBuilder.explain());
@@ -170,7 +172,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertTrue("TrackScores should be true", searchSourceBuilder.trackScores());
@@ -184,7 +186,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         searchSourceBuilder.includeNamedQueriesScores(true);
@@ -201,7 +203,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("TrackTotalHits should be accurate", TRACK_TOTAL_HITS_ACCURATE, searchSourceBuilder.trackTotalHitsUpTo().intValue());
@@ -217,7 +219,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("TrackTotalHits should be disabled", TRACK_TOTAL_HITS_DISABLED, searchSourceBuilder.trackTotalHitsUpTo().intValue());
@@ -233,7 +235,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("TrackTotalHits should match", 1000, searchSourceBuilder.trackTotalHitsUpTo().intValue());
@@ -247,7 +249,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertTrue("Profile should be true", searchSourceBuilder.profile());
@@ -261,7 +263,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertEquals("SearchPipeline should match", "my-pipeline", searchSourceBuilder.pipeline());
@@ -275,7 +277,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertTrue("VerbosePipeline should be true", searchSourceBuilder.verbosePipeline());
@@ -291,7 +293,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("Query should not be null", searchSourceBuilder.query());
@@ -306,7 +308,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("Stats should not be null", searchSourceBuilder.stats());
@@ -326,7 +328,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("DocValueFields should not be null", searchSourceBuilder.docValueFields());
@@ -344,7 +346,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("FetchFields should not be null", searchSourceBuilder.fetchFields());
@@ -365,7 +367,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("IndexBoosts should not be null", searchSourceBuilder.indexBoosts());
@@ -382,7 +384,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("Sorts should not be null", searchSourceBuilder.sorts());
@@ -399,7 +401,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("PostFilter should not be null", searchSourceBuilder.postFilter());
@@ -433,7 +435,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("ScriptFields should not be null", searchSourceBuilder.scriptFields());
@@ -464,7 +466,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("Slice should not be null", searchSourceBuilder.slice());
@@ -501,7 +503,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("DerivedFields should not be null", searchSourceBuilder.getDerivedFields());
@@ -541,7 +543,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
 
         // Verify the result
         assertNotNull("SearchAfter should not be null", searchSourceBuilder.searchAfter());
@@ -560,7 +562,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Call the method under test, should throw UnsupportedOperationException
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest)
+            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils)
         );
 
         assertTrue("Exception message should mention ext param", exception.getMessage().contains("ext param is not supported yet"));

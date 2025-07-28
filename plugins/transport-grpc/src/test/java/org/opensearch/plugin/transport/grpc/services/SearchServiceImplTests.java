@@ -8,6 +8,8 @@
 
 package org.opensearch.plugin.transport.grpc.services;
 
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.test.OpenSearchTestCase;
@@ -27,6 +29,7 @@ import static org.mockito.Mockito.verify;
 public class SearchServiceImplTests extends OpenSearchTestCase {
 
     private SearchServiceImpl service;
+    private AbstractQueryBuilderProtoUtils queryUtils;
 
     @Mock
     private NodeClient client;
@@ -37,7 +40,8 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
-        service = new SearchServiceImpl(client);
+        queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
+        service = new SearchServiceImpl(client, queryUtils);
     }
 
     public void testSearchSuccess() throws IOException {

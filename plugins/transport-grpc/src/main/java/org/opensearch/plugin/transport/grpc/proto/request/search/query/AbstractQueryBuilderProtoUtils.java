@@ -19,30 +19,19 @@ import org.opensearch.protobufs.QueryContainer;
  */
 public class AbstractQueryBuilderProtoUtils {
 
-    private static QueryBuilderProtoConverterRegistry registry;
-
-    private AbstractQueryBuilderProtoUtils() {
-        // Utility class, no instances
-    }
+    private final QueryBuilderProtoConverterRegistry registry;
 
     /**
-     * Sets the registry to use for query conversion.
-     * This method should be called during plugin initialization.
+     * Creates a new instance with the specified registry.
      *
-     * @param registry The registry to use
+     * @param registry The registry to use for query conversion
+     * @throws IllegalArgumentException if registry is null
      */
-    public static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
-        AbstractQueryBuilderProtoUtils.registry = registry;
-    }
-
-    /**
-     * Gets the current registry.
-     * This method is primarily for testing purposes.
-     *
-     * @return The current registry
-     */
-    public static QueryBuilderProtoConverterRegistry getRegistry() {
-        return registry;
+    public AbstractQueryBuilderProtoUtils(QueryBuilderProtoConverterRegistry registry) {
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
+        }
+        this.registry = registry;
     }
 
     /**
@@ -55,17 +44,12 @@ public class AbstractQueryBuilderProtoUtils {
      * @return A QueryBuilder instance configured according to the input query parameters
      * @throws UnsupportedOperationException if the query type is not supported
      */
-    public static QueryBuilder parseInnerQueryBuilderProto(QueryContainer queryContainer) throws UnsupportedOperationException {
+    public QueryBuilder parseInnerQueryBuilderProto(QueryContainer queryContainer) throws UnsupportedOperationException {
         // Validate input
         if (queryContainer == null) {
             throw new IllegalArgumentException("Query container cannot be null");
         }
 
-        // If the registry is set, use it to convert the query
-        if (registry != null) {
-            return registry.fromProto(queryContainer);
-        }
-
-        throw new IllegalArgumentException("Registry must be set.");
+        return registry.fromProto(queryContainer);
     }
 }
