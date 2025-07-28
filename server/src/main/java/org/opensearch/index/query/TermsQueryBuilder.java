@@ -538,7 +538,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // This section ensures no on-demand fetching for other cases as well
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
-            throw new IllegalStateException("Rewrite first");
+            throw new UnsupportedOperationException("query must be rewritten first");
         }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
         if (values.size() > maxTermsCount) {
@@ -571,34 +571,29 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         if (termsLookup.id() != null) {
-            {
-                GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
-                getRequest.preference("_local").routing(termsLookup.routing());
-                if (termsLookup.store()) {
-                    getRequest.storedFields(termsLookup.path());
-                }
-                client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
-                    List<Object> terms = new ArrayList<>();
-                    if (termsLookup.store()) {
-                        List<Object> values = getResponse.getField(termsLookup.path()).getValues();
-                        if (values.size() != 1 && valueType == ValueType.BITMAP) {
-                            throw new IllegalArgumentException(
-                                "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
-                            );
-                        }
-                        terms.addAll(values);
-                    } else {
-                        if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                            List<Object> extractedValues = XContentMapValues.extractRawValues(
-                                termsLookup.path(),
-                                getResponse.getSourceAsMap()
-                            );
-                            terms.addAll(extractedValues);
-                        }
-                    }
-                    delegatedListener.onResponse(terms);
-                }));
+            GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
+            getRequest.preference("_local").routing(termsLookup.routing());
+            if (termsLookup.store()) {
+                getRequest.storedFields(termsLookup.path());
             }
+            client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
+                List<Object> terms = new ArrayList<>();
+                if (termsLookup.store()) {
+                    List<Object> values = getResponse.getField(termsLookup.path()).getValues();
+                    if (values.size() != 1 && valueType == ValueType.BITMAP) {
+                        throw new IllegalArgumentException(
+                            "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
+                        );
+                    }
+                    terms.addAll(values);
+                } else {
+                    if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+                        List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+                        terms.addAll(extractedValues);
+                    }
+                }
+                delegatedListener.onResponse(terms);
+            }));
         } else if (termsLookup.query() != null) {
             client.admin()
                 .indices()
@@ -621,39 +616,50 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                         // The effective size must not exceed max_result_window
                         int fetchSize = Math.min(maxTermsCount, maxResultWindow);
 
-                        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(termsLookup.query())
-                            .size(fetchSize)
-                            .fetchSource(termsLookup.path(), null);
+                        try {
+                            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(termsLookup.query())
+                                .size(fetchSize)
+                                .fetchSource(termsLookup.path(), null);
 
-                        SearchRequest searchRequest = new SearchRequest(termsLookup.index()).source(sourceBuilder);
+                            SearchRequest searchRequest = new SearchRequest(termsLookup.index()).source(sourceBuilder);
 
-                        client.search(searchRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, searchResponse) -> {
-                            List<Object> terms = new ArrayList<>();
-                            SearchHit[] hits = searchResponse.getHits().getHits();
+                            client.search(
+                                searchRequest,
+                                ActionListener.delegateFailure(actionListener, (delegatedListener, searchResponse) -> {
+                                    List<Object> terms = new ArrayList<>();
+                                    SearchHit[] hits = searchResponse.getHits().getHits();
 
-                            // Defensive: avoid exceeding maxTermsCount
-                            if (hits.length > maxTermsCount) {
-                                delegatedListener.onFailure(
-                                    new IllegalArgumentException(
-                                        "Terms lookup subquery result count ["
-                                            + hits.length
-                                            + "] exceeds allowed max_terms_count ["
-                                            + maxTermsCount
-                                            + "]"
-                                    )
-                                );
-                                return;
-                            }
+                                    // Defensive: avoid exceeding maxTermsCount
+                                    if (hits.length > maxTermsCount) {
+                                        delegatedListener.onFailure(
+                                            new IllegalArgumentException(
+                                                "Terms lookup subquery result count ["
+                                                    + hits.length
+                                                    + "] exceeds allowed max_terms_count ["
+                                                    + maxTermsCount
+                                                    + "]"
+                                            )
+                                        );
+                                        return;
+                                    }
 
-                            for (SearchHit hit : hits) {
-                                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
-                                if (sourceAsMap != null) {
-                                    List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), sourceAsMap);
-                                    terms.addAll(extractedValues);
-                                }
-                            }
-                            delegatedListener.onResponse(terms);
-                        }));
+                                    for (SearchHit hit : hits) {
+                                        Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                                        if (sourceAsMap != null) {
+                                            List<Object> extractedValues = XContentMapValues.extractRawValues(
+                                                termsLookup.path(),
+                                                sourceAsMap
+                                            );
+                                            terms.addAll(extractedValues);
+                                        }
+                                    }
+                                    delegatedListener.onResponse(terms);
+                                })
+                            );
+
+                        } catch (Exception e) {
+                            actionListener.onFailure(e);
+                        }
                     }, actionListener::onFailure)
                 );
         } else {

@@ -119,8 +119,8 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         QueryShardContext context = mock(QueryShardContext.class);
         when(context.getIndexSettings()).thenReturn(newTestIndexSettings());
         when(context.fieldMapper(any())).thenReturn(mock(MappedFieldType.class));
-        Exception ex = expectThrows(IllegalStateException.class, () -> builder.doToQuery(context));
-        assertEquals("Rewrite first", ex.getMessage());
+        Exception ex = expectThrows(UnsupportedOperationException.class, () -> builder.doToQuery(context));
+        assertEquals("query must be rewritten first", ex.getMessage());
     }
 
     public void testDoToQueryTooManyTerms() {
@@ -218,8 +218,8 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         when(context.getIndexSettings()).thenReturn(newTestIndexSettings());
         when(context.fieldMapper(any())).thenReturn(mock(MappedFieldType.class));
 
-        Exception ex = expectThrows(IllegalStateException.class, () -> builder.doToQuery(context));
-        assertTrue(ex.getMessage().contains("Rewrite first"));
+        Exception ex = expectThrows(UnsupportedOperationException.class, () -> builder.doToQuery(context));
+        assertTrue(ex.getMessage().contains("query must be rewritten first"));
     }
 
     public void testRewriteWithValuesPresentReturnsSelf() throws Exception {
