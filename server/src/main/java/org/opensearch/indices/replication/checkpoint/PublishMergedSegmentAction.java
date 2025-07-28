@@ -32,7 +32,7 @@ import org.opensearch.transport.TransportService;
  */
 @ExperimentalApi
 public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest> {
-
+    private static final String TASK_ACTION_NAME = "segrep_publish_merged_segment";
     public static final String ACTION_NAME = "indices:admin/publish_merged_segment";
     protected static Logger logger = LogManager.getLogger(PublishMergedSegmentAction.class);
 
@@ -74,12 +74,12 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
     /**
      * Publish merged segment request to shard
      */
-    final void publish(IndexShard indexShard, MergeSegmentCheckpoint checkpoint) {
+    final void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
         doPublish(
             indexShard,
             checkpoint,
             new PublishMergedSegmentRequest(checkpoint),
-            "segrep_publish_merged_segment",
+            TASK_ACTION_NAME,
             true,
             indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout()
         );

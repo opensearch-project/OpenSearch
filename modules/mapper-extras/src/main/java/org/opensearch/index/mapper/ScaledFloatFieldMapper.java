@@ -395,8 +395,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         return coerce.value();
     }
 
-    boolean ignoreMalformed() {
-        return ignoreMalformed.value();
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
+        return ignoreMalformed;
     }
 
     @Override

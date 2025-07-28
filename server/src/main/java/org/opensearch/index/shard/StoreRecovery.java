@@ -43,6 +43,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -179,6 +180,9 @@ final class StoreRecovery {
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
                     final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
                     final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
+                    final boolean isParentFieldEnabledVersion = indexShard.indexSettings()
+                        .getIndexVersionCreated()
+                        .onOrAfter(Version.V_3_2_0);
                     final long maxUnsafeAutoIdTimestamp = shards.stream()
                         .mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp)
                         .max()
@@ -191,6 +195,7 @@ final class StoreRecovery {
                         maxSeqNo,
                         maxUnsafeAutoIdTimestamp,
                         indexShard.indexSettings().getIndexMetadata(),
+                        isParentFieldEnabledVersion,
                         indexShard.shardId().id(),
                         isSplit,
                         hasNested
@@ -220,6 +225,7 @@ final class StoreRecovery {
         final long maxSeqNo,
         final long maxUnsafeAutoIdTimestamp,
         IndexMetadata indexMetadata,
+        final boolean isParentFieldEnabledVersion,
         int shardId,
         boolean split,
         boolean hasNested
@@ -240,6 +246,9 @@ final class StoreRecovery {
             .setIndexCreatedVersionMajor(luceneIndexCreatedVersionMajor);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
+            if (isParentFieldEnabledVersion) {
+                iwc.setParentField(Lucene.PARENT_FIELD);
+            }
         }
 
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {

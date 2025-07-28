@@ -35,7 +35,7 @@ import org.opensearch.transport.TransportService;
  */
 @PublicApi(since = "2.2.0")
 public class PublishCheckpointAction extends AbstractPublishCheckpointAction<PublishCheckpointRequest, PublishCheckpointRequest> {
-
+    private static final String TASK_ACTION_NAME = "segrep_publish_checkpoint";
     public static final String ACTION_NAME = "indices:admin/publishCheckpoint";
     protected static Logger logger = LogManager.getLogger(PublishCheckpointAction.class);
 
@@ -98,7 +98,7 @@ public class PublishCheckpointAction extends AbstractPublishCheckpointAction<Pub
      * Publish checkpoint request to shard
      */
     final void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
-        doPublish(indexShard, checkpoint, new PublishCheckpointRequest(checkpoint), "segrep_publish_checkpoint", false, null);
+        doPublish(indexShard, checkpoint, new PublishCheckpointRequest(checkpoint), TASK_ACTION_NAME, false, null);
     }
 
     @Override
