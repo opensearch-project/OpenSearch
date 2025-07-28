@@ -563,7 +563,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testGetComplementValuesLookup() throws Exception {
-        // Complement should return null if the builder has termsLookup instead of values specified
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
         DirectoryReader reader = DirectoryReader.open(w);
