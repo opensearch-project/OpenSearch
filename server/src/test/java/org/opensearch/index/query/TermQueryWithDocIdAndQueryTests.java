@@ -386,7 +386,6 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
             // Instead of asserting on result, just call onResponse with null or empty list.
             lambda.accept(mockClient, org.opensearch.core.action.ActionListener.wrap(list -> {
                 // We cannot assert the values due to static method, so just print for visibility.
-                System.out.println("Async listener called with list: " + list);
             }, ex -> { fail("Should not throw: " + (ex != null ? ex.getMessage() : "")); }));
             return null;
         }).when(mockRewriteContext).registerAsyncAction(any());
