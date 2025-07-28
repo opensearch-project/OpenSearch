@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
@@ -232,6 +233,22 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         });
         MatcherAssert.assertThat(fileCache.activeUsage(), equalTo(0L));
         MatcherAssert.assertThat(fileCache.usage(), equalTo(0L));
+    }
+
+    public void testDownloadFailsAsyncDownloadException() throws Exception {
+        mockExceptionWhileReading();
+        doThrow(new IllegalArgumentException("Invalid thread pool")).when(threadPool).executor(ThreadPool.Names.REMOTE_RECOVERY);
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        blobParts.add(new BlobFetchRequest.BlobPart("failure-blob", 0, EIGHT_MB));
+        expectThrows(IllegalArgumentException.class, () -> {
+            BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
+                .fileName("file")
+                .directory(directory)
+                .blobParts(blobParts)
+                .build();
+            transferManager.fetchBlobAsync(blobFetchRequest);
+        });
+        MatcherAssert.assertThat(fileCache.activeUsage(), equalTo(0L));
     }
 
     public void testFetchesToDifferentBlobsDoNotBlockOnEachOther() throws Exception {

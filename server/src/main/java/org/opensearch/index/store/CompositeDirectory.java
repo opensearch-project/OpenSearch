@@ -60,7 +60,7 @@ public class CompositeDirectory extends FilterDirectory {
     protected final RemoteSegmentStoreDirectory remoteDirectory;
     protected final FileCache fileCache;
     protected final TransferManager transferManager;
-    private final ThreadPool threadPool;
+    protected final ThreadPool threadPool;
 
     /**
      * Constructor to initialise the composite directory
