@@ -132,7 +132,7 @@ class S3AsyncService implements Closeable {
                 return existing;
             }
 
-            String asyncHttpClientType = repositoryMetadata.settings().get(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.getKey());
+            String asyncHttpClientType = S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.get(repositoryMetadata.settings());
             final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
                 buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder, asyncHttpClientType)
             );
@@ -244,7 +244,6 @@ class S3AsyncService implements Closeable {
                 .build()
         );
         final S3AsyncClient client = SocketAccess.doPrivileged(builder::build);
-
         return AmazonAsyncS3WithCredentials.create(client, priorityClient, urgentClient, credentials);
     }
 
@@ -307,7 +306,6 @@ class S3AsyncService implements Closeable {
 
         crtClientBuilder.connectionTimeout(Duration.ofMillis(clientSettings.connectionTimeoutMillis));
         crtClientBuilder.maxConcurrency(clientSettings.maxConnections);
-
         return crtClientBuilder.build();
     }
 
@@ -492,7 +490,6 @@ class S3AsyncService implements Closeable {
     @Override
     public void close() {
         releaseCachedClients();
-
     }
 
     @Nullable
