@@ -81,7 +81,7 @@ public class RemoteStoreNodeAttribute {
         REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS
     );
 
-    public static final String REMOTE_STORE_SEGMENTS_ONLY_ATTRIBUTE_KEY = "remote_store.segments_only";
+    public static final String REMOTE_STORE_MODE_KEY = "remote_store.mode";
 
     /**
      * Creates a new {@link RemoteStoreNodeAttribute}
@@ -192,11 +192,23 @@ public class RemoteStoreNodeAttribute {
         return null;
     }
 
+    private enum RemoteStoreMode {
+        SEGMENTS_ONLY,
+        DEFAULT
+    }
+
     private Map<String, String> getValidatedRepositoryNames(DiscoveryNode node) {
         Set<Tuple<String, String>> repositoryNames = new HashSet<>();
-        if (containsKey(node.getAttributes(), REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS)
-            && containsKey(node.getAttributes(), List.of(REMOTE_STORE_SEGMENTS_ONLY_ATTRIBUTE_KEY))
-            && "true".equals(node.getAttributes().get(REMOTE_STORE_SEGMENTS_ONLY_ATTRIBUTE_KEY).toLowerCase(Locale.ROOT))) {
+        RemoteStoreMode remoteStoreMode = RemoteStoreMode.DEFAULT;
+        if (containsKey(node.getAttributes(), List.of(REMOTE_STORE_MODE_KEY))) {
+            String mode = node.getAttributes().get(REMOTE_STORE_MODE_KEY);
+            if (mode != null && mode.equalsIgnoreCase(RemoteStoreMode.SEGMENTS_ONLY.name())) {
+                remoteStoreMode = RemoteStoreMode.SEGMENTS_ONLY;
+            } else if (mode != null && mode.equalsIgnoreCase(RemoteStoreMode.DEFAULT.name()) == false) {
+                throw new IllegalStateException("Unknown remote store mode [" + mode + "] for node [" + node + "]");
+            }
+        }
+        if (remoteStoreMode == RemoteStoreMode.SEGMENTS_ONLY) {
             repositoryNames.add(validateAttributeNonNull(node, REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS));
         } else if (containsKey(node.getAttributes(), REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS)
             || containsKey(node.getAttributes(), REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS)) {
@@ -207,6 +219,15 @@ public class RemoteStoreNodeAttribute {
                 repositoryNames.add(validateAttributeNonNull(node, REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS));
             }
         if (containsKey(node.getAttributes(), REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS)) {
+            if (remoteStoreMode == RemoteStoreMode.SEGMENTS_ONLY) {
+                throw new IllegalStateException(
+                    "Cannot set "
+                        + REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS
+                        + " attributes when remote store mode is set to segments only for node ["
+                        + node
+                        + "]"
+                );
+            }
             repositoryNames.add(validateAttributeNonNull(node, REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS));
         }
 

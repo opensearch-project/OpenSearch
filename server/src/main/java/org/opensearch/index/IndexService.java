@@ -673,7 +673,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             Store remoteStore = null;
             Directory remoteDirectory = null;
             boolean seedRemote = false;
-            if (targetNode.isRemoteStoreNode()) {
+            if (targetNode.isRemoteSegmentStoreNode()) {
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {

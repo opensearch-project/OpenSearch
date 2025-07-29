@@ -587,7 +587,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Function<String, Boolean> isShardOnRemoteEnabledNode = nodeId -> {
         DiscoveryNode node = discoveryNodes.get(nodeId);
         if (node != null) {
-            return node.isRemoteStoreNode();
+            return node.isRemoteSegmentStoreNode();
         }
         return false;
     };

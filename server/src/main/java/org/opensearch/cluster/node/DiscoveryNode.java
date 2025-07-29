@@ -503,6 +503,14 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      * @return true if the node contains remote store node attributes, false otherwise
      */
     public boolean isRemoteStoreNode() {
+        return isClusterStateRepoConfigured(this.getAttributes()) && RemoteStoreNodeAttribute.isSegmentRepoConfigured(this.getAttributes());
+    }
+
+    /**
+     * Returns whether the node is a remote segment store node.
+     * @return true if the node contains remote segment store node attributes, false otherwise
+     */
+    public boolean isRemoteSegmentStoreNode() {
         return RemoteStoreNodeAttribute.isSegmentRepoConfigured(this.getAttributes());
     }
 
