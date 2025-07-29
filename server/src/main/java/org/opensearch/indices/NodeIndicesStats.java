@@ -52,6 +52,7 @@ import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.search.stats.SearchStats;
@@ -278,6 +279,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats getRecoveryStats() {
         return stats.getRecoveryStats();
+    }
+
+    @Nullable
+    public MergedSegmentWarmerStats getMergedSegmentWarmerStats() {
+        return stats.getMergedSegmentWarmer();
     }
 
     @Override
