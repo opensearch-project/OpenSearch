@@ -69,6 +69,12 @@ public final class ApproximateScoreQuery extends Query {
                 if (resolvedQuery instanceof ApproximateScoreQuery appxResolved) {
                     appxResolved.setContext(context);
                 }
+            } else {
+                for (BooleanClause boolClause : appxBool.boolQuery.clauses()) {
+                    if (boolClause.query() instanceof ApproximateScoreQuery apprxQuery) {
+                        apprxQuery.setContext(context);
+                    }
+                }
             }
             needsRewrite = true;
         } else if (resolvedQuery instanceof BooleanQuery) {
