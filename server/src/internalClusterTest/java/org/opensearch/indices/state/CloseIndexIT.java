@@ -391,6 +391,7 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         }
         refresh(indexName);
         assertIndexIsOpened(indexName);
+        waitForReplication(indexName);
         assertHitCount(
             client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(),
             indexer.totalIndexedDocs()

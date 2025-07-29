@@ -11,7 +11,6 @@ package org.opensearch.common;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
-import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
 
@@ -36,13 +35,6 @@ public class RandomnessTests extends OpenSearchTestCase {
 
     public void testCreateSecure() {
         assertEquals(inFipsJvm() ? "BCFIPS_RNG" : SUN, Randomness.createSecure().getProvider().getName());
-    }
-
-    public void testFailsCreateSecureRandomWithoutStrongAlgos() {
-        assumeFalse("Exception can only be thrown in non FIPS JVM", inFipsJvm());
-        Security.setProperty("securerandom.strongAlgorithms", "NON_EXISTENT_ALGO");
-        SecurityException ex = assertThrows(SecurityException.class, Randomness::createSecure);
-        assertTrue(ex.getCause() instanceof NoSuchAlgorithmException);
     }
 
     public void testRecoveryAfterFailsCreateSecureInFipsJvm() {

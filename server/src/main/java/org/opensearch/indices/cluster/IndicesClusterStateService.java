@@ -86,6 +86,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
@@ -156,6 +157,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
     private final MergedSegmentPublisher mergedSegmentPublisher;
+    private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
 
     @Inject
     public IndicesClusterStateService(
@@ -178,7 +180,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
-        final MergedSegmentPublisher mergedSegmentPublisher
+        final MergedSegmentPublisher mergedSegmentPublisher,
+        final ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) {
         this(
             settings,
@@ -200,7 +203,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             retentionLeaseSyncer,
             remoteStoreStatsTrackerFactory,
             mergedSegmentWarmerFactory,
-            mergedSegmentPublisher
+            mergedSegmentPublisher,
+            referencedSegmentsPublisher
         );
     }
 
@@ -225,7 +229,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
-        final MergedSegmentPublisher mergedSegmentPublisher
+        final MergedSegmentPublisher mergedSegmentPublisher,
+        final ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
@@ -252,6 +257,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
         this.mergedSegmentWarmerFactory = mergedSegmentWarmerFactory;
         this.mergedSegmentPublisher = mergedSegmentPublisher;
+        this.referencedSegmentsPublisher = referencedSegmentsPublisher;
     }
 
     @Override
@@ -697,7 +703,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 remoteStoreStatsTrackerFactory,
                 nodes,
                 mergedSegmentWarmerFactory,
-                mergedSegmentPublisher
+                mergedSegmentPublisher,
+                referencedSegmentsPublisher
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -1082,7 +1089,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
             DiscoveryNodes discoveryNodes,
             MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
-            MergedSegmentPublisher mergedSegmentPublisher
+            MergedSegmentPublisher mergedSegmentPublisher,
+            ReferencedSegmentsPublisher referencedSegmentsPublisher
         ) throws IOException;
 
         /**
