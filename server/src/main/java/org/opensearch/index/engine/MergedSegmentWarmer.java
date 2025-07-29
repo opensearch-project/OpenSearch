@@ -51,24 +51,36 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     @Override
     public void warm(LeafReader leafReader) throws IOException {
+        indexShard.incrementTotalWarmInvocationsCount();
+        indexShard.incrementOngoingWarms();
         // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
         assert leafReader instanceof SegmentReader;
         long startTime = System.currentTimeMillis();
+        long elapsedTime = 0;
+        try {
 
-        SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
-        logger.trace(() -> new ParameterizedMessage("Warming segment: {}", segmentCommitInfo));
-        indexShard.publishMergedSegment(segmentCommitInfo);
-        logger.trace(() -> {
-            long segmentSize = -1;
-            try {
-                segmentSize = segmentCommitInfo.sizeInBytes();
-            } catch (IOException ignored) {}
-            return new ParameterizedMessage(
-                "Completed segment warming for {}. Size: {}B, Timing: {}s",
-                segmentCommitInfo.info.name,
-                segmentSize,
-                (System.currentTimeMillis() - startTime) / 1000.0
-            );
-        });
+            SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
+            logger.trace(() -> new ParameterizedMessage("Warming segment: {}", segmentCommitInfo));
+            indexShard.publishMergedSegment(segmentCommitInfo);
+            elapsedTime = System.currentTimeMillis() - startTime;
+            long finalElapsedTime = elapsedTime;
+            logger.trace(() -> {
+                long segmentSize = -1;
+                try {
+                    segmentSize = segmentCommitInfo.sizeInBytes();
+                } catch (IOException ignored) {}
+                return new ParameterizedMessage(
+                    "Completed segment warming for {}. Size: {}B, Timing: {}ms",
+                    segmentCommitInfo.info.name,
+                    segmentSize,
+                    finalElapsedTime
+                );
+            });
+        } catch (IOException e) {
+            indexShard.incrementTotalWarmFailureCount();
+        } finally {
+            indexShard.addTotalWarmTimeMillis(elapsedTime);
+            indexShard.decrementOngoingWarms();
+        }
     }
 }
