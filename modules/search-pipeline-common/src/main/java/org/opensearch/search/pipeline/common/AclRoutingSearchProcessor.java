@@ -8,10 +8,11 @@
 
 package org.opensearch.search.pipeline.common;
 
+import org.apache.lucene.search.BooleanClause;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.hash.MurmurHash3;
-import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.ingest.ConfigurationUtils;
@@ -34,6 +35,7 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
      * The type name for this processor.
      */
     public static final String TYPE = "acl_routing_search";
+    private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
 
     private final String aclField;
     private final boolean extractFromQuery;
@@ -86,36 +88,27 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
     private List<String> extractAclValues(QueryBuilder query) {
         List<String> aclValues = new ArrayList<>();
 
-        if (query instanceof TermQueryBuilder) {
-            TermQueryBuilder termQuery = (TermQueryBuilder) query;
-            if (aclField.equals(termQuery.fieldName())) {
-                aclValues.add(termQuery.value().toString());
-            }
-        } else if (query instanceof TermsQueryBuilder) {
-            TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
-            if (aclField.equals(termsQuery.fieldName())) {
-                termsQuery.values().forEach(value -> aclValues.add(value.toString()));
-            }
-        } else if (query instanceof BoolQueryBuilder) {
-            BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
-
-            // Check must clauses
-            for (QueryBuilder mustClause : boolQuery.must()) {
-                aclValues.addAll(extractAclValues(mustClause));
-            }
-
-            // Check filter clauses
-            for (QueryBuilder filterClause : boolQuery.filter()) {
-                aclValues.addAll(extractAclValues(filterClause));
-            }
-
-            // Check should clauses if minimum_should_match > 0
-            if (boolQuery.minimumShouldMatch() != null && !boolQuery.should().isEmpty()) {
-                for (QueryBuilder shouldClause : boolQuery.should()) {
-                    aclValues.addAll(extractAclValues(shouldClause));
+        query.visit(new QueryBuilderVisitor() {
+            @Override
+            public void accept(QueryBuilder qb) {
+                if (qb instanceof TermQueryBuilder) {
+                    TermQueryBuilder termQuery = (TermQueryBuilder) qb;
+                    if (aclField.equals(termQuery.fieldName())) {
+                        aclValues.add(termQuery.value().toString());
+                    }
+                } else if (qb instanceof TermsQueryBuilder) {
+                    TermsQueryBuilder termsQuery = (TermsQueryBuilder) qb;
+                    if (aclField.equals(termsQuery.fieldName())) {
+                        termsQuery.values().forEach(value -> aclValues.add(value.toString()));
+                    }
                 }
             }
-        }
+
+            @Override
+            public QueryBuilderVisitor getChildVisitor(BooleanClause.Occur occur) {
+                return this;
+            }
+        });
 
         return aclValues;
     }
@@ -130,7 +123,7 @@ public class AclRoutingSearchProcessor extends AbstractProcessor implements Sear
         System.arraycopy(longToBytes(hash.h1), 0, hashBytes, 0, 8);
         System.arraycopy(longToBytes(hash.h2), 0, hashBytes, 8, 8);
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(hashBytes);
+        return BASE64_ENCODER.encodeToString(hashBytes);
     }
 
     private byte[] longToBytes(long value) {

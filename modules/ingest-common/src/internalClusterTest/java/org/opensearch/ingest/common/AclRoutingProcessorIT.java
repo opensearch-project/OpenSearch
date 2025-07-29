@@ -34,6 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class AclRoutingProcessorIT extends OpenSearchIntegTestCase {
 
+    private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(IngestCommonModulePlugin.class);
@@ -232,7 +234,7 @@ public class AclRoutingProcessorIT extends OpenSearchIntegTestCase {
         System.arraycopy(longToBytes(hash.h1), 0, hashBytes, 0, 8);
         System.arraycopy(longToBytes(hash.h2), 0, hashBytes, 8, 8);
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(hashBytes);
+        return BASE64_ENCODER.encodeToString(hashBytes);
     }
 
     private byte[] longToBytes(long value) {

@@ -24,6 +24,7 @@ import java.util.Map;
 public final class AclRoutingProcessor extends AbstractProcessor {
 
     public static final String TYPE = "acl_routing";
+    private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
 
     private final String aclField;
     private final String targetField;
@@ -77,7 +78,7 @@ public final class AclRoutingProcessor extends AbstractProcessor {
         System.arraycopy(longToBytes(hash.h1), 0, hashBytes, 0, 8);
         System.arraycopy(longToBytes(hash.h2), 0, hashBytes, 8, 8);
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(hashBytes);
+        return BASE64_ENCODER.encodeToString(hashBytes);
     }
 
     private byte[] longToBytes(long value) {
