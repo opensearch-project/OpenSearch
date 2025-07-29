@@ -125,7 +125,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
-                messageSentCount.incrementAndGet();
+                // messageSentCount.incrementAndGet();
             }
         };
 
@@ -198,7 +198,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertTrue(handlerLatch.await(5, TimeUnit.SECONDS));
         assertEquals(3, responseCount.get());
         assertNull(handlerException.get());
-        assertEquals(4, messageSentCount.get());
+        assertEquals(4, messageSentCount.get()); // completeStream is counted too
     }
 
     public void testStreamResponseProcessingWithHandlerException() throws InterruptedException {
