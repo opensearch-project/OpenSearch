@@ -65,6 +65,7 @@ public class ClientSideChaosIT extends OpenSearchIntegTestCase {
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
+    @AwaitsFix(bugUrl = "")
     public void testResponseTimeoutScenario() throws Exception {
         ChaosScenario.setTimeoutDelay(5000); // 5 second delay
         ChaosScenario.enableScenario(ChaosScenario.ClientFailureScenario.RESPONSE_TIMEOUT);

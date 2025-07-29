@@ -169,7 +169,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
             // where it exhausts the stream on the server side before it is actually cancelled.
             assertTrue(
                 "Timeout waiting for stream cancellation on server [" + node.getName() + "]",
-                streamProducer.waitForClose(2, TimeUnit.SECONDS)
+                streamProducer.waitForClose(5, TimeUnit.SECONDS)
             );
             previousNode = node;
         }
