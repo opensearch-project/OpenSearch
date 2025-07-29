@@ -125,7 +125,6 @@ import org.opensearch.index.get.GetStats;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.merge.MergeStats;
-import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.query.BaseQueryRewriteContext;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -1375,7 +1374,6 @@ public class IndicesService extends AbstractLifecycleComponent
         final RefreshStats refreshStats = new RefreshStats();
         final FlushStats flushStats = new FlushStats();
         final RecoveryStats recoveryStats = new RecoveryStats();
-        final MergedSegmentWarmerStats mergedSegmentWarmerStats = new MergedSegmentWarmerStats();
 
         @Override
         public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
@@ -1388,7 +1386,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 refreshStats.addTotals(indexShard.refreshStats());
                 flushStats.addTotals(indexShard.flushStats());
                 recoveryStats.addTotals(indexShard.recoveryStats());
-                mergedSegmentWarmerStats.addTotals(indexShard.mergedSegmentWarmerStats());
             }
         }
     }
