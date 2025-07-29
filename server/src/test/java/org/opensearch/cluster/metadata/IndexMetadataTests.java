@@ -606,4 +606,84 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertThat(indexMetadataAfterDiffApplied.getVersion(), equalTo(nextIndexMetadata.getVersion()));
     }
 
+    /**
+     * Test validation for remote store segment path prefix setting
+     */
+    public void testRemoteStoreSegmentPathPrefixValidation() {
+        // Test empty value (should be allowed)
+        final Settings emptySettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "")
+            .build();
+
+        IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(emptySettings);
+
+        final Settings whitespaceSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "   ")
+            .build();
+
+        IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(whitespaceSettings);
+
+        final Settings validSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        String value = IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(validSettings);
+        assertEquals("writer-node-1", value);
+
+        final Settings disabledSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), false)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(disabledSettings);
+        });
+        assertTrue(e.getMessage().contains("can only be set when"));
+
+        final Settings noRemoteStoreSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer-node-1")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(noRemoteStoreSettings); }
+        );
+        assertTrue(e.getMessage().contains("can only be set when"));
+
+        final Settings invalidPathSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer/node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(invalidPathSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+
+        final Settings backslashSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer\\node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(backslashSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+
+        final Settings colonSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey(), "writer:node")
+            .build();
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(colonSettings); }
+        );
+        assertTrue(e.getMessage().contains("cannot contain path separators"));
+    }
 }
