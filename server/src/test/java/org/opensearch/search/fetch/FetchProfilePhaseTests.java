@@ -822,7 +822,14 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
                 List<FetchSubPhase> subPhases = Collections.singletonList(new FetchSourcePhase());
 
-                ProfileResult profile = executeFetchPhaseAndGetProfile(context, subPhases);
+                FetchPhase fetchPhase = new FetchPhase(subPhases);
+                fetchPhase.execute(context);
+
+                FetchProfiler fetchProfiler = context.getProfilers().getFetchProfiler();
+                List<ProfileResult> profileResults = fetchProfiler.getTree();
+                assertThat(profileResults, hasSize(2));
+
+                ProfileResult profile = profileResults.get(0);
 
                 Map<String, ProfileResult> children = new HashMap<>();
                 for (ProfileResult child : profile.getProfiledChildren()) {
@@ -839,22 +846,18 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
                     .assertTimingPresent(FetchTimingType.NEXT_READER);
 
-                ProfileResult innerHitsPhase = children.get("InnerHitsPhase");
-                ProfileResult fetchInnerHitsBreakdown = innerHitsPhase.getProfiledChildren().getFirst();
-                assertEquals("fetch_inner_hits", fetchInnerHitsBreakdown.getQueryName());
-                assertEquals(1, innerHitsPhase.getProfiledChildren().size());
+                ProfileResult innerHitsFetch = profileResults.get(1);
+                assertEquals("fetch_inner_hits", innerHitsFetch.getQueryName());
+                assertEquals(1, innerHitsFetch.getProfiledChildren().size());
+                assertEquals("FetchSourcePhase", innerHitsFetch.getProfiledChildren().getFirst().getQueryName());
 
-                new TimingAssertions(fetchInnerHitsBreakdown.getTimeBreakdown()).assertTimingPresent(
-                    FetchTimingType.CREATE_STORED_FIELDS_VISITOR
-                )
+                new TimingAssertions(innerHitsFetch.getTimeBreakdown()).assertTimingPresent(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
                     .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
                     .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
                     .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
                     .assertTimingPresent(FetchTimingType.NEXT_READER);
 
-                assertEquals("FetchSourcePhase", fetchInnerHitsBreakdown.getProfiledChildren().getFirst().getQueryName());
-                assertEquals(1, fetchInnerHitsBreakdown.getProfiledChildren().size());
-                new TimingAssertions(fetchInnerHitsBreakdown.getProfiledChildren().getFirst().getTimeBreakdown()).assertTimingPresent(
+                new TimingAssertions(innerHitsFetch.getProfiledChildren().getFirst().getTimeBreakdown()).assertTimingPresent(
                     FetchTimingType.PROCESS
                 ).assertTimingPresent(FetchTimingType.NEXT_READER);
             }

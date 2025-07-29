@@ -50,7 +50,6 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.core.common.text.Text;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -114,11 +113,10 @@ public class FetchPhase {
     public void execute(SearchContext context, String profileDescription) {
         FetchProfileBreakdown breakdown = null;
         FetchProfiler fetchProfiler = null;
-        FetchProfileBreakdown innerHitsBreakdown = null;
         if (context.getProfilers() != null) {
             fetchProfiler = context.getProfilers().getFetchProfiler();
             if (context.docIdsToLoadSize() > 0) {
-                breakdown = fetchProfiler.getQueryBreakdown(profileDescription);
+                breakdown = fetchProfiler.startFetchPhase(profileDescription);
             }
         }
 
@@ -164,13 +162,8 @@ public class FetchPhase {
         Map<FetchSubPhaseProcessor, FetchProfileBreakdown> processorProfiles = new HashMap<>();
         if (breakdown != null) {
             for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
-                FetchProfileBreakdown pb = context.getProfilers().getFetchProfiler().getQueryBreakdown(p.v2().getClass().getSimpleName());
+                FetchProfileBreakdown pb = context.getProfilers().getFetchProfiler().startSubPhase(p.v2().getClass().getSimpleName());
                 processorProfiles.put(p.v1(), pb);
-                if (p.v2() instanceof InnerHitsPhase) {
-                    innerHitsBreakdown = pb;
-                } else {
-                    fetchProfiler.pollLastElement();
-                }
             }
         }
 
@@ -244,15 +237,7 @@ public class FetchPhase {
         TotalHits totalHits = context.queryResult().getTotalHits();
         context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
 
-        if (breakdown != null) {
-            if (innerHitsBreakdown != null) {
-                // InnerHitsPhase remains on the stack so nested fetch phases
-                // are recorded as its child. Pop it here once all inner hits
-                // processing is complete.
-                fetchProfiler.pollLastElement();
-            }
-            fetchProfiler.pollLastElement();
-        }
+        fetchProfiler.endCurrentFetchPhase();
     }
 
     List<Tuple<FetchSubPhaseProcessor, FetchSubPhase>> getProcessors(SearchShardTarget target, FetchContext context) {
@@ -413,8 +398,6 @@ public class FetchPhase {
         FetchProfileBreakdown breakdown
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
-        DocumentMapper documentMapper = context.mapperService().documentMapper();
-        Text typeText = documentMapper.typeText();
 
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);

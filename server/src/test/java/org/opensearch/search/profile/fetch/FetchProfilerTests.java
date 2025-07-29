@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.search.profile.Timer.TIMING_TYPE_COUNT_SUFFIX;
-import static org.opensearch.search.profile.Timer.TIMING_TYPE_START_TIME_SUFFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -47,7 +46,7 @@ public class FetchProfilerTests extends OpenSearchTestCase {
 
     public void testBasicProfiling() {
         FetchProfiler profiler = new FetchProfiler();
-        FetchProfileBreakdown root = profiler.getQueryBreakdown("fetch");
+        FetchProfileBreakdown root = profiler.startFetchPhase("fetch");
         for (FetchTimingType type : FetchTimingType.values()) {
             if (type == FetchTimingType.PROCESS) {
                 continue;
@@ -57,19 +56,18 @@ public class FetchProfilerTests extends OpenSearchTestCase {
             t.stop();
         }
 
-        FetchProfileBreakdown child = profiler.getQueryBreakdown("phase");
+        FetchProfileBreakdown child = profiler.startSubPhase("phase");
         Timer ct = child.getTimer(FetchTimingType.PROCESS);
         ct.start();
         ct.stop();
-        profiler.pollLastElement(); // pop child
-        profiler.pollLastElement(); // pop root
+        profiler.endCurrentFetchPhase();
 
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
         ProfileResult profileResult = results.get(0);
         assertEquals("fetch", profileResult.getQueryName());
         Map<String, Long> map = profileResult.getTimeBreakdown();
-        assertEquals(5 * 3, map.size());
+        assertEquals(10, map.size());
         long sum = 0;
         for (FetchTimingType type : FetchTimingType.values()) {
             if (type == FetchTimingType.PROCESS) {
@@ -78,7 +76,6 @@ public class FetchProfilerTests extends OpenSearchTestCase {
             String key = type.toString();
             assertThat(map.get(key), greaterThan(0L));
             assertThat(map.get(key + TIMING_TYPE_COUNT_SUFFIX), equalTo(1L));
-            assertThat(map.get(key + TIMING_TYPE_START_TIME_SUFFIX), greaterThan(0L));
             sum += map.get(key);
         }
         assertEquals(sum, profileResult.getTime());

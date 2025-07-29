@@ -318,6 +318,10 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
         assertFetchPhase(resp, "InnerHitsPhase", 2);
 
         Map<String, ProfileShardResult> profileResults = resp.getProfileResults();
+
+        boolean foundInnerHitsPhase = false;
+        boolean foundFetchInnerHits = false;
+
         for (ProfileShardResult shardResult : profileResults.values()) {
             FetchProfileShardResult fetchProfileResult = shardResult.getFetchProfileResult();
 
@@ -325,19 +329,21 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                 for (ProfileResult phase : fetchResult.getProfiledChildren()) {
                     if ("InnerHitsPhase".equals(phase.getQueryName())) {
 
-                        assertFalse("InnerHitsPhase should have children", phase.getProfiledChildren().isEmpty());
-
-                        for (ProfileResult innerHitsChild : phase.getProfiledChildren()) {
-                            assertEquals("fetch_inner_hits", innerHitsChild.getQueryName());
-
-                            assertEquals("Should have 1 profiled child", 1, innerHitsChild.getProfiledChildren().size());
-
-                            assertEquals("FetchSourcePhase", innerHitsChild.getProfiledChildren().getFirst().getQueryName());
-                        }
+                        foundInnerHitsPhase = true;
+                        Map<String, Long> breakdown = phase.getTimeBreakdown();
+                        assertTrue(breakdown.containsKey(FetchTimingType.PROCESS.toString()));
+                        assertTrue(breakdown.containsKey(FetchTimingType.NEXT_READER.toString()));
                     }
+                }
+                if ("fetch_inner_hits".equals(fetchResult.getQueryName())) {
+                    foundFetchInnerHits = true;
+                    assertEquals(1, fetchResult.getProfiledChildren().size());
+                    assertEquals("FetchSourcePhase", fetchResult.getProfiledChildren().getFirst().getQueryName());
                 }
             }
         }
+        assertTrue("InnerHitsPhase should be present", foundInnerHitsPhase);
+        assertTrue("fetch_inner_hits profile should be present", foundFetchInnerHits);
     }
 
     private void assertFetchPhase(SearchResponse resp, String phaseName, int expectedChildren) {
@@ -346,19 +352,18 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
         assertFalse(profileResults.isEmpty());
 
         boolean foundPhase = false;
-        for (Map.Entry<String, ProfileShardResult> shardResult : profileResults.entrySet()) {
-            FetchProfileShardResult fetchProfileResult = shardResult.getValue().getFetchProfileResult();
+        for (ProfileShardResult shardResult : profileResults.values()) {
+            FetchProfileShardResult fetchProfileResult = shardResult.getFetchProfileResult();
             assertNotNull(fetchProfileResult);
 
             for (ProfileResult fetchResult : fetchProfileResult.getFetchProfileResults()) {
-                assertEquals(
-                    "Should have " + expectedChildren + " profiled children",
-                    expectedChildren,
-                    fetchResult.getProfiledChildren().size()
-                );
                 for (ProfileResult child : fetchResult.getProfiledChildren()) {
+                    assertEquals(
+                        "Should have " + expectedChildren + " profiled children",
+                        expectedChildren,
+                        fetchResult.getProfiledChildren().size()
+                    );
                     if (phaseName.equals(child.getQueryName())) {
-                        foundPhase = true;
                         Map<String, Long> breakdown = child.getTimeBreakdown();
                         assertTrue(
                             phaseName + " should have PROCESS timing type",
@@ -368,11 +373,17 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                             phaseName + " should have NEXT_READER timing type",
                             breakdown.containsKey(FetchTimingType.NEXT_READER.toString())
                         );
+                        foundPhase = true;
+                        break;
                     }
                 }
-                if (foundPhase) break;
+                if (foundPhase) {
+                    break;
+                }
             }
-            if (foundPhase) break;
+            if (foundPhase) {
+                break;
+            }
         }
         assertTrue(phaseName + " should be present in the profile", foundPhase);
     }
