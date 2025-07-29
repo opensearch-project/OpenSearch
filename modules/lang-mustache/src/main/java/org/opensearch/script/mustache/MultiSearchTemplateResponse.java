@@ -171,7 +171,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
                 builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
                 builder.endObject();
             } else {
-                item.getResponse().toXContent(builder, params);
+                item.getResponse().toXContentWithStatus(builder, params);
             }
         }
         builder.endArray();

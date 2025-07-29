@@ -38,17 +38,22 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -234,7 +239,114 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             .endObject()
             .endArray()
             .endObject()
-            .field("status", 200)
+            .endObject();
+
+        XContentBuilder actualResponse = MediaTypeRegistry.contentBuilder(contentType);
+        response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
+
+        assertToXContentEquivalent(BytesReference.bytes(expectedResponse), BytesReference.bytes(actualResponse), contentType);
+    }
+
+    public void testSearchResponseWithExtToXContent() throws IOException {
+        // Create a search hit
+        SearchHit hit = new SearchHit(1, "id", Collections.emptyMap(), Collections.emptyMap());
+        hit.score(2.0f);
+        SearchHit[] hits = new SearchHit[] { hit };
+
+        // Create search extensions - using the TestSearchExtBuilder if available, otherwise a simple generic extension
+        List<SearchExtBuilder> extBuilders = new ArrayList<>();
+        try {
+            // Try to use TestSearchExtBuilder if it's available in the classpath
+            Class<?> testExtClass = Class.forName("org.opensearch.search.TestSearchExtBuilder");
+            SearchExtBuilder testExt = (SearchExtBuilder) testExtClass.getConstructor(String.class, int.class)
+                .newInstance("Template ext test", 42);
+            extBuilders.add(testExt);
+        } catch (Exception e) {
+            // If TestSearchExtBuilder is not available, create a simple mock extension
+            extBuilders.add(new SearchExtBuilder() {
+                @Override
+                public String getWriteableName() {
+                    return "mock_ext";
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeString("mock_value");
+                }
+
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    return builder.startObject("mock_ext").field("message", "Template ext test").field("value", 42).endObject();
+                }
+
+                @Override
+                public int hashCode() {
+                    return Objects.hash("mock_value");
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    return obj instanceof SearchExtBuilder && "mock_ext".equals(((SearchExtBuilder) obj).getWriteableName());
+                }
+            });
+        }
+
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+            new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+            null,
+            null,
+            null,
+            false,
+            null,
+            1,
+            extBuilders,
+            Collections.emptyList()
+        );
+
+        SearchResponse searchResponse = new SearchResponse(
+            internalSearchResponse,
+            null,
+            0,
+            0,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        SearchTemplateResponse response = new SearchTemplateResponse();
+        response.setResponse(searchResponse);
+
+        XContentType contentType = randomFrom(XContentType.values());
+        XContentBuilder expectedResponse = MediaTypeRegistry.contentBuilder(contentType)
+            .startObject()
+            .field("took", 0)
+            .field("timed_out", false)
+            .startObject("_shards")
+            .field("total", 0)
+            .field("successful", 0)
+            .field("skipped", 0)
+            .field("failed", 0)
+            .endObject()
+            .startObject("hits")
+            .startObject("total")
+            .field("value", 100)
+            .field("relation", "eq")
+            .endObject()
+            .field("max_score", 1.5F)
+            .startArray("hits")
+            .startObject()
+            .field("_id", "id")
+            .field("_score", 2.0F)
+            .endObject()
+            .endArray()
+            .endObject()
+            .startObject("ext")
+            .startObject("mock_ext")
+            .field("message", "Template ext test")
+            .field("value", 42)
+            .endObject()
+            .endObject()
             .endObject();
 
         XContentBuilder actualResponse = MediaTypeRegistry.contentBuilder(contentType);

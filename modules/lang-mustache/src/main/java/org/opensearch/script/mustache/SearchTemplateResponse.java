@@ -42,6 +42,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
@@ -118,7 +119,24 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        if (hasResponse()) {
+            response.toXContent(builder, params);
+        } else {
+            builder.startObject();
+            // we can assume the template is always json as we convert it before compiling it
+            try (InputStream stream = source.streamInput()) {
+                builder.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, MediaTypeRegistry.JSON);
+            }
+            builder.endObject();
+        }
+        return builder;
+    }
+
+    /**
+     * Converts to XContent with status field for multi-search template responses.
+     */
+    public void toXContentWithStatus(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
             builder.startObject();
             response.innerToXContent(builder, params);
@@ -132,7 +150,6 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
             }
             builder.endObject();
         }
-        return builder;
     }
 
     @Override
