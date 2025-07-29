@@ -31,7 +31,7 @@
 
 package org.opensearch.repositories.s3;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
@@ -89,7 +89,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
+@ThreadLeakFilters(filters = EventLoopThreadFilter.class)
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
