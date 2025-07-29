@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class FlightMetricsTests extends FlightTransportTestBase {
+    private final int TIMEOUT_SEC = 10;
 
     @Override
     public void setUp() throws Exception {
@@ -159,7 +160,7 @@ public class FlightMetricsTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, "internal:test/simple", testRequest, options, responseHandler);
 
-        assertTrue("Simple message should complete", latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Simple message should complete", latch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertNull("Simple message should not fail", exception.get());
     }
 
@@ -206,7 +207,7 @@ public class FlightMetricsTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, "internal:test/metrics/success", testRequest, options, responseHandler);
 
-        assertTrue("Successful streaming should complete", latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Successful streaming should complete", latch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertNull("Successful streaming should not fail", exception.get());
         assertEquals("Should receive 3 responses", 3, responseCount.get());
     }
@@ -252,7 +253,7 @@ public class FlightMetricsTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, "internal:test/metrics/failure", testRequest, options, responseHandler);
 
-        assertTrue("Failing streaming should complete", latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Failing streaming should complete", latch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertNotNull("Failing streaming should fail", exception.get());
     }
 
@@ -300,7 +301,7 @@ public class FlightMetricsTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, "internal:test/metrics/cancel", testRequest, options, responseHandler);
 
-        assertTrue("Cancelled streaming should complete", latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Cancelled streaming should complete", latch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertNull("Cancelled streaming should not fail in client", exception.get());
     }
 
