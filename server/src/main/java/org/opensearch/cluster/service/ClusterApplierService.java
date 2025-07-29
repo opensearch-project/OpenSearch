@@ -618,7 +618,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     protected void connectToNodesAndWait(ClusterState newClusterState) {
         // can't wait for an ActionFuture on the cluster applier thread, but we do want to block the thread here, so use a CountDownLatch.
-        CountDownLatch countDownLatch = new CountDownLatch(1);
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
         nodeConnectionsService.connectToNodes(newClusterState.nodes(), countDownLatch::countDown);
         try {
             countDownLatch.await();
@@ -626,11 +626,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             logger.debug("interrupted while connecting to nodes, continuing", e);
             Thread.currentThread().interrupt();
         }
-        countDownLatch = new CountDownLatch(1);
+        final CountDownLatch streamNodeLatch = new CountDownLatch(1);
         if (streamNodeConnectionsService != null) {
-            streamNodeConnectionsService.connectToNodes(newClusterState.nodes(), countDownLatch::countDown);
+            streamNodeConnectionsService.connectToNodes(newClusterState.nodes(), streamNodeLatch::countDown);
             try {
-                countDownLatch.await();
+                streamNodeLatch.await();
             } catch (InterruptedException e) {
                 logger.debug("interrupted while connecting to nodes, continuing", e);
                 Thread.currentThread().interrupt();
