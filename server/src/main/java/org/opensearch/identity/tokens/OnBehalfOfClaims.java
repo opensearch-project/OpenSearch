@@ -25,7 +25,7 @@ public class OnBehalfOfClaims {
      * Constructor for OnBehalfOfClaims
      * @param aud the Audience for the token
      * @param expiration_seconds the length of time in seconds the token is valid
-
+    
      */
     public OnBehalfOfClaims(String aud, Long expiration_seconds) {
         this.audience = aud;

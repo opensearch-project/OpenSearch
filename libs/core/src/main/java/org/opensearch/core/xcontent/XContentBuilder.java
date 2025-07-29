@@ -744,7 +744,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     /**
      * Write a time-based field and value, if the passed timeValue is null a
      * null value is written, otherwise a date transformers lookup is performed.
-
+    
      * @throws IllegalArgumentException if there is no transformers for the type of object
      */
     public XContentBuilder timeField(String name, Object timeValue) throws IOException {
@@ -772,7 +772,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     /**
      * Write a time-based value, if the value is null a null value is written,
      * otherwise a date transformers lookup is performed.
-
+    
      * @throws IllegalArgumentException if there is no transformers for the type of object
      */
     public XContentBuilder timeValue(Object timeValue) throws IOException {

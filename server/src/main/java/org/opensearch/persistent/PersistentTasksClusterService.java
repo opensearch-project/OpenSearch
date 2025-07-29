@@ -372,7 +372,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param taskName the task's name
      * @param taskParams the task's parameters
      * @param currentState the current {@link ClusterState}
-
+    
      * @return a new {@link Assignment}
      */
     private <Params extends PersistentTaskParams> Assignment createAssignment(

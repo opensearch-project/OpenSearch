@@ -614,7 +614,7 @@ public class RangeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase 
     [9, 10]
     [10, 11]
     [11, 12]
-
+    
     r1: 2
     r2: 3, 3, 4, 4, 5, 5
     r3: 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12
@@ -769,7 +769,7 @@ public class RangeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase 
     [8, 9]
     [9, 10]
     [10, 11]
-
+    
     r1: 1, 2, 2
     r2: 3, 3, 4, 4, 5, 5
     r3: 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11

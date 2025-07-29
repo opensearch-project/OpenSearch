@@ -426,7 +426,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     /*
     Scaling threadpool can provide only max and core
     Fixed/ResizableQueue can provide only size
-
+    
     For example valid settings would be for scaling and fixed thead pool
         cluster.threadpool.snapshot.max : "5",
         cluster.threadpool.snapshot.core : "5",

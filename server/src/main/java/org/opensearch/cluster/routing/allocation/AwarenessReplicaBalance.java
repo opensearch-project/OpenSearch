@@ -80,14 +80,14 @@ public class AwarenessReplicaBalance {
 
     /*
     For a cluster having zone as awareness attribute , it will return the size of zones if set it forced awareness attributes
-
+    
     If there are multiple forced awareness attributes, it will return size of the largest list, as all copies of data
     is supposed to get distributed amongst those.
-
+    
     cluster.routing.allocation.awareness.attributes: rack_id , zone
     cluster.routing.allocation.awareness.force.zone.values: zone1, zone2
     cluster.routing.allocation.awareness.force.rack_id.values: rack_id1, rack_id2, rack_id3
-
+    
     In this case,  awareness attributes would be 3.
      */
     public int maxAwarenessAttributes() {

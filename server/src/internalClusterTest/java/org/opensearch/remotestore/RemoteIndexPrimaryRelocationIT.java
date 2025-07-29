@@ -16,8 +16,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
 
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
 

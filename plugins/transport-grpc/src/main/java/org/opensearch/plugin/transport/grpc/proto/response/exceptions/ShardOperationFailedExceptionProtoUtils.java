@@ -8,8 +8,6 @@
 package org.opensearch.plugin.transport.grpc.proto.response.exceptions;
 
 import org.opensearch.core.action.ShardOperationFailedException;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ObjectMap;
 
 /**

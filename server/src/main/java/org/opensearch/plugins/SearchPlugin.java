@@ -690,7 +690,7 @@ public interface SearchPlugin {
          * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser reads the aggregation builder from XContent
-
+        
          */
         public PipelineAggregationSpec(
             String name,
