@@ -52,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Star-Tree] Add search support for ip field type ([#18671](https://github.com/opensearch-project/OpenSearch/pull/18671))
 - [Derived Source] Add integration of derived source feature across various paths like get/search/recovery ([#18565](https://github.com/opensearch-project/OpenSearch/pull/18565))
 - Add build-tooling to run in the FIPS environment ([#18921](https://github.com/opensearch-project/OpenSearch/pull/18921))
+- Make test-suite runnable under FIPS compliance support ([#18491](https://github.com/opensearch-project/OpenSearch/pull/18491))
 
 ### Changed
 - Update Subject interface to use CheckedRunnable ([#18570](https://github.com/opensearch-project/OpenSearch/issues/18570))
