@@ -247,6 +247,9 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory.swap.current", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.max", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.current", "read";
+  permission java.io.FilePermission "/home/iigonin/.nssdb", "read";
+  permission java.io.FilePermission "/home/iigonin/.nssdb/-", "read";
+  permission java.io.FilePermission "/usr/lib/libnss3.so", "read"; // For NSS library
 
   // needed by RestClientBuilder
   permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";

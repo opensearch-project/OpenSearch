@@ -66,6 +66,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
@@ -88,7 +89,6 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -358,7 +358,8 @@ class S3Service implements Closeable {
         // This part was taken from AWS settings
         try {
             final SSLContext sslCtx = SSLContext.getInstance("TLS");
-            sslCtx.init(SystemPropertyTlsKeyManagersProvider.create().keyManagers(), null, new SecureRandom());
+            sslCtx.init(SystemPropertyTlsKeyManagersProvider.create().keyManagers(), null, Randomness.createSecure());
+
             return new SdkTlsSocketFactory(sslCtx, new DefaultHostnameVerifier()) {
                 @Override
                 public Socket createSocket(final HttpContext ctx) throws IOException {

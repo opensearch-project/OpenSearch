@@ -32,6 +32,8 @@
 
 package org.opensearch.common.ssl;
 
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
+import org.opensearch.bootstrap.MultiProviderTrustStoreHandler;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
@@ -50,16 +52,42 @@ import static org.hamcrest.Matchers.not;
 public class DefaultJdkTrustConfigTests extends OpenSearchTestCase {
 
     private static final BiFunction<String, String, String> EMPTY_SYSTEM_PROPERTIES = (key, defaultValue) -> defaultValue;
+    private static final BiFunction<String, String, String> PKCS11_SYSTEM_PROPERTIES = (key, defaultValue) -> {
+        if ("javax.net.ssl.trustStoreType".equals(key)) {
+            return "PKCS11";
+        }
+        return defaultValue;
+    };
+    private static final BiFunction<String, String, String> BCFKS_SYSTEM_PROPERTIES = (key, defaultValue) -> {
+        if ("javax.net.ssl.trustStoreType".equals(key)) {
+            return "BCFKS";
+        }
+        return defaultValue;
+    };
+    private static final BiFunction<String, String, String> FIPS_AWARE_SYSTEM_PROPERTIES = CryptoServicesRegistrar.isInApprovedOnlyMode()
+        ? BCFKS_SYSTEM_PROPERTIES
+        : EMPTY_SYSTEM_PROPERTIES;
+
+    public void testGetSystemPKCS11TrustStoreWithSystemProperties() throws Exception {
+        assumeTrue(
+            "Should only run when PKCS11 provider is installed.",
+            MultiProviderTrustStoreHandler.findPKCS11ProviderService().isPresent()
+        );
+        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(PKCS11_SYSTEM_PROPERTIES);
+        assertThat(trustConfig.getDependentFiles(), emptyIterable());
+        final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
+        assertStandardIssuers(trustManager);
+    }
 
     public void testGetSystemTrustStoreWithNoSystemProperties() throws Exception {
-        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(EMPTY_SYSTEM_PROPERTIES);
+        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(FIPS_AWARE_SYSTEM_PROPERTIES);
         assertThat(trustConfig.getDependentFiles(), emptyIterable());
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         assertStandardIssuers(trustManager);
     }
 
     public void testGetNonPKCS11TrustStoreWithPasswordSet() throws Exception {
-        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(EMPTY_SYSTEM_PROPERTIES, "fakepassword".toCharArray());
+        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(FIPS_AWARE_SYSTEM_PROPERTIES, "fakepassword".toCharArray());
         assertThat(trustConfig.getDependentFiles(), emptyIterable());
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         assertStandardIssuers(trustManager);
