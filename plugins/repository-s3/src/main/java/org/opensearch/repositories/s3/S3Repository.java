@@ -180,7 +180,7 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(
         "s3_async_client_type",
-        "crt",
+        CRT_ASYNC_HTTP_CLIENT_TYPE,
         Setting.Property.NodeScope
     );
 
