@@ -37,6 +37,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.PublicApi;
 
+import java.util.function.Supplier;
+
 /**
  * A logger that logs deprecation notices. Logger should be initialized with a parent logger which name will be used
  * for deprecation logger. For instance <code>DeprecationLogger.getLogger("org.opensearch.test.SomeClass")</code> will
@@ -44,10 +46,10 @@ import org.opensearch.common.annotation.PublicApi;
  * <code>deprecation</code> logger defined in log4j2.properties.
  * <p>
  * Logs are emitted at the custom {@link #DEPRECATION} level, and routed wherever they need to go using log4j. For example,
- * to disk using a rolling file appender, or added as a response header using {@link HeaderWarningAppender}.
+ * to disk using a rolling file appender, or added as a response header using {org.opensearch.common.logging.HeaderWarningAppender}.
  * <p>
  * Deprecation messages include a <code>key</code>, which is used for rate-limiting purposes. The log4j configuration
- * uses {@link RateLimitingFilter} to prevent the same message being logged repeatedly in a short span of time. This
+ * uses {org.opensearch.common.logging.RateLimitingFilter} to prevent the same message being logged repeatedly in a short span of time. This
  * key is combined with the <code>X-Opaque-Id</code> request header value, if supplied, which allows for per-client
  * message limiting.
  *
@@ -108,6 +110,26 @@ public class DeprecationLogger {
     }
 
     /**
+     * Supplier for X-Opaque-Id values, shared across all DeprecationLogger instances.
+     * This is typically set by HeaderWarning during node initialization.
+     */
+    private static volatile Supplier<String> xOpaqueIdSupplier = () -> "";
+
+    /**
+     * Sets the supplier for X-Opaque-Id values. This is typically called by HeaderWarning
+     * during node initialization to provide access to the current request's X-Opaque-Id.
+     *
+     * @param supplier the supplier that provides X-Opaque-Id values
+     */
+    public static void setXOpaqueIdSupplier(Supplier<String> supplier) {
+        xOpaqueIdSupplier = supplier != null ? supplier : () -> "";
+    }
+
+    private static String getXOpaqueId() {
+        return xOpaqueIdSupplier.get();
+    }
+
+    /**
      * The builder for the deprecation logger
      *
      * @opensearch.api
@@ -118,7 +140,7 @@ public class DeprecationLogger {
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
             // Check if the logger is enabled to skip the overhead of deduplicating messages if the logger is disabled
             if (logger.isEnabled(DEPRECATION)) {
-                DeprecatedMessage deprecationMessage = new DeprecatedMessage(key, HeaderWarning.getXOpaqueId(), msg, params);
+                DeprecatedMessage deprecationMessage = new DeprecatedMessage(key, getXOpaqueId(), msg, params);
                 if (!deprecationMessage.isAlreadyLogged()) {
                     logger.log(DEPRECATION, deprecationMessage);
                 }

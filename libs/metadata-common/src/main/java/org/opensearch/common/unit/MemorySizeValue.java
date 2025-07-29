@@ -35,8 +35,9 @@ package org.opensearch.common.unit;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.monitor.jvm.JvmInfo;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.util.Objects;
 
 import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -61,12 +62,18 @@ public enum MemorySizeValue {
                 if (percent < 0 || percent > 100) {
                     throw new OpenSearchParseException("percentage should be in [0-100], got [{}]", percentAsString);
                 }
-                return new ByteSizeValue((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()), ByteSizeUnit.BYTES);
+                return new ByteSizeValue((long) ((percent / 100) * getHeapMax()), ByteSizeUnit.BYTES);
             } catch (NumberFormatException e) {
                 throw new OpenSearchParseException("failed to parse [{}] as a double", e, percentAsString);
             }
         } else {
             return parseBytesSizeValue(sValue, settingName);
         }
+    }
+
+    private static long getHeapMax() {
+        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        long heapMax = memoryMXBean.getHeapMemoryUsage().getMax();
+        return heapMax < 0 ? 0 : heapMax;
     }
 }
