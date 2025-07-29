@@ -1,0 +1,183 @@
+---
+"Terms Query - Lookup by Query":
+  - do:
+      indices.create:
+        index: lookup_index
+        body:
+          mappings:
+            properties:
+              tag:
+                type: keyword
+              followers:
+                type: keyword
+              group:
+                type: keyword
+  - do:
+      bulk:
+        index: lookup_index
+        refresh: true
+        body:
+          - { index: { _id: "1" } }
+          - { tag: "a", followers: ["foo", "bar"], group: "g1" }
+          - { index: { _id: "2" } }
+          - { tag: "b", followers: ["baz", "foo"], group: "g1" }
+          - { index: { _id: "3" } }
+          - { tag: "c", group: "g2" }
+          - { index: { _id: "4" } }
+          - { tag: "d", followers: [], group: "g1" }
+          - { index: { _id: "5" } }
+          - { tag: "e", followers: "baz", group: "g2" }
+          - { index: { _id: "6" } }
+          - { tag: "f", followers: null, group: "g1" }
+  - do:
+      indices.create:
+        index: main_index
+        body:
+          mappings:
+            properties:
+              user:
+                type: keyword
+              tag:
+                type: keyword
+  - do:
+      bulk:
+        index: main_index
+        refresh: true
+        body:
+          - { index: { _id: "u1" } }
+          - { user: "foo", tag: "a" }
+          - { index: { _id: "u2" } }
+          - { user: "bar", tag: "b" }
+          - { index: { _id: "u3" } }
+          - { user: "baz", tag: "c" }
+          - { index: { _id: "u4" } }
+          - { user: "qux", tag: "d" }
+          - { index: { _id: "u5" } }
+          - { user: "foo", tag: "e" }
+
+  # Match all docs in lookup_index with group=g1, use their 'followers' as terms
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    group: "g1"
+  - match: { hits.total: 4 } # foo (u1), bar (u2), baz (u3), foo (u5)
+
+  # Query returns docs, but some have missing/null/empty field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  terms:
+                    tag: ["a", "c", "f"]
+  - match: { hits.total: 3 } # foo (u1), bar (u2), foo (u5)
+
+  # Query returns docs but field is always empty list
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    tag: "d"
+  - match: { hits.total: 0 } # No terms found
+
+  # Query returns docs but field is scalar, not array
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    tag: "e"
+  - match: { hits.total: 1 } # Only user baz (from doc 5: followers="baz")
+
+  # Query returns no docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    tag: "zzz"
+  - match: { hits.total: 0 }
+
+  # Query returns docs, some with missing field, some with lists, some with nulls
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  terms:
+                    tag: ["a", "b", "c", "d", "e", "f"]
+  - match: { hits.total: 4 } # foo (u1), bar (u2), baz (u3), foo (u5)
+
+  # Duplicates across docs should be deduplicated (foo appears in 2 docs)
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  terms:
+                    tag: ["a", "b"]
+  - match: { hits.total: 4 } # foo (u1), bar (u2), baz (u3), foo (u5)
+
+  # Query returns docs but none have the field specified
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: not_a_field
+                query:
+                  match_all: {}
+  - match: { hits.total: 0 }
