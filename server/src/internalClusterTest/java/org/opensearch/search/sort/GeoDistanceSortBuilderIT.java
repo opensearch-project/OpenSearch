@@ -44,6 +44,7 @@ import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.GeoValidationMethod;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
@@ -465,6 +466,23 @@ public class GeoDistanceSortBuilderIT extends ParameterizedStaticSettingsOpenSea
         assertThat(
             (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
             closeTo(GeoDistance.ARC.calculate(40.7128, -74.0060, 48.8331, 2.3264, DistanceUnit.KILOMETERS), 1.e-1)
+        );
+
+        geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, new GeoPoint(9.227400, 49.189800));
+        searchResponse = client().prepareSearch()
+            .setQuery(new MatchAllQueryBuilder())
+            .addSort(geoDistanceSortBuilder
+                .unit(DistanceUnit.KILOMETERS)
+                .ignoreUnmapped(true)
+                .order(SortOrder.DESC)
+                .geoDistance(GeoDistance.ARC)
+                .sortMode(SortMode.MIN))
+            .setSize(10)
+            .get();
+        assertOrderedSearchHits(searchResponse, "d1");
+        assertThat(
+            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
+            closeTo(GeoDistance.ARC.calculate(9.227400, 49.189800, 48.8331, 2.3264, DistanceUnit.KILOMETERS), 1.e-1)
         );
     }
 }

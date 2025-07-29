@@ -28,3 +28,12 @@ setup:
             sort: [{_geo_distance: {location: {lat: 40.7128, lon: -74.0060}, ignore_unmapped: true, order: "desc", unit: "km"}}]
             size: 4
   - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+          index: index
+          body:
+            query: { match_all: {} }
+            sort: [{_geo_distance: {location: [9.227400, 49.189800], order: "desc", unit: "km", distance_type: "arc", mode: "min", ignore_unmapped: true } } ]
+            size: 10
+  - match: { hits.total.value: 1 }
