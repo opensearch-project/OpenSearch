@@ -54,7 +54,6 @@ import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
 import org.opensearch.index.merge.MergeStats;
-import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -214,39 +213,6 @@ public class RestShardsAction extends AbstractListAction {
         table.addCell("merges.total_docs", "alias:mtd,mergesTotalDocs;default:false;text-align:right;desc:docs merged");
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
-
-        table.addCell(
-            "mergedSegmentWarmer.total_warm_invocations",
-            "alias:mswtwi,mergedSegmentWarmerTotalWarmInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
-        );
-        table.addCell(
-            "mergedSegmentWarmer.total_warm_time_millis",
-            "alias:mswtwtm,mergedSegmentWarmerTotalWarmTimeMillis;default:false;text-align:right;desc:UPDATE"
-        );
-        table.addCell(
-            "mergedSegmentWarmer.ongoing_warms",
-            "alias:mswow,mergedSegmentWarmerOngoingWarms;default:false;text-align:right;desc:UPDATE"
-        );
-        table.addCell(
-            "mergedSegmentWarmer.total_bytes_downloaded",
-            "alias:mswtbd,mergedSegmentWarmerTotalBytesDownloaded;default:false;text-align:right;desc:UPDATE"
-        );
-        table.addCell(
-            "mergedSegmentWarmer.total_bytes_uploaded",
-            "alias:mswtbu,mergedSegmentWarmerTotalBytesUploaded;default:false;text-align:right;desc:UPDATE"
-        );
-        table.addCell(
-            "mergedSegmentWarmer.total_download_time_millis",
-            "alias:mswtdtm,mergedSegmentWarmerTotalDownloadTimeMillis;default:false;text-align:right;desc:UPDATE"
-        );
-        table.addCell(
-            "mergedSegmentWarmer.total_warm_failure_count",
-            "alias:mswtwfc,mergedSegmentWarmerTotalWarmFailureCount;default:false;text-align:right;desc:UPDATE"
-        );
-        table.addCell(
-            "mergedSegmentWarmer.total_upload_time_millis",
-            "alias:mswtutm,mergedSegmentWarmerTotalUploadTimeMillis;default:false;text-align:right;desc:UPDATE"
-        );
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
@@ -478,19 +444,6 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalNumDocs));
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalSize));
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalTime));
-
-            table.addCell(
-                getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalWarmInvocationsCount)
-            );
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalWarmTimeMillis));
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getOngoingWarms));
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalBytesDownloaded));
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalBytesUploaded));
-            table.addCell(
-                getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalDownloadTimeMillis)
-            );
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalWarmFailureCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalUploadTimeMillis));
 
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotal));
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotalTime));

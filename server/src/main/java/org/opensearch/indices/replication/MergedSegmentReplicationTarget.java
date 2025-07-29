@@ -55,14 +55,7 @@ public class MergedSegmentReplicationTarget extends AbstractSegmentReplicationTa
         List<StoreFileMetadata> filesToFetch,
         StepListener<GetSegmentFilesResponse> getFilesListener
     ) {
-        source.getMergedSegmentFiles(
-            getId(),
-            checkpoint,
-            filesToFetch,
-            indexShard,
-            this::updateMergedSegmentFileRecoveryBytes,
-            getFilesListener
-        );
+        source.getMergedSegmentFiles(getId(), checkpoint, filesToFetch, indexShard, this::updateFileRecoveryBytes, getFilesListener);
     }
 
     @Override

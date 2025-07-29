@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckpointAction<
     RemoteStorePublishMergedSegmentRequest,
     RemoteStorePublishMergedSegmentRequest> implements MergedSegmentPublisher.PublishAction {
+
     public static final String ACTION_NAME = "indices:admin/remote_publish_merged_segment";
 
     private final static Logger logger = LogManager.getLogger(RemoteStorePublishMergedSegmentAction.class);
@@ -82,10 +83,8 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
     protected void doReplicaOperation(RemoteStorePublishMergedSegmentRequest shardRequest, IndexShard replica) {
         RemoteStoreMergedSegmentCheckpoint checkpoint = shardRequest.getMergedSegment();
         if (checkpoint.getShardId().equals(replica.shardId())) {
-            long startTime = System.currentTimeMillis();
             replica.getRemoteDirectory().markPendingMergedSegmentsDownload(checkpoint.getLocalToRemoteSegmentFilenameMap());
             replicationService.onNewMergedSegmentCheckpoint(checkpoint, replica);
-            replica.addTotalDownloadTimeMillis(System.currentTimeMillis() - startTime);
         }
     }
 
@@ -111,7 +110,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         long elapsedTimeMillis = endTimeMillis - startTimeMillis;
         long timeoutMillis = indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().millis();
         long timeLeftMillis = Math.max(0, timeoutMillis - elapsedTimeMillis);
-        indexShard.addTotalUploadTimeMillis(elapsedTimeMillis);
+
         if (timeLeftMillis > 0) {
             RemoteStoreMergedSegmentCheckpoint remoteStoreMergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
                 mergedSegmentCheckpoint,
@@ -164,7 +163,6 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             @Override
             public void onSuccess(String file) {
                 localToRemoteStoreFilenames.put(file, indexShard.getRemoteDirectory().getExistingRemoteFilename(file));
-                indexShard.addTotalBytesUploaded(checkpoint.getMetadataMap().get(file).length());
             }
 
             @Override
