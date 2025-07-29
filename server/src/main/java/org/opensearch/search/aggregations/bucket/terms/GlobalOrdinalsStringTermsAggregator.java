@@ -855,7 +855,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
 
                 // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
-                // partiallyBuiltBucketComparator is null for significantTerm Aggregations
+                // partiallyBuiltBucketComparator is null for significantTerm Aggregations use case and the way buckets sorted in the
+                // priority queue is based on the significanceScore
                 if ((size < 0.20 * valueCount) || isKeyOrder(order) || partiallyBuiltBucketComparator == null) {
                     PriorityQueue<TB> ordered = buildPriorityQueue(size);
                     final int finalOrdIdx = ordIdx;
