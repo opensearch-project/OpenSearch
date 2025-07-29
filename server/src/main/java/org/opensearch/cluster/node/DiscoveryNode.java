@@ -136,7 +136,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     private final String hostName;
     private final String hostAddress;
     private final TransportAddress address;
-    private TransportAddress streamAddress;
+    private final TransportAddress streamAddress;
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
