@@ -913,7 +913,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         }
                     });
                     // If total collected buckets greater than request size, use quickSelect to get topN buckets
-                    if (tot[0] > size && partiallyBuiltBucketComparator != null) {
+                    if (tot[0] > size) {
                         ArrayUtil.select(
                             bucketsForOrdArr,
                             0,
