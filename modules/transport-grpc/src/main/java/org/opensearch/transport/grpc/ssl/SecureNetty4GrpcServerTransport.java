@@ -126,7 +126,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         return new JdkSslContext(
             sslContext.get(),
             false,
-            params.cipherSuites(),
+            null,
             SupportedCipherSuiteFilter.INSTANCE,
             new ApplicationProtocolConfig(
                 ApplicationProtocolConfig.Protocol.ALPN,

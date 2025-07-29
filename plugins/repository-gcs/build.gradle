@@ -42,6 +42,7 @@ import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 ext {
   guava_version = "33.4.0-jre"
@@ -94,6 +95,7 @@ dependencies {
   runtimeOnly "com.google.api.grpc:proto-google-cloud-storage-v2:2.55.0"
   runtimeOnly "io.grpc:grpc-api:1.71.0"
 
+  testFipsRuntimeOnly libs.bundles.bouncycastle
   testImplementation project(':test:fixtures:gcs-fixture')
 }
 

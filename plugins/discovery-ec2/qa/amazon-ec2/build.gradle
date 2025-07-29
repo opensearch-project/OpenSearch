@@ -38,9 +38,11 @@ import org.opensearch.gradle.test.rest.YamlRestTestPlugin
 import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'opensearch.yaml-rest-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 dependencies {
   yamlRestTestImplementation project(':plugins:discovery-ec2')
+  testFipsRuntimeOnly libs.bundles.bouncycastle
 }
 
 restResources {
