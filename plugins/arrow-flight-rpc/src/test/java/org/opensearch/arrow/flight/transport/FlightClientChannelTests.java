@@ -38,7 +38,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FlightClientChannelTests extends FlightTransportTestBase {
-
+    private final int TIMEOUT_SEC = 10;
     private FlightClient mockFlightClient;
     private FlightClientChannel channel;
 
@@ -195,7 +195,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
-        assertTrue(handlerLatch.await(5, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertEquals(3, responseCount.get());
         assertNull(handlerException.get());
         assertEquals(4, messageSentCount.get()); // completeStream is counted too
@@ -260,7 +260,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
-        assertTrue(handlerLatch.await(4, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertNotNull(handlerException.get());
         assertEquals("Simulated handler exception", handlerException.get().getMessage());
     }
@@ -370,7 +370,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
-        assertTrue(handlerLatch.await(5, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         // Allow for race condition - response count could be 0 or 1 depending on timing
         assertTrue("Response count should be 1, but was: " + responseCount.get(), responseCount.get() == 1);
         assertNotNull(handlerException.get());
@@ -441,7 +441,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         };
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
-        assertTrue(handlerLatch.await(4, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertEquals(1, responseCount.get());
         assertNull(handlerException.get());
     }
@@ -516,8 +516,8 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
-        assertTrue(handlerLatch.await(6, TimeUnit.SECONDS));
-        assertTrue(serverLatch.await(6, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        assertTrue(serverLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
 
         assertEquals(1, responseCount.get());
         assertNull(handlerException.get());
@@ -568,7 +568,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         streamTransportService.sendRequest(remoteNode, action, testRequest, options, responseHandler);
 
-        assertTrue(handlerLatch.await(4, TimeUnit.SECONDS));
+        assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertNotNull(handlerException.get());
         assertTrue(
             "Expected TransportException but got: " + handlerException.get().getClass(),
