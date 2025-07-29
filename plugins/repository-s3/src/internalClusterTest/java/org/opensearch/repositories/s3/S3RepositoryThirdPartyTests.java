@@ -95,8 +95,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
         final String endpoint = System.getProperty("test.s3.endpoint");
         final boolean pathStyleAccess = Boolean.parseBoolean(System.getProperty("test.s3.path_style_access"));
-        settings.put("path_style_access",pathStyleAccess);
-        
+        settings.put("path_style_access", pathStyleAccess);
+
         if (endpoint != null) {
             settings.put("endpoint", endpoint);
         } else {
