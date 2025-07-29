@@ -57,14 +57,29 @@ public abstract class GrokCaptureExtracter {
             result = captureConfig.isEmpty() ? emptyMap() : new HashMap<>();
             fieldExtracters = new ArrayList<>(captureConfig.size());
             for (GrokCaptureConfig config : captureConfig) {
-                fieldExtracters.add(config.objectExtracter(v -> result.put(config.name(), v)));
+                fieldExtracters.add(config.objectExtracter(v -> {
+                    String fieldName = config.name();
+                    Object existing = result.get(fieldName);
+                    if (existing == null) {
+                        result.put(fieldName, v);
+                    } else if (existing instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> list = (List<Object>) existing;
+                        list.add(v);
+                    } else {
+                        List<Object> list = new ArrayList<>();
+                        list.add(existing);
+                        list.add(v);
+                        result.put(fieldName, list);
+                    }
+                }));
             }
         }
 
         @Override
-        void extract(byte[] utf8Bytes, int offset, Region region) {
+        void extract(byte[] utf8Bytes, int offset, Region region, boolean captureAllMatches) {
             for (GrokCaptureExtracter extracter : fieldExtracters) {
-                extracter.extract(utf8Bytes, offset, region);
+                extracter.extract(utf8Bytes, offset, region, captureAllMatches);
             }
         }
 
@@ -73,5 +88,5 @@ public abstract class GrokCaptureExtracter {
         }
     }
 
-    abstract void extract(byte[] utf8Bytes, int offset, Region region);
+    abstract void extract(byte[] utf8Bytes, int offset, Region region, boolean captureAllMatches);
 }
