@@ -167,7 +167,7 @@
                     tag: ["a", "b"]
   - match: { hits.total: 4 } # foo (u1), bar (u2), baz (u3), foo (u5)
 
-  # Query returns docs but none have the field specified
+  # Query returns docs but none have the field specified.
   - do:
       search:
         rest_total_hits_as_int: true
