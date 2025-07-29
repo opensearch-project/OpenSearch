@@ -88,7 +88,7 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
-    private static final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/=";
+    private static final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="; // has to be at least 112 bit strong to test in FIPS mode.
     private static HttpsServer server;
     private static Consumer<HttpsExchange> handler = ignore -> {};
 
@@ -133,7 +133,6 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -169,7 +168,6 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
     }
 
     public void testClientSucceedsWithVerificationDisabled() throws IOException {
-        assumeFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -177,10 +175,21 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
             .put("reindex.ssl.supported_protocols", "TLSv1.2")
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
-            final Response response = client.performRequest(new Request("GET", "/"));
-            assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
+
+        if (inFipsJvm()) {
+            try {
+                new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
+                fail("expected IllegalStateException");
+            } catch (Exception e) {
+                assertThat(e, Matchers.instanceOf(IllegalStateException.class));
+                assertThat(e.getMessage(), Matchers.containsString("The use of TrustEverythingConfig is not permitted in FIPS mode"));
+            }
+        } else {
+            final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
+            try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+                final Response response = client.performRequest(new Request("GET", "/"));
+                assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
+            }
         }
     }
 

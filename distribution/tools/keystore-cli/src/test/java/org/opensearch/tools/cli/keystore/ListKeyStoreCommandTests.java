@@ -61,7 +61,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testEmpty() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
         createKeystore(password);
         terminal.addSecretInput(password);
         execute();
@@ -69,7 +69,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testOne() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
         createKeystore(password, "foo", "bar");
         terminal.addSecretInput(password);
         execute();
@@ -77,7 +77,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMultiple() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
         createKeystore(password, "foo", "1", "baz", "2", "bar", "3");
         terminal.addSecretInput(password);
         execute();
@@ -100,6 +100,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testListWithUnprotectedKeystore() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         createKeystore("", "foo", "bar");
         execute();
         // Not prompted for a password

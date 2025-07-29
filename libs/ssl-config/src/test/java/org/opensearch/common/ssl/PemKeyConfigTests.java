@@ -73,6 +73,7 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
     }
 
     public void testBuildKeyConfigFromPkcs1PemFilesWithPassword() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
         final Path cert = getDataPath("/certs/cert2/cert2-pkcs1.crt");
         final Path key = getDataPath("/certs/cert2/cert2-pkcs1.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());
@@ -89,7 +90,6 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
     }
 
     public void testBuildKeyConfigFromPkcs8PemFilesWithPassword() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
         final Path key = getDataPath("/certs/cert2/cert2.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, STRONG_PRIVATE_SECRET.get());
@@ -136,7 +136,7 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
 
         Files.copy(cert2, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key2, key, StandardCopyOption.REPLACE_EXISTING);
-        assertPasswordIsIncorrect(keyConfig, key);
+        assertPasswordNotSet(keyConfig, key);
 
         Files.copy(cert1, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key1, key, StandardCopyOption.REPLACE_EXISTING);
@@ -171,6 +171,14 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
         final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
         assertThat(exception.getMessage(), containsString("private key file"));
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
+        assertThat(exception, instanceOf(SslConfigException.class));
+    }
+
+    private void assertPasswordNotSet(PemKeyConfig keyConfig, Path key) {
+        final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
+        assertThat(exception.getMessage(), containsString("cannot read encrypted key"));
+        assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
+        assertThat(exception.getMessage(), containsString("without a password"));
         assertThat(exception, instanceOf(SslConfigException.class));
     }
 
