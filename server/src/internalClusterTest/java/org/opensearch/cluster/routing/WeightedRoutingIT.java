@@ -898,7 +898,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 30; i++) {
             client().prepareIndex("test_index").setId(String.valueOf(i)).setSource("field", "value" + i).get();
         }
-        refresh("test_index");
+        refreshAndWaitForReplication("test_index");
 
         /*
         Execute the same match all query with custom string preference.
