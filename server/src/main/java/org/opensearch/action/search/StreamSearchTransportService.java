@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.StreamChannelActionListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -15,9 +16,11 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
+import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.threadpool.ThreadPool;
@@ -58,7 +61,8 @@ public class StreamSearchTransportService extends SearchTransportService {
                     request,
                     false,
                     (SearchShardTask) task,
-                    new StreamChannelActionListener<>(channel, QUERY_ACTION_NAME, request)
+                    new StreamChannelActionListener<>(channel, QUERY_ACTION_NAME, request),
+                    ThreadPool.Names.STREAM_SEARCH
                 );
             }
         );
@@ -73,7 +77,8 @@ public class StreamSearchTransportService extends SearchTransportService {
                 searchService.executeFetchPhase(
                     request,
                     (SearchShardTask) task,
-                    new StreamChannelActionListener<>(channel, FETCH_ID_ACTION_NAME, request)
+                    new StreamChannelActionListener<>(channel, FETCH_ID_ACTION_NAME, request),
+                    ThreadPool.Names.STREAM_SEARCH
                 );
             }
         );
@@ -84,6 +89,32 @@ public class StreamSearchTransportService extends SearchTransportService {
             (request, channel, task) -> {
                 searchService.canMatch(request, new StreamChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             }
+        );
+        transportService.registerRequestHandler(
+            FREE_CONTEXT_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            SearchFreeContextRequest::new,
+            (request, channel, task) -> {
+                boolean freed = searchService.freeReaderContext(request.id());
+                channel.sendResponseBatch(new SearchFreeContextResponse(freed));
+                channel.completeStream();
+            }
+        );
+
+        transportService.registerRequestHandler(
+            DFS_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
+            ShardSearchRequest::new,
+            (request, channel, task) -> searchService.executeDfsPhase(
+                request,
+                false,
+                (SearchShardTask) task,
+                new StreamChannelActionListener<>(channel, DFS_ACTION_NAME, request),
+                ThreadPool.Names.STREAM_SEARCH
+            )
         );
     }
 
@@ -103,6 +134,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 try {
                     SearchPhaseResult result = response.nextResponse();
                     listener.onResponse(result);
+                    response.close();
                 } catch (Exception e) {
                     response.cancel("Client error during search phase", e);
                     listener.onFailure(e);
@@ -147,6 +179,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 try {
                     FetchSearchResult result = response.nextResponse();
                     listener.onResponse(result);
+                    response.close();
                 } catch (Exception e) {
                     response.cancel("Client error during fetch phase", e);
                     listener.onFailure(e);
@@ -188,6 +221,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                         throw new IllegalStateException("Only one response expected from SearchService.CanMatchResponse");
                     }
                     listener.onResponse(result);
+                    response.close();
                 } catch (Exception e) {
                     response.cancel("Client error during can match", e);
                     listener.onFailure(e);
@@ -213,6 +247,89 @@ public class StreamSearchTransportService extends SearchTransportService {
         transportService.sendChildRequest(
             connection,
             QUERY_CAN_MATCH_NAME,
+            request,
+            task,
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            transportHandler
+        );
+    }
+
+    @Override
+    public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
+        StreamTransportResponseHandler<SearchFreeContextResponse> transportHandler = new StreamTransportResponseHandler<>() {
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<SearchFreeContextResponse> response) {
+                try {
+                    response.nextResponse();
+                    response.close();
+                } catch (Exception ignore) {
+
+                }
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public SearchFreeContextResponse read(StreamInput in) throws IOException {
+                return new SearchFreeContextResponse(in);
+            }
+        };
+        transportService.sendRequest(
+            connection,
+            FREE_CONTEXT_ACTION_NAME,
+            new SearchFreeContextRequest(originalIndices, contextId),
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            transportHandler
+        );
+    }
+
+    @Override
+    public void sendExecuteDfs(
+        Transport.Connection connection,
+        final ShardSearchRequest request,
+        SearchTask task,
+        final SearchActionListener<DfsSearchResult> listener
+    ) {
+        StreamTransportResponseHandler<DfsSearchResult> transportHandler = new StreamTransportResponseHandler<>() {
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<DfsSearchResult> response) {
+                try {
+                    DfsSearchResult result = response.nextResponse();
+                    listener.onResponse(result);
+                    response.close();
+                } catch (Exception e) {
+                    response.cancel("Client error during search phase", e);
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void handleException(TransportException e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.STREAM_SEARCH;
+            }
+
+            @Override
+            public DfsSearchResult read(StreamInput in) throws IOException {
+                return new DfsSearchResult(in);
+            }
+        };
+
+        transportService.sendChildRequest(
+            connection,
+            DFS_ACTION_NAME,
             request,
             task,
             TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),

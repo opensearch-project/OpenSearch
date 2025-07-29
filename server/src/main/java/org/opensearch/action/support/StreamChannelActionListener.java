@@ -50,6 +50,7 @@ public class StreamChannelActionListener<Response extends TransportResponse, Req
         try {
             channel.sendResponse(e);
         } catch (IOException exc) {
+            channel.completeStream();
             throw new RuntimeException(exc);
         }
     }

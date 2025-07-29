@@ -18,6 +18,9 @@ opensearchplugin {
 }
 
 dependencies {
+  // Javassist for bytecode injection chaos testing
+  internalClusterTestImplementation 'org.javassist:javassist:3.29.2-GA'
+
   // all transitive dependencies exported to use arrow-vector and arrow-memory-core
   api "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
   api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
@@ -92,6 +95,33 @@ internalClusterTest {
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+
+  // Enable chaos testing via bytecode injection
+  doFirst {
+    def agentJar = createChaosAgent()
+    jvmArgs "-javaagent:${agentJar}"
+  }
+}
+
+// Task to create chaos agent JAR
+def createChaosAgent() {
+  def agentJar = file("${buildDir}/chaos-agent.jar")
+
+  if (!agentJar.exists()) {
+    def manifestFile = file("${buildDir}/MANIFEST.MF")
+    manifestFile.text = '''Manifest-Version: 1.0
+Premain-Class: org.opensearch.arrow.flight.chaos.ChaosAgent
+Agent-Class: org.opensearch.arrow.flight.chaos.ChaosAgent
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
+'''
+
+    ant.jar(destfile: agentJar, manifest: manifestFile) {
+      fileset(dir: sourceSets.internalClusterTest.output.classesDirs.first(), includes: 'org/opensearch/arrow/flight/chaos/ChaosAgent*.class')
+    }
+  }
+
+  return agentJar.absolutePath
 }
 
 spotless {

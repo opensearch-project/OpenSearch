@@ -205,7 +205,7 @@ class FlightTransport extends TcpTransport {
                     : Location.forGrpcInsecure(NetworkAddress.format(hostAddress), portNumber);
                 ServerHeaderMiddleware.Factory factory = new ServerHeaderMiddleware.Factory();
                 FlightServer server = OSFlightServer.builder()
-                    .allocator(allocator)
+                    .allocator(allocator.newChildAllocator("server", 0, Long.MAX_VALUE))
                     .location(location)
                     .producer(flightProducer)
                     .sslContext(sslContextProvider != null ? sslContextProvider.getServerSslContext() : null)
@@ -240,16 +240,18 @@ class FlightTransport extends TcpTransport {
     protected void stopInternal() {
         try {
             if (flightServer != null) {
+                flightServer.shutdown();
+                flightServer.awaitTermination();
                 flightServer.close();
                 flightServer = null;
             }
             for (ClientHolder holder : flightClients.values()) {
                 holder.flightClient().close();
             }
+            allocator.close();
             flightClients.clear();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
             gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
-            allocator.close();
             if (statsCollector != null) {
                 statsCollector.decrementServerChannelsActive();
             }
@@ -283,7 +285,8 @@ class FlightTransport extends TcpTransport {
             HeaderContext context = new HeaderContext();
             ClientHeaderMiddleware.Factory factory = new ClientHeaderMiddleware.Factory(context, getVersion());
             FlightClient client = OSFlightClient.builder()
-                .allocator(allocator)
+                // TODO configure initial and max reservation setting per client
+                .allocator(allocator.newChildAllocator("client-" + nodeId, 0, Long.MAX_VALUE))
                 .location(location)
                 .channelType(ServerConfig.clientChannelType())
                 .eventLoopGroup(workerEventLoopGroup)

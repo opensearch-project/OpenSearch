@@ -167,14 +167,16 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         if (isClosed) {
             return;
         }
-        if (currentRoot != null) {
-            currentRoot.close();
-            currentRoot = null;
-        }
         try {
+            if (currentRoot != null) {
+                currentRoot.close();
+                currentRoot = null;
+            }
             flightStream.close();
+        } catch (IllegalStateException ignore) {
+            // this is fine if the allocator is already closed
         } catch (Exception e) {
-            throw new StreamException(StreamErrorCode.INTERNAL, "Failed to close flight stream", e);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Error while closing flight stream", e);
         } finally {
             isClosed = true;
         }
