@@ -237,7 +237,9 @@ public class FetchPhase {
         TotalHits totalHits = context.queryResult().getTotalHits();
         context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
 
-        fetchProfiler.endCurrentFetchPhase();
+        if (fetchProfiler != null) {
+            fetchProfiler.endCurrentFetchPhase();
+        }
     }
 
     List<Tuple<FetchSubPhaseProcessor, FetchSubPhase>> getProcessors(SearchShardTarget target, FetchContext context) {
