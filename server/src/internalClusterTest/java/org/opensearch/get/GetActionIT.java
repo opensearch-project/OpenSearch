@@ -42,6 +42,7 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetRequestBuilder;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
@@ -53,7 +54,9 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.utils.Geohash;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -982,6 +985,106 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(ipValues.size(), equalTo(2));
         // Ip field is stored as Sorted Set, so duplicates should be removed and result should be in sorted order
         assertThat(ipValues, containsInRelativeOrder("1.2.3.4", "2.3.4.5"));
+    }
+
+    public void testDerivedSourceTranslogReadPreference() throws Exception {
+        // Create index with derived source enabled and translog read preference set
+        Settings.Builder settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.refresh_interval", -1)
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            .put(
+                IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(),
+                Translog.DerivedSourceReadPreference.DERIVED.name()
+            );
+
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("geopoint_field")
+            .field("type", "geo_point")
+            .endObject()
+            .startObject("date_field")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(mapping));
+        ensureGreen();
+
+        // Index a document
+        IndexResponse indexResponse = client().prepareIndex("test")
+            .setId("1")
+            .setSource(
+                jsonBuilder().startObject().field("geopoint_field", "40.7128,-74.0060").field("date_field", "2025-07-29").endObject()
+            )
+            .get();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        // Get document prior to update, which would be derived source
+        GetResponse getResponse = client().prepareGet("test", "1").get();
+        assertTrue(getResponse.isExists());
+        Map<String, Object> source = getResponse.getSourceAsMap();
+        assertNotNull(source);
+        Map<String, Object> geopoint = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(40.7128, (double) geopoint.get("lat"), 0.0001);
+        assertEquals(-74.0060, (double) geopoint.get("lon"), 0.0001);
+        assertEquals("2025-07-29T00:00:00.000Z", source.get("date_field"));
+
+        // Update document, so that version map gets created and get will be served from translog
+        UpdateResponse updateResponse = client().prepareUpdate("test", "1")
+            .setDoc(jsonBuilder().startObject().field("geopoint_field", "51.5074,-0.1278").field("date_field", "2025-07-30").endObject())
+            .get();
+        assertEquals(RestStatus.OK, updateResponse.status());
+
+        // Get updated document, this will be derived source as per translog read preference setting
+        getResponse = client().prepareGet("test", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull(source);
+        geopoint = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(51.5074, (double) geopoint.get("lat"), 0.0001);
+        assertEquals(-0.1278, (double) geopoint.get("lon"), 0.0001);
+        assertEquals("2025-07-30T00:00:00.000Z", source.get("date_field"));
+
+        // Update translog read preference to source
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(
+                    Settings.builder()
+                        .put(
+                            IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(),
+                            Translog.DerivedSourceReadPreference.SOURCE.name()
+                        )
+                )
+                .get()
+        );
+
+        // Get document after setting update for fetching original source
+        getResponse = client().prepareGet("test", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull(source);
+        assertEquals("51.5074,-0.1278", source.get("geopoint_field"));
+        assertEquals("2025-07-30", source.get("date_field"));
+
+        // Flush the index
+        flushAndRefresh("test");
+
+        // Get document after flush, it should be a derived source
+        getResponse = client().prepareGet("test", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull(source);
+        geopoint = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(51.5074, (double) geopoint.get("lat"), 0.0001);
+        assertEquals(-0.1278, (double) geopoint.get("lon"), 0.0001);
+        assertEquals("2025-07-30T00:00:00.000Z", source.get("date_field"));
     }
 
     void validateDeriveSource(Map<String, Object> source) {

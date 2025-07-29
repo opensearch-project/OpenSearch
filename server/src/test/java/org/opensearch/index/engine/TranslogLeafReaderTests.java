@@ -172,7 +172,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         assertEquals(operation.routing(), routingVal[0]);
     }
 
-    public void testDerivedSourceFields() throws IOException {
+    public void testDerivedSourceFieldsUsingDerivedSource() throws IOException {
         // Setup mapper service with derived source enabled
         Settings derivedSourceSettings = Settings.builder()
             .put(defaultIndexSettings.getSettings())
@@ -212,6 +212,46 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
 
         storedFields.document(0, visitor);
         assertNotNull(sourceRef[0]);
+    }
+
+    public void testDerivedSourceFieldsUsingSource() throws IOException {
+        // Setup mapper service with derived source enabled
+        Settings derivedSourceSettings = Settings.builder()
+            .put(defaultIndexSettings.getSettings())
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(), "source")
+            .build();
+        IndexMetadata derivedMetadata = IndexMetadata.builder("test").settings(derivedSourceSettings).build();
+        IndexSettings derivedIndexSettings = new IndexSettings(derivedMetadata, Settings.EMPTY);
+
+        engineConfig = new EngineConfig.Builder().indexSettings(derivedIndexSettings)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .codecService(new CodecService(null, defaultIndexSettings, logger))
+            .documentMapperForTypeSupplier(() -> null)
+            .build();
+
+        translogLeafReader = new TranslogLeafReader(operation, engineConfig);
+
+        StoredFields storedFields = translogLeafReader.storedFields();
+
+        final BytesReference[] sourceRef = new BytesReference[1];
+        StoredFieldVisitor visitor = new StoredFieldVisitor() {
+            @Override
+            public void binaryField(org.apache.lucene.index.FieldInfo fieldInfo, byte[] value) {
+                if (fieldInfo.name.equals(SourceFieldMapper.NAME)) {
+                    sourceRef[0] = new BytesArray(value);
+                }
+            }
+
+            @Override
+            public Status needsField(org.apache.lucene.index.FieldInfo fieldInfo) {
+                return fieldInfo.name.equals(SourceFieldMapper.NAME) ? Status.YES : Status.NO;
+            }
+        };
+
+        storedFields.document(0, visitor);
+        assertNotNull(sourceRef[0]);
+        assertEquals(operation.source(), sourceRef[0]);
     }
 
     public void testUnsupportedOperations() {
