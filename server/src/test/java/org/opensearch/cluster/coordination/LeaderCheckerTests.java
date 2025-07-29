@@ -65,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_ACTION_NAME;
+import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
@@ -420,6 +421,92 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
         final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
             assertThat(e.getMessage(), endsWith("failed health checks"));
+            assertTrue(leaderFailed.compareAndSet(false, true));
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), clusterManagerMetrics);
+
+        leaderChecker.updateLeader(leader);
+
+        {
+            while (deterministicTaskQueue.getCurrentTimeMillis() < 10 * LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis()) {
+                deterministicTaskQueue.runAllRunnableTasks();
+                deterministicTaskQueue.advanceTime();
+            }
+
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertFalse(leaderFailed.get());
+
+            responseHolder[0] = Response.REMOTE_ERROR;
+
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            assertTrue(leaderFailed.get());
+        }
+
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
+    }
+
+    public void testFollowerFailsImmediatelyOnCoordinationStateRejection() {
+        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final Response[] responseHolder = new Response[] { Response.SUCCESS };
+
+        final Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), localNode.getId())
+            .put(LEADER_CHECK_FAIL_FAST_ON_STATE_REJECTION_SETTING.getKey(), true)
+            .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final MockTransport mockTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    return;
+                }
+                assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
+                assertEquals(node, leader);
+                final Response response = responseHolder[0];
+
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        switch (response) {
+                            case SUCCESS:
+                                handleResponse(requestId, Empty.INSTANCE);
+                                break;
+                            case REMOTE_ERROR:
+                                handleRemoteError(requestId, new CoordinationStateRejectedException("simulated error"));
+                                break;
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return response + " response to request " + requestId;
+                    }
+                });
+            }
+        };
+
+        final TransportService transportService = mockTransport.createTransportService(
+            settings,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet(),
+            NoopTracer.INSTANCE
+        );
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final AtomicBoolean leaderFailed = new AtomicBoolean();
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
+            assertThat(e.getMessage(), endsWith("rejected coordination state"));
             assertTrue(leaderFailed.compareAndSet(false, true));
         }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), clusterManagerMetrics);
 
