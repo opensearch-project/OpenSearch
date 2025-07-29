@@ -15,9 +15,6 @@
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "5" }
 
-  - skip:
-      version: " - 3.1.99"
-      reason: "after 3.2.0 doc_values no longer use SORTED_SET"
   - do:
       search:
         index: test
