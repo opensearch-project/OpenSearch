@@ -16,116 +16,172 @@ import org.apache.lucene.search.ScorerSupplier;
 import java.io.IOException;
 
 /**
- * A resumable DocIdSetIterator that can be used to score documents in batches.
- * This class wraps a ScorerSupplier and creates a new Scorer/DocIdSetIterator only when needed.
- * It maintains state between calls to enable resuming from where it left off.
+ * A resumable DocIdSetIterator that internally expands when it reaches NO_MORE_DOCS.
+ * On the surface, this behaves identically to a regular DISI, but internally it can
+ * expand by scoring additional documents when needed.
  *
- * This implementation is specifically designed for the approximation framework to enable
- * early termination while preserving state between scoring cycles.
+ * The expansion is completely internal - external callers see a normal DISI interface
+ * that continues to return documents even after initially hitting NO_MORE_DOCS.
  */
 public class ResumableDISI extends DocIdSetIterator {
-    private static final int DEFAULT_BATCH_SIZE = 10_000;
+    private static final int DEFAULT_EXPANSION_SIZE = 10_000;
 
     private final ScorerSupplier scorerSupplier;
-    private DocIdSetIterator currentDisi;
-    private final int batchSize;
-    private boolean exhausted = false;
+    private final int expansionSize;
 
-    // State tracking - track batches, not individual document movements
-    private int lastDocID = -1;
-    private int batchCount = 0;  // How many batches we've created
-    private boolean needsNewBatch = true;  // Whether we need to create a new batch
+    // Current state
+    private DocIdSetIterator currentDisi;
+    private int currentDocId = -1;
+    private boolean fullyExhausted = false;
+
+    // BKD traversal state for approximatable queries
+    private BKDState bkdState;
+    private int documentsScored = 0; // Total documents scored across all expansions
 
     /**
-     * Creates a new ResumableDISI with the default batch size of 10,000 documents.
+     * Creates a new ResumableDISI with the default expansion size of 10,000 documents.
      *
      * @param scorerSupplier The scorer supplier to get scorers from
      */
     public ResumableDISI(ScorerSupplier scorerSupplier) {
-        this(scorerSupplier, DEFAULT_BATCH_SIZE);
+        this(scorerSupplier, DEFAULT_EXPANSION_SIZE);
     }
 
     /**
-     * Creates a new ResumableDISI with the specified batch size.
+     * Creates a new ResumableDISI with the specified expansion size.
      *
      * @param scorerSupplier The scorer supplier to get scorers from
-     * @param batchSize The number of documents to score in each batch
+     * @param expansionSize The number of documents to score in each expansion
      */
-    public ResumableDISI(ScorerSupplier scorerSupplier, int batchSize) {
+    public ResumableDISI(ScorerSupplier scorerSupplier, int expansionSize) {
         this.scorerSupplier = scorerSupplier;
-        this.batchSize = batchSize;
-    }
-
-    /**
-     * Initializes or resets the internal DocIdSetIterator.
-     * For approximatable queries, this leverages their existing resumable mechanism.
-     * For non-approximatable queries, this creates new scorers as needed.
-     *
-     * @return The current DocIdSetIterator
-     * @throws IOException If there's an error getting the scorer
-     */
-    private DocIdSetIterator getOrCreateDisi() throws IOException {
-        if (exhausted) {
-            return currentDisi; // Already exhausted, no need to create a new one
-        }
-
-        if (currentDisi == null || needsNewBatch) {
-            // Get a new scorer and its iterator
-            // For approximatable queries, the scorer supplier will handle resumable state internally
-            Scorer scorer = scorerSupplier.get(scorerSupplier.cost());
-            currentDisi = scorer.iterator();
-
-            // For non-approximatable queries, we need to advance past the last document
-            // For approximatable queries, they handle this internally via their BKD state
-            if (lastDocID >= 0) {
-                // Check if we need to advance (for non-approximatable queries)
-                if (currentDisi.docID() <= lastDocID) {
-                    currentDisi.advance(lastDocID + 1);
-                }
-            }
-
-            // Mark that we've created a new batch
-            batchCount++;
-            needsNewBatch = false;
-        }
-
-        return currentDisi;
+        this.expansionSize = expansionSize;
+        this.bkdState = new BKDState();
     }
 
     @Override
     public int docID() {
-        if (currentDisi == null) {
-            return -1;
-        }
-        return currentDisi.docID();
+        return currentDocId;
     }
 
     @Override
     public int nextDoc() throws IOException {
-        DocIdSetIterator disi = getOrCreateDisi();
-        int doc = disi.nextDoc();
-
-        if (doc != NO_MORE_DOCS) {
-            lastDocID = doc;
-        } else {
-            exhausted = true;
+        if (fullyExhausted) {
+            return NO_MORE_DOCS;
         }
 
-        return doc;
+        // If we don't have a current iterator, get one
+        if (currentDisi == null) {
+            if (!expandInternally()) {
+                return NO_MORE_DOCS;
+            }
+            // expandInternally() already positioned us on the first document
+            return currentDocId;
+        }
+
+        // Try to get the next document from current iterator
+        int doc = currentDisi.nextDoc();
+
+        if (doc != NO_MORE_DOCS) {
+            currentDocId = doc;
+            return doc;
+        }
+
+        // Current iterator exhausted, try to expand internally
+        if (expandInternally()) {
+            // expandInternally() already positioned us on the first document of the new batch
+            return currentDocId;
+        }
+
+        // No more expansion possible
+        currentDocId = NO_MORE_DOCS;
+        return NO_MORE_DOCS;
     }
 
     @Override
     public int advance(int target) throws IOException {
-        DocIdSetIterator disi = getOrCreateDisi();
-        int doc = disi.advance(target);
-
-        if (doc != NO_MORE_DOCS) {
-            lastDocID = doc;
-        } else {
-            exhausted = true;
+        if (fullyExhausted) {
+            return NO_MORE_DOCS;
         }
 
-        return doc;
+        // If we don't have a current iterator, get one
+        if (currentDisi == null) {
+            if (!expandInternally()) {
+                return NO_MORE_DOCS;
+            }
+            // If the first document is >= target, we're good
+            if (currentDocId >= target) {
+                return currentDocId;
+            }
+            // Otherwise, advance to target
+            int doc = currentDisi.advance(target);
+            if (doc != NO_MORE_DOCS) {
+                currentDocId = doc;
+                return doc;
+            }
+            // Fall through to try expansion
+        } else {
+            // Try to advance current iterator
+            int doc = currentDisi.advance(target);
+            if (doc != NO_MORE_DOCS) {
+                currentDocId = doc;
+                return doc;
+            }
+            // Current iterator exhausted, try to expand
+        }
+
+        // Current iterator exhausted, try to expand internally
+        if (expandInternally()) {
+            // If the first document of new batch is >= target, we're good
+            if (currentDocId >= target) {
+                return currentDocId;
+            }
+            // Otherwise, advance to target
+            int doc = currentDisi.advance(target);
+            if (doc != NO_MORE_DOCS) {
+                currentDocId = doc;
+                return doc;
+            }
+        }
+
+        // No more expansion possible
+        currentDocId = NO_MORE_DOCS;
+        fullyExhausted = true;
+        return NO_MORE_DOCS;
+    }
+
+    /**
+     * Expands the iterator internally by getting a new scorer from the supplier.
+     * This is called when we hit NO_MORE_DOCS but more documents might be available.
+     *
+     * @return true if expansion was successful, false if fully exhausted
+     * @throws IOException If there's an error getting the scorer
+     */
+    private boolean expandInternally() throws IOException {
+        if (fullyExhausted) {
+            return false;
+        }
+
+        // Get a new scorer from the supplier - this will resume from saved BKD state
+        Scorer scorer = scorerSupplier.get(scorerSupplier.cost());
+        if (scorer == null) {
+            fullyExhausted = true;
+            return false;
+        }
+
+        currentDisi = scorer.iterator();
+        documentsScored += expansionSize; // Track total documents scored
+
+        // Check if the new iterator has any documents
+        int firstDoc = currentDisi.nextDoc();
+        if (firstDoc == NO_MORE_DOCS) {
+            fullyExhausted = true;
+            return false;
+        }
+
+        // Position the iterator on the first document
+        currentDocId = firstDoc;
+        return true;
     }
 
     @Override
@@ -134,40 +190,21 @@ public class ResumableDISI extends DocIdSetIterator {
     }
 
     /**
-     * Resets the iterator to start a new batch from the last document ID.
-     * This allows the caller to continue scoring from where it left off.
-     */
-    public void resetForNextBatch() {
-        if (!exhausted) {
-            needsNewBatch = true; // Mark that we need a new batch on next access
-        }
-    }
-
-    /**
-     * Returns the number of batches created so far.
-     *
-     * @return The number of batches created
-     */
-    public int getBatchCount() {
-        return batchCount;
-    }
-
-    /**
-     * Returns whether this iterator has been exhausted.
+     * Returns whether this iterator has been fully exhausted.
      *
      * @return true if there are no more documents to score
      */
     public boolean isExhausted() {
-        return exhausted;
+        return fullyExhausted;
     }
 
     /**
-     * Returns the last document ID that was scored.
+     * Returns the total number of documents scored across all expansions.
      *
-     * @return The last document ID, or -1 if no documents have been scored
+     * @return The total number of documents scored
      */
-    public int getLastDocID() {
-        return lastDocID;
+    public int getDocumentsScored() {
+        return documentsScored;
     }
 
     /**

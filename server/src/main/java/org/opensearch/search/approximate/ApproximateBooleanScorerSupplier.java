@@ -1,15 +1,8 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
 package org.opensearch.search.approximate;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -25,7 +18,7 @@ import java.util.List;
 
 /**
  * A ScorerSupplier implementation for ApproximateBooleanQuery that creates resumable DocIdSetIterators
- * for each clause and coordinates their usage in the boolean query context.
+ * for each clause and uses Lucene's ConjunctionUtils to coordinate them.
  */
 public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
     private final List<Weight> clauseWeights;
@@ -95,8 +88,31 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             }
         }
 
-        // Create an ApproximateConjunctionScorer with the clause iterators
-        return new ApproximateConjunctionScorer(boost, scoreMode, clauseIterators);
+        // Use Lucene's ConjunctionUtils to create the conjunction
+        DocIdSetIterator conjunctionDISI = ConjunctionUtils.intersectIterators(clauseIterators);
+
+        // Create a simple scorer that wraps the conjunction
+        return new Scorer() {
+            @Override
+            public DocIdSetIterator iterator() {
+                return conjunctionDISI;
+            }
+
+            @Override
+            public float score() throws IOException {
+                return boost;
+            }
+
+            @Override
+            public float getMaxScore(int upTo) throws IOException {
+                return boost;
+            }
+
+            @Override
+            public int docID() {
+                return conjunctionDISI.docID();
+            }
+        };
     }
 
     /**
@@ -125,8 +141,73 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             }
         }
 
-        // Create an ApproximateBooleanBulkScorer with the clause iterators
-        return new ApproximateBooleanBulkScorer(clauseIterators, threshold);
+        // Use Lucene's ConjunctionUtils to create the conjunction
+        DocIdSetIterator conjunctionDISI = ConjunctionUtils.intersectIterators(clauseIterators);
+
+        // Create a simple bulk scorer that wraps the conjunction
+        return new BulkScorer() {
+            @Override
+            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                // Create a simple scorer for the collector
+                Scorer scorer = new Scorer() {
+                    @Override
+                    public DocIdSetIterator iterator() {
+                        return conjunctionDISI;
+                    }
+
+                    @Override
+                    public float score() throws IOException {
+                        return boost;
+                    }
+
+                    @Override
+                    public float getMaxScore(int upTo) throws IOException {
+                        return boost;
+                    }
+
+                    @Override
+                    public int docID() {
+                        return conjunctionDISI.docID();
+                    }
+                };
+
+                collector.setScorer(scorer);
+
+                // Track how many documents we've collected
+                int collected = 0;
+                int docID;
+
+                // Continue collecting until we reach the threshold
+                while (collected < threshold) {
+                    // Get the next document from the conjunction
+                    docID = conjunctionDISI.nextDoc();
+
+                    if (docID == DocIdSetIterator.NO_MORE_DOCS) {
+                        // No more documents - ResumableDISIs will expand internally if possible
+                        break;
+                    }
+
+                    if (docID >= max) {
+                        // We've reached the end of the range
+                        return docID;
+                    }
+
+                    if (docID >= min && (acceptDocs == null || acceptDocs.get(docID))) {
+                        // Collect the document
+                        collector.collect(docID);
+                        collected++;
+                    }
+                }
+
+                // We've either collected enough documents or exhausted all possibilities
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return ApproximateBooleanScorerSupplier.this.cost();
+            }
+        };
     }
 
     /**
@@ -154,94 +235,5 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             }
         }
         return cost;
-    }
-
-    /**
-     * A BulkScorer implementation that coordinates multiple DocIdSetIterators (including ResumableDISIs) to implement
-     * the circular scoring process described in the blog.
-     */
-    private static class ApproximateBooleanBulkScorer extends BulkScorer {
-        private final List<DocIdSetIterator> clauseIterators;
-        private final int threshold;
-
-        public ApproximateBooleanBulkScorer(List<DocIdSetIterator> clauseIterators, int threshold) {
-            this.clauseIterators = clauseIterators;
-            this.threshold = threshold;
-        }
-
-        @Override
-        public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
-            // Create an ApproximateConjunctionDISI once and reuse it (preserve conjunction state)
-            ApproximateConjunctionDISI conjunctionDISI = new ApproximateConjunctionDISI(clauseIterators);
-
-            // Create a scorer for the collector that reuses the same conjunction
-            ApproximateConjunctionScorer scorer = new ApproximateConjunctionScorer(0.0f, ScoreMode.COMPLETE, conjunctionDISI);
-
-            // Set the scorer on the collector
-            collector.setScorer(scorer);
-
-            // Track how many documents we've collected
-            int collected = 0;
-            int docID;
-
-            // Continue collecting until we reach the threshold
-            while (collected < threshold) {
-                // Get the next document from the conjunction
-                docID = conjunctionDISI.nextDoc();
-
-                if (docID == DocIdSetIterator.NO_MORE_DOCS) {
-                    // No more documents in current state - try to expand ResumableDISIs
-                    boolean anyExpanded = false;
-                    for (DocIdSetIterator disi : clauseIterators) {
-                        if (disi instanceof ResumableDISI) {
-                            ResumableDISI resumableDISI = (ResumableDISI) disi;
-                            if (!resumableDISI.isExhausted()) {
-                                resumableDISI.resetForNextBatch(); // This expands the document set
-                                anyExpanded = true;
-                            }
-                        }
-                    }
-
-                    // If no ResumableDISIs were expanded, we're truly done
-                    if (!anyExpanded) {
-                        break;
-                    }
-
-                    // Reset the conjunction so it can continue with expanded iterators
-//                    conjunctionDISI.resetAfterExpansion();
-
-                    // After expansion, check if we're already positioned on a valid document
-                    docID = conjunctionDISI.docID();
-                    if (docID == DocIdSetIterator.NO_MORE_DOCS) {
-                        // Still no document, try nextDoc() in the next iteration
-                        continue;
-                    }
-                    // Fall through to process the current document
-                }
-
-                if (docID >= max) {
-                    // We've reached the end of the range
-                    return docID;
-                }
-
-                if (docID >= min && (acceptDocs == null || acceptDocs.get(docID))) {
-                    // Collect the document
-                    collector.collect(docID);
-                    collected++;
-                }
-            }
-
-            System.out.println(collected);
-            // We've either collected enough documents or exhausted all possibilities
-            return DocIdSetIterator.NO_MORE_DOCS;
-        }
-
-        /**
-         * Same as {@link DocIdSetIterator#cost()} for bulk scorers.
-         */
-        @Override
-        public long cost() {
-            return 0;
-        }
     }
 }
