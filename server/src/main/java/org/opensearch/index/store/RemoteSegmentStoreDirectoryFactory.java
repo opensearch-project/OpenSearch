@@ -63,6 +63,16 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
 
     public Directory newDirectory(String repositoryName, String indexUUID, ShardId shardId, RemoteStorePathStrategy pathStrategy)
         throws IOException {
+        return newDirectory(repositoryName, indexUUID, shardId, pathStrategy, null);
+    }
+
+    public Directory newDirectory(
+        String repositoryName,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        String writerNodeId
+    ) throws IOException {
         assert Objects.nonNull(pathStrategy);
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
 
@@ -78,6 +88,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .dataCategory(SEGMENTS)
                 .dataType(DATA)
                 .fixedPrefix(segmentsPathFixedPrefix)
+                .writerNodeId(writerNodeId)
                 .build();
             // Derive the path for data directory of SEGMENTS
             BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
@@ -95,6 +106,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .dataCategory(SEGMENTS)
                 .dataType(METADATA)
                 .fixedPrefix(segmentsPathFixedPrefix)
+                .writerNodeId(writerNodeId)
                 .build();
             // Derive the path for metadata directory of SEGMENTS
             BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
@@ -107,7 +119,8 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 indexUUID,
                 shardIdStr,
                 pathStrategy,
-                segmentsPathFixedPrefix
+                segmentsPathFixedPrefix,
+                writerNodeId
             );
 
             return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId);

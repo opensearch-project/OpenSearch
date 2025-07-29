@@ -230,12 +230,14 @@ public class RemoteStorePathStrategy {
         private final String shardId;
         private final DataCategory dataCategory;
         private final DataType dataType;
+        private final String writerNodeId;
 
         public ShardDataPathInput(Builder builder) {
             super(builder);
             this.shardId = Objects.requireNonNull(builder.shardId);
             this.dataCategory = Objects.requireNonNull(builder.dataCategory);
             this.dataType = Objects.requireNonNull(builder.dataType);
+            this.writerNodeId = builder.writerNodeId; // Can be null
             assert dataCategory.isSupportedDataType(dataType) : "category:"
                 + dataCategory
                 + " type:"
@@ -258,7 +260,12 @@ public class RemoteStorePathStrategy {
 
         @Override
         BlobPath fixedSubPath() {
-            return super.fixedSubPath().add(shardId).add(dataCategory.getName()).add(dataType.getName());
+            BlobPath path = super.fixedSubPath().add(shardId);
+            // Only add writer node ID if it's explicitly set and not empty
+            if (writerNodeId != null && !writerNodeId.trim().isEmpty()) {
+                path = path.add(writerNodeId);
+            }
+            return path.add(dataCategory.getName()).add(dataType.getName());
         }
 
         /**
@@ -279,6 +286,7 @@ public class RemoteStorePathStrategy {
             private String shardId;
             private DataCategory dataCategory;
             private DataType dataType;
+            private String writerNodeId;
 
             public Builder shardId(String shardId) {
                 this.shardId = shardId;
@@ -292,6 +300,11 @@ public class RemoteStorePathStrategy {
 
             public Builder dataType(DataType dataType) {
                 this.dataType = dataType;
+                return this;
+            }
+
+            public Builder writerNodeId(String writerNodeId) {
+                this.writerNodeId = writerNodeId;
                 return this;
             }
 
