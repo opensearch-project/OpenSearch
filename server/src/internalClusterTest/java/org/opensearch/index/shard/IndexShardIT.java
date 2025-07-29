@@ -89,6 +89,7 @@ import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -731,7 +732,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             () -> indexService.getIndexSettings().getRefreshInterval(),
             indexService.getRefreshMutex(),
             clusterService.getClusterApplierService(),
-            MergedSegmentPublisher.EMPTY
+            MergedSegmentPublisher.EMPTY,
+            ReferencedSegmentsPublisher.EMPTY
         );
     }
 

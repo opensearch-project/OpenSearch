@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
+- Add hierarchical routing processors for ingest and search pipelines ([#18826](https://github.com/opensearch-project/OpenSearch/pull/18826))
 - Add support for Warm Indices Write Block on Flood Watermark breach ([#18375](https://github.com/opensearch-project/OpenSearch/pull/18375))
 - FS stats for warm nodes based on addressable space ([#18767](https://github.com/opensearch-project/OpenSearch/pull/18767))
 - Add support for custom index name resolver from cluster plugin ([#18593](https://github.com/opensearch-project/OpenSearch/pull/18593))
@@ -36,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add support for plugins to profile information ([#18656](https://github.com/opensearch-project/OpenSearch/pull/18656))
 - Add support for Combined Fields query ([#18724](https://github.com/opensearch-project/OpenSearch/pull/18724))
 - Make GRPC transport extensible to allow plugins to register and expose their own GRPC services ([#18516](https://github.com/opensearch-project/OpenSearch/pull/18516))
+- Added approximation support for range queries with now in date field ([#18511](https://github.com/opensearch-project/OpenSearch/pull/18511))
 
 ### Changed
 - Update Subject interface to use CheckedRunnable ([#18570](https://github.com/opensearch-project/OpenSearch/issues/18570))
@@ -66,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-lang3` from 3.17.0 to 3.18.0 ([#18745](https://github.com/opensearch-project/OpenSearch/pull/18745))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.2 to 10.4 ([#18759](https://github.com/opensearch-project/OpenSearch/pull/18759), [#18804](https://github.com/opensearch-project/OpenSearch/pull/18804))
 - Bump `commons-beanutils:commons-beanutils` from 1.9.4 to 1.11.0 ([#18401](https://github.com/opensearch-project/OpenSearch/issues/18401))
+- Bump `org.xerial.snappy:snappy-java` from 1.1.10.7 to 1.1.10.8 ([#18803](https://github.com/opensearch-project/OpenSearch/pull/18803))
 
 ### Deprecated
 
@@ -85,6 +88,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fixed Staggered merge -  load average replace with AverageTrackers, some Default thresholds modified ([#18666](https://github.com/opensearch-project/OpenSearch/pull/18666))
 - Use `new SecureRandom()` to avoid blocking ([18729](https://github.com/opensearch-project/OpenSearch/issues/18729))
 - Use ScoreDoc instead of FieldDoc when creating TopScoreDocCollectorManager to avoid unnecessary conversion ([#18802](https://github.com/opensearch-project/OpenSearch/pull/18802))
+- Fix leafSorter optimization for ReadOnlyEngine and NRTReplicationEngine ([#18639](https://github.com/opensearch-project/OpenSearch/pull/18639))
 
 ### Security
 
