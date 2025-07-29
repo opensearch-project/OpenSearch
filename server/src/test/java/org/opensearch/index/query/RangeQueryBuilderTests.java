@@ -447,14 +447,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "        }\n"
             + "    }\n"
             + "}";
+
+        // TODO what else can we assert
         QueryShardContext context = createShardContext();
         Query parsedQuery = parseQuery(query).toQuery(context);
-        assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
-        parsedQuery = ((DateRangeIncludingNowQuery) parsedQuery).getQuery();
+
         assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
-        parsedQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
-        assertThat(parsedQuery, instanceOf(ApproximateQuery.class));
-        // TODO what else can we assert
+
+        // Get the exact query from ApproximateScoreQuery (which should be DateRangeIncludingNowQuery)
+        ApproximateScoreQuery approximateScoreQuery = (ApproximateScoreQuery) parsedQuery;
+        Query exactQuery = approximateScoreQuery.getOriginalQuery();
+
+        // The exact query should be DateRangeIncludingNowQuery
+        assertThat(exactQuery, instanceOf(DateRangeIncludingNowQuery.class));
+
+        ApproximateQuery approximationQuery = approximateScoreQuery.getApproximationQuery();
+        assertThat(approximationQuery, instanceOf(ApproximatePointRangeQuery.class));
 
         query = "{\n"
             + "    \"range\" : {\n"

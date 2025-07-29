@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Star-Tree] Add star-tree search related stats ([#18707](https://github.com/opensearch-project/OpenSearch/pull/18707))
 - Add support for plugins to profile information ([#18656](https://github.com/opensearch-project/OpenSearch/pull/18656))
 - Add support for Combined Fields query ([#18724](https://github.com/opensearch-project/OpenSearch/pull/18724))
+- Added approximation support for range queries with now in date field ([#18511](https://github.com/opensearch-project/OpenSearch/pull/18511))
 
 ### Changed
 - Update Subject interface to use CheckedRunnable ([#18570](https://github.com/opensearch-project/OpenSearch/issues/18570))
