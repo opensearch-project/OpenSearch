@@ -176,6 +176,7 @@ import org.opensearch.transport.ProxyConnectionStrategy;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
+import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportSettings;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -845,7 +846,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
-                ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER
+                ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
+                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING
             )
         )
     );
