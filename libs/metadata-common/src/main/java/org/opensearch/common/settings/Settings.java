@@ -40,7 +40,6 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
@@ -344,8 +343,8 @@ public final class Settings implements ToXContentFragment {
 
     /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
-     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
-     * {@link Setting} object constructed in, for example, {@link org.opensearch.env.Environment}.
+     * leading to a runtime failure (org.opensearch.common.loggingLogConfigurator#checkErrorListener()). The premature construction would come from any
+     * {@link Setting} object constructed in, for example, org.opensearch.env.Environment.
      *
      * @opensearch.internal
      */
@@ -598,7 +597,7 @@ public final class Settings implements ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Settings settings = SettingsFilter.filterSettings(params, this);
+        Settings settings = SettingsFilterUtils.filterSettings(params, this);
         if (!params.paramAsBoolean("flat_settings", false)) {
             for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
