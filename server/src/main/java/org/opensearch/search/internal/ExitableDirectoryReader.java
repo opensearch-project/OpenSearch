@@ -45,6 +45,7 @@ import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 
