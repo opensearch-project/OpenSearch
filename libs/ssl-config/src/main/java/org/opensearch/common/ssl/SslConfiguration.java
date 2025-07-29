@@ -162,8 +162,13 @@ public class SslConfiguration {
      * {@link #getSupportedProtocols() configured protocols}.
      */
     private String contextProtocol() {
-        if (supportedProtocols.isEmpty()) {
-            throw new SslConfigException("no SSL/TLS protocols have been configured");
+        if (KeyStoreUtil.inFipsMode.get()) {
+            if (SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS.stream().noneMatch(supportedProtocols::contains)) {
+                throw new SslConfigException(
+                    "in FIPS mode only the following SSL/TLS protocols are allowed: %s. This issue may be caused by the '%s' setting."
+                        .formatted(SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS, "ssl.supported_protocols")
+                );
+            }
         }
         for (Entry<String, String> entry : ORDERED_PROTOCOL_ALGORITHM_MAP.entrySet()) {
             if (supportedProtocols.contains(entry.getKey())) {
