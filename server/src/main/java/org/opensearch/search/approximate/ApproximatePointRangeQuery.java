@@ -249,21 +249,33 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 return true;
             }
 
-            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount, ResumableDISI.BKDState bkdState)
-                throws IOException {
+            private void intersectLeft(
+                PointValues.PointTree pointTree,
+                PointValues.IntersectVisitor visitor,
+                long[] docCount,
+                ResumableDISI.BKDState bkdState
+            ) throws IOException {
                 intersectLeft(visitor, pointTree, docCount, bkdState);
                 assert pointTree.moveToParent() == false;
             }
 
-            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount, ResumableDISI.BKDState bkdState)
-                throws IOException {
+            private void intersectRight(
+                PointValues.PointTree pointTree,
+                PointValues.IntersectVisitor visitor,
+                long[] docCount,
+                ResumableDISI.BKDState bkdState
+            ) throws IOException {
                 intersectRight(visitor, pointTree, docCount, bkdState);
                 assert pointTree.moveToParent() == false;
             }
 
             // custom intersect visitor to walk the left of the tree
-            public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount, ResumableDISI.BKDState bkdState)
-                throws IOException {
+            public void intersectLeft(
+                PointValues.IntersectVisitor visitor,
+                PointValues.PointTree pointTree,
+                long[] docCount,
+                ResumableDISI.BKDState bkdState
+            ) throws IOException {
                 // Check if we've already collected enough documents
                 if (docCount[0] >= size) {
                     // If we have state, save the current tree as the next node to visit
@@ -370,8 +382,12 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
             }
 
             // custom intersect visitor to walk the right of tree (from rightmost leaf going left)
-            public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount, ResumableDISI.BKDState bkdState)
-                throws IOException {
+            public void intersectRight(
+                PointValues.IntersectVisitor visitor,
+                PointValues.PointTree pointTree,
+                long[] docCount,
+                ResumableDISI.BKDState bkdState
+            ) throws IOException {
                 // Check if we've already collected enough documents
                 if (docCount[0] >= size) {
                     // If we have state, save the current tree as the next node to visit
@@ -499,7 +515,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 LeafReader reader = context.reader();
-                long[] docCount = {0};
+                long[] docCount = { 0 };
 
                 PointValues values = reader.getPointValues(pointRangeQuery.getField());
                 if (checkValidPointValues(values) == false) {
@@ -509,7 +525,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 if (size > values.size()) {
                     return pointRangeQueryWeight.scorerSupplier(context);
                 } else {
-
 
                     // Reset docCount since we're starting fresh for this shard
                     docCount[0] = 0;
@@ -618,7 +633,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     };
                 }
             }
-
 
             @Override
             public int count(LeafReaderContext context) throws IOException {

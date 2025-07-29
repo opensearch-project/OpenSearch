@@ -57,8 +57,7 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
      * with resumable expansion support.
      */
     private int doNext(int doc) throws IOException {
-        advanceHead:
-        for (; ; ) {
+        advanceHead: for (;;) {
             // Handle NO_MORE_DOCS with resumable expansion
             if (doc == NO_MORE_DOCS) {
                 if (tryExpandResumableDISIs()) {
@@ -116,7 +115,7 @@ public class ApproximateConjunctionDISI extends DocIdSetIterator {
             if (iterator instanceof ResumableDISI) {
                 ResumableDISI resumable = (ResumableDISI) iterator;
                 if (!resumable.isExhausted()) {
-                    resumable.resetForNextBatch();
+                    // resumable.resetForNextBatch();
                     anyExpanded = true;
                 }
             }
