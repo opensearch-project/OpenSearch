@@ -267,9 +267,13 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
 
                 // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
+                // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
+                // partiallyBuiltBucketComparator is null for significantTerm Aggregations use case and the way buckets sorted in the
+                // priority queue is based on the significanceScore
                 if (!FeatureFlags.isEnabled(FeatureFlags.TERMS_AGGREGATION_OPTIMIZATION_ENABLE_SETTING)
                     || (size < 0.2 * bucketsInOrd)
-                    || isKeyOrder(order)) {
+                    || isKeyOrder(order)
+                    || partiallyBuiltBucketComparator == null) {
                     resultSelectionStrategy = "priority_queue";
                     PriorityQueue<B> ordered = buildPriorityQueue(size);
                     while (ordsEnum.next()) {
@@ -317,7 +321,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                         bucketsForOrd[validBucketCount++] = spare;
                     }
 
-                    if (validBucketCount > size && partiallyBuiltBucketComparator != null) {
+                    if (validBucketCount > size) {
                         // Use quick select to find top N buckets
                         ArrayUtil.select(
                             bucketsForOrd,
