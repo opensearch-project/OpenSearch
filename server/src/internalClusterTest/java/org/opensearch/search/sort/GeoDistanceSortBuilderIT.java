@@ -471,12 +471,13 @@ public class GeoDistanceSortBuilderIT extends ParameterizedStaticSettingsOpenSea
         geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, new GeoPoint(9.227400, 49.189800));
         searchResponse = client().prepareSearch()
             .setQuery(new MatchAllQueryBuilder())
-            .addSort(geoDistanceSortBuilder
-                .unit(DistanceUnit.KILOMETERS)
-                .ignoreUnmapped(true)
-                .order(SortOrder.DESC)
-                .geoDistance(GeoDistance.ARC)
-                .sortMode(SortMode.MIN))
+            .addSort(
+                geoDistanceSortBuilder.unit(DistanceUnit.KILOMETERS)
+                    .ignoreUnmapped(true)
+                    .order(SortOrder.DESC)
+                    .geoDistance(GeoDistance.ARC)
+                    .sortMode(SortMode.MIN)
+            )
             .setSize(10)
             .get();
         assertOrderedSearchHits(searchResponse, "d1");
