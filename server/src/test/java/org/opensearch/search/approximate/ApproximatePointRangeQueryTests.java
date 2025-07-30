@@ -1188,5 +1188,4 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             assertTrue("Should approximate with single sort on same field", query.canApproximate(mockContext));
         }
     }
-
 }
