@@ -97,11 +97,11 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
     }
 
     public void testFailureDifferentSegmentFiles_remoteStoreEnabled() throws IOException {
-        testFailure_differentSegmentFiles(remoteStoreMergedSegmentCheckpoint);
+        testFailureDifferentSegmentFiles(remoteStoreMergedSegmentCheckpoint);
     }
 
     public void testFailureDifferentSegmentFiles_segRep() throws IOException {
-        testFailure_differentSegmentFiles(mergedSegmentCheckpoint);
+        testFailureDifferentSegmentFiles(mergedSegmentCheckpoint);
     }
 
     public void testFailureResponseGetMergedSegmentFiles_remoteStoreEnabled() {
@@ -239,7 +239,7 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         }, mock(BiConsumer.class));
     }
 
-    private void testFailure_differentSegmentFiles(MergedSegmentCheckpoint checkpointMergedSegment) throws IOException {
+    private void testFailureDifferentSegmentFiles(MergedSegmentCheckpoint checkpointMergedSegment) throws IOException {
 
         SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
