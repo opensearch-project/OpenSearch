@@ -70,7 +70,12 @@ public class RemoteDirectory extends Directory {
 
     private final DownloadRateLimiterProvider downloadRateLimiterProvider;
 
+    /**
+     * Map containing the mapping of segment files that are pending download as part of the pre-copy (warm) phase of
+     * {@link org.opensearch.index.engine.MergedSegmentWarmer}. The key is the local filename and value is the remote filename.
+     */
     final Map<String, String> pendingDownloadMergedSegments;
+
     /**
      * Number of bytes in the segment file to store checksum
      */
@@ -491,7 +496,7 @@ public class RemoteDirectory extends Directory {
     }
 
     /**
-     * DownloadRateLimiterProvider returns a low-priority rate limiter if the segment
+     * DownloadRateLimiterProvider returns a low-priority rate limited stream if the segment
      * being downloaded is a merged segment as part of the pre-copy (warm) phase of
      * {@link org.opensearch.index.engine.MergedSegmentWarmer}.
      */

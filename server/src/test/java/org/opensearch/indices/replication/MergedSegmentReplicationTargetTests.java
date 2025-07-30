@@ -96,7 +96,31 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         );
     }
 
-    private void testSuccessfulResponse_startReplication(MergedSegmentCheckpoint checkpointMergedSegment) {
+    public void testFailureDifferentSegmentFiles_remoteStoreEnabled() throws IOException {
+        testFailure_differentSegmentFiles(remoteStoreMergedSegmentCheckpoint);
+    }
+
+    public void testFailureDifferentSegmentFiles_segRep() throws IOException {
+        testFailure_differentSegmentFiles(mergedSegmentCheckpoint);
+    }
+
+    public void testFailureResponseGetMergedSegmentFiles_remoteStoreEnabled() {
+        testFailureResponseGetMergedSegmentFiles(remoteStoreMergedSegmentCheckpoint);
+    }
+
+    public void testFailureResponseGetMergedSegmentFiles_segRep() {
+        testFailureResponseGetMergedSegmentFiles(mergedSegmentCheckpoint);
+    }
+
+    public void testSuccessfulResponseStartReplication_remoteStoreEnabled() {
+        testSuccessfulResponseStartReplication(remoteStoreMergedSegmentCheckpoint);
+    }
+
+    public void testSuccessfulResponseStartReplication_segRep() {
+        testSuccessfulResponseStartReplication(mergedSegmentCheckpoint);
+    }
+
+    private void testSuccessfulResponseStartReplication(MergedSegmentCheckpoint checkpointMergedSegment) {
 
         SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
@@ -158,7 +182,7 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
         });
     }
 
-    private void testFailureResponse_getMergedSegmentFiles(MergedSegmentCheckpoint checkpointMergedSegment) {
+    private void testFailureResponseGetMergedSegmentFiles(MergedSegmentCheckpoint checkpointMergedSegment) {
 
         Exception exception = new Exception("dummy failure");
         SegmentReplicationSource segrepSource = new TestReplicationSource() {
@@ -270,30 +294,6 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
                 mergedSegmentReplicationTarget.fail(new ReplicationFailedException(e), false);
             }
         }, mock(BiConsumer.class));
-    }
-
-    public void testFailure_differentSegmentFiles_remoteStoreEnabled() throws IOException {
-        testFailure_differentSegmentFiles(remoteStoreMergedSegmentCheckpoint);
-    }
-
-    public void testFailure_differentSegmentFiles() throws IOException {
-        testFailure_differentSegmentFiles(mergedSegmentCheckpoint);
-    }
-
-    public void testFailureResponse_getMergedSegmentFiles_remoteStoreEnabled() {
-        testFailureResponse_getMergedSegmentFiles(remoteStoreMergedSegmentCheckpoint);
-    }
-
-    public void testFailureResponse_getMergedSegmentFiles() {
-        testFailureResponse_getMergedSegmentFiles(mergedSegmentCheckpoint);
-    }
-
-    public void testSuccessfulResponse_startReplication_startReplication() {
-        testSuccessfulResponse_startReplication(remoteStoreMergedSegmentCheckpoint);
-    }
-
-    public void testSuccessfulResponse_startReplication() {
-        testSuccessfulResponse_startReplication(mergedSegmentCheckpoint);
     }
 
     @Override

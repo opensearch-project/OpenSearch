@@ -34,6 +34,7 @@ import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
+import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
@@ -682,7 +683,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             }
             if (replicaShard.shouldProcessMergedSegmentCheckpoint(receivedCheckpoint)) {
                 CountDownLatch latch = new CountDownLatch(1);
-                final boolean isRemoteStoreEnabled = replicaShard.indexSettings().isRemoteStoreEnabled();
                 startMergedSegmentReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
@@ -696,10 +696,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                             )
                         );
                         latch.countDown();
-                        if (isRemoteStoreEnabled) {
-                            replicaShard.getRemoteDirectory()
-                                .unmarkPendingDownloadMergedSegments(receivedCheckpoint.getMetadataMap().keySet());
-                        }
+                        unmarkPendingDownloadMergedSegments(replicaShard, receivedCheckpoint);
                     }
 
                     @Override
@@ -709,10 +706,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                         boolean sendShardFailure
                     ) {
                         latch.countDown();
-                        if (isRemoteStoreEnabled) {
-                            replicaShard.getRemoteDirectory()
-                                .unmarkPendingDownloadMergedSegments(receivedCheckpoint.getMetadataMap().keySet());
-                        }
+                        unmarkPendingDownloadMergedSegments(replicaShard, receivedCheckpoint);
                     }
                 });
                 try {
@@ -739,6 +733,16 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                 )
             );
         }
+    }
+
+    private void unmarkPendingDownloadMergedSegments(IndexShard shard, ReplicationCheckpoint receivedCheckpoint) {
+        if (isRemoteStoreMergedSegmentCheckpoint(receivedCheckpoint)) {
+            shard.getRemoteDirectory().unmarkPendingDownloadMergedSegments(receivedCheckpoint.getMetadataMap().keySet());
+        }
+    }
+
+    private boolean isRemoteStoreMergedSegmentCheckpoint(ReplicationCheckpoint checkpoint) {
+        return checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
     }
 
     List<MergedSegmentReplicationTarget> getMergedSegmentReplicationTarget(ShardId shardId) {
@@ -778,5 +782,4 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             }
         }
     }
-
 }
