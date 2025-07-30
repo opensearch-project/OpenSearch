@@ -152,7 +152,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             INDEX_METADATA_FORMAT.serialize(indexMetadata, fileName, compressor, FORMAT_PARAMS).streamInput()
         );
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         remoteIndexMetadataManager.readAsync(
@@ -171,7 +171,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         fileName = fileName + DELIMITER + '2';
         Exception exception = new IOException("testing failure");
         doThrow(exception).when(blobStoreTransferService).downloadBlob(anyIterable(), anyString());
-        TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Object>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         remoteIndexMetadataManager.readAsync(
