@@ -25,7 +25,6 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
-import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -98,11 +97,7 @@ public class IngestionEngine extends InternalEngine {
             + engineConfig.getIndexSettings().getIndex().getName()
             + "-"
             + engineConfig.getShardId().getId();
-        IngestionShardConsumer ingestionShardConsumer = this.ingestionConsumerFactory.createShardConsumer(
-            clientId,
-            engineConfig.getShardId().getId()
-        );
-        logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
+
         Map<String, String> commitData = commitDataAsMap(indexWriter);
         StreamPoller.ResetState resetState = ingestionSource.getPointerInitReset().getType();
         String resetValue = ingestionSource.getPointerInitReset().getValue();
@@ -146,20 +141,25 @@ public class IngestionEngine extends InternalEngine {
         StreamPoller.State initialPollerState = indexMetadata.getIngestionStatus().isPaused()
             ? StreamPoller.State.PAUSED
             : StreamPoller.State.NONE;
-        streamPoller = new DefaultStreamPoller(
+
+        // initialize the stream poller
+        DefaultStreamPoller.Builder streamPollerBuilder = new DefaultStreamPoller.Builder(
             startPointer,
             persistedPointers,
-            ingestionShardConsumer,
-            this,
-            resetState,
-            resetValue,
-            ingestionErrorStrategy,
-            initialPollerState,
-            ingestionSource.getMaxPollSize(),
-            ingestionSource.getPollTimeout(),
-            ingestionSource.getNumProcessorThreads(),
-            ingestionSource.getBlockingQueueSize()
+            ingestionConsumerFactory,
+            clientId,
+            engineConfig.getShardId().getId(),
+            this
         );
+        streamPoller = streamPollerBuilder.resetState(resetState)
+            .resetValue(resetValue)
+            .errorStrategy(ingestionErrorStrategy)
+            .initialState(initialPollerState)
+            .maxPollSize(ingestionSource.getMaxPollSize())
+            .pollTimeout(ingestionSource.getPollTimeout())
+            .numProcessorThreads(ingestionSource.getNumProcessorThreads())
+            .blockingQueueSize(ingestionSource.getBlockingQueueSize())
+            .build();
         registerStreamPollerListener();
 
         // start the polling loop
@@ -573,6 +573,10 @@ public class IngestionEngine extends InternalEngine {
     private void resetStreamPoller(StreamPoller.ResetState resetState, String resetValue) {
         if (streamPoller.isPaused() == false) {
             throw new IllegalStateException("Cannot reset consumer when poller is not paused");
+        }
+
+        if (streamPoller.getConsumer() == null) {
+            throw new OpenSearchException("Consumer is not yet initialized");
         }
 
         try {
