@@ -162,7 +162,9 @@ public class FetchPhase {
         Map<FetchSubPhaseProcessor, FetchProfileBreakdown> processorProfiles = new HashMap<>();
         if (breakdown != null) {
             for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
-                FetchProfileBreakdown pb = context.getProfilers().getFetchProfiler().startSubPhase(p.v2().getClass().getSimpleName(), profileDescription);
+                FetchProfileBreakdown pb = context.getProfilers()
+                    .getFetchProfiler()
+                    .startSubPhase(p.v2().getClass().getSimpleName(), profileDescription);
                 processorProfiles.put(p.v1(), pb);
             }
         }
