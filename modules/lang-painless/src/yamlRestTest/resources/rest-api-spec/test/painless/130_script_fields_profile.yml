@@ -65,5 +65,5 @@ setup:
 
   - is_true: profile.shards.0.fetch.0.children.0.breakdown.process
   - match: { profile.shards.0.fetch.0.children.0.breakdown.process_count: 3 }
-  - is_true: profile.shards.0.fetch.0.children.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.children.0.breakdown.next_reader_count: 1 }
+  - is_true: profile.shards.0.fetch.0.children.0.breakdown.set_next_reader
+  - match: { profile.shards.0.fetch.0.children.0.breakdown.set_next_reader_count: 1 }
