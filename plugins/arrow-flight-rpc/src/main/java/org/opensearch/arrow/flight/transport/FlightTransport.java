@@ -138,7 +138,6 @@ class FlightTransport extends TcpTransport {
             if (statsCollector != null) {
                 statsCollector.setBufferAllocator(allocator);
                 statsCollector.setThreadPool(threadPool);
-                statsCollector.setEventLoopGroups(bossEventLoopGroup, workerEventLoopGroup);
             }
             flightProducer = new ArrowFlightProducer(this, allocator, SERVER_HEADER_KEY, statsCollector);
             bindServer();
