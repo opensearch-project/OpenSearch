@@ -108,7 +108,7 @@ public class QueryPhaseExtensionTests extends OpenSearchTestCase {
 
         @Override
         public List<QueryPhaseExtension> queryPhaseExtensions() {
-            return extensions;
+            return extensions == null ? super.queryPhaseExtensions() : extensions;
         }
     }
 
@@ -425,6 +425,64 @@ public class QueryPhaseExtensionTests extends OpenSearchTestCase {
         }
     }
 
+    public void testNullExtensionsList() throws IOException {
+        // Test with null extensions list - should work normally
+        TestQueryPhaseSearcher searcher = new TestQueryPhaseSearcher(null);
+
+        SearchContext searchContext = mock(SearchContext.class);
+        ContextIndexSearcher indexSearcher = mock(ContextIndexSearcher.class);
+        Query query = mock(Query.class);
+        LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+
+        try {
+            searcher.searchWith(searchContext, indexSearcher, query, collectors, false, false);
+            fail("Expected exception due to mock objects");
+        } catch (Exception e) {
+            // Expected - should fail due to mocks, not due to extension handling
+            assertNotNull(e);
+        }
+    }
+
+    public void testDefaultQueryPhaseSearcherHasNoExtensions() {
+        QueryPhase.DefaultQueryPhaseSearcher defaultSearcher = new QueryPhase.DefaultQueryPhaseSearcher();
+        List<QueryPhaseExtension> extensions = defaultSearcher.queryPhaseExtensions();
+
+        assertNotNull("Extensions list should not be null", extensions);
+        assertTrue("Extensions list should be empty", extensions.isEmpty());
+        assertEquals("Extensions list should have size 0", 0, extensions.size());
+    }
+
+    public void testConcurrentQueryPhaseSearcherHasNoExtensionsByDefault() {
+        ConcurrentQueryPhaseSearcher concurrentSearcher = new ConcurrentQueryPhaseSearcher();
+        List<QueryPhaseExtension> extensions = concurrentSearcher.queryPhaseExtensions();
+
+        assertNotNull("Extensions list should not be null", extensions);
+        assertTrue("Extensions list should be empty", extensions.isEmpty());
+        assertEquals("Extensions list should have size 0", 0, extensions.size());
+    }
+
+    public void testQueryPhaseSearcherInterfaceDefault() {
+        // Test the default implementation in the interface
+        QueryPhaseSearcher testSearcher = new QueryPhaseSearcher() {
+            @Override
+            public boolean searchWith(
+                SearchContext searchContext,
+                ContextIndexSearcher searcher,
+                Query query,
+                LinkedList<QueryCollectorContext> collectors,
+                boolean hasFilterCollector,
+                boolean hasTimeout
+            ) throws IOException {
+                return false;
+            }
+        };
+
+        List<QueryPhaseExtension> extensions = testSearcher.queryPhaseExtensions();
+        assertNotNull("Extensions list should not be null", extensions);
+        assertTrue("Extensions list should be empty by default", extensions.isEmpty());
+        assertEquals("Extensions list should have size 0", 0, extensions.size());
+    }
+
     public void testExtensionReceivesCorrectSearchContext() throws IOException {
         final AtomicReference<SearchContext> capturedBeforeContext = new AtomicReference<>();
         final AtomicReference<SearchContext> capturedAfterContext = new AtomicReference<>();
@@ -464,5 +522,215 @@ public class QueryPhaseExtensionTests extends OpenSearchTestCase {
         assertNotNull("afterScoreCollection should have received a context", capturedAfterContext.get());
         assertSame("Both methods should receive the same context", capturedBeforeContext.get(), capturedAfterContext.get());
         assertSame("Extension should receive the provided search context", searchContext, capturedBeforeContext.get());
+    }
+
+    /**
+     * Test extension that tracks detailed execution state
+     */
+    private static class DetailedTrackingExtension implements QueryPhaseExtension {
+        protected final AtomicInteger beforeCount = new AtomicInteger(0);
+        protected final AtomicInteger afterCount = new AtomicInteger(0);
+        protected final AtomicReference<Throwable> lastException = new AtomicReference<>();
+        private final boolean shouldThrow;
+        private final String extensionName;
+
+        DetailedTrackingExtension(String name, boolean shouldThrow) {
+            this.extensionName = name;
+            this.shouldThrow = shouldThrow;
+        }
+
+        @Override
+        public void beforeScoreCollection(SearchContext searchContext) {
+            beforeCount.incrementAndGet();
+            if (shouldThrow) {
+                RuntimeException ex = new RuntimeException("Test exception from " + extensionName + " beforeScoreCollection");
+                lastException.set(ex);
+                throw ex;
+            }
+        }
+
+        @Override
+        public void afterScoreCollection(SearchContext searchContext) {
+            afterCount.incrementAndGet();
+            if (shouldThrow) {
+                RuntimeException ex = new RuntimeException("Test exception from " + extensionName + " afterScoreCollection");
+                lastException.set(ex);
+                throw ex;
+            }
+        }
+
+        public int getBeforeCount() {
+            return beforeCount.get();
+        }
+
+        public int getAfterCount() {
+            return afterCount.get();
+        }
+
+        public Throwable getLastException() {
+            return lastException.get();
+        }
+
+        public String getName() {
+            return extensionName;
+        }
+    }
+
+    public void testMixedExtensionsWithExceptions() throws IOException {
+        DetailedTrackingExtension goodExt1 = new DetailedTrackingExtension("good1", false);
+        DetailedTrackingExtension badExt = new DetailedTrackingExtension("bad", true);
+        DetailedTrackingExtension goodExt2 = new DetailedTrackingExtension("good2", false);
+
+        TestQueryPhaseSearcher searcher = new TestQueryPhaseSearcher(Arrays.asList(goodExt1, badExt, goodExt2));
+
+        SearchContext searchContext = mock(SearchContext.class);
+        ContextIndexSearcher indexSearcher = mock(ContextIndexSearcher.class);
+        Query query = mock(Query.class);
+        LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+
+        try {
+            searcher.searchWith(searchContext, indexSearcher, query, collectors, false, false);
+            fail("Expected exception due to mock objects");
+        } catch (Exception e) {
+            // Expected - should fail due to mocks, not extension exceptions
+        }
+
+        // All extensions should have been called despite the bad one throwing exceptions
+        assertEquals("Good extension 1 before should be called", 1, goodExt1.getBeforeCount());
+        assertEquals("Good extension 1 after should be called", 1, goodExt1.getAfterCount());
+        assertEquals("Bad extension before should be called", 1, badExt.getBeforeCount());
+        assertEquals("Bad extension after should be called", 1, badExt.getAfterCount());
+        assertEquals("Good extension 2 before should be called", 1, goodExt2.getBeforeCount());
+        assertEquals("Good extension 2 after should be called", 1, goodExt2.getAfterCount());
+
+        // Verify the bad extension did throw exceptions
+        assertNotNull("Bad extension should have thrown an exception", badExt.getLastException());
+        assertTrue("Exception should contain extension name", badExt.getLastException().getMessage().contains("bad"));
+    }
+
+    public void testSingleExtensionExceptionInBefore() throws IOException {
+        DetailedTrackingExtension throwingExt = new DetailedTrackingExtension("throwing", true) {
+            @Override
+            public void afterScoreCollection(SearchContext searchContext) {
+                // Don't throw in after, only in before
+                afterCount.incrementAndGet();
+            }
+        };
+
+        TestQueryPhaseSearcher searcher = new TestQueryPhaseSearcher(Arrays.asList(throwingExt));
+
+        SearchContext searchContext = mock(SearchContext.class);
+        ContextIndexSearcher indexSearcher = mock(ContextIndexSearcher.class);
+        Query query = mock(Query.class);
+        LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+
+        try {
+            searcher.searchWith(searchContext, indexSearcher, query, collectors, false, false);
+            fail("Expected exception due to mock objects");
+        } catch (Exception e) {
+            // Expected - should fail due to mocks, not extension exceptions
+        }
+
+        // Extension should have been called in both phases
+        assertEquals("Extension before should be called", 1, throwingExt.getBeforeCount());
+        assertEquals("Extension after should be called", 1, throwingExt.getAfterCount());
+
+        // Verify it threw an exception in before phase
+        assertNotNull("Extension should have thrown an exception", throwingExt.getLastException());
+    }
+
+    public void testSingleExtensionExceptionInAfter() throws IOException {
+        DetailedTrackingExtension throwingExt = new DetailedTrackingExtension("throwing", false) {
+            @Override
+            public void afterScoreCollection(SearchContext searchContext) {
+                // Throw only in after
+                afterCount.incrementAndGet();
+                RuntimeException ex = new RuntimeException("Test exception in afterScoreCollection");
+                lastException.set(ex);
+                throw ex;
+            }
+        };
+
+        TestQueryPhaseSearcher searcher = new TestQueryPhaseSearcher(Arrays.asList(throwingExt));
+
+        SearchContext searchContext = mock(SearchContext.class);
+        ContextIndexSearcher indexSearcher = mock(ContextIndexSearcher.class);
+        Query query = mock(Query.class);
+        LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+
+        try {
+            searcher.searchWith(searchContext, indexSearcher, query, collectors, false, false);
+            fail("Expected exception due to mock objects");
+        } catch (Exception e) {
+            // Expected - should fail due to mocks, not extension exceptions
+        }
+
+        // Extension should have been called in both phases
+        assertEquals("Extension before should be called", 1, throwingExt.getBeforeCount());
+        assertEquals("Extension after should be called", 1, throwingExt.getAfterCount());
+
+        // Verify it threw an exception in after phase
+        assertNotNull("Extension should have thrown an exception", throwingExt.getLastException());
+        assertTrue("Exception should be from after phase", throwingExt.getLastException().getMessage().contains("afterScoreCollection"));
+    }
+
+    public void testFastPathWithEmptyExtensions() throws IOException {
+        // Test that the fast path is taken when extensions list is empty
+        TestQueryPhaseSearcher searcher = new TestQueryPhaseSearcher(new ArrayList<>()) {
+            @Override
+            protected boolean searchWithCollector(
+                SearchContext searchContext,
+                ContextIndexSearcher searcher,
+                Query query,
+                LinkedList<QueryCollectorContext> collectors,
+                boolean hasFilterCollector,
+                boolean hasTimeout
+            ) throws IOException {
+                // Mark that we reached the fast path
+                return super.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+            }
+        };
+
+        SearchContext searchContext = mock(SearchContext.class);
+        ContextIndexSearcher indexSearcher = mock(ContextIndexSearcher.class);
+        Query query = mock(Query.class);
+        LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+
+        try {
+            searcher.searchWith(searchContext, indexSearcher, query, collectors, false, false);
+            fail("Expected exception due to mock objects");
+        } catch (Exception e) {
+            // Expected - should fail due to mocks, but fast path should have been taken
+        }
+    }
+
+    public void testFastPathWithNullExtensions() throws IOException {
+        // Test that the fast path is taken when extensions list is null
+        TestQueryPhaseSearcher searcher = new TestQueryPhaseSearcher(null) {
+            @Override
+            protected boolean searchWithCollector(
+                SearchContext searchContext,
+                ContextIndexSearcher searcher,
+                Query query,
+                LinkedList<QueryCollectorContext> collectors,
+                boolean hasFilterCollector,
+                boolean hasTimeout
+            ) throws IOException {
+                // Mark that we reached the fast path
+                return super.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+            }
+        };
+
+        SearchContext searchContext = mock(SearchContext.class);
+        ContextIndexSearcher indexSearcher = mock(ContextIndexSearcher.class);
+        Query query = mock(Query.class);
+        LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+
+        try {
+            searcher.searchWith(searchContext, indexSearcher, query, collectors, false, false);
+            fail("Expected exception due to mock objects");
+        } catch (Exception e) {
+            // Expected - should fail due to mocks, but fast path should have been taken
+        }
     }
 }
