@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -172,31 +173,26 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
     ) {
         assert checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
 
-        if (filesToFetch.isEmpty()) {
-            listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
-            return;
-        }
-
-        RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = (RemoteStoreMergedSegmentCheckpoint) checkpoint;
-
         final Directory storeDirectory = indexShard.store().directory();
+        ActionListener<GetSegmentFilesResponse> notifyOnceListener = ActionListener.notifyOnce(listener);
 
-        Map<String, String> localToRemoteSegmentFileNameMap = mergedSegmentCheckpoint.getLocalToRemoteSegmentFilenameMap();
-        List<String> toDownloadSegmentNames = localToRemoteSegmentFileNameMap.keySet().stream().toList();
+        List<String> toDownloadSegmentNames = filesToFetch.stream().map(StoreFileMetadata::name).toList();
+
         CountDownLatch latch = new CountDownLatch(1);
         indexShard.getFileDownloader()
             .downloadAsync(cancellableThreads, remoteDirectory, storeDirectory, toDownloadSegmentNames, ActionListener.wrap(r -> {
                 latch.countDown();
-                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+                notifyOnceListener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }, e -> {
                 latch.countDown();
-                listener.onFailure(e);
+                notifyOnceListener.onFailure(e);
             }));
         try {
             if (latch.await(
                 indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().millis(),
                 TimeUnit.MILLISECONDS
             ) == false) {
+                notifyOnceListener.onFailure(new TimeoutException("Timed out waiting for merged segments download from remote store"));
                 logger.warn(
                     () -> new ParameterizedMessage(
                         "Merged segments download from remote store timed out. Segments: {}",
@@ -205,7 +201,8 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 );
             }
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            notifyOnceListener.onFailure(e);
+            logger.warn(() -> new ParameterizedMessage("Exception thrown while trying to get merged segment files. Continuing. {}", e));
         }
     }
 

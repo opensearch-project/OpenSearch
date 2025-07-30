@@ -11,14 +11,21 @@ package org.opensearch.indices.replication;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.TieredMergePolicyProvider;
+import org.opensearch.indices.replication.checkpoint.RemoteStorePublishMergedSegmentRequest;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.test.transport.StubbableTransport;
+import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
@@ -52,6 +59,25 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         final String node2 = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
+        MockTransportService mockTransportServiceNode1 = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            node1
+        );
+        MockTransportService mockTransportServiceNode2 = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            node2
+        );
+        final CountDownLatch latch = new CountDownLatch(1);
+        StubbableTransport.SendRequestBehavior behavior = (connection, requestId, action, request, options) -> {
+            if (action.equals("indices:admin/remote_publish_merged_segment[r]")) {
+                assertTrue(
+                    ((TransportReplicationAction.ConcreteReplicaRequest) request)
+                        .getRequest() instanceof RemoteStorePublishMergedSegmentRequest
+                );
+                latch.countDown();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        };
 
         for (int i = 0; i < 30; i++) {
             client().prepareIndex(INDEX_NAME)
@@ -63,13 +89,19 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
 
         waitForSearchableDocs(30, node1, node2);
 
+        mockTransportServiceNode1.addSendBehavior(behavior);
+        mockTransportServiceNode2.addSendBehavior(behavior);
+
         client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(2));
         waitForSegmentCount(INDEX_NAME, 2, logger);
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        mockTransportServiceNode1.clearAllRules();
+        mockTransportServiceNode2.clearAllRules();
     }
 
     public void testConcurrentMergeSegmentWarmerRemote() throws Exception {
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        String node1 = internalCluster().startDataOnlyNode();
+        String node2 = internalCluster().startDataOnlyNode();
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -80,6 +112,29 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
                 .build()
         );
         ensureGreen(INDEX_NAME);
+        MockTransportService mockTransportServiceNode1 = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            node1
+        );
+        MockTransportService mockTransportServiceNode2 = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            node2
+        );
+        CountDownLatch latch = new CountDownLatch(1);
+
+        StubbableTransport.SendRequestBehavior behavior = (connection, requestId, action, request, options) -> {
+            if (action.equals("indices:admin/remote_publish_merged_segment[r]")) {
+                assertTrue(
+                    ((TransportReplicationAction.ConcreteReplicaRequest) request)
+                        .getRequest() instanceof RemoteStorePublishMergedSegmentRequest
+                );
+                latch.countDown();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        };
+
+        mockTransportServiceNode1.addSendBehavior(behavior);
+        mockTransportServiceNode2.addSendBehavior(behavior);
 
         for (int i = 0; i < 30; i++) {
             client().prepareIndex(INDEX_NAME)
@@ -89,9 +144,12 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
                 .get();
         }
 
-        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(2));
+        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1));
 
         waitForSegmentCount(INDEX_NAME, 2, logger);
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        mockTransportServiceNode1.clearAllRules();
+        mockTransportServiceNode2.clearAllRules();
     }
 
     public void testMergeSegmentWarmerWithInactiveReplicaRemote() throws Exception {

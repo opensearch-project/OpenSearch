@@ -36,8 +36,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * Replication action responsible for publishing merged segment to a remote store and
- * notifying all replicas of newly available segments.
+ * Replication action responsible for uploading merged segment to a remote store and
+ * publishing {@link RemoteStoreMergedSegmentCheckpoint} to all replica shards.
  *
  * @opensearch.api
  */
@@ -173,10 +173,20 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         try {
             long timeout = indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().seconds();
             if (latch.await(timeout, TimeUnit.SECONDS) == false) {
-                logger.warn("Unable to confirm successful merge segment downloads by replicas. Continuing.");
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Timeout exceeded {}s: Could not verify merge segment downloads were completed by replicas. Continuing.",
+                        timeout
+                    )
+                );
             }
         } catch (InterruptedException e) {
-            logger.warn("Unable to confirm successful merge segment downloads by replicas. Continuing.");
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "Unable to confirm successful merge segment downloads by replicas due to interruption. Continuing. \nException - {}",
+                    e
+                )
+            );
         }
 
         return localToRemoteStoreFilenames;

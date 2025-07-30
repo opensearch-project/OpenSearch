@@ -46,6 +46,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
@@ -149,7 +151,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         action.publish(indexShard, checkpoint);
     }
 
-    public void testPublishMergedSegmentActionOnPrimary() {
+    public void testPublishMergedSegmentActionOnPrimary() throws InterruptedException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -182,10 +184,13 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         );
         final RemoteStorePublishMergedSegmentRequest request = new RemoteStorePublishMergedSegmentRequest(checkpoint);
 
+        CountDownLatch latch = new CountDownLatch(1);
         action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             // we should forward the request containing the current publish checkpoint to the replica
             assertThat(result.replicaRequest(), sameInstance(request));
+            latch.countDown();
         }));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
     }
 
     public void testPublishMergedSegmentActionOnReplica() throws IOException {
@@ -248,7 +253,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
 
     }
 
-    public void testPublishMergedSegmentActionOnDocrepReplicaDuringMigration() {
+    public void testPublishMergedSegmentActionOnDocrepReplicaDuringMigration() throws IOException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");

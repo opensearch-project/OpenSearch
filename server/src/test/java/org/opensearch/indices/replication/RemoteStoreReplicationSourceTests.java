@@ -9,10 +9,12 @@
 package org.opensearch.indices.replication;
 
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.util.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
@@ -28,12 +30,14 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.mock;
@@ -205,7 +209,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             ),
             localToRemoteFilenameMap
         );
-        List<StoreFileMetadata> filesToFetch = primaryShard.getSegmentMetadataMap().values().stream().collect(Collectors.toList());
+        List<StoreFileMetadata> filesToFetch = new ArrayList<>(primaryShard.getSegmentMetadataMap().values());
         final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
         replicationSource = new RemoteStoreReplicationSource(primaryShard);
         replicationSource.getMergedSegmentFiles(
@@ -222,7 +226,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         closeShards(replicaShard);
     }
 
-    public void testGetMergedSegmentFilesFailure() throws IOException {
+    public void testGetMergedSegmentFilesFailure() throws IOException, ExecutionException, InterruptedException {
         // Testing failure scenario where segments are not a part of RemoteSegmentStoreDirectory.pendingMergedSegmentsDownloads
         final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
         Map<String, String> localToRemoteFilenameMap = Map.of("invalid.si", "invalid.si__uuid", "invalid.cfs", "invalid.cfs__uuid");
@@ -237,8 +241,25 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             ),
             localToRemoteFilenameMap
         );
-        List<StoreFileMetadata> filesToFetch = primaryShard.getSegmentMetadataMap().values().stream().collect(Collectors.toList());
-        final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
+        List<StoreFileMetadata> filesToFetch = List.of(
+            new StoreFileMetadata("invalid.si", 1, "1", Version.LATEST),
+            new StoreFileMetadata("invalid.cfs", 1, "1", Version.LATEST)
+        );
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ActionListener<GetSegmentFilesResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(GetSegmentFilesResponse response) {
+                fail("Expected onFailure to be called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureRef.set(e);
+                latch.countDown();
+            }
+        };
         replicationSource = new RemoteStoreReplicationSource(primaryShard);
         replicationSource.getMergedSegmentFiles(
             REPLICATION_ID,
@@ -246,9 +267,13 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             filesToFetch,
             replicaShard,
             (fileName, bytesRecovered) -> {},
-            res
+            listener
         );
-        assertThrows(ExecutionException.class, () -> res.get());
+        latch.await();
+        assertNotNull("onFailure should have been called", failureRef.get());
+        Exception observedException = failureRef.get();
+        assertTrue(observedException instanceof NoSuchFileException);
+        assertTrue(observedException.getMessage() != null && observedException.getMessage().startsWith("invalid."));
         closeShards(replicaShard);
     }
 

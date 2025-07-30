@@ -18,8 +18,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.hamcrest.core.IsEqual.equalTo;
-
 public class RemoteStorePublishMergedSegmentRequestTests extends OpenSearchTestCase {
 
     public void testPublishMergedSegmentRequest() {
@@ -48,6 +46,6 @@ public class RemoteStorePublishMergedSegmentRequestTests extends OpenSearchTestC
                 cloneRequest = new RemoteStorePublishMergedSegmentRequest(in);
             }
         }
-        assertThat(cloneRequest.getMergedSegment(), equalTo(originalRequest.getMergedSegment()));
+        assertEquals(cloneRequest.getMergedSegment(), originalRequest.getMergedSegment());
     }
 }

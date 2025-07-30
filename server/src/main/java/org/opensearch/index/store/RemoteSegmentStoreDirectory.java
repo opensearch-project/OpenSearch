@@ -98,7 +98,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private final ThreadPool threadPool;
 
     /**
-     only relevant for remote-store-enabled domains on replica shards
+     Only relevant for remote-store-enabled domains on replica shards
      to store localSegmentFilename -> remoteSegmentFilename mappings
      */
     private final Map<String, String> pendingDownloadMergedSegments;
@@ -319,7 +319,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
          */
         private int writtenByMajor;
 
-        public UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length) {
+        UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length) {
             this.originalFilename = originalFilename;
             this.uploadedFilename = uploadedFilename;
             this.checksum = checksum;
@@ -704,8 +704,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @return true if file exists in cache and checksum matches.
      */
     public boolean containsFile(String localFilename, String checksum) {
-        return (segmentsUploadedToRemoteStore.containsKey(localFilename)
-            && segmentsUploadedToRemoteStore.get(localFilename).checksum.equals(checksum));
+        return segmentsUploadedToRemoteStore.containsKey(localFilename)
+            && segmentsUploadedToRemoteStore.get(localFilename).checksum.equals(checksum);
     }
 
     /**
