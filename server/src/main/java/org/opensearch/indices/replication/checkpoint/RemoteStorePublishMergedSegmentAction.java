@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.api
  */
-public class  RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckpointAction<
+public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckpointAction<
     RemoteStorePublishMergedSegmentRequest,
     RemoteStorePublishMergedSegmentRequest> implements MergedSegmentPublisher.PublishAction {
 
@@ -109,7 +109,7 @@ public class  RemoteStorePublishMergedSegmentAction extends AbstractPublishCheck
 
         if (timeLeftMillis > 0) {
             RemoteStoreMergedSegmentCheckpoint remoteStoreMergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
-                    checkpoint,
+                checkpoint,
                 localToRemoteStoreFilenames
             );
             doPublish(

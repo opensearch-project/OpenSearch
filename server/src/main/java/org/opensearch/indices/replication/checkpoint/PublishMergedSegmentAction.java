@@ -32,7 +32,9 @@ import org.opensearch.transport.TransportService;
  * @opensearch.api
  */
 @ExperimentalApi
-public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest> implements PublishAction {
+public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest>
+    implements
+        PublishAction {
     private static final String TASK_ACTION_NAME = "segrep_publish_merged_segment";
     public static final String ACTION_NAME = "indices:admin/publish_merged_segment";
     protected static Logger logger = LogManager.getLogger(PublishMergedSegmentAction.class);
