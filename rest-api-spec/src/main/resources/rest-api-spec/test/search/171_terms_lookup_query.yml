@@ -1,65 +1,8 @@
 ---
-- skip:
-    version: " - 3.1.99"
-    reason: All tests in this file require features added in 3.2.0 or later (terms query lookup by query).
-
----
 "Terms Query - Lookup by Query":
-  - do:
-      indices.create:
-        index: lookup_index
-        body:
-          mappings:
-            properties:
-              tag:
-                type: keyword
-              followers:
-                type: keyword
-              group:
-                type: keyword
-  - do:
-      bulk:
-        index: lookup_index
-        refresh: true
-        body:
-          - { index: { _id: "1" } }
-          - { tag: "a", followers: ["foo", "bar"], group: "g1" }
-          - { index: { _id: "2" } }
-          - { tag: "b", followers: ["baz", "foo"], group: "g1" }
-          - { index: { _id: "3" } }
-          - { tag: "c", group: "g2" }
-          - { index: { _id: "4" } }
-          - { tag: "d", followers: [], group: "g1" }
-          - { index: { _id: "5" } }
-          - { tag: "e", followers: "baz", group: "g2" }
-          - { index: { _id: "6" } }
-          - { tag: "f", followers: null, group: "g1" }
-  - do:
-      indices.create:
-        index: main_index
-        body:
-          mappings:
-            properties:
-              user:
-                type: keyword
-              tag:
-                type: keyword
-  - do:
-      bulk:
-        index: main_index
-        refresh: true
-        body:
-          - { index: { _id: "u1" } }
-          - { user: "foo", tag: "a" }
-          - { index: { _id: "u2" } }
-          - { user: "bar", tag: "b" }
-          - { index: { _id: "u3" } }
-          - { user: "baz", tag: "c" }
-          - { index: { _id: "u4" } }
-          - { user: "qux", tag: "d" }
-          - { index: { _id: "u5" } }
-          - { user: "foo", tag: "e" }
-
+  - skip:
+      version: " - 3.1.99"
+      reason: All tests in this file require features added in 3.2.0 or later (terms query lookup by query).
   # Match all docs in lookup_index with group=g1, use their 'followers' as terms
   - do:
       search:
