@@ -32,6 +32,7 @@ public class RemoteStoreMergedSegmentCheckpoint extends MergedSegmentCheckpoint 
         super(
             mergedSegmentCheckpoint.getShardId(),
             mergedSegmentCheckpoint.getPrimaryTerm(),
+            mergedSegmentCheckpoint.getSegmentInfosVersion(),
             mergedSegmentCheckpoint.getLength(),
             mergedSegmentCheckpoint.getCodec(),
             mergedSegmentCheckpoint.getMetadataMap(),

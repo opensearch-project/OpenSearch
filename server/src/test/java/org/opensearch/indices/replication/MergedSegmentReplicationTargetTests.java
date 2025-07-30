@@ -88,6 +88,7 @@ public class MergedSegmentReplicationTargetTests extends IndexShardTestCase {
                 spyIndexShard.shardId(),
                 spyIndexShard.getPendingPrimaryTerm(),
                 1,
+                1,
                 indexShard.getLatestReplicationCheckpoint().getCodec(),
                 SI_SNAPSHOT,
                 IndexFileNames.parseSegmentName(SEGMENT_NAME)

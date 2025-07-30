@@ -31,6 +31,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -202,6 +203,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             new MergedSegmentCheckpoint(
                 replicaShard.shardId(),
                 primaryTerm,
+                checkpoint.getSegmentInfosVersion(),
                 checkpoint.getLength(),
                 checkpoint.getCodec(),
                 checkpoint.getMetadataMap(),
@@ -234,6 +236,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             new MergedSegmentCheckpoint(
                 replicaShard.shardId(),
                 primaryTerm,
+                checkpoint.getSegmentInfosVersion(),
                 checkpoint.getLength(),
                 checkpoint.getCodec(),
                 checkpoint.getMetadataMap(),
