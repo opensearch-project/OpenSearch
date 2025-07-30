@@ -140,9 +140,10 @@ public class FlightStreamPlugin extends Plugin
             flightService.setThreadPool(threadPool);
             flightService.setClient(client);
         }
-        statsCollector = new FlightStatsCollector();
-
-        components.add(statsCollector);
+        if (isStreamTransportEnabled) {
+            statsCollector = new FlightStatsCollector();
+            components.add(statsCollector);
+        }
         return components;
     }
 
@@ -169,7 +170,7 @@ public class FlightStreamPlugin extends Plugin
         SecureTransportSettingsProvider secureTransportSettingsProvider,
         Tracer tracer
     ) {
-        if (isArrowStreamsEnabled) {
+        if (isArrowStreamsEnabled && ServerConfig.isSslEnabled()) {
             flightService.setSecureTransportSettingsProvider(secureTransportSettingsProvider);
         }
         if (isStreamTransportEnabled && ServerConfig.isSslEnabled()) {
@@ -253,11 +254,12 @@ public class FlightStreamPlugin extends Plugin
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
-        if (!isArrowStreamsEnabled) {
+        if (isArrowStreamsEnabled) {
+            flightService.setNetworkService(networkService);
+            return Collections.singletonMap(flightService.settingKey(), () -> flightService);
+        } else {
             return Collections.emptyMap();
         }
-        flightService.setNetworkService(networkService);
-        return Collections.singletonMap(flightService.settingKey(), () -> flightService);
     }
 
     /**
@@ -287,7 +289,7 @@ public class FlightStreamPlugin extends Plugin
             handlers.add(new FlightServerInfoAction());
         }
 
-        if (isArrowStreamsEnabled || isStreamTransportEnabled) {
+        if (isStreamTransportEnabled) {
             handlers.add(new FlightStatsRestHandler());
         }
 
@@ -306,7 +308,7 @@ public class FlightStreamPlugin extends Plugin
             actions.add(new ActionHandler<>(NodesFlightInfoAction.INSTANCE, TransportNodesFlightInfoAction.class));
         }
 
-        if (isArrowStreamsEnabled || isStreamTransportEnabled) {
+        if (isStreamTransportEnabled) {
             actions.add(new ActionHandler<>(FlightStatsAction.INSTANCE, TransportFlightStatsAction.class));
         }
 
@@ -320,10 +322,9 @@ public class FlightStreamPlugin extends Plugin
      */
     @Override
     public void onNodeStarted(DiscoveryNode localNode) {
-        if (!isArrowStreamsEnabled) {
-            return;
+        if (isArrowStreamsEnabled) {
+            flightService.getFlightClientManager().buildClientAsync(localNode.getId());
         }
-        flightService.getFlightClientManager().buildClientAsync(localNode.getId());
     }
 
     /**

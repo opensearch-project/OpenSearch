@@ -121,6 +121,7 @@ public class FlightService extends AuxTransport {
     @Override
     protected void doStart() {
         try {
+            logger.info("Starting FlightService...");
             allocator = AccessController.doPrivileged((PrivilegedAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
             serverComponents.setAllocator(allocator);
             SslContextProvider sslContextProvider = ServerConfig.isSslEnabled()
@@ -139,7 +140,6 @@ public class FlightService extends AuxTransport {
             initializeStreamManager(clientManager);
             serverComponents.setFlightProducer(new BaseFlightProducer(clientManager, streamManager, allocator));
             serverComponents.start();
-
         } catch (Exception e) {
             logger.error("Failed to start Flight server", e);
             doClose();

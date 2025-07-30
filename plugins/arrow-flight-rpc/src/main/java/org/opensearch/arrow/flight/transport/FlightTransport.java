@@ -161,11 +161,7 @@ class FlightTransport extends TcpTransport {
             throw new BindTransportException("Failed to resolve host [" + Arrays.toString(bindHosts) + "]", e);
         }
 
-        List<InetSocketAddress> boundAddresses = new ArrayList<>();
-        for (InetAddress hostAddress : hostAddresses) {
-            boundAddresses.add(bindToPort(hostAddress));
-        }
-
+        List<InetSocketAddress> boundAddresses = bindToPort(hostAddresses);
         List<TransportAddress> transportAddresses = boundAddresses.stream().map(TransportAddress::new).collect(Collectors.toList());
 
         InetAddress publishInetAddress;
@@ -194,46 +190,60 @@ class FlightTransport extends TcpTransport {
         this.boundAddress = new BoundTransportAddress(transportAddresses.toArray(new TransportAddress[0]), publishAddress);
     }
 
-    private InetSocketAddress bindToPort(InetAddress hostAddress) {
+    private List<InetSocketAddress> bindToPort(InetAddress[] hostAddresses) {
         final AtomicReference<Exception> lastException = new AtomicReference<>();
-        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
+        final List<InetSocketAddress> boundAddresses = new ArrayList<>();
+        final List<Location> locations = new ArrayList<>();
+
         boolean success = portRange.iterate(portNumber -> {
             try {
-                InetSocketAddress socketAddress = new InetSocketAddress(hostAddress, portNumber);
-                Location location = sslContextProvider != null
-                    ? Location.forGrpcTls(NetworkAddress.format(hostAddress), portNumber)
-                    : Location.forGrpcInsecure(NetworkAddress.format(hostAddress), portNumber);
+                boundAddresses.clear();
+                locations.clear();
+
+                // Try to bind all addresses on the same port
+                for (InetAddress hostAddress : hostAddresses) {
+                    InetSocketAddress socketAddress = new InetSocketAddress(hostAddress, portNumber);
+                    boundAddresses.add(socketAddress);
+
+                    Location location = sslContextProvider != null
+                        ? Location.forGrpcTls(NetworkAddress.format(hostAddress), portNumber)
+                        : Location.forGrpcInsecure(NetworkAddress.format(hostAddress), portNumber);
+                    locations.add(location);
+                }
+
+                // Create single FlightServer with all locations
                 ServerHeaderMiddleware.Factory factory = new ServerHeaderMiddleware.Factory();
-                FlightServer server = OSFlightServer.builder()
+                OSFlightServer.Builder builder = OSFlightServer.builder()
                     .allocator(allocator.newChildAllocator("server", 0, Long.MAX_VALUE))
-                    .location(location)
                     .producer(flightProducer)
                     .sslContext(sslContextProvider != null ? sslContextProvider.getServerSslContext() : null)
                     .channelType(ServerConfig.serverChannelType())
                     .bossEventLoopGroup(bossEventLoopGroup)
                     .workerEventLoopGroup(workerEventLoopGroup)
                     .executor(serverExecutor)
-                    .middleware(SERVER_HEADER_KEY, factory)
-                    .build();
+                    .middleware(SERVER_HEADER_KEY, factory);
+
+                builder.location(locations.get(0));
+                for (int i = 1; i < locations.size(); i++) {
+                    builder.addListenAddress(locations.get(i));
+                }
+
+                FlightServer server = builder.build();
                 server.start();
                 this.flightServer = server;
-                boundSocket.set(socketAddress);
-                logger.info("Arrow Flight server started. Listening at {}", location);
+                logger.info("Arrow Flight server started. Listening at {}", locations);
                 return true;
             } catch (Exception e) {
                 lastException.set(e);
                 return false;
             }
         });
+
         if (!success) {
-            throw new BindTransportException(
-                "Failed to bind to " + NetworkAddress.format(hostAddress) + ":" + portRange,
-                lastException.get()
-            );
+            throw new BindTransportException("Failed to bind to " + Arrays.toString(hostAddresses) + ":" + portRange, lastException.get());
         }
 
-        logger.debug("Bound to address {}", NetworkAddress.format(boundSocket.get()));
-        return boundSocket.get();
+        return new ArrayList<>(boundAddresses);
     }
 
     @Override
