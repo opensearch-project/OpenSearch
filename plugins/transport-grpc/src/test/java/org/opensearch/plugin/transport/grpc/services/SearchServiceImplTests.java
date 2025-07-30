@@ -44,6 +44,28 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         service = new SearchServiceImpl(client, queryUtils);
     }
 
+    public void testConstructorWithNullClient() {
+        // Test that constructor throws IllegalArgumentException when client is null
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(null, queryUtils));
+
+        assertEquals("Client cannot be null", exception.getMessage());
+    }
+
+    public void testConstructorWithNullQueryUtils() {
+        // Test that constructor throws IllegalArgumentException when queryUtils is null
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(client, null));
+
+        assertEquals("Query utils cannot be null", exception.getMessage());
+    }
+
+    public void testConstructorWithBothNull() {
+        // Test that constructor throws IllegalArgumentException when both parameters are null
+        // Should fail on the first null check (client)
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new SearchServiceImpl(null, null));
+
+        assertEquals("Client cannot be null", exception.getMessage());
+    }
+
     public void testSearchSuccess() throws IOException {
         // Create a test request
         SearchRequest request = createTestSearchRequest();
@@ -55,23 +77,21 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         verify(client).search(any(org.opensearch.action.search.SearchRequest.class), any());
     }
 
-    public void testSearchError() throws IOException {
+    public void testSearchWithException() throws IOException {
         // Create a test request
         SearchRequest request = createTestSearchRequest();
 
-        // Make the client throw an exception when search is called
-        doThrow(new RuntimeException("Test exception")).when(client).search(any(org.opensearch.action.search.SearchRequest.class), any());
+        // Mock client to throw an exception
+        doThrow(new RuntimeException("Test exception")).when(client).search(any(), any());
 
-        // Call the search method
+        // Call search method
         service.search(request, responseObserver);
 
-        // Verify that the error was sent
-        verify(responseObserver).onError(any(RuntimeException.class));
+        // Verify that responseObserver.onError was called
+        verify(responseObserver).onError(any());
     }
 
     private SearchRequest createTestSearchRequest() {
-        SearchRequestBody requestBody = SearchRequestBody.newBuilder().build();
-
-        return SearchRequest.newBuilder().setRequestBody(requestBody).build();
+        return SearchRequest.newBuilder().addIndex("test-index").setRequestBody(SearchRequestBody.newBuilder().setSize(10).build()).build();
     }
 }

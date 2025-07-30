@@ -16,6 +16,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugin.transport.grpc.proto.request.search.query.QueryBuilderProtoConverter;
 import org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -120,6 +121,21 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         // Verify the number of settings
         assertEquals("Should return 11 settings", 11, settings.size());
+    }
+
+    public void testGetQueryUtilsBeforeCreateComponents() {
+        // Create a new plugin instance without calling createComponents
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Test that getQueryUtils throws IllegalStateException when queryUtils is not initialized
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> newPlugin.getQueryUtils());
+
+        assertEquals("Query utils not initialized. Make sure createComponents has been called.", exception.getMessage());
+    }
+
+    public void testGetQueryUtilsAfterCreateComponents() {
+        // Test that getQueryUtils returns the queryUtils instance after createComponents is called
+        assertNotNull("QueryUtils should not be null after createComponents", plugin.getQueryUtils());
     }
 
     public void testGetAuxTransports() {
@@ -268,5 +284,45 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         // Verify that the queryUtils instance was created and is available
         assertNotNull("QueryUtils should be initialized after createComponents", newPlugin.getQueryUtils());
+    }
+
+    public void testCreateComponentsWithExternalConverters() {
+        // Create a new plugin instance
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Create a mock converter that will be registered
+        QueryBuilderProtoConverter mockConverter = Mockito.mock(QueryBuilderProtoConverter.class);
+        when(mockConverter.getHandledQueryCase()).thenReturn(QueryContainer.QueryContainerCase.MATCH_ALL);
+
+        // Create a mock extension loader that returns the converter
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(List.of(mockConverter));
+
+        // Load the extensions first
+        newPlugin.loadExtensions(mockLoader);
+
+        // Verify the converter was added to the queryConverters list
+        assertEquals("Should have 1 query converter loaded", 1, newPlugin.getQueryConverters().size());
+
+        // Call createComponents to trigger registration of external converters
+        Collection<Object> components = newPlugin.createComponents(
+            client,
+            null, // ClusterService
+            null, // ThreadPool
+            null, // ResourceWatcherService
+            null, // ScriptService
+            null, // NamedXContentRegistry
+            null, // Environment
+            null, // NodeEnvironment
+            null, // NamedWriteableRegistry
+            null, // IndexNameExpressionResolver
+            null  // Supplier<RepositoriesService>
+        );
+
+        // Verify that the queryUtils instance was created and is available
+        assertNotNull("QueryUtils should be initialized after createComponents", newPlugin.getQueryUtils());
+
+        // Verify that the external converter was registered by checking it was called
+        Mockito.verify(mockConverter).getHandledQueryCase();
     }
 }

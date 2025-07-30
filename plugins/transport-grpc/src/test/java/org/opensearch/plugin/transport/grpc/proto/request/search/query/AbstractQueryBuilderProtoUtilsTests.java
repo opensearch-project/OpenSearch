@@ -37,12 +37,29 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
     }
 
+    public void testConstructorWithNullRegistry() {
+        // Test that constructor throws IllegalArgumentException when registry is null
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new AbstractQueryBuilderProtoUtils(null));
+
+        assertEquals("Registry cannot be null", exception.getMessage());
+    }
+
+    public void testParseInnerQueryBuilderProtoWithNullContainer() {
+        // Test that method throws IllegalArgumentException when queryContainer is null
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> queryUtils.parseInnerQueryBuilderProto(null)
+        );
+
+        assertEquals("Query container cannot be null", exception.getMessage());
+    }
+
     public void testParseInnerQueryBuilderProtoWithMatchAll() {
         // Create a QueryContainer with MatchAllQuery
         MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
 
-        // Call parseInnerQueryBuilderProto
+        // Call parseInnerQueryBuilderProto using instance method
         QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
 
         // Verify the result
@@ -55,7 +72,7 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         MatchNoneQuery matchNoneQuery = MatchNoneQuery.newBuilder().build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setMatchNone(matchNoneQuery).build();
 
-        // Call parseInnerQueryBuilderProto
+        // Call parseInnerQueryBuilderProto using instance method
         QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
 
         // Verify the result
@@ -65,15 +82,12 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseInnerQueryBuilderProtoWithTerm() {
         // Create a QueryContainer with Term query
-        // Create a FieldValue for the term value
         FieldValue fieldValue = FieldValue.newBuilder().setStringValue("test-value").build();
-
-        // Create a TermQuery with the FieldValue and field name
         TermQuery termQuery = TermQuery.newBuilder().setField("test-field").setValue(fieldValue).build();
 
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
-        // Call parseInnerQueryBuilderProto
+        // Call parseInnerQueryBuilderProto using instance method
         QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
 
         // Verify the result
@@ -85,19 +99,16 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseInnerQueryBuilderProtoWithTerms() {
-        // Create a StringArray for terms values
+        // Create a QueryContainer with Terms query using the correct protobuf classes
         StringArray stringArray = StringArray.newBuilder().addStringArray("value1").addStringArray("value2").build();
 
-        // Create a TermsLookupFieldStringArrayMap
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
             .build();
 
-        // Create a map for TermsLookupFieldStringArrayMap
         Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
         termsLookupFieldStringArrayMapMap.put("test-field", termsLookupFieldStringArrayMap);
 
-        // Create a TermsQueryField
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
             .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .build();
@@ -105,7 +116,7 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a QueryContainer with Terms query
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
 
-        // Call parseInnerQueryBuilderProto
+        // Call parseInnerQueryBuilderProto using instance method
         QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
 
         // Verify the result
@@ -118,11 +129,11 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Second value should match", "value2", termsQueryBuilder.values().get(1));
     }
 
-    public void testParseInnerQueryBuilderProtoWithUnsupportedQueryType() {
+    public void testParseInnerQueryBuilderProtoWithUnsupportedQuery() {
         // Create an empty QueryContainer (no query type specified)
         QueryContainer queryContainer = QueryContainer.newBuilder().build();
 
-        // Call parseInnerQueryBuilderProto, should throw IllegalArgumentException
+        // Call parseInnerQueryBuilderProto using instance method, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> queryUtils.parseInnerQueryBuilderProto(queryContainer)

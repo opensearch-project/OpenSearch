@@ -14,10 +14,8 @@ import org.opensearch.common.inject.Singleton;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 
@@ -29,7 +27,6 @@ import java.util.ServiceLoader;
 public class QueryBuilderProtoConverterRegistry {
 
     private static final Logger logger = LogManager.getLogger(QueryBuilderProtoConverterRegistry.class);
-    private final List<QueryBuilderProtoConverter> converters = new ArrayList<>();
     private final Map<QueryContainer.QueryContainerCase, QueryBuilderProtoConverter> converterMap = new HashMap<>();
 
     /**
@@ -55,7 +52,7 @@ public class QueryBuilderProtoConverterRegistry {
         registerConverter(new TermQueryBuilderProtoConverter());
         registerConverter(new TermsQueryBuilderProtoConverter());
 
-        logger.info("Registered {} built-in query converters", converters.size());
+        logger.info("Registered {} built-in query converters", converterMap.size());
     }
 
     /**
@@ -129,8 +126,6 @@ public class QueryBuilderProtoConverterRegistry {
                 "Cannot register converter for QUERYCONTAINER_NOT_SET case: " + converter.getClass().getName()
             );
         }
-
-        converters.add(converter);
 
         QueryBuilderProtoConverter existingConverter = converterMap.put(queryCase, converter);
         if (existingConverter != null) {
