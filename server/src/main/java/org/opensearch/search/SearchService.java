@@ -1142,6 +1142,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             // pre process
             queryPhase.preProcess(context);
+
+            context.tryEnablingEarlyTermination();
         } catch (Exception e) {
             context.close();
             throw e;

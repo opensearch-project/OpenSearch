@@ -10,12 +10,21 @@ package org.opensearch.search.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.suggest.SuggestBuilder;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -26,8 +35,14 @@ import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.QueryBuilders.termsQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
+import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
+import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public BooleanQueryIT(Settings staticSettings) {
@@ -69,10 +84,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 .setSource(intField, i, termField1, termValue1, termField2, termValue2)
                 .get();
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         int lt = 80;
         int gte = 20;
@@ -118,10 +130,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         for (int day = minDay; day <= maxDay; day++) {
             client().prepareIndex("test").setSource(dateField, getDate(day, 0)).get();
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         int minExcludedDay = 15;
         int maxExcludedDay = 25;
@@ -147,10 +156,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         for (int hour = 0; hour < 24; hour++) {
             client().prepareIndex("test").setSource(dateField, getDate(1, hour)).get();
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         int zoneOffset = 3;
         assertHitCount(
@@ -185,10 +191,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 client().prepareIndex("test").setId(Integer.toString(i)).setSource(termField, termValue).get();
             }
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         // Search excluding range 30 to 50
 
@@ -217,10 +220,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, i).get();
             }
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         // Range queries will match if ANY of the doc's values are within the range.
         // So if we exclude the range 0 to 20, we shouldn't see any of those documents returned,
@@ -232,6 +232,145 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             expectedHitCount
         );
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), numDocs);
+    }
+
+    public void testFilterEarlyTermination() throws Exception {
+        int numDocs = 6_000;
+        String intField = "int_field";
+        String textField1 = "text_field_1";
+        List<String> textField1Values = List.of("even", "odd");
+        String textField2 = "text_field_2";
+        List<String> textField2Values = List.of("a", "b", "c");
+        Client client = client();
+        String indexName = "test";
+        // Set trackTotalHitsUpTo to 500 rather than default 10k, so we have to index fewer docs
+        int trackTotalHitsUpTo = 500;
+
+        // Enforce 1 shard per node, so that no shard has < trackTotalHitsUpTo matching docs and cannot actually terminate early
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setMapping(intField, "type=integer", textField1, "type=text", textField2, "type=text")
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
+
+        for (int i = 0; i < numDocs; i++) {
+            String textValue1 = textField1Values.get(i % 2);
+            String textValue2 = textField2Values.get(i % 3);
+            client.prepareIndex(indexName)
+                .setId(Integer.toString(i))
+                .setSource(intField, i, textField1, textValue1, textField2, textValue2)
+                .get();
+        }
+        afterIndexing();
+        int lte = 3000;
+
+        // A query with only filter or must_not clauses should be able to terminate early
+        SearchResponse response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .get();
+        assertTrue(response.isTerminatedEarly());
+        // Note: queries that have finished early with terminate_after will return "eq" for hit relation
+        assertHitCount(response, trackTotalHitsUpTo, EQUAL_TO);
+
+        // Force the same query to not terminate early by setting terminateAfter to some non-default high value, so we can check the hits
+        // are identical
+        SearchResponse originalQueryResponse = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setTerminateAfter(1_000_000)
+            .get();
+        assertFalse(originalQueryResponse.isTerminatedEarly()); // Returns false not null when TA was set but not reached
+        assertHitCount(originalQueryResponse, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+        List<String> terminatedEarlyIds = new ArrayList<>();
+        for (Iterator<SearchHit> it = response.getHits().iterator(); it.hasNext();) {
+            SearchHit terminatedEarlyHit = it.next();
+            terminatedEarlyIds.add(terminatedEarlyHit.getId());
+        }
+        assertOrderedSearchHits(originalQueryResponse, terminatedEarlyIds.toArray(new String[0]));
+
+        // Queries with other clauses should not terminate early
+        response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).must(termQuery(textField2, "a")))
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+
+        response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().must(rangeQuery(intField).lte(lte)).should(termQuery(textField1, "odd")))
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+
+        // Queries with aggregations shouldn't terminate early
+        response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .addAggregation(cardinality("cardinality").field(intField))
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+
+        // Queries with sorting shouldn't terminate early
+        response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .addSort(intField, SortOrder.DESC)
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+
+        // Queries with pagination shouldn't terminate early
+        response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setFrom(10)
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+
+        response = client().prepareSearch()
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .searchAfter(new Object[] { 0 })
+            .addSort(intField, SortOrder.DESC)
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+
+        // Scroll queries shouldn't terminate early
+        response = client().prepareSearch()
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .setScroll(TimeValue.timeValueSeconds(30))
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, lte / 2);
+
+        response = client().prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, lte / 2);
+        clearScroll(response.getScrollId());
+
+        // Suggest queries shouldn't terminate early
+        response = client().prepareSearch()
+            .suggest(new SuggestBuilder())
+            .setTrackTotalHitsUpTo(trackTotalHitsUpTo)
+            .setQuery(boolQuery().mustNot(termQuery(textField1, "even")).filter(rangeQuery(intField).lte(lte)))
+            .get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
+
+        // Search responses missing a query shouldn't terminate early or throw an error
+        response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).get();
+        assertNull(response.isTerminatedEarly());
+        assertHitCount(response, trackTotalHitsUpTo, GREATER_THAN_OR_EQUAL_TO);
     }
 
     public void testMustNotNumericMatchOrTermQueryRewrite() throws Exception {
@@ -312,5 +451,12 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
     private String getDate(int day, int hour) {
         return "2016-01-" + padZeros(day, 2) + "T" + padZeros(hour, 2) + ":00:00.000";
+    }
+
+    private void afterIndexing() {
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
     }
 }

@@ -36,6 +36,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -67,6 +68,7 @@ import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
@@ -106,6 +108,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.IndexSettings.INDEX_SEARCH_THROTTLED;
+import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.rangeQuery;
+import static org.opensearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
+import static org.opensearch.search.internal.SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
@@ -1168,6 +1174,160 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             // shutdown the threadpool
             threadPool.shutdown();
         }
+    }
+
+    public void testEarlyTermination() throws Exception {
+        ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
+        ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
+        when(shardSearchRequest.shardId()).thenReturn(shardId);
+
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
+        IndexShard indexShard = mock(IndexShard.class);
+        QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
+        when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
+        when(indexShard.getThreadPool()).thenReturn(threadPool);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .build();
+
+        IndexService indexService = mock(IndexService.class);
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class), anyBoolean(), anyBoolean()))
+            .thenReturn(queryShardContext);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        when(queryShardContext.fieldMapper(anyString())).thenReturn(fieldType);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        when(indexService.getIndexSettings()).thenReturn(indexSettings);
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
+
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+
+            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(Function.identity()) {
+                @Override
+                protected void doClose() {}
+
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    try {
+                        IndexReader reader = w.getReader();
+                        return new Engine.Searcher(
+                            "test",
+                            reader,
+                            IndexSearcher.getDefaultSimilarity(),
+                            IndexSearcher.getDefaultQueryCache(),
+                            IndexSearcher.getDefaultQueryCachingPolicy(),
+                            reader
+                        );
+                    } catch (IOException exc) {
+                        throw new AssertionError(exc);
+                    }
+                }
+            };
+
+            SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
+            ReaderContext readerContext = new ReaderContext(
+                newContextId(),
+                indexService,
+                indexShard,
+                searcherSupplier.get(),
+                randomNonNegativeLong(),
+                false
+            );
+
+            final ClusterService clusterService = mock(ClusterService.class);
+            final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            clusterSettings.registerSetting(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING);
+            clusterSettings.registerSetting(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE);
+            clusterSettings.applySettings(
+                Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), "auto").build()
+            );
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+            when(clusterService.getSettings()).thenReturn(settings);
+
+            DefaultSearchContext context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                clusterService,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null,
+                Collections.emptyList()
+            );
+
+            // Test we can't run this method until size and from are set
+            assertThrows(AssertionError.class, context::tryEnablingEarlyTermination);
+            context.size(10);
+            assertThrows(AssertionError.class, context::tryEnablingEarlyTermination);
+            context.from(0);
+            // If no query is set yet, should return false.
+            assertFalse(context.tryEnablingEarlyTermination());
+            // This should return true with a BooleanQuery with only filter/must_not clauses.
+            Query query = boolQuery().mustNot(rangeQuery("dummyField").gte(3))
+                .filter(rangeQuery("dummyField2").lte(1))
+                .toQuery(queryShardContext);
+            context.parsedQuery(new ParsedQuery(query));
+            assertTrue(context.tryEnablingEarlyTermination());
+            assertEquals(DEFAULT_TRACK_TOTAL_HITS_UP_TO, context.terminateAfter());
+            context.terminateAfter(DEFAULT_TERMINATE_AFTER);
+
+            // A BooleanQuery with other clause types should return false
+            Query mustQuery = boolQuery().must(rangeQuery("dummyField2").lte(1)).toQuery(queryShardContext);
+            context.parsedQuery(new ParsedQuery(mustQuery));
+            assertFalse(context.tryEnablingEarlyTermination());
+            context.parsedQuery(new ParsedQuery(query)); // Reset to constant-scoring boolean query
+
+            // Scroll queries should return false
+            context.sliceBuilder(mock(SliceBuilder.class));
+            assertFalse(context.tryEnablingEarlyTermination());
+            context.sliceBuilder(null); // Reset
+
+            // Sort queries should return false
+            DocValueFormat docValueFormat = mock(DocValueFormat.class);
+            context.sort(new SortAndFormats(new Sort(), new DocValueFormat[] { docValueFormat }));
+            assertFalse(context.tryEnablingEarlyTermination());
+            context.sort(null); // Reset
+
+            // From != 0 should return false
+            context.from(10);
+            assertFalse(context.tryEnablingEarlyTermination());
+            context.from(0); // Reset
+
+            // Agg queries should return false
+            SearchContextAggregations mockAggregations = mock(SearchContextAggregations.class);
+            when(mockAggregations.factories()).thenReturn(mock(AggregatorFactories.class));
+            when(mockAggregations.factories().allFactoriesSupportConcurrentSearch()).thenReturn(false);
+            when(mockAggregations.multiBucketConsumer()).thenReturn(mock(MultiBucketConsumerService.MultiBucketConsumer.class));
+            context.aggregations(mockAggregations);
+            assertFalse(context.tryEnablingEarlyTermination());
+            context.aggregations(null); // Reset
+
+            // If terminateAfter is already set to something other than its default value, it should return false
+            assertEquals(0, context.terminateAfter());
+            context.terminateAfter(10_000);
+            assertFalse(context.tryEnablingEarlyTermination());
+            context.terminateAfter(DEFAULT_TERMINATE_AFTER); // Reset
+
+            // Non boolean queries should return false
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            assertFalse(context.tryEnablingEarlyTermination());
+        }
+        // shutdown the threadpool
+        threadPool.shutdown();
     }
 
     private ShardSearchContextId newContextId() {
