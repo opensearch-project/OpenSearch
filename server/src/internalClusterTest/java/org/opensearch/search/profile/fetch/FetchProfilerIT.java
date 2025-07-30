@@ -81,7 +81,7 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                     "BUILD_SUB_PHASE_PROCESSORS timing should be present",
                     breakdown.containsKey(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS.toString())
                 );
-                assertTrue("NEXT_READER timing should be present", breakdown.containsKey(FetchTimingType.NEXT_READER.toString()));
+                assertTrue("GET_NEXT_READER timing should be present", breakdown.containsKey(FetchTimingType.GET_NEXT_READER.toString()));
                 assertTrue(
                     "LOAD_STORED_FIELDS timing should be present",
                     breakdown.containsKey(FetchTimingType.LOAD_STORED_FIELDS.toString())
@@ -332,7 +332,7 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                         foundInnerHitsPhase = true;
                         Map<String, Long> breakdown = phase.getTimeBreakdown();
                         assertTrue(breakdown.containsKey(FetchTimingType.PROCESS.toString()));
-                        assertTrue(breakdown.containsKey(FetchTimingType.NEXT_READER.toString()));
+                        assertTrue(breakdown.containsKey(FetchTimingType.SET_NEXT_READER.toString()));
                     }
                 }
                 if ("fetch_inner_hits".equals(fetchResult.getQueryName())) {
@@ -371,7 +371,7 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                         );
                         assertTrue(
                             phaseName + " should have NEXT_READER timing type",
-                            breakdown.containsKey(FetchTimingType.NEXT_READER.toString())
+                            breakdown.containsKey(FetchTimingType.SET_NEXT_READER.toString())
                         );
                         foundPhase = true;
                         break;

@@ -455,7 +455,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                     .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
                     .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
                     .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.GET_NEXT_READER);
             }
         }
     }
@@ -492,7 +492,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for ExplainPhase", children.containsKey("ExplainPhase"));
                 new TimingAssertions(children.get("ExplainPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -528,7 +528,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for FetchSourcePhase", children.containsKey("FetchSourcePhase"));
                 new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -565,7 +565,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for FetchDocValuesPhase", children.containsKey("FetchDocValuesPhase"));
                 new TimingAssertions(children.get("FetchDocValuesPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -602,7 +602,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for FetchFieldsPhase", children.containsKey("FetchFieldsPhase"));
                 new TimingAssertions(children.get("FetchFieldsPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -639,7 +639,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for FetchVersionPhase", children.containsKey("FetchVersionPhase"));
                 new TimingAssertions(children.get("FetchVersionPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -676,7 +676,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for SeqNoPrimaryTermPhase", children.containsKey("SeqNoPrimaryTermPhase"));
                 new TimingAssertions(children.get("SeqNoPrimaryTermPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -714,7 +714,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for MatchedQueriesPhase", children.containsKey("MatchedQueriesPhase"));
                 new TimingAssertions(children.get("MatchedQueriesPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -758,7 +758,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for HighlightPhase", children.containsKey("HighlightPhase"));
                 new TimingAssertions(children.get("HighlightPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -795,7 +795,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertEquals(1, children.size());
                 assertTrue("Missing profile for FetchScorePhase", children.containsKey("FetchScorePhase"));
                 new TimingAssertions(children.get("FetchScorePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }
@@ -841,10 +841,10 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                 assertTrue(children.containsKey("FetchSourcePhase"));
 
                 new TimingAssertions(children.get("InnerHitsPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
 
                 new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
 
                 ProfileResult innerHitsFetch = profileResults.get(1);
                 assertEquals("fetch_inner_hits", innerHitsFetch.getQueryName());
@@ -855,11 +855,11 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                     .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
                     .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
                     .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
-                    .assertTimingPresent(FetchTimingType.NEXT_READER);
+                    .assertTimingPresent(FetchTimingType.GET_NEXT_READER);
 
                 new TimingAssertions(innerHitsFetch.getProfiledChildren().getFirst().getTimeBreakdown()).assertTimingPresent(
                     FetchTimingType.PROCESS
-                ).assertTimingPresent(FetchTimingType.NEXT_READER);
+                ).assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }

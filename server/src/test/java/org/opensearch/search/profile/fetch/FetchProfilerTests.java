@@ -48,7 +48,7 @@ public class FetchProfilerTests extends OpenSearchTestCase {
         FetchProfiler profiler = new FetchProfiler();
         FetchProfileBreakdown root = profiler.startFetchPhase("fetch");
         for (FetchTimingType type : FetchTimingType.values()) {
-            if (type == FetchTimingType.PROCESS) {
+            if (type == FetchTimingType.PROCESS || type == FetchTimingType.SET_NEXT_READER) {
                 continue;
             }
             Timer t = root.getTimer(type);
@@ -56,11 +56,11 @@ public class FetchProfilerTests extends OpenSearchTestCase {
             t.stop();
         }
 
-        FetchProfileBreakdown child = profiler.startSubPhase("phase");
+        FetchProfileBreakdown child = profiler.startSubPhase("phase", "fetch");
         Timer ct = child.getTimer(FetchTimingType.PROCESS);
         ct.start();
         ct.stop();
-        profiler.endCurrentFetchPhase();
+        profiler.endFetchPhase("fetch");
 
         List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
@@ -70,7 +70,7 @@ public class FetchProfilerTests extends OpenSearchTestCase {
         assertEquals(10, map.size());
         long sum = 0;
         for (FetchTimingType type : FetchTimingType.values()) {
-            if (type == FetchTimingType.PROCESS) {
+            if (type == FetchTimingType.PROCESS || type == FetchTimingType.SET_NEXT_READER) {
                 continue;
             }
             String key = type.toString();
@@ -80,6 +80,7 @@ public class FetchProfilerTests extends OpenSearchTestCase {
         }
         assertEquals(sum, profileResult.getTime());
         assertFalse(map.containsKey(FetchTimingType.PROCESS.toString()));
+        assertFalse(map.containsKey(FetchTimingType.SET_NEXT_READER.toString()));
     }
 
     public void testTimerAggregation() {

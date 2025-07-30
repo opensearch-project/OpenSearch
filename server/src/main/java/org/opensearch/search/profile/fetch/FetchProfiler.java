@@ -34,17 +34,17 @@ public class FetchProfiler {
     }
 
     /**
-     * Get the {@link FetchProfileBreakdown} for a fetch sub-phase.
+     * Get the {@link FetchProfileBreakdown} for a fetch sub-phase under the specified parent.
      */
-    public FetchProfileBreakdown startSubPhase(String element) {
-        return profileTree.startSubPhase(element);
+    public FetchProfileBreakdown startSubPhase(String element, String parentElement) {
+        return profileTree.startSubPhase(element, parentElement);
     }
 
     /**
-     * Finish profiling of the current fetch phase.
+     * Finish profiling of the specified fetch phase.
      */
-    public void endCurrentFetchPhase() {
-        profileTree.endCurrentFetchPhase();
+    public void endFetchPhase(String element) {
+        profileTree.endFetchPhase(element);
     }
 
     /**

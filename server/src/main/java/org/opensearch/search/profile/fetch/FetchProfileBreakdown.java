@@ -14,8 +14,6 @@ import org.opensearch.search.profile.ProfileMetricUtil;
 
 /**
  * A record of timings for the various operations that may happen during fetch execution.
- *
- * @opensearch.internal
  */
 @PublicApi(since = "3.2.0")
 public class FetchProfileBreakdown extends AbstractProfileBreakdown {

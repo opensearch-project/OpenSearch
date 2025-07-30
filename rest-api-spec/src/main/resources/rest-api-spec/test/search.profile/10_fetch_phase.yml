@@ -97,8 +97,8 @@ setup:
   - match: { profile.shards.0.fetch.0.breakdown.load_stored_fields_count: 3 }
   - is_true: profile.shards.0.fetch.0.breakdown.load_source
   - match: { profile.shards.0.fetch.0.breakdown.load_source_count: 3 }
-  - is_true: profile.shards.0.fetch.0.breakdown.next_reader
-  - match: { profile.shards.0.fetch.0.breakdown.next_reader_count: 1}
+  - is_true: profile.shards.0.fetch.0.breakdown.get_next_reader
+  - match: { profile.shards.0.fetch.0.breakdown.get_next_reader_count: 1}
   - is_true: profile.shards.0.fetch.0.breakdown.build_sub_phase_processors
   - match: { profile.shards.0.fetch.0.breakdown.build_sub_phase_processors_count: 1}
   - is_true: profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor
@@ -110,8 +110,8 @@ setup:
   - match: { profile.shards.0.fetch.1.breakdown.load_stored_fields_count: 0 }
   - is_true: profile.shards.0.fetch.1.breakdown.load_source
   - match: { profile.shards.0.fetch.1.breakdown.load_source_count: 1 }
-  - is_true: profile.shards.0.fetch.1.breakdown.next_reader
-  - match: { profile.shards.0.fetch.1.breakdown.next_reader_count: 1}
+  - is_true: profile.shards.0.fetch.1.breakdown.get_next_reader
+  - match: { profile.shards.0.fetch.1.breakdown.get_next_reader_count: 1}
   - is_true: profile.shards.0.fetch.1.breakdown.build_sub_phase_processors
   - match: { profile.shards.0.fetch.1.breakdown.build_sub_phase_processors_count: 1}
   - is_true: profile.shards.0.fetch.1.breakdown.create_stored_fields_visitor

@@ -18,8 +18,10 @@ public enum FetchTimingType {
     CREATE_STORED_FIELDS_VISITOR,
     /** Time spent building fetch sub-phase processors */
     BUILD_SUB_PHASE_PROCESSORS,
-    /** Time spent switching to the next segment */
-    NEXT_READER,
+    /** Time spent getting the specific leaf reader context for a given segment index */
+    GET_NEXT_READER,
+    /** Time spent setting next reader for each subphase processor **/
+    SET_NEXT_READER,
     /** Time spent loading stored fields for a hit */
     LOAD_STORED_FIELDS,
     /** Time spent loading the document _source */

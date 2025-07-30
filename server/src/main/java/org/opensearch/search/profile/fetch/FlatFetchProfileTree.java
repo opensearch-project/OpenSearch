@@ -11,9 +11,8 @@ package org.opensearch.search.profile.fetch;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.Timer;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,15 +34,15 @@ class FlatFetchProfileTree {
         FetchTimingType.LOAD_STORED_FIELDS.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX,
         FetchTimingType.LOAD_SOURCE.toString(),
         FetchTimingType.LOAD_SOURCE.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX,
-        FetchTimingType.NEXT_READER.toString(),
-        FetchTimingType.NEXT_READER.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX
+        FetchTimingType.GET_NEXT_READER.toString(),
+        FetchTimingType.GET_NEXT_READER.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX
     );
 
     private static final Set<String> SUB_PHASE_KEYS = Set.of(
         FetchTimingType.PROCESS.toString(),
         FetchTimingType.PROCESS.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX,
-        FetchTimingType.NEXT_READER.toString(),
-        FetchTimingType.NEXT_READER.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX
+        FetchTimingType.SET_NEXT_READER.toString(),
+        FetchTimingType.SET_NEXT_READER.toString() + Timer.TIMING_TYPE_COUNT_SUFFIX
     );
 
     private static class Node {
@@ -58,21 +57,21 @@ class FlatFetchProfileTree {
     }
 
     private final List<Node> roots = new ArrayList<>();
-    private final Deque<Node> stack = new ArrayDeque<>();
+    private final Map<String, Node> phaseMap = new HashMap<>();
 
     /** Start profiling a new fetch phase and return its breakdown. */
     FetchProfileBreakdown startFetchPhase(String element) {
         Node node = new Node(element);
         roots.add(node);
-        stack.addLast(node);
+        phaseMap.put(element, node);
         return node.breakdown;
     }
 
-    /** Start profiling a fetch sub-phase under the current phase. */
-    FetchProfileBreakdown startSubPhase(String element) {
-        Node parent = stack.peekLast();
+    /** Start profiling a fetch sub-phase under the specified parent phase. */
+    FetchProfileBreakdown startSubPhase(String element, String parentElement) {
+        Node parent = phaseMap.get(parentElement);
         if (parent == null) {
-            // If no phase is active, treat sub-phase as a new fetch phase
+            // If parent phase doesn't exist, treat sub-phase as a new fetch phase
             return startFetchPhase(element);
         }
         Node child = new Node(element);
@@ -81,10 +80,10 @@ class FlatFetchProfileTree {
     }
 
     /**
-     * Finish profiling of the current fetch phase.
+     * Finish profiling of the specified fetch phase.
      */
-    void endCurrentFetchPhase() {
-        stack.pollLast();
+    void endFetchPhase(String element) {
+        phaseMap.remove(element);
     }
 
     /**

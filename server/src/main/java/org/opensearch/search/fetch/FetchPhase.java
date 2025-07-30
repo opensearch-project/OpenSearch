@@ -162,7 +162,7 @@ public class FetchPhase {
         Map<FetchSubPhaseProcessor, FetchProfileBreakdown> processorProfiles = new HashMap<>();
         if (breakdown != null) {
             for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
-                FetchProfileBreakdown pb = context.getProfilers().getFetchProfiler().startSubPhase(p.v2().getClass().getSimpleName());
+                FetchProfileBreakdown pb = context.getProfilers().getFetchProfiler().startSubPhase(p.v2().getClass().getSimpleName(), profileDescription);
                 processorProfiles.put(p.v1(), pb);
             }
         }
@@ -181,7 +181,7 @@ public class FetchPhase {
                 if (currentReaderIndex != readerIndex) {
                     currentReaderContext = profile(
                         breakdown,
-                        FetchTimingType.NEXT_READER,
+                        FetchTimingType.GET_NEXT_READER,
                         () -> context.searcher().getIndexReader().leaves().get(readerIndex)
                     );
                     currentReaderIndex = readerIndex;
@@ -200,7 +200,7 @@ public class FetchPhase {
                     for (Tuple<FetchSubPhaseProcessor, FetchSubPhase> p : processors) {
                         FetchProfileBreakdown pbd = processorProfiles.get(p.v1());
                         LeafReaderContext readerCtx = currentReaderContext;
-                        profile(pbd, FetchTimingType.NEXT_READER, () -> {
+                        profile(pbd, FetchTimingType.SET_NEXT_READER, () -> {
                             p.v1().setNextReader(readerCtx);
                             return null;
                         });
@@ -238,7 +238,7 @@ public class FetchPhase {
         context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
 
         if (fetchProfiler != null) {
-            fetchProfiler.endCurrentFetchPhase();
+            fetchProfiler.endFetchPhase(profileDescription);
         }
     }
 
