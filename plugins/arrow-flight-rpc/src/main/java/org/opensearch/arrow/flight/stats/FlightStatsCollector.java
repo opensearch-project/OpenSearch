@@ -15,8 +15,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.netty.channel.EventLoopGroup;
-
 /**
  * Collects Flight transport statistics from various components.
  * This is the main entry point for metrics collection in the Arrow Flight transport.
@@ -25,8 +23,6 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
 
     private volatile BufferAllocator bufferAllocator;
     private volatile ThreadPool threadPool;
-    private volatile EventLoopGroup bossEventLoopGroup;
-    private volatile EventLoopGroup workerEventLoopGroup;
     private final AtomicInteger serverChannelsActive = new AtomicInteger(0);
     private final AtomicInteger clientChannelsActive = new AtomicInteger(0);
     private final FlightMetrics metrics = new FlightMetrics();
@@ -52,17 +48,6 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
      */
     public void setThreadPool(ThreadPool threadPool) {
         this.threadPool = threadPool;
-    }
-
-    /**
-     * Sets the Netty event loop groups for thread counting
-     *
-     * @param bossEventLoopGroup the boss event loop group
-     * @param workerEventLoopGroup the worker event loop group
-     */
-    public void setEventLoopGroups(EventLoopGroup bossEventLoopGroup, EventLoopGroup workerEventLoopGroup) {
-        this.bossEventLoopGroup = bossEventLoopGroup;
-        this.workerEventLoopGroup = workerEventLoopGroup;
     }
 
     /**
@@ -154,14 +139,6 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
                     serverThreadsTotal += stat.getThreads();
                 }
             }
-        }
-
-        // Add Netty event loop threads to server total
-        if (bossEventLoopGroup != null && !bossEventLoopGroup.isShutdown()) {
-            serverThreadsTotal += 1;
-        }
-        if (workerEventLoopGroup != null && !workerEventLoopGroup.isShutdown()) {
-            serverThreadsTotal += Runtime.getRuntime().availableProcessors() * 2;
         }
 
         // Update metrics with resource utilization
