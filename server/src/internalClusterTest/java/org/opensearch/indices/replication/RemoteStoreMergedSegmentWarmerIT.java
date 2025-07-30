@@ -144,7 +144,7 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
                 .get();
         }
 
-        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1));
+        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(2));
 
         waitForSegmentCount(INDEX_NAME, 2, logger);
         assertTrue(latch.await(10, TimeUnit.SECONDS));
