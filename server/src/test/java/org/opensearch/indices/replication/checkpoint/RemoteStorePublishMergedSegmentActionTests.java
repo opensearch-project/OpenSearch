@@ -142,6 +142,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         final MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
             indexShard.shardId(),
             1,
+            1,
             1111,
             Codec.getDefault().getName(),
             Collections.emptyMap(),
@@ -179,7 +180,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
         );
 
         final RemoteStoreMergedSegmentCheckpoint checkpoint = new RemoteStoreMergedSegmentCheckpoint(
-            new MergedSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1"),
+            new MergedSegmentCheckpoint(indexShard.shardId(), 1, 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1"),
             Map.of("_1", "_1__uuid")
         );
         final RemoteStorePublishMergedSegmentRequest request = new RemoteStorePublishMergedSegmentRequest(checkpoint);
@@ -316,7 +317,7 @@ public class RemoteStorePublishMergedSegmentActionTests extends OpenSearchTestCa
 
     private RemoteStoreMergedSegmentCheckpoint createCheckpoint(IndexShard indexShard) {
         return new RemoteStoreMergedSegmentCheckpoint(
-            new MergedSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1"),
+            new MergedSegmentCheckpoint(indexShard.shardId(), 1, 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1"),
             Map.of("_1", "_1__uuid")
         );
     }

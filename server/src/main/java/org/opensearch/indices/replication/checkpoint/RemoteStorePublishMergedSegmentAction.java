@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.api
  */
-public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckpointAction<
+public class  RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckpointAction<
     RemoteStorePublishMergedSegmentRequest,
     RemoteStorePublishMergedSegmentRequest> implements MergedSegmentPublisher.PublishAction {
 
@@ -98,13 +98,9 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
     }
 
     @Override
-    public void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
-        if (!(checkpoint instanceof MergedSegmentCheckpoint mergedSegmentCheckpoint)) {
-            throw new AssertionError("Expected checkpoint to be an instance of " + MergedSegmentCheckpoint.class);
-        }
-
+    public final void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
         long startTimeMillis = System.currentTimeMillis();
-        Map<String, String> localToRemoteStoreFilenames = uploadMergedSegmentsToRemoteStore(indexShard, mergedSegmentCheckpoint);
+        Map<String, String> localToRemoteStoreFilenames = uploadMergedSegmentsToRemoteStore(indexShard, checkpoint);
         long endTimeMillis = System.currentTimeMillis();
 
         long elapsedTimeMillis = endTimeMillis - startTimeMillis;
@@ -113,7 +109,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
 
         if (timeLeftMillis > 0) {
             RemoteStoreMergedSegmentCheckpoint remoteStoreMergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
-                mergedSegmentCheckpoint,
+                    checkpoint,
                 localToRemoteStoreFilenames
             );
             doPublish(
@@ -128,7 +124,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             logger.warn(
                 () -> new ParameterizedMessage(
                     "Unable to confirm upload of merged segment {} to remote store. Timeout of {}s exceeded. Skipping pre-copy.",
-                    mergedSegmentCheckpoint,
+                    checkpoint,
                     TimeValue.timeValueMillis(elapsedTimeMillis).toHumanReadableString(3)
                 )
             );

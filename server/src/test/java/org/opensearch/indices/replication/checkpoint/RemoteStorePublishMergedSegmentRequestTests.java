@@ -22,7 +22,7 @@ public class RemoteStorePublishMergedSegmentRequestTests extends OpenSearchTestC
 
     public void testPublishMergedSegmentRequest() {
         RemoteStoreMergedSegmentCheckpoint checkpoint = new RemoteStoreMergedSegmentCheckpoint(
-            new MergedSegmentCheckpoint(new ShardId(new Index("1", "1"), 0), 0, 0, "", Collections.emptyMap(), "_0"),
+            new MergedSegmentCheckpoint(new ShardId(new Index("1", "1"), 0), 0, 0, 0, "", Collections.emptyMap(), "_0"),
             Map.of("_0", "_0__uuid")
         );
 
@@ -35,7 +35,7 @@ public class RemoteStorePublishMergedSegmentRequestTests extends OpenSearchTestC
 
     public void testSerialize() throws Exception {
         RemoteStoreMergedSegmentCheckpoint checkpoint = new RemoteStoreMergedSegmentCheckpoint(
-            new MergedSegmentCheckpoint(new ShardId(new Index("1", "1"), 0), 0, 0, "", Collections.emptyMap(), "_0"),
+            new MergedSegmentCheckpoint(new ShardId(new Index("1", "1"), 0), 0, 0, 0, "", Collections.emptyMap(), "_0"),
             Map.of("_0", "_0__uuid")
         );
         RemoteStorePublishMergedSegmentRequest originalRequest = new RemoteStorePublishMergedSegmentRequest(checkpoint);
