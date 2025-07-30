@@ -168,6 +168,62 @@ public class AclRoutingSearchProcessorTests extends OpenSearchTestCase {
         assertThat(result.routing(), notNullValue());
     }
 
+    public void testFactoryCreationMissingAclField() {
+        AclRoutingSearchProcessor.Factory factory = new AclRoutingSearchProcessor.Factory();
+
+        Map<String, Object> config = new HashMap<>();
+
+        Exception e = expectThrows(Exception.class, () -> factory.create(null, null, null, false, config, null));
+        assertTrue(e.getMessage().contains("acl_field"));
+    }
+
+    public void testGetType() {
+        AclRoutingSearchProcessor processor = new AclRoutingSearchProcessor("tag", "description", false, "acl_field", true);
+        assertThat(processor.getType(), equalTo("acl_routing_search"));
+    }
+
+    public void testBoolQueryWithMustNot() throws Exception {
+        SearchRequest request = createSearchRequest();
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery("status", "active"))
+            .mustNot(QueryBuilders.termQuery("acl_group", "team-alpha"));
+        request.source().query(boolQuery);
+
+        AclRoutingSearchProcessor processor = new AclRoutingSearchProcessor(null, null, false, "acl_group", true);
+
+        SearchRequest result = processor.processRequest(request);
+
+        assertThat(result.routing(), notNullValue());
+    }
+
+    public void testEmptyTermsQuery() throws Exception {
+        SearchRequest request = createSearchRequest();
+        request.source().query(QueryBuilders.termsQuery("acl_group", new Object[] {}));
+
+        AclRoutingSearchProcessor processor = new AclRoutingSearchProcessor(null, null, false, "acl_group", true);
+
+        SearchRequest result = processor.processRequest(request);
+
+        assertThat(result.routing(), nullValue());
+    }
+
+    public void testHashingConsistency() throws Exception {
+        String aclValue = "team-production";
+
+        SearchRequest request1 = createSearchRequest();
+        request1.source().query(QueryBuilders.termQuery("acl_group", aclValue));
+
+        SearchRequest request2 = createSearchRequest();
+        request2.source().query(QueryBuilders.termQuery("acl_group", aclValue));
+
+        AclRoutingSearchProcessor processor = new AclRoutingSearchProcessor(null, null, false, "acl_group", true);
+
+        processor.processRequest(request1);
+        processor.processRequest(request2);
+
+        assertThat(request1.routing(), equalTo(request2.routing()));
+    }
+
     private SearchRequest createSearchRequest() {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder());
