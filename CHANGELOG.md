@@ -82,6 +82,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added File Cache Pinning ([#17617](https://github.com/opensearch-project/OpenSearch/issues/13648))
 - Support consumer reset in Resume API for pull-based ingestion. This PR includes a breaking change for the experimental pull-based ingestion feature. ([#18332](https://github.com/opensearch-project/OpenSearch/pull/18332))
 - Add FIPS build tooling ([#4254](https://github.com/opensearch-project/security/issues/4254))
+- [Derived Source] Add integration of derived source feature across various paths like get/search/recovery ([#18565](https://github.com/opensearch-project/OpenSearch/pull/18565))
 
 ### Changed
 - Update Subject interface to use CheckedRunnable ([#18570](https://github.com/opensearch-project/OpenSearch/issues/18570))
@@ -141,6 +142,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Security
 
 [Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.1...main
-### Added
-[Derive Source] Add integration of derived source feature across various paths like get/search/recovery #18565
-([#18565](https://github.com/opensearch-project/OpenSearch/pull/18565))

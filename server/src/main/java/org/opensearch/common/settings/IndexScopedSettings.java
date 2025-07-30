@@ -285,7 +285,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
                 // Setting for derived source feature
                 IndexSettings.INDEX_DERIVED_SOURCE_SETTING,
-                IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING,
+                IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

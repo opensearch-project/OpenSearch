@@ -176,7 +176,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         // Setup mapper service with derived source enabled
         Settings derivedSourceSettings = Settings.builder()
             .put(defaultIndexSettings.getSettings())
-            .put("index.derived_source.enabled", true)
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
             .build();
         IndexMetadata derivedMetadata = IndexMetadata.builder("test").settings(derivedSourceSettings).build();
         IndexSettings derivedIndexSettings = new IndexSettings(derivedMetadata, Settings.EMPTY);
@@ -219,7 +219,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         Settings derivedSourceSettings = Settings.builder()
             .put(defaultIndexSettings.getSettings())
             .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(), "source")
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
             .build();
         IndexMetadata derivedMetadata = IndexMetadata.builder("test").settings(derivedSourceSettings).build();
         IndexSettings derivedIndexSettings = new IndexSettings(derivedMetadata, Settings.EMPTY);

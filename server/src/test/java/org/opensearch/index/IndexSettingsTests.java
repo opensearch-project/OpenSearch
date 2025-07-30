@@ -1045,32 +1045,23 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(), "DERIVED")
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), true)
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(Translog.DerivedSourceReadPreference.DERIVED, settings.getTranslogReadPreferenceForDerivedSource());
+        assertTrue(settings.isDerivedSourceEnabledForTranslog());
 
         // Test 2: Invalid case - setting read preference when derived source is disabled
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            IndexMetadata invalidMetadata = newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
-                    .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(), "source")
-                    .build()
-            );
-            new IndexSettings(invalidMetadata, Settings.EMPTY);
-        });
-        assertEquals(
-            "The "
-                + IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey()
-                + " can't be set when "
-                + IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey()
-                + " setting is disabled",
-            e.getMessage()
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
+                .build()
         );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
 
         // Test 3: Default(Derived) behavior - no read preference set
         metadata = newIndexMeta(
@@ -1081,7 +1072,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 .build()
         );
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(Translog.DerivedSourceReadPreference.DERIVED, settings.getTranslogReadPreferenceForDerivedSource());
+        assertTrue(settings.isDerivedSourceEnabledForTranslog());
 
         // Test 4: Dynamic update - valid case
         settings.updateIndexMetadata(
@@ -1089,41 +1080,21 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 "index",
                 Settings.builder()
                     .put(metadata.getSettings())
-                    .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(), "source")
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
                     .build()
             )
         );
-        assertEquals(Translog.DerivedSourceReadPreference.SOURCE, settings.getTranslogReadPreferenceForDerivedSource());
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
 
-        // Test 5: Empty value should default to DERIVED
-        settings.updateIndexMetadata(
-            newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(metadata.getSettings())
-                    .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(), "")
-                    .build()
-            )
+        // Test 5: If derived source is disabled then translog setting value should also be disabled
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                .build()
         );
-        assertEquals(Translog.DerivedSourceReadPreference.DERIVED, settings.getTranslogReadPreferenceForDerivedSource());
-
-        // Test 6: Invalid setting name
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            IndexMetadata invalidMetadata = newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
-                    .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(), "invalid setting")
-                    .build()
-            );
-            new IndexSettings(invalidMetadata, Settings.EMPTY);
-        });
-        assertEquals(
-            "The "
-                + IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey()
-                + " has unsupported setting value supplied",
-            e.getMessage()
-        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
     }
 }

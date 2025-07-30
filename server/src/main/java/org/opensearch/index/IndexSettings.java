@@ -803,15 +803,9 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<String> INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING = new Setting<>(
-        "index.derived_source.translog_read_preference",
-        "",
-        (value) -> {
-            if (!Strings.isEmpty(value)) {
-                return value.toUpperCase(Locale.ROOT);
-            }
-            return "";
-        },
+    public static final Setting<Boolean> INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING = Setting.boolSetting(
+        "index.derived_source.translog.enabled",
+        INDEX_DERIVED_SOURCE_SETTING,
         Property.IndexScope,
         Property.Dynamic
     );
@@ -867,7 +861,7 @@ public final class IndexSettings {
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
     private final boolean derivedSourceEnabled;
-    private volatile Translog.DerivedSourceReadPreference derivedSourceTranslogReadPreference;
+    private volatile boolean derivedSourceEnabledForTranslog;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1103,11 +1097,8 @@ public final class IndexSettings {
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
-        setDerivedSourceTranslogReadPreference(scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING));
-        scopedSettings.addSettingsUpdateConsumer(
-            INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING,
-            this::setDerivedSourceTranslogReadPreference
-        );
+        derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -2143,33 +2134,21 @@ public final class IndexSettings {
         this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
     }
 
-    private void setDerivedSourceTranslogReadPreference(String translogReadPreference) {
-        if (!Strings.isEmpty(translogReadPreference) && !isDerivedSourceEnabled()) {
+    private void setDerivedSourceEnabledForTranslog(boolean isDerivedSourceEnabledForTranslog) {
+        if (isDerivedSourceEnabledForTranslog && !isDerivedSourceEnabled()) {
             throw new IllegalArgumentException(
                 "The "
-                    + IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey()
+                    + IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey()
                     + " can't be set when "
                     + IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey()
                     + " setting is disabled"
             );
         }
-        if (Strings.isEmpty(translogReadPreference)) {
-            this.derivedSourceTranslogReadPreference = Translog.DerivedSourceReadPreference.DERIVED;
-            return;
-        }
-        try {
-            this.derivedSourceTranslogReadPreference = Translog.DerivedSourceReadPreference.valueOf(translogReadPreference);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                "The "
-                    + IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey()
-                    + " has unsupported setting value supplied"
-            );
-        }
+        this.derivedSourceEnabledForTranslog = isDerivedSourceEnabledForTranslog;
     }
 
-    public Translog.DerivedSourceReadPreference getTranslogReadPreferenceForDerivedSource() {
-        return this.derivedSourceTranslogReadPreference;
+    public boolean isDerivedSourceEnabledForTranslog() {
+        return this.derivedSourceEnabledForTranslog;
     }
 
     public boolean isDerivedSourceEnabled() {

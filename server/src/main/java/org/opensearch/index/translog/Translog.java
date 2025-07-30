@@ -2145,24 +2145,4 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     protected boolean shouldFlush() {
         return false;
     }
-
-    /**
-     * How to read source from the translog for get operations under derived source feature
-     *
-     * @opensearch.api
-     */
-    @PublicApi(since = "3.1.0")
-    public enum DerivedSourceReadPreference {
-
-        /**
-         * Derived source, inferred source might defer from original ingested source in terms of display form but
-         * contextually it will be similar to original ingested source
-         */
-        DERIVED,
-
-        /**
-         * Original ingested source, which would be returned as it is
-         */
-        SOURCE
-    }
 }
