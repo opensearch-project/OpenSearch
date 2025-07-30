@@ -19,8 +19,19 @@ import org.opensearch.protobufs.QueryContainer;
  */
 public class AbstractQueryBuilderProtoUtils {
 
-    private AbstractQueryBuilderProtoUtils() {
-        // Utility class, no instances
+    private final QueryBuilderProtoConverterRegistry registry;
+
+    /**
+     * Creates a new instance with the specified registry.
+     *
+     * @param registry The registry to use for query conversion
+     * @throws IllegalArgumentException if registry is null
+     */
+    public AbstractQueryBuilderProtoUtils(QueryBuilderProtoConverterRegistry registry) {
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry cannot be null");
+        }
+        this.registry = registry;
     }
 
     /**
@@ -33,23 +44,12 @@ public class AbstractQueryBuilderProtoUtils {
      * @return A QueryBuilder instance configured according to the input query parameters
      * @throws UnsupportedOperationException if the query type is not supported
      */
-    public static QueryBuilder parseInnerQueryBuilderProto(QueryContainer queryContainer) throws UnsupportedOperationException {
-        QueryBuilder result;
-
-        if (queryContainer.hasMatchAll()) {
-            result = MatchAllQueryBuilderProtoUtils.fromProto(queryContainer.getMatchAll());
-        } else if (queryContainer.hasMatchNone()) {
-            result = MatchNoneQueryBuilderProtoUtils.fromProto(queryContainer.getMatchNone());
-        } else if (queryContainer.getTermCount() > 0) {
-            result = TermQueryBuilderProtoUtils.fromProto(queryContainer.getTermMap());
-        } else if (queryContainer.hasTerms()) {
-            result = TermsQueryBuilderProtoUtils.fromProto(queryContainer.getTerms());
-        }
-        // TODO add more query types
-        else {
-            throw new UnsupportedOperationException("Search query type not supported yet.");
+    public QueryBuilder parseInnerQueryBuilderProto(QueryContainer queryContainer) throws UnsupportedOperationException {
+        // Validate input
+        if (queryContainer == null) {
+            throw new IllegalArgumentException("Query container cannot be null");
         }
 
-        return result;
+        return registry.fromProto(queryContainer);
     }
 }
