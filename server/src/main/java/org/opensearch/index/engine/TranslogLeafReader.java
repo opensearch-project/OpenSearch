@@ -323,9 +323,7 @@ public final class TranslogLeafReader extends LeafReader {
                 }
                 if (visitor.needsField(FAKE_SOURCE_FIELD) == StoredFieldVisitor.Status.YES) {
                     if (engineConfig.getIndexSettings().isDerivedSourceEnabled()
-                        && Translog.DerivedSourceReadPreference.DERIVED.equals(
-                            engineConfig.getIndexSettings().getTranslogReadPreferenceForDerivedSource()
-                        )) {
+                        && engineConfig.getIndexSettings().isDerivedSourceEnabledForTranslog()) {
                         LeafReader leafReader = getInMemoryIndexReader();
                         assert leafReader != null && leafReader.leaves().size() == 1;
                         visitor.binaryField(

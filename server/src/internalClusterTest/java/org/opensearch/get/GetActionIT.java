@@ -56,7 +56,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.VersionConflictEngineException;
-import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -994,10 +993,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             .put("index.number_of_replicas", 0)
             .put("index.refresh_interval", -1)
             .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
-            .put(
-                IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(),
-                Translog.DerivedSourceReadPreference.DERIVED.name()
-            );
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), true);
 
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -1055,13 +1051,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_READ_PREFERENCE_SETTING.getKey(),
-                            Translog.DerivedSourceReadPreference.SOURCE.name()
-                        )
-                )
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false))
                 .get()
         );
 
