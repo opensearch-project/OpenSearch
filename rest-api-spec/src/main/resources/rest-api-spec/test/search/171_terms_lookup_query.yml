@@ -4,6 +4,47 @@
       version: " - 3.1.99"
       reason: All tests in this file require features added in 3.2.0 or later (terms query lookup by query).
 
+  # --- SETUP: CREATE AND POPULATE INDICES --- #
+  - do:
+      indices.create:
+        index: lookup_index
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "index": { "_index": "lookup_index", "_id": "1" } }
+          { "group": "g1", "followers": ["foo", "bar"], "tag": "a" }
+          { "index": { "_index": "lookup_index", "_id": "2" } }
+          { "group": "g1", "followers": ["baz"], "tag": "b" }
+          { "index": { "_index": "lookup_index", "_id": "3" } }
+          { "group": "g2", "followers": null, "tag": "c" }
+          { "index": { "_index": "lookup_index", "_id": "4" } }
+          { "group": "g1", "tag": "d" }
+          { "index": { "_index": "lookup_index", "_id": "5" } }
+          { "group": "g1", "followers": "baz", "tag": "e" }
+          { "index": { "_index": "lookup_index", "_id": "6" } }
+          { "group": "g3", "followers": [], "tag": "f" }
+
+  - do:
+      indices.create:
+        index: main_index
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "index": { "_index": "main_index", "_id": "u1" } }
+          { "user": "foo" }
+          { "index": { "_index": "main_index", "_id": "u2" } }
+          { "user": "bar" }
+          { "index": { "_index": "main_index", "_id": "u3" } }
+          { "user": "baz" }
+          { "index": { "_index": "main_index", "_id": "u4" } }
+          { "user": "qux" }
+          { "index": { "_index": "main_index", "_id": "u5" } }
+          { "user": "foo" }
+
   # Match all docs in lookup_index with group=g1, use their 'followers' as terms
   - do:
       search:
