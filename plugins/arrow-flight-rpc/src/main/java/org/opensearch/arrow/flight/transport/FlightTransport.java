@@ -94,7 +94,10 @@ class FlightTransport extends TcpTransport {
     private final ExecutorService clientExecutor;
 
     private final ThreadPool threadPool;
-    private BufferAllocator allocator;
+    private RootAllocator rootAllocator;
+    private BufferAllocator serverAllocator;
+    private BufferAllocator clientAllocator;
+
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
     private final FlightTransportConfig config = new FlightTransportConfig();
@@ -136,12 +139,14 @@ class FlightTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            allocator = AccessController.doPrivileged((PrivilegedAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
+            rootAllocator = AccessController.doPrivileged((PrivilegedAction<RootAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
+            serverAllocator = rootAllocator.newChildAllocator("server", 0, rootAllocator.getLimit());
+            clientAllocator = rootAllocator.newChildAllocator("client", 0, rootAllocator.getLimit());
             if (statsCollector != null) {
-                statsCollector.setBufferAllocator(allocator);
+                statsCollector.setBufferAllocator(rootAllocator);
                 statsCollector.setThreadPool(threadPool);
             }
-            flightProducer = new ArrowFlightProducer(this, allocator, SERVER_HEADER_KEY, statsCollector);
+            flightProducer = new ArrowFlightProducer(this, rootAllocator, SERVER_HEADER_KEY, statsCollector);
             bindServer();
             success = true;
             if (statsCollector != null) {
@@ -215,7 +220,7 @@ class FlightTransport extends TcpTransport {
                 // Create single FlightServer with all locations
                 ServerHeaderMiddleware.Factory factory = new ServerHeaderMiddleware.Factory();
                 OSFlightServer.Builder builder = OSFlightServer.builder()
-                    .allocator(allocator.newChildAllocator("server", 0, Long.MAX_VALUE))
+                    .allocator(serverAllocator)
                     .producer(flightProducer)
                     .sslContext(sslContextProvider != null ? sslContextProvider.getServerSslContext() : null)
                     .channelType(ServerConfig.serverChannelType())
@@ -256,11 +261,13 @@ class FlightTransport extends TcpTransport {
                 flightServer.close();
                 flightServer = null;
             }
+            serverAllocator.close();
             for (ClientHolder holder : flightClients.values()) {
                 holder.flightClient().close();
             }
-            allocator.close();
             flightClients.clear();
+            clientAllocator.close();
+            rootAllocator.close();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
             gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
             if (statsCollector != null) {
@@ -297,7 +304,7 @@ class FlightTransport extends TcpTransport {
             ClientHeaderMiddleware.Factory factory = new ClientHeaderMiddleware.Factory(context, getVersion());
             FlightClient client = OSFlightClient.builder()
                 // TODO configure initial and max reservation setting per client
-                .allocator(allocator.newChildAllocator("client-" + nodeId, 0, Long.MAX_VALUE))
+                .allocator(clientAllocator)
                 .location(location)
                 .channelType(ServerConfig.clientChannelType())
                 .eventLoopGroup(workerEventLoopGroup)
@@ -307,7 +314,6 @@ class FlightTransport extends TcpTransport {
                 .build();
             return new ClientHolder(location, client, context);
         });
-
         FlightClientChannel channel = new FlightClientChannel(
             boundAddress,
             holder.flightClient(),
