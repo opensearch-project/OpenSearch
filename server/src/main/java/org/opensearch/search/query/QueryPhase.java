@@ -431,6 +431,17 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
+            return executeWithExtensions(
+                searchContext,
+                () -> searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout)
+            );
+        }
+
+        /**
+         * Executes the provided search operation with before/after extension hooks.
+         * This method handles extension execution and error handling consistently.
+         */
+        protected boolean executeWithExtensions(SearchContext searchContext, SearchOperation searchOperation) throws IOException {
             List<QueryPhaseExtension> extensions = queryPhaseExtensions();
 
             // Execute beforeScoreCollection extensions
@@ -446,7 +457,7 @@ public class QueryPhase {
             }
 
             try {
-                return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+                return searchOperation.execute();
             } finally {
                 // Execute afterScoreCollection extensions
                 for (QueryPhaseExtension extension : extensions) {
@@ -463,6 +474,14 @@ public class QueryPhase {
                     }
                 }
             }
+        }
+
+        /**
+         * Functional interface for search operations that can throw IOException
+         */
+        @FunctionalInterface
+        protected interface SearchOperation {
+            boolean execute() throws IOException;
         }
 
         @Override

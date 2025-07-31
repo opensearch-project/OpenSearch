@@ -10,7 +10,6 @@ package org.opensearch.search.query;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
@@ -24,7 +23,6 @@ import org.opensearch.search.query.QueryPhase.DefaultQueryPhaseSearcher;
 
 import java.io.IOException;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
@@ -50,21 +48,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        List<QueryPhaseExtension> extensions = queryPhaseExtensions();
-
-        // Execute beforeScoreCollection extensions
-        for (QueryPhaseExtension extension : extensions) {
-            try {
-                extension.beforeScoreCollection(searchContext);
-            } catch (Exception e) {
-                LOGGER.warn(
-                    new ParameterizedMessage("Failed to execute beforeScoreCollection extension [{}]", extension.getClass().getName()),
-                    e
-                );
-            }
-        }
-
-        try {
+        return executeWithExtensions(searchContext, () -> {
             QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
             return searchWithCollectorManager(
                 searchContext,
@@ -75,19 +59,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
                 hasFilterCollector,
                 hasTimeout
             );
-        } finally {
-            // Execute afterScoreCollection extensions
-            for (QueryPhaseExtension extension : extensions) {
-                try {
-                    extension.afterScoreCollection(searchContext);
-                } catch (Exception e) {
-                    LOGGER.warn(
-                        new ParameterizedMessage("Failed to execute afterScoreCollection extension [{}]", extension.getClass().getName()),
-                        e
-                    );
-                }
-            }
-        }
+        });
     }
 
     @Override
