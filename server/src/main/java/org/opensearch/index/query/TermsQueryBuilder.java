@@ -61,6 +61,7 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
@@ -575,6 +576,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             getRequest.preference("_local").routing(termsLookup.routing());
             if (termsLookup.store()) {
                 getRequest.storedFields(termsLookup.path());
+            } else {
+                getRequest.fetchSourceContext(new FetchSourceContext(true, new String[] { termsLookup.path() }, null));
             }
             client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
                 List<Object> terms = new ArrayList<>();
@@ -603,23 +606,22 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                         // Get index-specific settings, fall back to defaults if missing
                         Settings idxSettings = settingsResponse.getIndexToSettings().getOrDefault(termsLookup.index(), Settings.EMPTY);
 
-                        // Get max_terms_count and max_result_window, fallback to their defaults
-                        int maxTermsCount = idxSettings.getAsInt(
-                            IndexSettings.MAX_TERMS_COUNT_SETTING.getKey(),
-                            IndexSettings.MAX_TERMS_COUNT_SETTING.getDefault(Settings.EMPTY)
-                        );
-                        int maxResultWindow = idxSettings.getAsInt(
-                            "index.max_result_window",
-                            10_000 // OpenSearch/Elasticsearch default
-                        );
-
-                        // The effective size must not exceed max_result_window
-                        int fetchSize = Math.min(maxTermsCount, maxResultWindow);
+                        // Get max_terms_count, max_result_window, and max_clause_count, fallback to their defaults
+                        int maxTermsCount = IndexSettings.MAX_TERMS_COUNT_SETTING.get(idxSettings);
+                        int maxResultWindow = IndexSettings.MAX_RESULT_WINDOW_SETTING.get(idxSettings);
+                        int maxClauseCount = idxSettings.getAsInt("indices.query.max_clause_count", 1024);
+                        // The effective size must not exceed any of these
+                        int fetchSize = Math.min(Math.min(maxTermsCount, maxResultWindow), maxClauseCount);
 
                         try {
-                            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(termsLookup.query())
-                                .size(fetchSize)
-                                .fetchSource(termsLookup.path(), null);
+                            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(termsLookup.query()).size(fetchSize);
+
+                            // Use stored fields if possible, otherwise fetch source
+                            if (termsLookup.store()) {
+                                sourceBuilder.storedField(termsLookup.path());
+                            } else {
+                                sourceBuilder.fetchSource(termsLookup.path(), null);
+                            }
 
                             SearchRequest searchRequest = new SearchRequest(termsLookup.index()).source(sourceBuilder);
 
@@ -628,6 +630,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                                 ActionListener.delegateFailure(actionListener, (delegatedListener, searchResponse) -> {
                                     List<Object> terms = new ArrayList<>();
                                     SearchHit[] hits = searchResponse.getHits().getHits();
+                                    long totalHits = searchResponse.getHits().getTotalHits().value();
+
+                                    // Correctness: fail if total hits exceed fetchSize (results are incomplete)
+                                    if (totalHits > fetchSize) {
+                                        delegatedListener.onFailure(
+                                            new IllegalArgumentException(
+                                                "Terms lookup subquery total hits ["
+                                                    + totalHits
+                                                    + "] exceed fetch limit ["
+                                                    + fetchSize
+                                                    + "]; filter may be incomplete."
+                                            )
+                                        );
+                                        return;
+                                    }
 
                                     // Defensive: avoid exceeding maxTermsCount
                                     if (hits.length > maxTermsCount) {

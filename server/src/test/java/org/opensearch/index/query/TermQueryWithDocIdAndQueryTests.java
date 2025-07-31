@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -370,5 +371,100 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
 
         assertTrue("Async action should have been invoked", called[0]);
         // NOTE: Cannot assert on output list contents due to inability to mock static extractRawValues.
+    }
+
+    public void testTermsLookupSubqueryTotalHitsExceedsFetchSize() throws Exception {
+        // Setup a TermsLookup with a subquery
+        QueryBuilder subQuery = mock(QueryBuilder.class);
+        TermsLookup termsLookup = new TermsLookup("classes", null, "enrolled", subQuery);
+        TermsQueryBuilder builder = new TermsQueryBuilder("student_id", null, termsLookup);
+
+        // Mock the client, admin, indices, and search response chain
+        Client mockClient = mock(Client.class);
+        AdminClient mockAdminClient = mock(AdminClient.class);
+        IndicesAdminClient mockIndicesAdminClient = mock(IndicesAdminClient.class);
+
+        when(mockClient.admin()).thenReturn(mockAdminClient);
+        when(mockAdminClient.indices()).thenReturn(mockIndicesAdminClient);
+
+        // Settings that produce a small fetch size
+        int maxTermsCount = 5, maxResultWindow = 5, maxClauseCount = 5;
+        Settings idxSettings = Settings.builder()
+            .put("index.max_terms_count", maxTermsCount)
+            .put("index.max_result_window", maxResultWindow)
+            .put("indices.query.max_clause_count", maxClauseCount)
+            .build();
+
+        // Simulate settings response
+        doAnswer(invocation -> {
+            ActionListener<org.opensearch.action.admin.indices.settings.get.GetSettingsResponse> listener = invocation.getArgument(1);
+            org.opensearch.action.admin.indices.settings.get.GetSettingsResponse settingsResponse = mock(
+                org.opensearch.action.admin.indices.settings.get.GetSettingsResponse.class
+            );
+            when(settingsResponse.getIndexToSettings()).thenReturn(Collections.singletonMap("classes", idxSettings));
+            listener.onResponse(settingsResponse);
+            return null;
+        }).when(mockIndicesAdminClient).getSettings(any(), any());
+
+        // Simulate a search response with more total hits than fetchSize
+        doAnswer(invocation -> {
+            ActionListener<org.opensearch.action.search.SearchResponse> listener = invocation.getArgument(1);
+
+            SearchHit[] hits = new SearchHit[5]; // Only 5 returned
+            for (int i = 0; i < 5; i++)
+                hits[i] = new SearchHit(i);
+            org.apache.lucene.search.TotalHits totalHits = new org.apache.lucene.search.TotalHits(
+                10,
+                org.apache.lucene.search.TotalHits.Relation.EQUAL_TO
+            );
+
+            SearchHits searchHits = new SearchHits(hits, totalHits, 1.0f);
+            org.opensearch.action.search.SearchResponseSections sections = new org.opensearch.action.search.SearchResponseSections(
+                searchHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                1
+            );
+            org.opensearch.action.search.SearchResponse searchResponse = new org.opensearch.action.search.SearchResponse(
+                sections,
+                "",
+                1,
+                1,
+                0,
+                1,
+                null,
+                null
+            );
+            listener.onResponse(searchResponse);
+            return null;
+        }).when(mockClient).search(any(org.opensearch.action.search.SearchRequest.class), any());
+
+        QueryRewriteContext mockRewriteContext = mock(QueryRewriteContext.class);
+
+        doAnswer(invocation -> {
+            Object asyncAction = invocation.getArgument(0);
+            @SuppressWarnings("unchecked")
+            java.util.function.BiConsumer<Client, ActionListener<List<Object>>> lambda = (java.util.function.BiConsumer<
+                Client,
+                ActionListener<List<Object>>>) asyncAction;
+            AtomicReference<Throwable> exceptionRef = new AtomicReference<>();
+            lambda.accept(mockClient, ActionListener.wrap(list -> { /* success not expected */ }, e -> exceptionRef.set(e)));
+            if (exceptionRef.get() != null) {
+                throw exceptionRef.get();
+            }
+            return null;
+        }).when(mockRewriteContext).registerAsyncAction(any());
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.doRewrite(mockRewriteContext));
+        assertTrue(ex.getMessage().contains("exceed fetch limit"));
+    }
+
+    public void testMaxTermsCountSettingGetterConsistency() {
+        Settings settings = Settings.builder().put("index.max_terms_count", 1234).build();
+        assertEquals(1234, IndexSettings.MAX_TERMS_COUNT_SETTING.get(settings).intValue());
+        assertEquals(1234, settings.getAsInt(IndexSettings.MAX_TERMS_COUNT_SETTING.getKey(), -1).intValue());
     }
 }

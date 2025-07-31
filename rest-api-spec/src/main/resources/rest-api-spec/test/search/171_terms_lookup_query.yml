@@ -1,5 +1,6 @@
 ---
 "Terms Query - Lookup by Query":
+  # --- SKIP IF VERSION IS LESS THAN 3.2.0 --- #
   - skip:
       version: " - 3.1.99"
       reason: All tests in this file require features added in 3.2.0 or later (terms query lookup by query).
@@ -8,10 +9,28 @@
   - do:
       indices.create:
         index: lookup_index
+        body:
+          settings:
+            number_of_replicas: 0
+  # Wait for index to be fully ready (avoids race in multi-node clusters)
+  - do:
+      cluster.health:
+        index: lookup_index
+        wait_for_status: green
+        timeout: 30s
   - do:
       indices.create:
         index: main_index
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      cluster.health:
+        index: main_index
+        wait_for_status: green
+        timeout: 30s
 
+  # Populate lookup_index
   - do:
       bulk:
         refresh: true
@@ -28,7 +47,9 @@
           { "group": "g1", "followers": ["baz"], "tag": "e" }
           { "index": { "_index": "lookup_index", "_id": "6" } }
           { "group": "g3", "followers": [], "tag": "f" }
+  - match: { errors: false }
 
+  # Populate main_index
   - do:
       bulk:
         refresh: true
@@ -43,6 +64,13 @@
           { "user": "qux" }
           { "index": { "_index": "main_index", "_id": "u5" } }
           { "user": "foo" }
+  - match: { errors: false }
+
+  - do:
+      cluster.health:
+        index: lookup_index,main_index
+        wait_for_status: green
+        timeout: 30s
 
   # --- TEST CASES --- #
 
