@@ -322,7 +322,6 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-
     }
 
     /**
@@ -725,5 +724,4 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
             assertThat(breakdown.size(), equalTo(27));
         }
     }
-
 }
