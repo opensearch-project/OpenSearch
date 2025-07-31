@@ -13,7 +13,6 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -48,7 +47,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 class FlightClientChannel implements TcpChannel {
     private static final Logger logger = LogManager.getLogger(FlightClientChannel.class);
-    private static final long SLOW_LOG_THRESHOLD_MS = 5000; // Configurable threshold for slow operations
     private final AtomicLong requestIdGenerator = new AtomicLong();
     private final FlightClient client;
     private final DiscoveryNode node;
@@ -67,6 +65,7 @@ class FlightClientChannel implements TcpChannel {
     private final HeaderContext headerContext;
     private volatile boolean isClosed;
     private final FlightStatsCollector statsCollector;
+    private final FlightTransportConfig config;
 
     /**
      * Constructs a new FlightClientChannel for handling Arrow Flight streams.
@@ -81,6 +80,7 @@ class FlightClientChannel implements TcpChannel {
      * @param messageListener        the transport message listener
      * @param namedWriteableRegistry the registry for deserialization
      * @param statsCollector         the collector for flight statistics
+     * @param config                 the shared transport configuration
      */
     public FlightClientChannel(
         BoundTransportAddress boundTransportAddress,
@@ -93,7 +93,8 @@ class FlightClientChannel implements TcpChannel {
         ThreadPool threadPool,
         TransportMessageListener messageListener,
         NamedWriteableRegistry namedWriteableRegistry,
-        FlightStatsCollector statsCollector
+        FlightStatsCollector statsCollector,
+        FlightTransportConfig config
     ) {
         this.boundAddress = boundTransportAddress;
         this.client = client;
@@ -106,6 +107,7 @@ class FlightClientChannel implements TcpChannel {
         this.messageListener = messageListener;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.statsCollector = statsCollector;
+        this.config = config;
         this.connectFuture = new CompletableFuture<>();
         this.closeFuture = new CompletableFuture<>();
         this.connectListeners = new CopyOnWriteArrayList<>();
@@ -225,10 +227,11 @@ class FlightClientChannel implements TcpChannel {
                 client,
                 headerContext,
                 ticket,
-                namedWriteableRegistry
+                namedWriteableRegistry,
+                config
             );
 
-            processStreamResponseAsync(streamResponse);
+            processStreamResponse(streamResponse);
             listener.onResponse(null);
         } catch (Exception e) {
             if (callTracker != null) {
@@ -243,37 +246,27 @@ class FlightClientChannel implements TcpChannel {
         throw new IllegalStateException("sendMessage must be accompanied with reqId for FlightClientChannel, use the right variant.");
     }
 
-    /**
-     * Processes the stream response asynchronously using the thread pool.
-     * This is necessary because Flight client callbacks may be on gRPC threads
-     * which should not be blocked with OpenSearch processing.
-     *
-     * @param streamResponse the stream response to process
-     */
-    private void processStreamResponseAsync(FlightTransportResponse<?> streamResponse) {
-        long startTime = threadPool.relativeTimeInMillis();
-        threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME).execute(() -> {
-            try {
-                executeWithThreadContext(streamResponse, startTime);
-            } catch (Exception e) {
-                handleStreamException(streamResponse, e, startTime);
-            }
-        });
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeWithThreadContext(FlightTransportResponse<?> streamResponse, long startTime) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        final String executor = streamResponse.getHandler().executor();
-        if (ThreadPool.Names.SAME.equals(executor)) {
-            executeHandler(threadContext, streamResponse, startTime);
-        } else {
-            threadPool.executor(executor).execute(() -> executeHandler(threadContext, streamResponse, startTime));
+    private void processStreamResponse(FlightTransportResponse<?> streamResponse) {
+        try {
+            executeWithThreadContext(streamResponse);
+        } catch (Exception e) {
+            handleStreamException(streamResponse, e);
         }
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeHandler(ThreadContext threadContext, FlightTransportResponse<?> streamResponse, long startTime) {
+    private void executeWithThreadContext(FlightTransportResponse<?> streamResponse) {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String executor = streamResponse.getHandler().executor();
+        if (ThreadPool.Names.SAME.equals(executor)) {
+            executeHandler(threadContext, streamResponse);
+        } else {
+            threadPool.executor(executor).execute(() -> executeHandler(threadContext, streamResponse));
+        }
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private void executeHandler(ThreadContext threadContext, FlightTransportResponse<?> streamResponse) {
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             Header header = streamResponse.getHeader();
             if (header == null) {
@@ -284,7 +277,6 @@ class FlightClientChannel implements TcpChannel {
             handler.handleStreamResponse(streamResponse);
         } catch (Exception e) {
             cleanupStreamResponse(streamResponse);
-            logSlowOperation(startTime);
             throw e;
         }
     }
@@ -297,7 +289,7 @@ class FlightClientChannel implements TcpChannel {
         }
     }
 
-    private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception exception, long startTime) {
+    private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception exception) {
         logger.error("Exception while handling stream response", exception);
         try {
             cancelStream(streamResponse, exception);
@@ -305,7 +297,6 @@ class FlightClientChannel implements TcpChannel {
             notifyHandlerOfException(handler, exception);
         } finally {
             cleanupStreamResponse(streamResponse);
-            logSlowOperation(startTime);
         }
     }
 
@@ -339,13 +330,6 @@ class FlightClientChannel implements TcpChannel {
             handler.handleException(exception);
         } catch (Exception handlerEx) {
             logger.error("Handler failed to process exception", handlerEx);
-        }
-    }
-
-    private void logSlowOperation(long startTime) {
-        long took = threadPool.relativeTimeInMillis() - startTime;
-        if (took > SLOW_LOG_THRESHOLD_MS) {
-            logger.warn("Stream handling took [{}ms], exceeding threshold [{}ms]", took, SLOW_LOG_THRESHOLD_MS);
         }
     }
 

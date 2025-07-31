@@ -28,6 +28,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.action.ActionListener;
@@ -96,6 +97,7 @@ class FlightTransport extends TcpTransport {
     private BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
+    private final FlightTransportConfig config = new FlightTransportConfig();
 
     final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of(
         "flight-server-header-middleware"
@@ -317,10 +319,17 @@ class FlightTransport extends TcpTransport {
             threadPool,
             this.inboundHandler.getMessageListener(),
             namedWriteableRegistry,
-            statsCollector
+            statsCollector,
+            config
         );
 
         return channel;
+    }
+
+    @Override
+    public void setSlowLogThreshold(TimeValue slowLogThreshold) {
+        super.setSlowLogThreshold(slowLogThreshold);
+        config.setSlowLogThreshold(slowLogThreshold);
     }
 
     @Override

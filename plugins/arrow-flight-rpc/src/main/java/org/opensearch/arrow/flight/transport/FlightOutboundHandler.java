@@ -115,7 +115,6 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             throw e;
         } catch (FlightRuntimeException e) {
             messageListener.onResponseSent(requestId, action, e);
-            // Convert FlightRuntimeException to StreamException
             throw FlightErrorMapper.fromFlightException(e);
         } catch (Exception e) {
             messageListener.onResponseSent(requestId, action, e);
@@ -138,7 +137,6 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             messageListener.onResponseSent(requestId, action, TransportResponse.Empty.INSTANCE);
         } catch (FlightRuntimeException e) {
             messageListener.onResponseSent(requestId, action, e);
-            // Convert FlightRuntimeException to StreamException
             throw FlightErrorMapper.fromFlightException(e);
         } catch (Exception e) {
             messageListener.onResponseSent(requestId, action, e);
