@@ -827,7 +827,7 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
                 FetchProfiler fetchProfiler = context.getProfilers().getFetchProfiler();
                 List<ProfileResult> profileResults = fetchProfiler.getTree();
-                assertThat(profileResults, hasSize(2));
+                assertThat(profileResults, hasSize(1));
 
                 ProfileResult profile = profileResults.get(0);
 
@@ -845,21 +845,6 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
                 new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
                     .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
-
-                ProfileResult innerHitsFetch = profileResults.get(1);
-                assertEquals("fetch_inner_hits", innerHitsFetch.getQueryName());
-                assertEquals(1, innerHitsFetch.getProfiledChildren().size());
-                assertEquals("FetchSourcePhase", innerHitsFetch.getProfiledChildren().getFirst().getQueryName());
-
-                new TimingAssertions(innerHitsFetch.getTimeBreakdown()).assertTimingPresent(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
-                    .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
-                    .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
-                    .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
-                    .assertTimingPresent(FetchTimingType.GET_NEXT_READER);
-
-                new TimingAssertions(innerHitsFetch.getProfiledChildren().getFirst().getTimeBreakdown()).assertTimingPresent(
-                    FetchTimingType.PROCESS
-                ).assertTimingPresent(FetchTimingType.SET_NEXT_READER);
             }
         }
     }

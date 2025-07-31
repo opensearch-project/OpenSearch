@@ -337,13 +337,11 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                 }
                 if ("fetch_inner_hits".equals(fetchResult.getQueryName())) {
                     foundFetchInnerHits = true;
-                    assertEquals(1, fetchResult.getProfiledChildren().size());
-                    assertEquals("FetchSourcePhase", fetchResult.getProfiledChildren().getFirst().getQueryName());
                 }
             }
         }
         assertTrue("InnerHitsPhase should be present", foundInnerHitsPhase);
-        assertTrue("fetch_inner_hits profile should be present", foundFetchInnerHits);
+        assertFalse("fetch_inner_hits profile should be absent", foundFetchInnerHits);
     }
 
     private void assertFetchPhase(SearchResponse resp, String phaseName, int expectedChildren) {

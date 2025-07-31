@@ -113,7 +113,8 @@ public class FetchPhase {
     public void execute(SearchContext context, String profileDescription) {
         FetchProfileBreakdown breakdown = null;
         FetchProfiler fetchProfiler = null;
-        if (context.getProfilers() != null) {
+        if (context.getProfilers() != null && "fetch".equals(profileDescription)) { // second condition makes sure only standard fetch phase
+                                                                                    // is profiled for now
             fetchProfiler = context.getProfilers().getFetchProfiler();
             if (context.docIdsToLoadSize() > 0) {
                 breakdown = fetchProfiler.startFetchPhase(profileDescription);
