@@ -31,7 +31,7 @@ public class AggregationReduceableSearchResult implements ReduceableSearchResult
         } else {
             // the aggregations result from reduce of either global or non-global aggs is present so lets combine it with other aggs
             // as well
-            final InternalAggregations existingAggregations = result.aggregations().expand();
+            final InternalAggregations existingAggregations = result.aggregations();
             final InternalAggregations finalReducedAggregations = InternalAggregations.merge(existingAggregations, aggregations);
             result.aggregations(finalReducedAggregations);
         }
