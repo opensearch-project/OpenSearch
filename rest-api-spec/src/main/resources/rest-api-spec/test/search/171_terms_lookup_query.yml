@@ -4,10 +4,13 @@
       version: " - 3.1.99"
       reason: All tests in this file require features added in 3.2.0 or later (terms query lookup by query).
 
-  # --- SETUP: CREATE AND POPULATE INDICES --- #
+  # --- SETUP: CREATE INDICES AND POPULATE DATA --- #
   - do:
       indices.create:
         index: lookup_index
+  - do:
+      indices.create:
+        index: main_index
 
   - do:
       bulk:
@@ -22,13 +25,9 @@
           { "index": { "_index": "lookup_index", "_id": "4" } }
           { "group": "g1", "tag": "d" }
           { "index": { "_index": "lookup_index", "_id": "5" } }
-          { "group": "g1", "followers": "baz", "tag": "e" }
+          { "group": "g1", "followers": ["baz"], "tag": "e" }
           { "index": { "_index": "lookup_index", "_id": "6" } }
           { "group": "g3", "followers": [], "tag": "f" }
-
-  - do:
-      indices.create:
-        index: main_index
 
   - do:
       bulk:
@@ -44,6 +43,8 @@
           { "user": "qux" }
           { "index": { "_index": "main_index", "_id": "u5" } }
           { "user": "foo" }
+
+  # --- TEST CASES --- #
 
   # Match all docs in lookup_index with group=g1, use their 'followers' as terms
   - do:
@@ -93,7 +94,7 @@
                     tag: "d"
   - match: { hits.total: 0 } # No terms found
 
-  # Query returns docs but field is scalar, not array
+  # Query returns docs but field is scalar, not array (now array, see above)
   - do:
       search:
         rest_total_hits_as_int: true
@@ -107,7 +108,7 @@
                 query:
                   term:
                     tag: "e"
-  - match: { hits.total: 1 } # Only user baz (from doc 5: followers="baz")
+  - match: { hits.total: 1 } # Only user baz (from doc 5: followers=["baz"])
 
   # Query returns no docs
   - do:
@@ -171,3 +172,13 @@
                 query:
                   match_all: {}
   - match: { hits.total: 0 }
+
+  # Optional: sanity check for main_index docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total: 5 } # Should always be 5
