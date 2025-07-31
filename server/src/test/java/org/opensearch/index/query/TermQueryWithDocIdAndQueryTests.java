@@ -387,7 +387,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         when(mockClient.admin()).thenReturn(mockAdminClient);
         when(mockAdminClient.indices()).thenReturn(mockIndicesAdminClient);
 
-        // Settings that produce a small fetch size 
+        // Settings that produce a small fetch size
         int maxTermsCount = 5, maxResultWindow = 5, maxClauseCount = 5;
         Settings idxSettings = Settings.builder()
             .put("index.max_terms_count", maxTermsCount)
