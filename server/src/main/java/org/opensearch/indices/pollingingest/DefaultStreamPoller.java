@@ -459,20 +459,20 @@ public class DefaultStreamPoller implements StreamPoller {
             switch (resetState) {
                 case EARLIEST:
                     initialBatchStartPointer = consumer.earliestPointer();
-                    logger.info("Resetting offset by seeking to earliest offset {}", initialBatchStartPointer.asString());
+                    logger.info("Resetting pointer by seeking to earliest pointer {}", initialBatchStartPointer.asString());
                     break;
                 case LATEST:
                     initialBatchStartPointer = consumer.latestPointer();
-                    logger.info("Resetting offset by seeking to latest offset {}", initialBatchStartPointer.asString());
+                    logger.info("Resetting pointer by seeking to latest pointer {}", initialBatchStartPointer.asString());
                     break;
                 case RESET_BY_OFFSET:
                     initialBatchStartPointer = consumer.pointerFromOffset(resetValue);
-                    logger.info("Resetting offset by seeking to offset {}", initialBatchStartPointer.asString());
+                    logger.info("Resetting pointer by seeking to pointer {}", initialBatchStartPointer.asString());
                     break;
                 case RESET_BY_TIMESTAMP:
                     initialBatchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
                     logger.info(
-                        "Resetting offset by seeking to timestamp {}, corresponding offset {}",
+                        "Resetting pointer by seeking to timestamp {}, corresponding pointer {}",
                         resetValue,
                         initialBatchStartPointer.asString()
                     );
