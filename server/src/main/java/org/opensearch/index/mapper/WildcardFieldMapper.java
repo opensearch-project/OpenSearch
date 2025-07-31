@@ -225,11 +225,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         context.doc().add(new Field(fieldType().name(), tokenizer, FIELD_TYPE));
         this.version = context.indexSettings().getIndexVersionCreated();
         if (fieldType().hasDocValues()) {
-            if (version.onOrAfter(Version.V_3_2_0)) {
-                context.doc().add(new BinaryDocValuesField(fieldType().name(), binaryValue));
-            } else {
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-            }
+            context.doc().add(new BinaryDocValuesField(fieldType().name(), binaryValue));
         } else {
             if (fieldType().hasDocValues() == false) {
                 createFieldNamesField(context);
@@ -375,11 +371,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            if (version.onOrAfter(Version.V_3_2_0)) {
-                return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
-            } else {
-                return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
-            }
+            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -942,38 +934,20 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
-        if (version.onOrAfter(Version.V_3_2_0)) {
-            return new DerivedFieldGenerator(mappedFieldType, new BinaryDocValuesFetcher(mappedFieldType, simpleName()) {
-                @Override
-                public Object convert(Object value) {
-                    if (value == null) {
-                        return null;
-                    }
-                    BytesRef binaryValue = (BytesRef) value;
-                    return binaryValue.utf8ToString();
+        return new DerivedFieldGenerator(mappedFieldType, new BinaryDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                if (value == null) {
+                    return null;
                 }
-            }, null) {
-                @Override
-                public FieldValueType getDerivedFieldPreference() {
-                    return FieldValueType.DOC_VALUES;
-                }
-            };
-        } else {
-            return new DerivedFieldGenerator(mappedFieldType, new SortedSetDocValuesFetcher(mappedFieldType, simpleName()) {
-                @Override
-                public Object convert(Object value) {
-                    if (value == null) {
-                        return null;
-                    }
-                    BytesRef binaryValue = (BytesRef) value;
-                    return binaryValue.utf8ToString();
-                }
-            }, null) {
-                @Override
-                public FieldValueType getDerivedFieldPreference() {
-                    return FieldValueType.DOC_VALUES;
-                }
-            };
-        }
+                BytesRef binaryValue = (BytesRef) value;
+                return binaryValue.utf8ToString();
+            }
+        }, null) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.DOC_VALUES;
+            }
+        };
     }
 }
