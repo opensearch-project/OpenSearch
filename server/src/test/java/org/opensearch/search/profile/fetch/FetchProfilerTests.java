@@ -78,7 +78,8 @@ public class FetchProfilerTests extends OpenSearchTestCase {
             assertThat(map.get(key + TIMING_TYPE_COUNT_SUFFIX), equalTo(1L));
             sum += map.get(key);
         }
-        assertEquals(sum, profileResult.getTime());
+        long childTime = ct.getApproximateTiming();
+        assertEquals(sum + childTime, profileResult.getTime());
         assertFalse(map.containsKey(FetchTimingType.PROCESS.toString()));
         assertFalse(map.containsKey(FetchTimingType.SET_NEXT_READER.toString()));
     }

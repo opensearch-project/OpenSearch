@@ -104,7 +104,15 @@ class FlatFetchProfileTree {
         }
         Map<String, Long> raw = node.breakdown.toBreakdownMap();
         Map<String, Long> filtered = filterBreakdown(raw, isRoot);
-        return new ProfileResult(node.element, node.element, filtered, node.breakdown.toDebugMap(), node.breakdown.toNodeTime(), children);
+        return new ProfileResult(node.element, node.element, filtered, node.breakdown.toDebugMap(), inclusiveTime(node), children);
+    }
+
+    private long inclusiveTime(Node node) {
+        long total = node.breakdown.toNodeTime();
+        for (Node child : node.children) {
+            total += inclusiveTime(child);
+        }
+        return total;
     }
 
     private Map<String, Long> filterBreakdown(Map<String, Long> raw, boolean isRoot) {
