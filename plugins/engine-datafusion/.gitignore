@@ -1,0 +1,38 @@
+# Gradle
+.gradle/
+build/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust
+jni/target/
+jni/Cargo.lock
+
+# Native libraries
+src/main/resources/native/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
