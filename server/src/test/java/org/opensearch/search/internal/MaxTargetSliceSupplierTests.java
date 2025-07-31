@@ -30,7 +30,10 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
 
     public void testSliceCountGreaterThanLeafCount() throws Exception {
         int expectedSliceCount = 2;
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(getLeaves(expectedSliceCount), new MaxTargetSliceSupplier.SliceInputConfig(5, false, 0));
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
+            getLeaves(expectedSliceCount),
+            new MaxTargetSliceSupplier.SliceInputConfig(5, false, 0)
+        );
         // verify slice count is same as leaf count
         assertEquals(expectedSliceCount, slices.length);
         for (int i = 0; i < expectedSliceCount; ++i) {
@@ -39,12 +42,21 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
     }
 
     public void testNegativeSliceCount() {
-        assertThrows(IllegalArgumentException.class, () -> MaxTargetSliceSupplier.getSlices(new ArrayList<>(), new MaxTargetSliceSupplier.SliceInputConfig(randomIntBetween(-3, 0), false, 0)));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> MaxTargetSliceSupplier.getSlices(
+                new ArrayList<>(),
+                new MaxTargetSliceSupplier.SliceInputConfig(randomIntBetween(-3, 0), false, 0)
+            )
+        );
     }
 
     public void testSingleSliceWithMultipleLeaves() throws Exception {
         int leafCount = randomIntBetween(1, 10);
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(getLeaves(leafCount), new MaxTargetSliceSupplier.SliceInputConfig(1, false, 0));
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
+            getLeaves(leafCount),
+            new MaxTargetSliceSupplier.SliceInputConfig(1, false, 0)
+        );
         assertEquals(1, slices.length);
         assertEquals(leafCount, slices[0].partitions.length);
     }
@@ -55,7 +67,10 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
 
         // Case 1: test with equal number of leaves per slice
         int expectedSliceCount = 3;
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, new MaxTargetSliceSupplier.SliceInputConfig(expectedSliceCount, false, 0));
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
+            leaves,
+            new MaxTargetSliceSupplier.SliceInputConfig(expectedSliceCount, false, 0)
+        );
         int expectedLeavesPerSlice = leafCount / expectedSliceCount;
 
         assertEquals(expectedSliceCount, slices.length);
@@ -80,7 +95,10 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
     }
 
     public void testEmptyLeaves() {
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(new ArrayList<>(), new MaxTargetSliceSupplier.SliceInputConfig(2, false, 0));
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
+            new ArrayList<>(),
+            new MaxTargetSliceSupplier.SliceInputConfig(2, false, 0)
+        );
         assertEquals(0, slices.length);
     }
 
