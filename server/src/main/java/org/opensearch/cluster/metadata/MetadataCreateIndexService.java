@@ -228,8 +228,9 @@ public class MetadataCreateIndexService {
         createIndexTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
         remoteStoreCustomMetadataResolver = RemoteStoreNodeAttribute.isSegmentRepoConfigured(settings)
-            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
-            : null;
+            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)
+                ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
+                : null;
     }
 
     public IndexScopedSettings getIndexScopedSettings() {
