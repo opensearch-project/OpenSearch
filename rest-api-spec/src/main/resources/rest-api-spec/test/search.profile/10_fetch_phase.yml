@@ -100,7 +100,7 @@ setup:
   - match: { profile.shards.0.fetch.0.breakdown.create_stored_fields_visitor_count: 1}
 
   # 3. Verify all expected fetch sub-phases are present as children
-  - length: { profile.shards.0.fetch.0.children: 10 }
+  - length: { profile.shards.0.fetch.0.children: 9 }
   - contains:
       profile.shards.0.fetch.0.children:
         type: "FetchSourcePhase"
@@ -128,9 +128,6 @@ setup:
   - contains:
       profile.shards.0.fetch.0.children:
         type: "FetchScorePhase"
-  - contains:
-      profile.shards.0.fetch.0.children:
-        type: "InnerHitsPhase"
 
 ---
 "No source or empty fetch profiling":

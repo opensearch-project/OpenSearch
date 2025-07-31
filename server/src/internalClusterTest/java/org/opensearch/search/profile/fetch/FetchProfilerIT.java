@@ -315,7 +315,9 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
 
         assertFalse(resp.getHits().getAt(0).getInnerHits().isEmpty());
 
-        assertFetchPhase(resp, "InnerHitsPhase", 2);
+        assertFetchPhase(resp, "FetchSourcePhase", 1);
+
+        // InnerHitsPhase should no longer be profiled
 
         Map<String, ProfileShardResult> profileResults = resp.getProfileResults();
 
@@ -340,7 +342,7 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                 }
             }
         }
-        assertTrue("InnerHitsPhase should be present", foundInnerHitsPhase);
+        assertFalse("InnerHitsPhase should be absent", foundInnerHitsPhase);
         assertFalse("fetch_inner_hits profile should be absent", foundFetchInnerHits);
     }
 

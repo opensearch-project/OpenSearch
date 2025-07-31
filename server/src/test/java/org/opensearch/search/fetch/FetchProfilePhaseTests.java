@@ -836,12 +836,9 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                     children.put(child.getQueryName(), child);
                 }
 
-                assertEquals(2, children.size());
-                assertTrue(children.containsKey("InnerHitsPhase"));
+                assertEquals(1, children.size());
+                assertFalse(children.containsKey("InnerHitsPhase"));
                 assertTrue(children.containsKey("FetchSourcePhase"));
-
-                new TimingAssertions(children.get("InnerHitsPhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
-                    .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
 
                 new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
                     .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
