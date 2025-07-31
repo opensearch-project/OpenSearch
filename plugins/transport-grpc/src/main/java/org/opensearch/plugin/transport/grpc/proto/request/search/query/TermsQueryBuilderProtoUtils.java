@@ -63,8 +63,8 @@ public class TermsQueryBuilderProtoUtils {
             boost = termsQueryProto.getBoost();
         }
 
-        if (termsQueryProto.hasName()) {
-            queryName = termsQueryProto.getName();
+        if (termsQueryProto.hasUnderscoreName()) {
+            queryName = termsQueryProto.getUnderscoreName();
         }
 
         // TODO: remove this parameter when backporting to under OS 2.17
