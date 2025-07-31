@@ -1038,6 +1038,8 @@ final class DefaultSearchContext extends SearchContext {
             requestShouldUseConcurrentIntraSegmentSearch.set(false);
         } else if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
             requestShouldUseConcurrentIntraSegmentSearch.set(false);
+        } else if (trackTotalHitsUpTo != TRACK_TOTAL_HITS_DISABLED) {
+            requestShouldUseConcurrentIntraSegmentSearch.set(false);
         } else if (concurrentIntraSegmentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL)){ // TODO : Handle auto mode here
             requestShouldUseConcurrentIntraSegmentSearch.set(true);
         } else {
