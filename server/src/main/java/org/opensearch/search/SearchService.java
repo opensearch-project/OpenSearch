@@ -917,6 +917,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
                 ) {
                     fetchPhase.execute(searchContext);
+                    if (searchContext.getProfilers() != null) {
+                        ProfileShardResult shardResults = SearchProfileShardResults.buildFetchOnlyShardResults(
+                            searchContext.getProfilers(),
+                            searchContext.request()
+                        );
+                        searchContext.fetchResult().profileResults(shardResults);
+                    }
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
                     }

@@ -75,7 +75,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -332,7 +334,12 @@ public final class SearchPhaseController {
                 assert currentOffset == sortedDocs.length : "expected no more score doc slices";
             }
         }
-        return reducedQueryPhase.buildResponse(hits);
+        
+        // Merge fetch profiles with query profiles
+        SearchProfileShardResults mergedProfileResults = mergeFetchProfiles(reducedQueryPhase.shardResults, fetchResults);
+        
+        return new InternalSearchResponse(hits, reducedQueryPhase.aggregations, reducedQueryPhase.suggest, 
+            mergedProfileResults, reducedQueryPhase.timedOut, reducedQueryPhase.terminatedEarly, reducedQueryPhase.numReducePhases);
     }
 
     private SearchHits getHits(
@@ -869,5 +876,41 @@ public final class SearchPhaseController {
             this.collapseField = collapseField;
             this.collapseValues = collapseValues;
         }
+    }
+
+    /**
+     * Merges fetch phase profile results with query phase profile results
+     */
+    private SearchProfileShardResults mergeFetchProfiles(
+        SearchProfileShardResults queryProfiles, 
+        Collection<? extends SearchPhaseResult> fetchResults
+    ) {
+        if (queryProfiles == null) {
+            return null;
+        }
+        
+        Map<String, ProfileShardResult> mergedResults = new HashMap<>(queryProfiles.getShardResults());
+        
+        // Merge fetch profiles into existing query profiles
+        for (SearchPhaseResult fetchResult : fetchResults) {
+            if (fetchResult.fetchResult() != null && fetchResult.fetchResult().getProfileResults() != null) {
+                ProfileShardResult fetchProfile = fetchResult.fetchResult().getProfileResults();
+                String shardId = fetchResult.getSearchShardTarget().toString();
+                
+                ProfileShardResult existingProfile = mergedResults.get(shardId);
+                if (existingProfile != null) {
+                    // Merge fetch profile data into existing query profile
+                    ProfileShardResult merged = new ProfileShardResult(
+                        existingProfile.getQueryProfileResults(),
+                        existingProfile.getAggregationProfileResults(),
+                        fetchProfile.getFetchProfileResult(), // Use fetch profile data
+                        existingProfile.getNetworkTime()
+                    );
+                    mergedResults.put(shardId, merged);
+                }
+            }
+        }
+        
+        return new SearchProfileShardResults(mergedResults);
     }
 }

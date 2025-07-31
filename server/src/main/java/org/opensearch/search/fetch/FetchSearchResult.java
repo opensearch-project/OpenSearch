@@ -40,6 +40,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
@@ -55,6 +56,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     private SearchHits hits;
     // client side counter
     private transient int counter;
+    private ProfileShardResult profileShardResults;
 
     public FetchSearchResult() {}
 
@@ -62,6 +64,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         super(in);
         contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
+        profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -104,9 +107,18 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return counter++;
     }
 
+    public void profileResults(ProfileShardResult shardResults) {
+        this.profileShardResults = shardResults;
+    }
+
+    public ProfileShardResult getProfileResults() {
+        return profileShardResults;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         hits.writeTo(out);
+        out.writeOptionalWriteable(profileShardResults);
     }
 }
