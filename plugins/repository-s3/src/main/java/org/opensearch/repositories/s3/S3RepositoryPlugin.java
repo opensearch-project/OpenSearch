@@ -216,24 +216,21 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         int urgentEventLoopThreads = urgentPoolCount(clusterService.getSettings());
         int priorityEventLoopThreads = priorityPoolCount(clusterService.getSettings());
         int normalEventLoopThreads = normalPoolCount(clusterService.getSettings());
-        String asyncClientType = S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.get(clusterService.getSettings());
 
         this.urgentExecutorBuilder = new AsyncExecutorContainer(
             threadPool.executor(URGENT_FUTURE_COMPLETION),
             threadPool.executor(URGENT_STREAM_READER),
-            S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE.equals(asyncClientType) ? null : new AsyncTransferEventLoopGroup(urgentEventLoopThreads)
+            new AsyncTransferEventLoopGroup(urgentEventLoopThreads)
         );
         this.priorityExecutorBuilder = new AsyncExecutorContainer(
             threadPool.executor(PRIORITY_FUTURE_COMPLETION),
             threadPool.executor(PRIORITY_STREAM_READER),
-            S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE.equals(asyncClientType)
-                ? null
-                : new AsyncTransferEventLoopGroup(priorityEventLoopThreads)
+            new AsyncTransferEventLoopGroup(priorityEventLoopThreads)
         );
         this.normalExecutorBuilder = new AsyncExecutorContainer(
             threadPool.executor(FUTURE_COMPLETION),
             threadPool.executor(STREAM_READER),
-            S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE.equals(asyncClientType) ? null : new AsyncTransferEventLoopGroup(normalEventLoopThreads)
+            new AsyncTransferEventLoopGroup(normalEventLoopThreads)
         );
 
         this.lowTransferQConsumerService = threadPool.executor(LOW_TRANSFER_QUEUE_CONSUMER);

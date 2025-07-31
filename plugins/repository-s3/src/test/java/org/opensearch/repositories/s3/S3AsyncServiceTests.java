@@ -42,9 +42,23 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
 
     public void testCachedClientsAreReleased() {
         final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
-        final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "us-east-2").build();
+        final Settings settings = Settings.builder()
+            .put("endpoint", "http://first")
+            .put("region", "us-east-2")
+            .put(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.getKey(), S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE)
+            .build();
+
+        final Settings crtSettings = Settings.builder()
+            .put("endpoint", "http://first")
+            .put("region", "us-east-2")
+            .put(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.getKey(), S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE)
+            .build();
+
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
+
+        final RepositoryMetadata metadata3 = new RepositoryMetadata("second", "s3", crtSettings);
+        final RepositoryMetadata metadata4 = new RepositoryMetadata("second", "s3", crtSettings);
         final AsyncExecutorContainer asyncExecutorContainer = new AsyncExecutorContainer(
             Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor(),
@@ -56,6 +70,23 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         final AmazonAsyncS3Reference reference = SocketAccess.doPrivileged(
             () -> s3AsyncService.client(metadata1, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
         );
+
+        final AmazonAsyncS3Reference reference2 = SocketAccess.doPrivileged(
+            () -> s3AsyncService.client(metadata2, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
+        );
+
+        final AmazonAsyncS3Reference reference3 = SocketAccess.doPrivileged(
+            () -> s3AsyncService.client(metadata3, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
+        );
+
+        final AmazonAsyncS3Reference reference4 = SocketAccess.doPrivileged(
+            () -> s3AsyncService.client(metadata4, asyncExecutorContainer, asyncExecutorContainer, asyncExecutorContainer)
+        );
+
+        assertSame(reference, reference2);
+        assertSame(reference3, reference4);
+        assertNotSame(reference, reference3);
+
         reference.close();
         s3AsyncService.close();
         final AmazonAsyncS3Reference referenceReloaded = SocketAccess.doPrivileged(

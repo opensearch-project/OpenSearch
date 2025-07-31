@@ -64,7 +64,10 @@ class S3AsyncService implements Closeable {
 
     private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 
-    private volatile Map<S3ClientSettings, AmazonAsyncS3Reference> clientsCache = emptyMap();
+    // We will need to support the cache with both type of cache. Since S3 client settings doesn't contain Async Client Type.
+    // Also adding the client type in s3 client setting is not good option since it is used for Async and Sync settings.
+    // We can segregate the types of cache here itself
+    private volatile Map<String, Map<S3ClientSettings, AmazonAsyncS3Reference>> s3HttpClientTypesClientsCache = emptyMap();
 
     /**
      * Client settings calculated from static configuration and settings in the keystore.
@@ -83,10 +86,26 @@ class S3AsyncService implements Closeable {
     private final @Nullable ScheduledExecutorService clientExecutorService;
 
     S3AsyncService(final Path configPath, @Nullable ScheduledExecutorService clientExecutorService) {
+
         staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
             .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath))
             .immutableMap();
+
+        staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
+            .put(
+                buildClientName("default", S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE),
+                S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath)
+            )
+            .put(
+                buildClientName("default", S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE),
+                S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath)
+            )
+            .immutableMap();
         this.clientExecutorService = clientExecutorService;
+    }
+
+    private String buildClientName(final String clientValue, final String asyncClientType) {
+        return clientValue + "-" + asyncClientType;
     }
 
     S3AsyncService(final Path configPath) {
@@ -103,9 +122,20 @@ class S3AsyncService implements Closeable {
         // shutdown all unused clients
         // others will shutdown on their respective release
         releaseCachedClients();
-        this.staticClientSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        MapBuilder<String, S3ClientSettings> defaultBuilder = MapBuilder.newMapBuilder();
+        for (Map.Entry<String, S3ClientSettings> entrySet : clientsSettings.entrySet()) {
+            defaultBuilder.put(
+                buildClientName(entrySet.getKey(), S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE),
+                clientsSettings.get(entrySet.getKey())
+            );
+            defaultBuilder.put(
+                buildClientName(entrySet.getKey(), S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE),
+                clientsSettings.get(entrySet.getKey())
+            );
+        }
+        staticClientSettings = defaultBuilder.immutableMap();
         derivedClientSettings = emptyMap();
-        assert this.staticClientSettings.containsKey("default") : "always at least have 'default'";
+        assert !this.staticClientSettings.isEmpty() : "Static Client Settings should not be empty";
         // clients are built lazily by {@link client}
     }
 
@@ -119,27 +149,48 @@ class S3AsyncService implements Closeable {
         AsyncExecutorContainer priorityExecutorBuilder,
         AsyncExecutorContainer normalExecutorBuilder
     ) {
+        String asyncHttpClientType = S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.get(repositoryMetadata.settings());
+
         final S3ClientSettings clientSettings = settings(repositoryMetadata);
-        {
-            final AmazonAsyncS3Reference clientReference = clientsCache.get(clientSettings);
+        AmazonAsyncS3Reference clientReference = getCachedClientForHttpTypeAndClientSettings(asyncHttpClientType, clientSettings);
+        if (clientReference != null) {
+            return clientReference;
+        }
+
+        synchronized (this) {
+            AmazonAsyncS3Reference existingClient = getCachedClientForHttpTypeAndClientSettings(asyncHttpClientType, clientSettings);
+            if (existingClient != null) {
+                return existingClient;
+            }
+
+            final AmazonAsyncS3Reference newClientReference = new AmazonAsyncS3Reference(
+                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder, asyncHttpClientType)
+            );
+            newClientReference.incRef();
+            Map<S3ClientSettings, AmazonAsyncS3Reference> clientsCacheForType = s3HttpClientTypesClientsCache.get(asyncHttpClientType);
+            if (clientsCacheForType == null) {
+                clientsCacheForType = emptyMap();
+            }
+            clientsCacheForType = MapBuilder.newMapBuilder(clientsCacheForType).put(clientSettings, newClientReference).immutableMap();
+            s3HttpClientTypesClientsCache = MapBuilder.newMapBuilder(s3HttpClientTypesClientsCache)
+                .put(asyncHttpClientType, clientsCacheForType)
+                .immutableMap();
+            return newClientReference;
+        }
+    }
+
+    private AmazonAsyncS3Reference getCachedClientForHttpTypeAndClientSettings(
+        final String asyncHttpClientType,
+        final S3ClientSettings clientSettings
+    ) {
+        final Map<S3ClientSettings, AmazonAsyncS3Reference> clientsCacheMap = s3HttpClientTypesClientsCache.get(asyncHttpClientType);
+        if (clientsCacheMap != null && !clientsCacheMap.isEmpty()) {
+            final AmazonAsyncS3Reference clientReference = clientsCacheMap.get(clientSettings);
             if (clientReference != null && clientReference.tryIncRef()) {
                 return clientReference;
             }
         }
-        synchronized (this) {
-            final AmazonAsyncS3Reference existing = clientsCache.get(clientSettings);
-            if (existing != null && existing.tryIncRef()) {
-                return existing;
-            }
-
-            String asyncHttpClientType = S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.get(repositoryMetadata.settings());
-            final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
-                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder, asyncHttpClientType)
-            );
-            clientReference.incRef();
-            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();
-            return clientReference;
-        }
+        return null;
     }
 
     /**
@@ -156,7 +207,10 @@ class S3AsyncService implements Closeable {
                 return existing;
             }
         }
-        final String clientName = S3Repository.CLIENT_NAME.get(settings);
+        final String clientName = buildClientName(
+            S3Repository.CLIENT_NAME.get(settings),
+            S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE.get(repositoryMetadata.settings())
+        );
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
             synchronized (this) {
@@ -252,7 +306,7 @@ class S3AsyncService implements Closeable {
         AsyncTransferEventLoopGroup asyncTransferEventLoopGroup,
         final String asyncHttpClientType
     ) {
-        logger.info("S3 Http client type [{}]", asyncHttpClientType);
+        logger.debug("S3 Http client type [{}]", asyncHttpClientType);
         if (S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE.equals(asyncHttpClientType)) {
             return buildAsyncNettyHttpClient(clientSettings, asyncTransferEventLoopGroup);
         }
@@ -425,13 +479,16 @@ class S3AsyncService implements Closeable {
     }
 
     public synchronized void releaseCachedClients() {
-        // the clients will shutdown when they will not be used anymore
-        for (final AmazonAsyncS3Reference clientReference : clientsCache.values()) {
-            clientReference.decRef();
+        // There will be 2 types of caches CRT and Netty
+        for (Map<S3ClientSettings, AmazonAsyncS3Reference> clientTypeCaches : s3HttpClientTypesClientsCache.values()) {
+            // the clients will shutdown when they will not be used anymore
+            for (final AmazonAsyncS3Reference clientReference : clientTypeCaches.values()) {
+                clientReference.decRef();
+            }
         }
 
         // clear previously cached clients, they will be build lazily
-        clientsCache = emptyMap();
+        s3HttpClientTypesClientsCache = emptyMap();
         derivedClientSettings = emptyMap();
     }
 
