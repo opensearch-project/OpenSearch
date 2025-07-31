@@ -74,10 +74,12 @@ public class RestGetRuleAction extends BaseRestHandler {
         }
 
         final FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
-        final Set<String> excludedKeys = Set.of(FEATURE_TYPE, ID_STRING, SEARCH_AFTER_STRING, "pretty");
-        final List<String> requestParams = request.params().keySet().stream().filter(key -> !excludedKeys.contains(key)).toList();
-
-        for (String attributeName : requestParams) {
+        final List<String> attributeParams = request.params()
+            .keySet()
+            .stream()
+            .filter(key -> featureType.getAllowedAttributesRegistry().containsKey(key))
+            .toList();
+        for (String attributeName : attributeParams) {
             Attribute attribute = featureType.getAttributeFromName(attributeName);
             if (attribute == null) {
                 throw new IllegalArgumentException(attributeName + " is not a valid attribute under feature type " + featureType.getName());

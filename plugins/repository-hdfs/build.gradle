@@ -72,7 +72,7 @@ dependencies {
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api 'org.apache.commons:commons-configuration2:2.12.0'
   api "commons-io:commons-io:${versions.commonsio}"
-  api 'org.apache.commons:commons-lang3:3.17.0'
+  api 'org.apache.commons:commons-lang3:3.18.0'
   implementation 'com.google.re2j:re2j:1.8'
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -182,6 +182,7 @@ Set disabledIntegTestTaskNames = []
 // Temporarily disable xxxSecure tests for JDK-24 and above, the krb5 does not play well
 if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_24) {
   disabledIntegTestTaskNames += ['integTestSecure', 'integTestSecureHa']
+  testingConventions.enabled = false
 }
 
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {

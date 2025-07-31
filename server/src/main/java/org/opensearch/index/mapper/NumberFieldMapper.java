@@ -2043,6 +2043,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public double toDoubleValue(long value) {
             return type.toDoubleValue(value);
         }
+
+        public Number parse(Object value) {
+            return type.parse(value, coerce);
+        }
     }
 
     private final NumberType type;
@@ -2074,8 +2078,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         return coerce.value();
     }
 
-    boolean ignoreMalformed() {
-        return ignoreMalformed.value();
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
+        return ignoreMalformed;
     }
 
     @Override

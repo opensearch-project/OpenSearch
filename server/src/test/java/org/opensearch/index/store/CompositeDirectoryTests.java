@@ -66,7 +66,7 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         localDirectory = FSDirectory.open(createTempDir());
         removeExtraFSFiles();
         fileCache = FileCacheFactory.createConcurrentLRUFileCache(FILE_CACHE_CAPACITY, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
-        compositeDirectory = new CompositeDirectory(localDirectory, remoteSegmentStoreDirectory, fileCache);
+        compositeDirectory = new CompositeDirectory(localDirectory, remoteSegmentStoreDirectory, fileCache, threadPool);
         addFilesToDirectory(LOCAL_FILES);
     }
 
@@ -132,6 +132,12 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         // All the files in the below list are present either locally or on remote, so sync should work as expected
         Collection<String> names = List.of("_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_1");
         compositeDirectory.sync(names);
+        // Deleting file _1.cfe and then adding its blocks locally so that full file is not present but block files are present in local
+        // State of _1.cfe file after these operations - not present in remote, full file not present locally but blocks present in local
+        compositeDirectory.deleteFile("_1.cfe");
+        addFilesToDirectory(new String[] { "_1.cfe_block_0", "_1.cfe_block_2" });
+        // Sync should work as expected since blocks are present in local
+        compositeDirectory.sync(List.of("_1.cfe"));
         // Below list contains a non-existent file, hence will throw an error
         Collection<String> names1 = List.of("_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_1", "non_existent_file");
         assertThrows(NoSuchFileException.class, () -> compositeDirectory.sync(names1));
