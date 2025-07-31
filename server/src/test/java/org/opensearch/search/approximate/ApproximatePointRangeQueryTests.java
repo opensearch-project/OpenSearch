@@ -30,7 +30,10 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -40,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.Function;
 
+import static org.apache.lucene.document.LongPoint.pack;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -94,7 +98,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         LONG("long_field", ApproximatePointRangeQuery.LONG_FORMAT) {
             @Override
             byte[] encode(Number value) {
-                return LongPoint.pack(new long[] { value.longValue() }).bytes;
+                return pack(new long[] { value.longValue() }).bytes;
             }
 
             // Add to BKD
