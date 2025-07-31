@@ -91,6 +91,7 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
@@ -99,6 +100,7 @@ import static org.opensearch.search.internal.ExitableDirectoryReader.ExitableLea
 import static org.opensearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.opensearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.opensearch.search.internal.IndexReaderUtils.getLeaves;
+import static org.opensearch.search.internal.IndexReaderUtils.verifyPartitionCountInSlices;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -354,12 +356,9 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 expectedSliceCount = 4;
                 slices = searcher.slicesInternal(leaves, new MaxTargetSliceSupplier.SliceInputConfig(expectedSliceCount, false, 2));
 
-                // 4 slices will be created with 3 leaves in first&last slices and 2 leaves in other slices
+                // 4 slices will be created with 3 leaves in first and last slices and 2 leaves in other slices
                 assertEquals(expectedSliceCount, slices.length);
-                assertEquals(3, slices[0].partitions.length);
-                assertEquals(2, slices[1].partitions.length);
-                assertEquals(2, slices[2].partitions.length);
-                assertEquals(3, slices[3].partitions.length);
+                verifyPartitionCountInSlices(slices, Map.of(3, 2, 2, 2));
             }
         }
     }
@@ -411,12 +410,9 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 int expectedSliceCount = 4;
                 IndexSearcher.LeafSlice[] slices = searcher.slices(leaves);
 
-                // 4 slices will be created with 3 leaves in first&last slices and 2 leaves in other slices
+                // 4 slices will be created with 3 leaves in first & last slices and 2 leaves in other slices
                 assertEquals(expectedSliceCount, slices.length);
-                assertEquals(3, slices[0].partitions.length);
-                assertEquals(2, slices[1].partitions.length);
-                assertEquals(2, slices[2].partitions.length);
-                assertEquals(3, slices[3].partitions.length);
+                verifyPartitionCountInSlices(slices, Map.of(3, 2, 2, 2));
             }
         }
     }

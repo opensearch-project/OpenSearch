@@ -9,6 +9,7 @@
 package org.opensearch.search.internal;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 
 import java.util.ArrayList;
@@ -37,9 +38,6 @@ final class MaxTargetSliceSupplier {
             throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
         }
 
-        // slice count should not exceed the segment count
-        int targetSliceCount = Math.min(targetMaxSlice, leaves.size());
-
         boolean isIntraSegmentEnabled = sliceInputConfig.intraSegmentEnabled;
         int segmentSizeToSplit = sliceInputConfig.segmentSizeToSplit; // Smallest partition of a segment
         int minSegmentSizeToSplit = segmentSizeToSplit * 2; // At least 2 partitions would make sense
@@ -49,19 +47,24 @@ final class MaxTargetSliceSupplier {
         Map<Integer, Integer> leafToLastUnassignedDocId = new HashMap<>(leaves.size());
 
         for (LeafReaderContext leafReaderContext : leaves) {
-            // Don't split a segment if it's not enabled OR it doesn't meet the size criteria.
+            // Split a segment if it meets the configured size.
             if (isIntraSegmentEnabled == true && leafReaderContext.reader().maxDoc() >= minSegmentSizeToSplit) {
-                partitions.addAll(partitionSegment(leafReaderContext, segmentSizeToSplit, targetSliceCount));
+                partitions.addAll(partitionSegment(leafReaderContext, segmentSizeToSplit, targetMaxSlice));
             } else {
-                partitions.add(
-                    IndexSearcher.LeafReaderContextPartition.createFromAndTo(leafReaderContext, 0, leafReaderContext.reader().maxDoc())
-                );
+                partitions.add(createAppropriatePartition(leafReaderContext, 0, DocIdSetIterator.NO_MORE_DOCS));
             }
             leafToLastUnassignedDocId.put(leafReaderContext.ord, 0);
         }
 
+        // slice count should not exceed the partition count
+        int targetSliceCount = Math.min(targetMaxSlice, partitions.size());
+
+        if (targetSliceCount == 0) {
+            return new IndexSearcher.LeafSlice[0];
+        }
+
         // Sort all the partitions based on their doc counts in descending order.
-        partitions.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.maxDocId - l.minDocId)));
+        partitions.sort(Collections.reverseOrder(Comparator.comparingInt(MaxTargetSliceSupplier::getPartitionDocCount)));
 
         PriorityQueue<LeafSliceBuilder> queue = new PriorityQueue<>(targetSliceCount);
         for (int i = 0; i < targetSliceCount; i++) {
@@ -111,19 +114,15 @@ final class MaxTargetSliceSupplier {
 
         void addLeafPartition(IndexSearcher.LeafReaderContextPartition leafReaderContextPartition) {
             IndexSearcher.LeafReaderContextPartition effectivePartition = leafReaderContextPartition;
-            int effectivePartitionDocCount = effectivePartition.maxDocId - effectivePartition.minDocId;
+            int effectivePartitionDocCount = getPartitionDocCount(effectivePartition);
             // Merging 2 LeafReaderContextPartition that fall within same slice.
             // IndexSearcher in Lucene will throw an exception if not merged as it doesn't help parallelism.
             if (segmentOrdToMergedPartition.containsKey(leafReaderContextPartition.ctx.ord)) {
                 IndexSearcher.LeafReaderContextPartition storedPartition = segmentOrdToMergedPartition.get(
                     leafReaderContextPartition.ctx.ord
                 );
-                effectivePartitionDocCount += storedPartition.maxDocId - storedPartition.minDocId;
-                effectivePartition = IndexSearcher.LeafReaderContextPartition.createFromAndTo(
-                    leafReaderContextPartition.ctx,
-                    0,
-                    effectivePartitionDocCount
-                );
+                effectivePartitionDocCount += getPartitionDocCount(storedPartition);
+                effectivePartition = createAppropriatePartition(leafReaderContextPartition.ctx, 0, effectivePartitionDocCount);
             }
             segmentOrdToMergedPartition.put(effectivePartition.ctx.ord, effectivePartition);
             totalSize += effectivePartitionDocCount;
@@ -138,10 +137,8 @@ final class MaxTargetSliceSupplier {
             List<IndexSearcher.LeafReaderContextPartition> partitions = new ArrayList<>(segmentOrdToMergedPartition.size());
             for (IndexSearcher.LeafReaderContextPartition leafReaderContextPartition : segmentOrdToMergedPartition.values()) {
                 int fromDocId = leafToLastUnassignedDocId.get(leafReaderContextPartition.ctx.ord);
-                int toDocId = fromDocId + leafReaderContextPartition.maxDocId - leafReaderContextPartition.minDocId;
-                partitions.add(
-                    IndexSearcher.LeafReaderContextPartition.createFromAndTo(leafReaderContextPartition.ctx, fromDocId, toDocId)
-                );
+                int toDocId = fromDocId + getPartitionDocCount(leafReaderContextPartition);
+                partitions.add(createAppropriatePartition(leafReaderContextPartition.ctx, fromDocId, toDocId));
                 leafToLastUnassignedDocId.put(leafReaderContextPartition.ctx.ord, toDocId);
             }
             return new IndexSearcher.LeafSlice(partitions);
@@ -164,15 +161,15 @@ final class MaxTargetSliceSupplier {
     private static List<IndexSearcher.LeafReaderContextPartition> partitionSegment(
         LeafReaderContext leaf,
         int partitionSize,
-        int targetSliceCount
+        int targetMaxSlice
     ) {
 
         int segmentMaxDoc = leaf.reader().maxDoc();
         int numPartitions = segmentMaxDoc / partitionSize;
 
         // Max number of splits/partitions for a segment should not exceed the available slices.
-        if (numPartitions > targetSliceCount) {
-            numPartitions = targetSliceCount;
+        if (numPartitions > targetMaxSlice) {
+            numPartitions = targetMaxSlice;
             partitionSize = segmentMaxDoc / numPartitions;
         }
 
@@ -187,11 +184,37 @@ final class MaxTargetSliceSupplier {
         for (int i = 0; i < numPartitions; ++i) {
             currentEndDocId = currentStartDocId + minPartitionSize;
             currentEndDocId += (i < partitionsWithOneExtraDoc) ? 1 : 0;
-            partitions.add(IndexSearcher.LeafReaderContextPartition.createFromAndTo(leaf, currentStartDocId, currentEndDocId));
+            partitions.add(createAppropriatePartition(leaf, currentStartDocId, currentEndDocId));
             currentStartDocId = currentEndDocId;
         }
 
         return partitions;
+    }
+
+    static int getPartitionDocCount(IndexSearcher.LeafReaderContextPartition partition) {
+        int effectiveMaxDocId = partition.maxDocId;
+        if (partition.maxDocId == DocIdSetIterator.NO_MORE_DOCS) {
+            effectiveMaxDocId = partition.ctx.reader().maxDoc();
+        }
+        return effectiveMaxDocId - partition.minDocId;
+    }
+
+    /**
+     * We want to ensure that all optimisations in Lucene relying on endDocId being NO_MORE_DOCS keeps working.
+     * We don't want a segment to be created as LeafReaderContextPartition.createFromAndTo(leafReaderContext, 0, leafReaderContext.reader().maxDoc())
+     */
+    private static IndexSearcher.LeafReaderContextPartition createAppropriatePartition(
+        LeafReaderContext leafReaderContext,
+        int startDocId,
+        int endDocId
+    ) {
+        endDocId = (endDocId == DocIdSetIterator.NO_MORE_DOCS) ? leafReaderContext.reader().maxDoc() : endDocId;
+        int docCount = endDocId - startDocId;
+        if (docCount == leafReaderContext.reader().maxDoc()) {
+            return IndexSearcher.LeafReaderContextPartition.createForEntireSegment(leafReaderContext);
+        } else {
+            return IndexSearcher.LeafReaderContextPartition.createFromAndTo(leafReaderContext, startDocId, endDocId);
+        }
     }
 
 }

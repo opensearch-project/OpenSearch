@@ -23,8 +23,12 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.search.internal.IndexReaderUtils.getLeaves;
+import static org.opensearch.search.internal.IndexReaderUtils.verifyPartitionCountInSlices;
+import static org.opensearch.search.internal.IndexReaderUtils.verifyPartitionDocCountAcrossSlices;
+import static org.opensearch.search.internal.IndexReaderUtils.verifyUniqueSegmentPartitionsPerSlices;
 
 public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
 
@@ -79,19 +83,13 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
         }
 
         // Case 2: test with first 2 slice more leaves than others
+        // [ 3, 3, 3, 2, 2 ] Slices with count of leaves inside them.
+        // Ordering shouldn't matter as overall query time will be same.
         expectedSliceCount = 5;
         slices = MaxTargetSliceSupplier.getSlices(leaves, new MaxTargetSliceSupplier.SliceInputConfig(expectedSliceCount, false, 0));
-        int expectedLeavesInFirst2Slice = 3;
-        int expectedLeavesInOtherSlice = 2;
 
         assertEquals(expectedSliceCount, slices.length);
-        for (int i = 0; i < expectedSliceCount; ++i) {
-            if (i < 2) {
-                assertEquals(expectedLeavesInFirst2Slice, slices[i].partitions.length);
-            } else {
-                assertEquals(expectedLeavesInOtherSlice, slices[i].partitions.length);
-            }
-        }
+        verifyPartitionCountInSlices(slices, Map.of(3, 2, 2, 3));
     }
 
     public void testEmptyLeaves() {
@@ -142,4 +140,43 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
             }
         }
     }
+
+    public void testPartitioningForOneLeaf() throws Exception {
+        List<LeafReaderContext> leaf = IndexReaderUtils.getLeaves(1, 121);
+        int maxSliceCount = 10;
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
+            leaf,
+            new MaxTargetSliceSupplier.SliceInputConfig(maxSliceCount, true, 10)
+        );
+        verifyUniqueSegmentPartitionsPerSlices(slices);
+        // 1 partition each in 10 slices
+        verifyPartitionCountInSlices(slices, Map.of(1, 10));
+        // 9 partitions with 12 docs and 1 partition with 13 docs
+        verifyPartitionDocCountAcrossSlices(slices, Map.of(12, 9, 13, 1));
+
+        maxSliceCount = 7;
+        slices = MaxTargetSliceSupplier.getSlices(leaf, new MaxTargetSliceSupplier.SliceInputConfig(maxSliceCount, true, 10));
+        verifyUniqueSegmentPartitionsPerSlices(slices);
+        // 1 partition each in 7 slices
+        verifyPartitionCountInSlices(slices, Map.of(1, 7));
+        // 2 partitions with 18 docs and 5 partition with 17 docs
+        verifyPartitionDocCountAcrossSlices(slices, Map.of(18, 2, 17, 5));
+    }
+
+    public void testPartitioningForMultipleLeaves() throws Exception {
+        List<LeafReaderContext> leaves = new ArrayList<>(IndexReaderUtils.getLeaves(1, 20));
+        // This segment won't be split any further
+        leaves.addAll(IndexReaderUtils.getLeaves(1, 19));
+        int maxSliceCount = 2;
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
+            leaves,
+            new MaxTargetSliceSupplier.SliceInputConfig(maxSliceCount, true, 10)
+        );
+        verifyUniqueSegmentPartitionsPerSlices(slices);
+        // 1 partition in each slice
+        verifyPartitionCountInSlices(slices, Map.of(1, 2));
+        // 1 partitions with 19 docs and 1 partitions with 20 docs
+        verifyPartitionDocCountAcrossSlices(slices, Map.of(19, 1, 20, 1));
+    }
+
 }
