@@ -30,6 +30,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
@@ -57,10 +58,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     private SortOrder sortOrder;
     public PointRangeQuery pointRangeQuery;
     private final Function<byte[], String> valueToString;
-
-    // Remove shared state field to avoid concurrency issues
-    // BKD state is now passed as parameter to intersect methods
-    // private ResumableDISI.BKDState state;
 
     public ApproximatePointRangeQuery(
         String field,
@@ -106,11 +103,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
     public void setSortOrder(SortOrder sortOrder) {
         this.sortOrder = sortOrder;
-    }
-
-    public void setBKDState(ResumableDISI.BKDState state) {
-        // This method is no longer used since state is now per-shard
-        // Keeping for compatibility but it's a no-op
     }
 
     @Override
@@ -249,34 +241,21 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 return true;
             }
 
-            private void intersectLeft(
-                PointValues.PointTree pointTree,
-                PointValues.IntersectVisitor visitor,
-                long[] docCount,
-                ResumableDISI.BKDState bkdState
-            ) throws IOException {
-                intersectLeft(visitor, pointTree, docCount, bkdState);
+            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount, ResumableDISI.BKDState state)
+                throws IOException {
+                intersectLeft(visitor, pointTree, docCount, state);
                 assert pointTree.moveToParent() == false;
             }
 
-            private void intersectRight(
-                PointValues.PointTree pointTree,
-                PointValues.IntersectVisitor visitor,
-                long[] docCount,
-                ResumableDISI.BKDState bkdState
-            ) throws IOException {
-                intersectRight(visitor, pointTree, docCount, bkdState);
+            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount)
+                throws IOException {
+                intersectRight(visitor, pointTree, docCount);
                 assert pointTree.moveToParent() == false;
             }
 
             // custom intersect visitor to walk the left of the tree
-            public void intersectLeft(
-                PointValues.IntersectVisitor visitor,
-                PointValues.PointTree pointTree,
-                long[] docCount,
-                ResumableDISI.BKDState bkdState
-            ) throws IOException {
-                // Check if we've already collected enough documents
+            public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount, ResumableDISI.BKDState bkdState)
+                throws IOException {
                 if (docCount[0] >= size) {
                     // Save current position for resumption
                     if (bkdState != null) {
@@ -285,16 +264,13 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     }
                     return;
                 }
-
-                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+                PointValues.Relation r = visitor.compare(bkdState.getCurrentTree().getMinPackedValue(), bkdState.getCurrentTree().getMaxPackedValue());
                 if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                     return;
                 }
 
                 // Handle leaf nodes
                 if (pointTree.moveToChild() == false) {
-                    long docsBefore = docCount[0];
-
                     if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
                         pointTree.visitDocIDs(visitor);
                     } else {
@@ -302,21 +278,20 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         pointTree.visitDocValues(visitor);
                     }
 
-                    // After visiting docs, check if we hit the limit
-                    if (docCount[0] >= size && bkdState != null) {
-                        // We've processed this leaf and hit the limit
-                        // Find the next unvisited position by moving up the tree
-                        PointValues.PointTree nextPosition = findNextUnvisitedPosition(pointTree);
-                        if (nextPosition != null) {
-                            bkdState.setCurrentTree(nextPosition);
-                            bkdState.setInProgress(true);
-                        } else {
-                            bkdState.setExhausted(true);
-                        }
-                    }
+//                     After visiting docs, check if we hit the limit
+//                    if (docCount[0] >= size && bkdState != null) {
+//                        // We've processed this leaf and hit the limit
+//                        // Find the next unvisited position by moving up the tree
+//                        PointValues.PointTree nextPosition = findNextUnvisitedPosition(pointTree);
+//                        if (nextPosition != null) {
+//                            bkdState.setCurrentTree(nextPosition);
+//                            bkdState.setInProgress(true);
+//                        } else {
+//                            bkdState.setExhausted(true);
+//                        }
+//                    }
                     return;
                 }
-
                 // For CELL_INSIDE_QUERY, check if we can skip right child
                 if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
                     long leftSize = pointTree.size();
@@ -329,34 +304,18 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         return;
                     }
                 }
-
-                // We need both children - clone right child before processing left
+                // We need both children - now clone right
                 PointValues.PointTree rightChild = null;
                 if (pointTree.moveToSibling()) {
                     rightChild = pointTree.clone();
                     pointTree.moveToParent();
                     pointTree.moveToChild();
                 }
-
-                // Process left child first
+                // Process both children: left first, then right if needed
                 intersectLeft(visitor, pointTree, docCount, bkdState);
-
-                // If we've hit the limit during left processing, check if right child should be saved
-                if (docCount[0] >= size) {
-                    if (rightChild != null && bkdState != null && !bkdState.isInProgress()) {
-                        // Left child processing completed but didn't set next position
-                        // Right child is the next unvisited position
-                        bkdState.setCurrentTree(rightChild);
-                        bkdState.setInProgress(true);
-                    }
-                    return;
-                }
-
-                // Process right child if needed and available
-                if (rightChild != null && docCount[0] < size) {
+                if (docCount[0] < size && rightChild != null) {
                     intersectLeft(visitor, rightChild, docCount, bkdState);
                 }
-
                 pointTree.moveToParent();
             }
 
@@ -365,7 +324,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 PointValues.PointTree tree = currentLeaf.clone();
 
                 // Move up the tree to find the next unvisited sibling or ancestor's sibling
-                while (tree.moveToParent()) {
+                if (tree.moveToParent()) {
                     // Try to move to sibling (next unvisited subtree)
                     if (tree.moveToSibling()) {
                         return tree.clone();
@@ -377,124 +336,48 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
             }
 
             // custom intersect visitor to walk the right of tree (from rightmost leaf going left)
-            public void intersectRight(
-                PointValues.IntersectVisitor visitor,
-                PointValues.PointTree pointTree,
-                long[] docCount,
-                ResumableDISI.BKDState bkdState
-            ) throws IOException {
-                // Check if we've already collected enough documents
+            public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
+                throws IOException {
                 if (docCount[0] >= size) {
-                    // Save current position for resumption
-                    if (bkdState != null) {
-                        bkdState.setCurrentTree(pointTree);
-                        bkdState.setInProgress(true);
-                    }
                     return;
                 }
-
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                     return;
                 }
-
                 // Handle leaf nodes
                 if (pointTree.moveToChild() == false) {
-                    long docsBefore = docCount[0];
-
                     if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
                         pointTree.visitDocIDs(visitor);
                     } else {
                         // CELL_CROSSES_QUERY
                         pointTree.visitDocValues(visitor);
                     }
-
-                    // After visiting docs, check if we hit the limit
-                    if (docCount[0] >= size && bkdState != null) {
-                        // We've processed this leaf and hit the limit
-                        // Find the next unvisited position by moving up the tree (for right traversal)
-                        PointValues.PointTree nextPosition = findNextUnvisitedPositionRight(pointTree);
-                        if (nextPosition != null) {
-                            bkdState.setCurrentTree(nextPosition);
-                            bkdState.setInProgress(true);
-                        } else {
-                            bkdState.setExhausted(true);
-                        }
-                    }
                     return;
                 }
-
                 // Internal node - get left child reference (we're at left child initially)
                 PointValues.PointTree leftChild = pointTree.clone();
-
                 // Move to right child if it exists
                 boolean hasRightChild = pointTree.moveToSibling();
-
                 // For CELL_INSIDE_QUERY, check if we can skip left child
                 if (r == PointValues.Relation.CELL_INSIDE_QUERY && hasRightChild) {
                     long rightSize = pointTree.size();
                     long needed = size - docCount[0];
                     if (rightSize >= needed) {
                         // Right child has all we need - only process right
-                        intersectRight(visitor, pointTree, docCount, bkdState);
+                        intersectRight(visitor, pointTree, docCount);
                         pointTree.moveToParent();
                         return;
                     }
                 }
-
-                // Process right child first (for DESC order)
+                // Process both children: right first (for DESC), then left if needed
                 if (hasRightChild) {
-                    intersectRight(visitor, pointTree, docCount, bkdState);
-
-                    // If we've hit the limit during right processing, check if left child should be saved
-                    if (docCount[0] >= size) {
-                        if (bkdState != null && !bkdState.isInProgress()) {
-                            // Right child processing completed but didn't set next position
-                            // Left child is the next unvisited position
-                            bkdState.setCurrentTree(leftChild);
-                            bkdState.setInProgress(true);
-                        }
-                        return;
-                    }
+                    intersectRight(visitor, pointTree, docCount);
                 }
-
-                // Process left child if needed
                 if (docCount[0] < size) {
-                    intersectRight(visitor, leftChild, docCount, bkdState);
+                    intersectRight(visitor, leftChild, docCount);
                 }
-
                 pointTree.moveToParent();
-            }
-
-            // Helper method to find the next unvisited position for right traversal
-            private PointValues.PointTree findNextUnvisitedPositionRight(PointValues.PointTree currentLeaf) throws IOException {
-                PointValues.PointTree tree = currentLeaf.clone();
-
-                // For right traversal, we need to find the next position going from right to left
-                // Move up the tree to find the next unvisited left sibling or ancestor's left sibling
-                while (tree.moveToParent()) {
-                    // Check if we came from the right child
-                    PointValues.PointTree parent = tree.clone();
-                    if (parent.moveToChild()) {
-                        // We're at left child, check if there's a left sibling to process
-                        // For right traversal, after processing right subtree, we process left subtree
-                        PointValues.PointTree leftSibling = parent.clone();
-                        if (!isCurrentPosition(leftSibling, tree)) {
-                            // This left child hasn't been processed yet
-                            return leftSibling;
-                        }
-                    }
-                }
-
-                // No more unvisited positions found
-                return null;
-            }
-
-            // Helper to check if two tree positions are the same
-            private boolean isCurrentPosition(PointValues.PointTree tree1, PointValues.PointTree tree2) {
-                // Simple comparison - in a real implementation, you'd compare the actual tree positions
-                // For now, we'll use a conservative approach
-                return false; // Always assume different positions to be safe
             }
 
             @Override
@@ -509,69 +392,11 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 // values.size(): total points indexed, In most cases: values.size() ≈ number of documents (assuming single-valued fields)
                 if (size > values.size()) {
                     return pointRangeQueryWeight.scorerSupplier(context);
-                }
-
-                if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
-                    return new ScorerSupplier() {
-
-                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
-                        final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
-                        long cost = -1;
-
-                        // Create per-shard BKD state to avoid concurrency issues
-                        ResumableDISI.BKDState shardState = new ResumableDISI.BKDState();
-
-                        @Override
-                        public Scorer get(long leadCost) throws IOException {
-                            // Check if we have a saved tree and we're not exhausted
-                            if (shardState.getCurrentTree() == null && !shardState.isExhausted()) {
-                                // First call - start from the root
-                                shardState.setCurrentTree(values.getPointTree());
-                                docCount[0] = 0; // Reset doc count for first call
-                            } else if (shardState.getCurrentTree() != null && !shardState.isExhausted()) {
-                                // Resume from where we left off
-                                docCount[0] = (int) shardState.getDocCount();
-                            }
-
-                            // Only process if we haven't collected enough documents and we're not exhausted
-                            if (!shardState.isExhausted() && docCount[0] < size && shardState.getCurrentTree() != null) {
-                                // Reset the in-progress flag before processing
-                                shardState.setInProgress(false);
-
-                                // Call intersect with the current tree, passing the shard state
-                                intersectLeft(shardState.getCurrentTree(), visitor, docCount, shardState);
-
-                                // Update the state's docCount
-                                shardState.setDocCount(docCount[0]);
-
-                                // If we didn't collect enough documents and we're not in progress, we've exhausted the tree
-                                if (docCount[0] < size && !shardState.isInProgress()) {
-                                    shardState.setExhausted(true);
-                                }
-                            }
-
-                            DocIdSetIterator iterator = result.build().iterator();
-                            return new ConstantScoreScorer(score(), scoreMode, iterator);
-                        }
-
-                        @Override
-                        public long cost() {
-                            if (cost == -1) {
-                                // Computing the cost may be expensive, so only do it if necessary
-                                cost = values.estimateDocCount(visitor);
-                                assert cost >= 0;
-                            }
-                            return cost;
-                        }
-                    };
                 } else {
-                    // we need to fetch size + deleted docs since the collector will prune away deleted docs resulting in fewer results
-                    // than expected
-                    final int deletedDocs = reader.numDeletedDocs();
-                    size += deletedDocs;
-                    return new ScorerSupplier() {
+                    if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
+                        return new ScorerSupplier() {
 
-                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                        DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                         final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                         long cost = -1;
 
@@ -586,8 +411,11 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                                 state.setCurrentTree(values.getPointTree());
                                 docCount[0] = 0; // Reset doc count for first call
                             } else if (state.getCurrentTree() != null && !state.isExhausted()) {
+                                result = new DocIdSetBuilder(reader.maxDoc(), values);
+
                                 // Resume from where we left off
                                 docCount[0] = (int) state.getDocCount();
+
                             }
 
                             // Only process if we haven't collected enough documents and we're not exhausted
@@ -595,32 +423,85 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                                 // Reset the in-progress flag before processing
                                 state.setInProgress(false);
 
-                                // Call intersect with the current tree
-                                intersectRight(state.getCurrentTree(), visitor, docCount, state);
+                                // Call intersect with the current tree, passing the shard state
+                                intersectLeft(state.getCurrentTree(), visitor, docCount, state);
 
                                 // Update the state's docCount
                                 state.setDocCount(docCount[0]);
 
                                 // If we didn't collect enough documents and we're not in progress, we've exhausted the tree
-                                if (docCount[0] < size && !state.isInProgress()) {
-                                    state.setExhausted(true);
-                                }
+//                                if (docCount[0] < size && !state.isInProgress()) {
+//                                    state.setExhausted(true);
+//                                }
                             }
 
+//                            if (state.isExhausted()){
+//                                return new Scorer() {
+//                                    @Override
+//                                    public int docID() {
+//                                        return 0;
+//                                    }
+//
+//                                    @Override
+//                                    public DocIdSetIterator iterator() {
+//                                        return null;
+//                                    }
+//
+//                                    @Override
+//                                    public float getMaxScore(int upTo) throws IOException {
+//                                        return 0;
+//                                    }
+//
+//                                    @Override
+//                                    public float score() throws IOException {
+//                                        return 0;
+//                                    }
+//                                };
+//                            }
                             DocIdSetIterator iterator = result.build().iterator();
                             return new ConstantScoreScorer(score(), scoreMode, iterator);
                         }
 
-                        @Override
-                        public long cost() {
-                            if (cost == -1) {
-                                // Computing the cost may be expensive, so only do it if necessary
-                                cost = values.estimateDocCount(visitor);
-                                assert cost >= 0;
+
+                            @Override
+                            public long cost() {
+                                if (cost == -1) {
+                                    // Computing the cost may be expensive, so only do it if necessary
+                                    cost = values.estimateDocCount(visitor);
+                                    assert cost >= 0;
+                                }
+                                return cost;
                             }
-                            return cost;
-                        }
-                    };
+                        };
+                    } else {
+                        // we need to fetch size + deleted docs since the collector will prune away deleted docs resulting in fewer results
+                        // than expected
+                        final int deletedDocs = reader.numDeletedDocs();
+                        size += deletedDocs;
+                        return new ScorerSupplier() {
+
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
+                            long cost = -1;
+
+                            @Override
+                            public Scorer get(long leadCost) throws IOException {
+                                intersectRight(values.getPointTree(), visitor, docCount);
+                                DocIdSetIterator iterator = result.build().iterator();
+                                return new ConstantScoreScorer(score(), scoreMode, iterator);
+                            }
+
+                            @Override
+                            public long cost() {
+                                if (cost == -1) {
+                                    // Computing the cost may be expensive, so only do it if necessary
+                                    cost = values.estimateDocCount(visitor);
+                                    assert cost >= 0;
+                                }
+                                return cost;
+                            }
+                        };
+                    }
                 }
             }
 
