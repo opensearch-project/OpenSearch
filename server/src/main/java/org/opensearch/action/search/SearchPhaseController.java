@@ -455,6 +455,7 @@ public final class SearchPhaseController {
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
+
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             final TotalHits totalHits = topDocsStats.getTotalHits();
             return new ReducedQueryPhase(
@@ -481,11 +482,12 @@ public final class SearchPhaseController {
         if (queryResults.isEmpty()) {
             throw new IllegalStateException(errorMsg);
         }
+
         validateMergeSortValueFormats(queryResults);
+
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
-
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, ProfileShardResult> profileResults = hasProfileResults
@@ -517,6 +519,7 @@ public final class SearchPhaseController {
                 profileResults.put(key, result.consumeProfileResult());
             }
         }
+        // reduce suggest
         final Suggest reducedSuggest;
         final List<CompletionSuggestion> reducedCompletionSuggestions;
         if (groupedSuggestions.isEmpty()) {
@@ -526,8 +529,12 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
+        // reduce profile
+        final SearchProfileShardResults shardProfileResults = profileResults.isEmpty()
+            ? null
+            : new SearchProfileShardResults(profileResults);
+
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
@@ -538,7 +545,7 @@ public final class SearchPhaseController {
             topDocsStats.terminatedEarly,
             reducedSuggest,
             aggregations,
-            shardResults,
+            shardProfileResults,
             sortedTopDocs,
             firstResult.sortValueFormats(),
             numReducePhases,
@@ -548,7 +555,7 @@ public final class SearchPhaseController {
         );
     }
 
-    private static InternalAggregations reduceAggs(
+    public static InternalAggregations reduceAggs(
         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
         boolean performFinalReduce,
         List<InternalAggregations> toReduce
@@ -684,7 +691,7 @@ public final class SearchPhaseController {
         // the reduced suggest results
         final Suggest suggest;
         // the reduced internal aggregations
-        final InternalAggregations aggregations;
+        InternalAggregations aggregations;
         // the reduced profile results
         final SearchProfileShardResults shardResults;
         // the number of reduces phases

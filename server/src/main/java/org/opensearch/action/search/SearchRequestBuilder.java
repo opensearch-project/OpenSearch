@@ -68,6 +68,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         super(client, action, new SearchRequest());
     }
 
+    public SearchRequestBuilder(OpenSearchClient client, StreamSearchAction action) {
+        super(client, action, new SearchRequest());
+    }
+
     /**
      * Sets the indices the search will be executed on.
      */
@@ -649,6 +653,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
         this.request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
+        return this;
+    }
+
+    public SearchRequestBuilder setStream(boolean stream) {
+        this.request.setStreamSearch(stream);
         return this;
     }
 }

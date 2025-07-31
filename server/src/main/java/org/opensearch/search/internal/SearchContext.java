@@ -44,6 +44,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.action.StreamActionListener;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -537,6 +538,18 @@ public abstract class SearchContext implements Releasable {
     }
 
     public boolean keywordIndexOrDocValuesEnabled() {
+        return false;
+    }
+
+    public void setListener(StreamActionListener listener) {
+
+    }
+
+    public StreamActionListener getListener() {
+        throw new RuntimeException();
+    }
+
+    public boolean isStreamSearch() {
         return false;
     }
 }

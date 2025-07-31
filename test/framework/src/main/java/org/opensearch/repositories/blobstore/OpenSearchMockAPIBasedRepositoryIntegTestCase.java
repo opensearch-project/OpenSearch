@@ -187,6 +187,7 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/14291")
     public void testRequestStats() throws Exception {
         final String repository = createRepository(randomName());
         final String index = "index-no-merges";

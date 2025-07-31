@@ -128,6 +128,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private final List<Releasable> releasables = new ArrayList<>();
 
+    private final AtomicInteger streamResultsReceived = new AtomicInteger(0);
+    private final AtomicInteger streamResultsConsumeCallback = new AtomicInteger(0);
+    private final AtomicBoolean shardResultsConsumed = new AtomicBoolean(false);
+
     AbstractSearchAsyncAction(
         String name,
         Logger logger,
@@ -296,30 +300,81 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 final Thread thread = Thread.currentThread();
                 try {
                     final SearchPhase phase = this;
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
-                        @Override
-                        public void innerOnResponse(Result result) {
-                            try {
-                                onShardResult(result, shardIt);
-                            } finally {
-                                executeNext(pendingExecutions, thread);
+                    // Separate the flow based on whether it's a stream search or not
+                    if (request.isStreamSearch()) {
+                        // Stream search flow
+                        executePhaseOnShard(shardIt, shard, new SearchStreamActionListener<Result>(shard, shardIndex) {
+                            @Override
+                            public void innerOnResponse(Result result) {
+                                throw new RuntimeException("innerOnResponse is not used for stream search");
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception t) {
-                            try {
-                                // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
-                                if (totalOps.get() == expectedTotalOps) {
-                                    onPhaseFailure(phase, "The phase has failed", t);
-                                } else {
-                                    onShardFailure(shardIndex, shard, shardIt, t);
+                            @Override
+                            protected void innerOnStreamResponse(Result result) {
+                                try {
+                                    streamResultsReceived.incrementAndGet();
+                                    onStreamResult(result, shardIt, () -> successfulStreamExecution());
+                                } finally {
+                                    // For intermediate results, we don't complete the shard execution
+                                    logger.debug("Processed intermediate result from shard {}", shardIndex);
                                 }
-                            } finally {
-                                executeNext(pendingExecutions, thread);
                             }
-                        }
-                    });
+
+                            @Override
+                            protected void innerOnCompleteResponse(Result result) {
+                                try {
+                                    onShardResultStream(result, shardIt, () -> {
+                                        // This is the final response, so consume the shard result
+                                        onShardResultConsumed(result, shardIt);
+                                    });
+                                } finally {
+                                    // This is the final response, so move to the next shard
+                                    logger.debug("Completed stream for shard {}, moving to next", shardIndex);
+                                    executeNext(pendingExecutions, thread);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception t) {
+                                try {
+                                    // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                                    if (totalOps.get() == expectedTotalOps) {
+                                        onPhaseFailure(phase, "The phase has failed", t);
+                                    } else {
+                                        onShardFailure(shardIndex, shard, shardIt, t);
+                                    }
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
+                            }
+                        });
+                    } else {
+                        // Normal search flow
+                        executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
+                            @Override
+                            public void innerOnResponse(Result result) {
+                                try {
+                                    onShardResult(result, shardIt);
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception t) {
+                                try {
+                                    // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                                    if (totalOps.get() == expectedTotalOps) {
+                                        onPhaseFailure(phase, "The phase has failed", t);
+                                    } else {
+                                        onShardFailure(shardIndex, shard, shardIt, t);
+                                    }
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
+                            }
+                        });
+                    }
                 } catch (final Exception e) {
                     try {
                         /*
@@ -628,6 +683,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         results.consumeResult(result, () -> onShardResultConsumed(result, shardIt));
     }
 
+    protected void onShardResultStream(Result result, SearchShardIterator shardIt, Runnable next) {
+        assert result.getShardIndex() != -1 : "shard index is not set";
+        assert result.getSearchShardTarget() != null : "search shard target must not be null";
+        hasShardResponse.set(true);
+        if (logger.isTraceEnabled()) {
+            logger.trace("got streaming complete result from {}", result != null ? result.getSearchShardTarget() : null);
+        }
+        this.setPhaseResourceUsages();
+        results.consumeResult(result, next);
+    }
+
+    protected void onStreamResult(Result result, SearchShardIterator shardIt, Runnable next) {
+        assert result.getShardIndex() != -1 : "shard index is not set";
+        assert result.getSearchShardTarget() != null : "search shard target must not be null";
+        if (logger.isTraceEnabled()) {
+            logger.trace("got streaming result from {}", result != null ? result.getSearchShardTarget() : null);
+        }
+        this.setPhaseResourceUsages();
+        results.consumeStreamResult(result, next);
+    }
+
     public void setPhaseResourceUsages() {
         TaskResourceInfo taskResourceUsage = searchRequestContext.getTaskResourceUsageSupplier().get();
         searchRequestContext.recordPhaseResourceUsage(taskResourceUsage);
@@ -660,7 +736,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
             try {
-                onPhaseDone();
+                if (!request.isStreamSearch()) {
+                    onPhaseDone();
+                } else {
+                    shardResultsConsumed.set(true);
+                    if (streamResultsReceived.get() == streamResultsConsumeCallback.get()) {
+                        logger.debug("Stream results consumption has called back, let shard consumption callback trigger onPhaseDone");
+                        onPhaseDone();
+                    } else {
+                        assert streamResultsReceived.get() > streamResultsConsumeCallback.get();
+                        logger.info(
+                            "Shard results consumption finishes before stream results, let stream consumption callback trigger onPhaseDone"
+                        );
+                    }
+                }
             } catch (final Exception ex) {
                 onPhaseFailure(this, "The phase has failed", ex);
             }
@@ -669,6 +758,22 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 "unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",
                 new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
             );
+        }
+    }
+
+    // in streaming case, shard consumption may indicate all shard results have been consumed.
+    // however, the stream results may not finish the partial reduce yet
+    // TODO race condition with successfulShardExecution, onPhaseDone may never get called
+    private void successfulStreamExecution() {
+        try {
+            if (streamResultsReceived.get() == streamResultsConsumeCallback.incrementAndGet()) {
+                if (shardResultsConsumed.get()) {
+                    logger.info("Stream consumption trigger onPhaseDone");
+                    onPhaseDone();
+                }
+            }
+        } catch (final Exception ex) {
+            onPhaseFailure(this, "The phase has failed", ex);
         }
     }
 

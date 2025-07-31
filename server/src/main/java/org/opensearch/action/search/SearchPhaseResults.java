@@ -68,6 +68,8 @@ public abstract class SearchPhaseResults<Result extends SearchPhaseResult> {
      */
     abstract void consumeResult(Result result, Runnable next);
 
+    void consumeStreamResult(Result result, Runnable next) {}
+
     /**
      * Returns <code>true</code> iff a result if present for the given shard ID.
      */

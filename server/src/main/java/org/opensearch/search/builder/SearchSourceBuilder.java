@@ -430,6 +430,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return postQueryBuilder;
     }
 
+    private boolean stream = false;
+
+    public SearchSourceBuilder stream(boolean stream) {
+        this.stream = stream;
+        return this;
+    }
+
+    public boolean stream() {
+        return stream;
+    }
+
     /**
      * From index to start the search from. Defaults to {@code 0}.
      */
@@ -1270,6 +1281,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.derivedFields = derivedFields;
         rewrittenBuilder.searchPipeline = searchPipeline;
         rewrittenBuilder.verbosePipeline = verbosePipeline;
+        rewrittenBuilder.stream = stream;
         return rewrittenBuilder;
     }
 
@@ -1501,6 +1513,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (stream) {
+            builder.field("stream", true);
+        }
+
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }
