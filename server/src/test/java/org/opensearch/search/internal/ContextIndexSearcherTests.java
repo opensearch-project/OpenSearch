@@ -354,15 +354,12 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 expectedSliceCount = 4;
                 slices = searcher.slicesInternal(leaves, expectedSliceCount);
 
-                // 4 slices will be created with 3 leaves in first 2 slices and 2 leaves in other slices
+                // 4 slices will be created with 3 leaves in first&last slices and 2 leaves in other slices
                 assertEquals(expectedSliceCount, slices.length);
-                for (int i = 0; i < expectedSliceCount; ++i) {
-                    if (i < 2) {
-                        assertEquals(3, slices[i].partitions.length);
-                    } else {
-                        assertEquals(2, slices[i].partitions.length);
-                    }
-                }
+                assertEquals(3, slices[0].partitions.length);
+                assertEquals(2, slices[1].partitions.length);
+                assertEquals(2, slices[2].partitions.length);
+                assertEquals(3, slices[3].partitions.length);
             }
         }
     }
@@ -414,15 +411,12 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 int expectedSliceCount = 4;
                 IndexSearcher.LeafSlice[] slices = searcher.slices(leaves);
 
-                // 4 slices will be created with 3 leaves in first 2 slices and 2 leaves in other slices
+                // 4 slices will be created with 3 leaves in first&last slices and 2 leaves in other slices
                 assertEquals(expectedSliceCount, slices.length);
-                for (int i = 0; i < expectedSliceCount; ++i) {
-                    if (i < 2) {
-                        assertEquals(3, slices[i].partitions.length);
-                    } else {
-                        assertEquals(2, slices[i].partitions.length);
-                    }
-                }
+                assertEquals(3, slices[0].partitions.length);
+                assertEquals(2, slices[1].partitions.length);
+                assertEquals(2, slices[2].partitions.length);
+                assertEquals(3, slices[3].partitions.length);
             }
         }
     }

@@ -42,6 +42,9 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
         }
 
         if (context.request() != null && context.request().source() != null && context.innerHits().getInnerHits().isEmpty()) {
+            if (context.request().source().sorts() != null && context.request().source().sorts().size() > 1) {
+                return false;
+            }
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
             if (primarySortField != null
                 && primarySortField.missing() == null
