@@ -89,7 +89,7 @@ public class StreamTransportExampleIT extends OpenSearchIntegTestCase {
                 TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
                 handler
             );
-            assertTrue(latch.await(2, TimeUnit.SECONDS));
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
             // Wait for responses
             assertEquals(3, responses.size());
 

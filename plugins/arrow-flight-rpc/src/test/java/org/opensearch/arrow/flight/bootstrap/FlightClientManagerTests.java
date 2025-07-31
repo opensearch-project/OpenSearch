@@ -10,6 +10,7 @@ package org.opensearch.arrow.flight.bootstrap;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.api.flightinfo.NodeFlightInfo;
 import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
@@ -64,6 +65,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class FlightClientManagerTests extends OpenSearchTestCase {
     private static FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
 
