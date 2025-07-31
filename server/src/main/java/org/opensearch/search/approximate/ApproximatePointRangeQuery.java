@@ -30,7 +30,6 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
@@ -241,8 +240,12 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 return true;
             }
 
-            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount, ResumableDISI.BKDState state)
-                throws IOException {
+            private void intersectLeft(
+                PointValues.PointTree pointTree,
+                PointValues.IntersectVisitor visitor,
+                long[] docCount,
+                ResumableDISI.BKDState state
+            ) throws IOException {
                 intersectLeft(visitor, pointTree, docCount, state);
                 assert pointTree.moveToParent() == false;
             }
@@ -254,8 +257,12 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
             }
 
             // custom intersect visitor to walk the left of the tree
-            public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount, ResumableDISI.BKDState bkdState)
-                throws IOException {
+            public void intersectLeft(
+                PointValues.IntersectVisitor visitor,
+                PointValues.PointTree pointTree,
+                long[] docCount,
+                ResumableDISI.BKDState bkdState
+            ) throws IOException {
                 if (docCount[0] >= size) {
                     // Save current position for resumption
                     if (bkdState != null) {
@@ -264,7 +271,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     }
                     return;
                 }
-                PointValues.Relation r = visitor.compare(bkdState.getCurrentTree().getMinPackedValue(), bkdState.getCurrentTree().getMaxPackedValue());
+                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                     return;
                 }
@@ -278,18 +285,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         pointTree.visitDocValues(visitor);
                     }
 
-//                     After visiting docs, check if we hit the limit
-//                    if (docCount[0] >= size && bkdState != null) {
-//                        // We've processed this leaf and hit the limit
-//                        // Find the next unvisited position by moving up the tree
-//                        PointValues.PointTree nextPosition = findNextUnvisitedPosition(pointTree);
-//                        if (nextPosition != null) {
-//                            bkdState.setCurrentTree(nextPosition);
-//                            bkdState.setInProgress(true);
-//                        } else {
-//                            bkdState.setExhausted(true);
-//                        }
-//                    }
                     return;
                 }
                 // For CELL_INSIDE_QUERY, check if we can skip right child
@@ -313,6 +308,13 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 }
                 // Process both children: left first, then right if needed
                 intersectLeft(visitor, pointTree, docCount, bkdState);
+                if (docCount[0] >= size && !bkdState.hasSetTree()) {
+                    if (bkdState != null) {
+                        bkdState.setCurrentTree(pointTree);
+                        bkdState.setInProgress(true);
+                        bkdState.setHasSetTree(true);
+                    }
+                }
                 if (docCount[0] < size && rightChild != null) {
                     intersectLeft(visitor, rightChild, docCount, bkdState);
                 }
@@ -396,72 +398,49 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
 
-                        DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
-                        final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
-                        long cost = -1;
+                            DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
+                            long cost = -1;
 
-                        // Create per-shard BKD state to avoid concurrency issues
-                        ResumableDISI.BKDState state = new ResumableDISI.BKDState();
+                            // Create per-shard BKD state to avoid concurrency issues
+                            ResumableDISI.BKDState state = new ResumableDISI.BKDState();
 
-                        @Override
-                        public Scorer get(long leadCost) throws IOException {
-                            // Check if we have a saved tree and we're not exhausted
-                            if (state.getCurrentTree() == null && !state.isExhausted()) {
-                                // First call - start from the root
-                                state.setCurrentTree(values.getPointTree());
-                                docCount[0] = 0; // Reset doc count for first call
-                            } else if (state.getCurrentTree() != null && !state.isExhausted()) {
-                                result = new DocIdSetBuilder(reader.maxDoc(), values);
+                            @Override
+                            public Scorer get(long leadCost) throws IOException {
+                                // Check if we have a saved tree and we're not exhausted
+                                if (state.getCurrentTree() == null && !state.isExhausted()) {
+                                    // First call - start from the root
+                                    state.setCurrentTree(values.getPointTree());
+                                    docCount[0] = 0; // Reset doc count for first call
+                                } else if (state.getCurrentTree() != null && !state.isExhausted()) {
+                                    result = new DocIdSetBuilder(reader.maxDoc(), values);
 
-                                // Resume from where we left off
-                                docCount[0] = (int) state.getDocCount();
+                                    state.setHasSetTree(false);
+                                    // Resume from where we left off
+                                    docCount[0] = (int) state.getDocCount();
 
+                                }
+
+                                // Only process if we haven't collected enough documents and we're not exhausted
+                                if (!state.isExhausted() && docCount[0] < size && state.getCurrentTree() != null) {
+                                    // Reset the in-progress flag before processing
+                                    state.setInProgress(false);
+
+                                    // Call intersect with the current tree, passing the shard state
+                                    intersectLeft(state.getCurrentTree(), visitor, docCount, state);
+
+                                    // Update the state's docCount
+                                    state.setDocCount(docCount[0]);
+
+                                    // If we didn't collect enough documents and we're not in progress, we've exhausted the tree
+                                    if (docCount[0] < size && !state.isInProgress()) {
+                                        state.setExhausted(true);
+                                    }
+                                }
+
+                                DocIdSetIterator iterator = result.build().iterator();
+                                return new ConstantScoreScorer(score(), scoreMode, iterator);
                             }
-
-                            // Only process if we haven't collected enough documents and we're not exhausted
-                            if (!state.isExhausted() && docCount[0] < size && state.getCurrentTree() != null) {
-                                // Reset the in-progress flag before processing
-                                state.setInProgress(false);
-
-                                // Call intersect with the current tree, passing the shard state
-                                intersectLeft(state.getCurrentTree(), visitor, docCount, state);
-
-                                // Update the state's docCount
-                                state.setDocCount(docCount[0]);
-
-                                // If we didn't collect enough documents and we're not in progress, we've exhausted the tree
-//                                if (docCount[0] < size && !state.isInProgress()) {
-//                                    state.setExhausted(true);
-//                                }
-                            }
-
-//                            if (state.isExhausted()){
-//                                return new Scorer() {
-//                                    @Override
-//                                    public int docID() {
-//                                        return 0;
-//                                    }
-//
-//                                    @Override
-//                                    public DocIdSetIterator iterator() {
-//                                        return null;
-//                                    }
-//
-//                                    @Override
-//                                    public float getMaxScore(int upTo) throws IOException {
-//                                        return 0;
-//                                    }
-//
-//                                    @Override
-//                                    public float score() throws IOException {
-//                                        return 0;
-//                                    }
-//                                };
-//                            }
-                            DocIdSetIterator iterator = result.build().iterator();
-                            return new ConstantScoreScorer(score(), scoreMode, iterator);
-                        }
-
 
                             @Override
                             public long cost() {
