@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import com.google.errorprone.annotations.ThreadSafe;
 import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
 import org.apache.arrow.flight.FlightRuntimeException;
@@ -37,6 +38,7 @@ import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCal
  * TcpChannel implementation for Arrow Flight. It is created per call in ArrowFlightProducer.
  *
  */
+@ThreadSafe
 class FlightServerChannel implements TcpChannel {
     private static final String PROFILE_NAME = "flight";
 
@@ -48,9 +50,8 @@ class FlightServerChannel implements TcpChannel {
     private final InetSocketAddress remoteAddress;
     private final List<ActionListener<Void>> closeListeners = Collections.synchronizedList(new ArrayList<>());
     private final ServerHeaderMiddleware middleware;
-    private Optional<VectorSchemaRoot> root = Optional.empty();
+    private volatile Optional<VectorSchemaRoot> root = Optional.empty();
     private final FlightCallTracker callTracker;
-    private volatile long requestStartTime;
     private volatile boolean cancelled = false;
 
     public FlightServerChannel(
@@ -72,7 +73,6 @@ class FlightServerChannel implements TcpChannel {
         this.allocator = allocator;
         this.middleware = middleware;
         this.callTracker = callTracker;
-        this.requestStartTime = System.nanoTime();
         this.localAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
         this.remoteAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
     }
@@ -90,7 +90,7 @@ class FlightServerChannel implements TcpChannel {
      *
      * @param output StreamOutput for the response
      */
-    public void sendBatch(ByteBuffer header, VectorStreamOutput output) {
+    public synchronized void sendBatch(ByteBuffer header, VectorStreamOutput output) {
         if (cancelled) {
             throw StreamException.cancelled("Cannot flush more batches. Stream cancelled by the client");
         }
@@ -121,7 +121,7 @@ class FlightServerChannel implements TcpChannel {
      * Completes the streaming response and closes all pending roots.
      *
      */
-    public void completeStream() {
+    public synchronized void completeStream() {
         if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }
@@ -134,7 +134,7 @@ class FlightServerChannel implements TcpChannel {
      *
      * @param error the error to send
      */
-    public void sendError(ByteBuffer header, Exception error) {
+    public synchronized void sendError(ByteBuffer header, Exception error) {
         if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }
@@ -189,7 +189,7 @@ class FlightServerChannel implements TcpChannel {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (!open.get()) {
             return;
         }
@@ -199,13 +199,11 @@ class FlightServerChannel implements TcpChannel {
     }
 
     @Override
-    public void addCloseListener(ActionListener<Void> listener) {
-        synchronized (closeListeners) {
-            if (!open.get()) {
-                listener.onResponse(null);
-            } else {
-                closeListeners.add(listener);
-            }
+    public synchronized void addCloseListener(ActionListener<Void> listener) {
+        if (!open.get()) {
+            listener.onResponse(null);
+        } else {
+            closeListeners.add(listener);
         }
     }
 
