@@ -64,8 +64,8 @@ class S3AsyncService implements Closeable {
 
     private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 
-    // We will need to support the cache with both type of cache. Since S3 client settings doesn't contain Async Client Type.
-    // Also adding the client type in s3 client setting is not good option since it is used for Async and Sync settings.
+    // We will need to support the cache with both type of clients. Since S3ClientSettings doesn't contain Http Client.
+    // Also adding the Http Client type in S3ClientSettings is not good option since it is used by Async and Sync clients.
     // We can segregate the types of cache here itself
     private volatile Map<String, Map<S3ClientSettings, AmazonAsyncS3Reference>> s3HttpClientTypesClientsCache = emptyMap();
 
