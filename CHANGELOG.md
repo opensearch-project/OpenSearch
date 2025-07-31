@@ -47,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Make node duress values cacheable ([#18649](https://github.com/opensearch-project/OpenSearch/pull/18649))
 - Change default value of remote_data_ratio, which is used in Searchable Snapshots and Writeable Warm from 0 to 5 and min allowed value to 1 ([#18767](https://github.com/opensearch-project/OpenSearch/pull/18767))
 - Making multi rate limiters in repository dynamic [#18069](https://github.com/opensearch-project/OpenSearch/pull/18069)
+- Optimize grouping for segment concurrent search by ensuring that documents within each group are as equal as possible ([#18451](https://github.com/opensearch-project/OpenSearch/pull/18451))
 
 ### Dependencies
 - Bump `stefanzweifel/git-auto-commit-action` from 5 to 6 ([#18524](https://github.com/opensearch-project/OpenSearch/pull/18524))
