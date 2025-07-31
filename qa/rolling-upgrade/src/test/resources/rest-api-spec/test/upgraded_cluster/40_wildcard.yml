@@ -2,7 +2,7 @@
 ---
 "search after upgrade":
   - skip:
-      version:     " - 3.3.0"
+      version:     " - 3.1.99"
       reason:      SORTED_SET is no longer supported after 3.2.0
   # "term query matches exact value"
   - do:
