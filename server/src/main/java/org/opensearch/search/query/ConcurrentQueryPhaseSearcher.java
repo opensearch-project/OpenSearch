@@ -50,20 +50,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        // Fast path - skip extension logic entirely if no extensions are registered
         List<QueryPhaseExtension> extensions = queryPhaseExtensions();
-        if (extensions == null || extensions.isEmpty()) {
-            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
-            return searchWithCollectorManager(
-                searchContext,
-                searcher,
-                query,
-                collectors,
-                queryCollectorContext,
-                hasFilterCollector,
-                hasTimeout
-            );
-        }
 
         // Execute beforeScoreCollection extensions
         for (QueryPhaseExtension extension : extensions) {

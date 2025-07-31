@@ -8,7 +8,7 @@
 
 package org.opensearch.search.query;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.internal.SearchContext;
 
 /**
@@ -17,9 +17,12 @@ import org.opensearch.search.internal.SearchContext;
  * implementations and score processing for advanced search features like
  * hybrid queries and neural search.
  *
+ * <p>This API is experimental and may change in future versions based on
+ * feedback from plugin implementations.</p>
+ *
  * @opensearch.api
  */
-@PublicApi(since = "3.2.0")
+@ExperimentalApi
 public interface QueryPhaseExtension {
 
     /**

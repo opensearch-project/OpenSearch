@@ -431,11 +431,7 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
-            // Fast path - skip extension logic entirely if no extensions are registered
             List<QueryPhaseExtension> extensions = queryPhaseExtensions();
-            if (extensions == null || extensions.isEmpty()) {
-                return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-            }
 
             // Execute beforeScoreCollection extensions
             for (QueryPhaseExtension extension : extensions) {
