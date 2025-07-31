@@ -131,7 +131,10 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 assertEquals(3, leaves.size());
-                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, new MaxTargetSliceSupplier.SliceInputConfig(2, false, 0));
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
+                    leaves,
+                    new MaxTargetSliceSupplier.SliceInputConfig(2, false, 0)
+                );
                 assertEquals(1, slices[0].partitions.length);
                 assertEquals(3, slices[0].getMaxDocs());
 

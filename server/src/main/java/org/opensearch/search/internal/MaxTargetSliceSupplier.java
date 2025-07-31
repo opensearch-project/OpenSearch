@@ -17,8 +17,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.PriorityQueue;
 import java.util.Map;
+import java.util.PriorityQueue;
 
 /**
  * Supplier to compute leaf slices based on passed in leaves and max target slice count to limit the number of computed slices. It sorts

@@ -623,6 +623,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return leafSlices;
     }
 
+    // FIXME: Remove before merging
     private static void printDistributionLogs(List<LeafReaderContext> leaves, LeafSlice[] leafSlices) {
         StringBuilder res = new StringBuilder();
         long total = 0;
