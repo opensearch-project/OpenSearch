@@ -34,8 +34,6 @@ public class ResumableDISI extends DocIdSetIterator {
     private int currentDocId = -1;
     private boolean fullyExhausted = false;
 
-    // BKD traversal state for approximatable queries
-    private BKDState bkdState;
     private int documentsScored = 0; // Total documents scored across all expansions
 
     /**
@@ -56,7 +54,6 @@ public class ResumableDISI extends DocIdSetIterator {
     public ResumableDISI(ScorerSupplier scorerSupplier, int expansionSize) {
         this.scorerSupplier = scorerSupplier;
         this.expansionSize = expansionSize;
-        this.bkdState = new BKDState();
     }
 
     @Override
@@ -215,6 +212,7 @@ public class ResumableDISI extends DocIdSetIterator {
         private boolean isExhausted = false;
         private long docCount = 0;
         private boolean inProgress = false;
+        private boolean hasSetTree = false;
 
         public PointValues.PointTree getCurrentTree() {
             return currentTree;
@@ -251,5 +249,14 @@ public class ResumableDISI extends DocIdSetIterator {
         public void setInProgress(boolean inProgress) {
             this.inProgress = inProgress;
         }
+
+        public boolean hasSetTree() {
+            return hasSetTree;
+        }
+
+        public void setHasSetTree(boolean hasSet) {
+            this.hasSetTree = hasSetTree;
+        }
+
     }
 }
