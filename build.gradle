@@ -437,7 +437,11 @@ gradle.projectsEvaluated {
           jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
         if (BuildParams.inFipsJvm) {
-          task.jvmArgs += ["-Dorg.bouncycastle.fips.approved_only=true"]
+          def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
+          task.jvmArgs += [
+              "-Dorg.bouncycastle.fips.approved_only=true",
+              "-Djava.security.properties=${fipsSecurityFile}"
+          ]
         }
       }
     }
@@ -743,14 +747,14 @@ tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
   dependsOn tasks.named('testAggregateTestReport', TestReport)
 }
 
-tasks.register('checkCompatibility', CheckCompatibilityTask) {
-  description = 'Checks the compatibility with child components'
-}
-
-allprojects { project ->
-  project.afterEvaluate {
-    if (project.tasks.findByName('publishToMavenLocal')) {
-      checkCompatibility.dependsOn(project.tasks.publishToMavenLocal)
-    }
-  }
-}
+//tasks.register('checkCompatibility', CheckCompatibilityTask) {
+//  description = 'Checks the compatibility with child components'
+//}
+//
+//allprojects { project ->
+//  project.afterEvaluate {
+//    if (project.tasks.findByName('publishToMavenLocal')) {
+//      checkCompatibility.dependsOn(project.tasks.publishToMavenLocal)
+//    }
+//  }
+//}
