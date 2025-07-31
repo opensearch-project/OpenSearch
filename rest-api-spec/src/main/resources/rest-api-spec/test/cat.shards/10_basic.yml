@@ -98,7 +98,7 @@
 ---
 "Help from 2.14.0 to 3.0.99":
   - skip:
-      version: " - 2.13.99, 3.2.0 - "
+      version: " - 2.13.99, 3.1.0 - "
       reason: search idle reactivate count total is only added in 3.0.0
       features: node_selector
   - do:
