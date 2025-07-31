@@ -8,7 +8,7 @@
 
 package org.opensearch.search.profile.fetch;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.util.List;
@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * Profiler for the fetch phase using a simplified profiling tree.
  */
-@PublicApi(since = "3.2.0")
+@ExperimentalApi()
 public class FetchProfiler {
     private final FlatFetchProfileTree profileTree;
 

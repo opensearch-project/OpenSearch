@@ -71,8 +71,7 @@ class FlatFetchProfileTree {
     FetchProfileBreakdown startSubPhase(String element, String parentElement) {
         Node parent = phaseMap.get(parentElement);
         if (parent == null) {
-            // If parent phase doesn't exist, treat sub-phase as a new fetch phase
-            return startFetchPhase(element);
+            throw new IllegalStateException("Parent phase '" + parentElement + "' does not exist for sub-phase '" + element + "'");
         }
         Node child = new Node(element);
         parent.children.add(child);
