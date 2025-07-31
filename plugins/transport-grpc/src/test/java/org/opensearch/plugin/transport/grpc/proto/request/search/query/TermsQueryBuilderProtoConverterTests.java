@@ -45,7 +45,7 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
             .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setBoost(2.0f)
-            .setName("test_query")
+            .setUnderscoreName("test_query")
             .setValueType(ValueType.VALUE_TYPE_DEFAULT)
             .build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
