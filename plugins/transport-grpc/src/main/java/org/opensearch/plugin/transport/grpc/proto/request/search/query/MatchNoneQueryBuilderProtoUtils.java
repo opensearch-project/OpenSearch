@@ -38,8 +38,8 @@ public class MatchNoneQueryBuilderProtoUtils {
             matchNoneQueryBuilder.boost(matchNoneQueryProto.getBoost());
         }
 
-        if (matchNoneQueryProto.hasName()) {
-            matchNoneQueryBuilder.queryName(matchNoneQueryProto.getName());
+        if (matchNoneQueryProto.hasUnderscoreName()) {
+            matchNoneQueryBuilder.queryName(matchNoneQueryProto.getUnderscoreName());
         }
 
         return matchNoneQueryBuilder;
