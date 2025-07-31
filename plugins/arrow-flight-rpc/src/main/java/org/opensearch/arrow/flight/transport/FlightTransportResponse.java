@@ -43,6 +43,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final HeaderContext headerContext;
     private final long reqId;
+    private final FlightTransportConfig config;
 
     private final TransportResponseHandler<T> handler;
     private boolean isClosed;
@@ -65,13 +66,14 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         FlightClient flightClient,
         HeaderContext headerContext,
         Ticket ticket,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        FlightTransportConfig config
     ) {
         this.handler = handler;
         this.reqId = reqId;
         this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
         this.namedWriteableRegistry = namedWriteableRegistry;
-
+        this.config = config;
         // Initialize Flight stream with request ID header
         FlightCallHeaders callHeaders = new FlightCallHeaders();
         callHeaders.insert(REQUEST_ID_KEY, String.valueOf(reqId));
@@ -106,13 +108,14 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             return null;
         }
 
-        if (!firstResponseConsumed) {
-            // First call - use the batch we already fetched during initialization
-            firstResponseConsumed = true;
-            return deserializeResponse();
-        }
-
+        long startTime = System.currentTimeMillis();
         try {
+            if (!firstResponseConsumed) {
+                // First call - use the batch we already fetched during initialization
+                firstResponseConsumed = true;
+                return deserializeResponse();
+            }
+
             if (flightStream.next()) {
                 currentRoot = flightStream.getRoot();
                 currentHeader = headerContext.getHeader(reqId);
@@ -129,6 +132,8 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         } catch (Exception e) {
             streamExhausted = true;
             throw new StreamException(StreamErrorCode.INTERNAL, "Failed to fetch next batch", e);
+        } finally {
+            logSlowOperation(startTime);
         }
     }
 
@@ -193,6 +198,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         if (streamInitialized || streamExhausted) {
             return;
         }
+        long startTime = System.currentTimeMillis();
         try {
             if (flightStream.next()) {
                 currentRoot = flightStream.getRoot();
@@ -204,17 +210,20 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                 streamExhausted = true;
             }
         } catch (FlightRuntimeException e) {
+            // TODO maybe add a check - handshake and validate if node is connected
             // Try to get headers even if stream failed
             currentHeader = headerContext.getHeader(reqId);
             streamExhausted = true;
             initializationException = FlightErrorMapper.fromFlightException(e);
-            logger.warn("Stream initialization failed, headers may still be available", e);
+            logger.warn("Stream initialization failed", e);
         } catch (Exception e) {
             // Try to get headers even if stream failed
             currentHeader = headerContext.getHeader(reqId);
             streamExhausted = true;
             initializationException = new StreamException(StreamErrorCode.INTERNAL, "Stream initialization failed", e);
-            logger.warn("Stream initialization failed, headers may still be available", e);
+            logger.warn("Stream initialization failed", e);
+        } finally {
+            logSlowOperation(startTime);
         }
     }
 
@@ -229,6 +238,14 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private void ensureOpen() {
         if (isClosed) {
             throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed");
+        }
+    }
+
+    private void logSlowOperation(long startTime) {
+        long took = System.currentTimeMillis() - startTime;
+        long thresholdMs = config.getSlowLogThreshold().millis();
+        if (took > thresholdMs) {
+            logger.warn("Flight stream next() took [{}ms], exceeding threshold [{}ms]", took, thresholdMs);
         }
     }
 }

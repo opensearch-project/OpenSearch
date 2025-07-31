@@ -30,6 +30,7 @@ import static org.opensearch.OpenSearchException.OPENSEARCH_PREFIX_KEY;
  */
 class FlightErrorMapper {
     private static final Logger logger = LogManager.getLogger(FlightErrorMapper.class);
+    private static final boolean skipMetadata = true;
 
     /**
      * Maps a StreamException to a FlightRuntimeException.
@@ -40,11 +41,14 @@ class FlightErrorMapper {
     public static FlightRuntimeException toFlightException(StreamException exception) {
         CallStatus status = mapToCallStatus(exception);
         ErrorFlightMetadata flightMetadata = new ErrorFlightMetadata();
-        for (Map.Entry<String, List<String>> entry : exception.getMetadata().entrySet()) {
-            // TODO insert all entries and not just the first one
-            flightMetadata.insert(entry.getKey(), entry.getValue().getFirst());
+        if (!skipMetadata) {
+            // TODO can this metadata may leak any sensitive information? Enable back when confirmed
+            for (Map.Entry<String, List<String>> entry : exception.getMetadata().entrySet()) {
+                // TODO insert all entries and not just the first one
+                flightMetadata.insert(entry.getKey(), entry.getValue().getFirst());
+            }
+            status.withMetadata(flightMetadata);
         }
-        status.withMetadata(flightMetadata);
         status.withDescription(exception.getMessage());
         status.withCause(exception.getCause());
         return status.toRuntimeException();

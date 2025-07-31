@@ -155,7 +155,8 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             new TransportMessageListener() {
             },
             namedWriteableRegistry,
-            statsCollector
+            statsCollector,
+            new FlightTransportConfig()
         );
     }
 
