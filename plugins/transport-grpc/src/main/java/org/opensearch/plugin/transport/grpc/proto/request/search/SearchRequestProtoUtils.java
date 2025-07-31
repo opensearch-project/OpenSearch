@@ -16,6 +16,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.plugin.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.plugin.transport.grpc.proto.request.search.suggest.TermSuggestionBuilderProtoUtils;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.protobufs.SearchRequestBody;
@@ -40,9 +41,7 @@ import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.search.suggest.SuggestBuilders.termSuggestion;
 
 /**
- * Utility class for converting SearchRequest objects between OpenSearch and Protocol Buffers formats.
- * This class provides methods to prepare, parse, and transform search requests to ensure proper
- * communication between gRPC clients and the OpenSearch server.
+ * Utility class for converting SearchRequest Protocol Buffers to objects
  */
 public class SearchRequestProtoUtils {
 
@@ -58,11 +57,16 @@ public class SearchRequestProtoUtils {
      *
      * @param request the Protocol Buffer SearchRequest to execute
      * @param client the client to use for execution
+     * @param queryUtils the query utils instance for parsing queries
      * @return the SearchRequest to execute
      * @throws IOException if an I/O exception occurred parsing the request and preparing for
      *                     execution
      */
-    public static org.opensearch.action.search.SearchRequest prepareRequest(SearchRequest request, Client client) throws IOException {
+    public static org.opensearch.action.search.SearchRequest prepareRequest(
+        org.opensearch.protobufs.SearchRequest request,
+        Client client,
+        AbstractQueryBuilderProtoUtils queryUtils
+    ) throws IOException {
         org.opensearch.action.search.SearchRequest searchRequest = new org.opensearch.action.search.SearchRequest();
 
         /*
@@ -79,26 +83,28 @@ public class SearchRequestProtoUtils {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         // TODO avoid hidden cast to NodeClient here
-        parseSearchRequest(searchRequest, request, ((NodeClient) client).getNamedWriteableRegistry(), setSize);
+        parseSearchRequest(searchRequest, request, ((NodeClient) client).getNamedWriteableRegistry(), setSize, queryUtils);
         return searchRequest;
     }
 
     /**
      * Parses a protobuf {@link org.opensearch.protobufs.SearchRequest} to a {@link org.opensearch.action.search.SearchRequest}.
      * This method is similar to the logic in {@link RestSearchAction#parseSearchRequest(org.opensearch.action.search.SearchRequest, RestRequest, XContentParser, NamedWriteableRegistry, IntConsumer)}
-     * Specifically, this method handles the URL parameters, and internally calls {@link SearchSourceBuilderProtoUtils#parseProto(SearchSourceBuilder, SearchRequestBody)}
+     * Specifically, this method handles the URL parameters, and internally calls {@link SearchSourceBuilderProtoUtils#parseProto(SearchSourceBuilder, SearchRequestBody, AbstractQueryBuilderProtoUtils)}
      *
      * @param searchRequest the SearchRequest to populate
      * @param request the Protocol Buffer SearchRequest to parse
      * @param namedWriteableRegistry the registry for named writeables
      * @param setSize consumer for setting the size parameter
+     * @param queryUtils the query utils instance for parsing queries
      * @throws IOException if an I/O exception occurred during parsing
      */
     protected static void parseSearchRequest(
         org.opensearch.action.search.SearchRequest searchRequest,
         org.opensearch.protobufs.SearchRequest request,
         NamedWriteableRegistry namedWriteableRegistry,
-        IntConsumer setSize
+        IntConsumer setSize,
+        AbstractQueryBuilderProtoUtils queryUtils
     ) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
@@ -110,7 +116,7 @@ public class SearchRequestProtoUtils {
         }
         searchRequest.indices(indexArr);
 
-        SearchSourceBuilderProtoUtils.parseProto(searchRequest.source(), request.getRequestBody());
+        SearchSourceBuilderProtoUtils.parseProto(searchRequest.source(), request.getRequestBody(), queryUtils);
 
         final int batchedReduceSize = request.hasBatchedReduceSize()
             ? request.getBatchedReduceSize()

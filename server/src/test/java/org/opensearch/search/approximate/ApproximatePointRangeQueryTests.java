@@ -33,7 +33,10 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -1141,5 +1144,48 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             exactDocsAsc.scoreDocs.length,
             approxDocsAsc.scoreDocs.length
         );
+    }
+
+    public void testApproximateWithSort() {
+        long lower = RandomNumbers.randomLongBetween(random(), 0, 100);
+        long upper = RandomNumbers.randomLongBetween(random(), lower + 10, lower + 1000);
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+            numericType.fieldName,
+            numericType.encode(lower),
+            numericType.encode(upper),
+            1,
+            numericType.format
+        );
+        // Test 1: Multiple sorts should prevent approximation
+        {
+            SearchContext mockContext = mock(SearchContext.class);
+            ShardSearchRequest mockRequest = mock(ShardSearchRequest.class);
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.sort(new FieldSortBuilder(numericType.fieldName).order(SortOrder.ASC));
+            source.sort(new FieldSortBuilder("another_field").order(SortOrder.ASC));
+            source.terminateAfter(SearchContext.DEFAULT_TERMINATE_AFTER);
+            when(mockContext.aggregations()).thenReturn(null);
+            when(mockContext.trackTotalHitsUpTo()).thenReturn(10000);
+            when(mockContext.from()).thenReturn(0);
+            when(mockContext.size()).thenReturn(10);
+            when(mockContext.request()).thenReturn(mockRequest);
+            when(mockRequest.source()).thenReturn(source);
+            assertFalse("Should not approximate with multiple sorts", query.canApproximate(mockContext));
+        }
+        // Test 2: Single sort on the same field should allow approximation
+        {
+            SearchContext mockContext = mock(SearchContext.class);
+            ShardSearchRequest mockRequest = mock(ShardSearchRequest.class);
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.sort(new FieldSortBuilder(numericType.fieldName).order(SortOrder.ASC));
+            source.terminateAfter(SearchContext.DEFAULT_TERMINATE_AFTER);
+            when(mockContext.aggregations()).thenReturn(null);
+            when(mockContext.trackTotalHitsUpTo()).thenReturn(10000);
+            when(mockContext.from()).thenReturn(0);
+            when(mockContext.size()).thenReturn(10);
+            when(mockContext.request()).thenReturn(mockRequest);
+            when(mockRequest.source()).thenReturn(source);
+            assertTrue("Should approximate with single sort on same field", query.canApproximate(mockContext));
+        }
     }
 }

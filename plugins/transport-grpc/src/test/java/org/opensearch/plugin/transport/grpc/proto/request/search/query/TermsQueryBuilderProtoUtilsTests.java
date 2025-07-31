@@ -46,7 +46,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
             .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setBoost(2.0f)
-            .setName("test_query")
+            .setUnderscoreName("test_query")
             .build();
 
         // Call the method under test
@@ -86,7 +86,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
             .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setBoost(2.0f)
-            .setName("test_query")
+            .setUnderscoreName("test_query")
             .build();
 
         // Call the method under test

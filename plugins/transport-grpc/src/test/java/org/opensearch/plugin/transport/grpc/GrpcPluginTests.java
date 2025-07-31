@@ -13,7 +13,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.QueryBuilderProtoConverter;
 import org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
+import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -21,11 +24,14 @@ import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
@@ -42,6 +48,7 @@ import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SET
 import static org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
 import static org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT;
 import static org.opensearch.plugin.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthNone;
+import static org.mockito.Mockito.when;
 
 public class GrpcPluginTests extends OpenSearchTestCase {
 
@@ -62,6 +69,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
     @Mock
     private Tracer tracer;
+
+    @Mock
+    private ExtensiblePlugin.ExtensionLoader extensionLoader;
 
     @Before
     public void setup() {
@@ -113,6 +123,21 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         assertEquals("Should return 11 settings", 11, settings.size());
     }
 
+    public void testGetQueryUtilsBeforeCreateComponents() {
+        // Create a new plugin instance without calling createComponents
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Test that getQueryUtils throws IllegalStateException when queryUtils is not initialized
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> newPlugin.getQueryUtils());
+
+        assertEquals("Query utils not initialized. Make sure createComponents has been called.", exception.getMessage());
+    }
+
+    public void testGetQueryUtilsAfterCreateComponents() {
+        // Test that getQueryUtils returns the queryUtils instance after createComponents is called
+        assertNotNull("QueryUtils should not be null after createComponents", plugin.getQueryUtils());
+    }
+
     public void testGetAuxTransports() {
         Settings settings = Settings.builder().put(SETTING_GRPC_PORT.getKey(), "9200-9300").build();
 
@@ -152,5 +177,152 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // Verify that the supplier returns a Netty4GrpcServerTransport instance
         AuxTransport transport = transports.get(GRPC_SECURE_TRANSPORT_SETTING_KEY).get();
         assertTrue("Should return a SecureNetty4GrpcServerTransport instance", transport instanceof SecureNetty4GrpcServerTransport);
+    }
+
+    public void testGetAuxTransportsWithNullClient() {
+        Settings settings = Settings.builder().put(SETTING_GRPC_PORT.getKey(), "9200-9300").build();
+
+        // Create a new plugin instance without initializing the client
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Expect a RuntimeException when client is null
+        RuntimeException exception = expectThrows(
+            RuntimeException.class,
+            () -> newPlugin.getAuxTransports(settings, threadPool, circuitBreakerService, networkService, clusterSettings, tracer)
+        );
+
+        assertEquals("client cannot be null", exception.getMessage());
+    }
+
+    public void testGetSecureAuxTransportsWithNullClient() {
+        Settings settings = Settings.builder().put(SETTING_GRPC_SECURE_PORT.getKey(), "9200-9300").build();
+
+        // Create a new plugin instance without initializing the client
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Expect a RuntimeException when client is null
+        RuntimeException exception = expectThrows(
+            RuntimeException.class,
+            () -> newPlugin.getSecureAuxTransports(
+                settings,
+                threadPool,
+                circuitBreakerService,
+                networkService,
+                clusterSettings,
+                getServerClientAuthNone(),
+                tracer
+            )
+        );
+
+        assertEquals("client cannot be null", exception.getMessage());
+    }
+
+    public void testLoadExtensions() {
+        // Create a new plugin instance
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Create a mock extension loader
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+
+        // Create a list of mock converters
+        List<QueryBuilderProtoConverter> mockConverters = new ArrayList<>();
+        mockConverters.add(Mockito.mock(QueryBuilderProtoConverter.class));
+        mockConverters.add(Mockito.mock(QueryBuilderProtoConverter.class));
+
+        // Set up the mock loader to return the mock converters
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(mockConverters);
+
+        // Call loadExtensions
+        newPlugin.loadExtensions(mockLoader);
+
+        // Verify that the converters were loaded
+        assertEquals(2, newPlugin.getQueryConverters().size());
+    }
+
+    public void testLoadExtensionsWithNullExtensions() {
+        // Create a new plugin instance
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Create a mock extension loader
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+
+        // Set up the mock loader to return null
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
+
+        // Call loadExtensions
+        newPlugin.loadExtensions(mockLoader);
+
+        // Verify that no converters were loaded
+        assertEquals(0, newPlugin.getQueryConverters().size());
+    }
+
+    public void testCreateComponents() {
+        // Create a new plugin instance
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Create a mock converter
+        QueryBuilderProtoConverter mockConverter = Mockito.mock(QueryBuilderProtoConverter.class);
+
+        // Add the mock converter to the plugin
+        newPlugin.loadExtensions(extensionLoader);
+        when(extensionLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(List.of(mockConverter));
+
+        // Call createComponents
+        Collection<Object> components = newPlugin.createComponents(
+            client,
+            null, // ClusterService
+            null, // ThreadPool
+            null, // ResourceWatcherService
+            null, // ScriptService
+            null, // NamedXContentRegistry
+            null, // Environment
+            null, // NodeEnvironment
+            null, // NamedWriteableRegistry
+            null, // IndexNameExpressionResolver
+            null  // Supplier<RepositoriesService>
+        );
+
+        // Verify that the queryUtils instance was created and is available
+        assertNotNull("QueryUtils should be initialized after createComponents", newPlugin.getQueryUtils());
+    }
+
+    public void testCreateComponentsWithExternalConverters() {
+        // Create a new plugin instance
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        // Create a mock converter that will be registered
+        QueryBuilderProtoConverter mockConverter = Mockito.mock(QueryBuilderProtoConverter.class);
+        when(mockConverter.getHandledQueryCase()).thenReturn(QueryContainer.QueryContainerCase.MATCH_ALL);
+
+        // Create a mock extension loader that returns the converter
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(List.of(mockConverter));
+
+        // Load the extensions first
+        newPlugin.loadExtensions(mockLoader);
+
+        // Verify the converter was added to the queryConverters list
+        assertEquals("Should have 1 query converter loaded", 1, newPlugin.getQueryConverters().size());
+
+        // Call createComponents to trigger registration of external converters
+        Collection<Object> components = newPlugin.createComponents(
+            client,
+            null, // ClusterService
+            null, // ThreadPool
+            null, // ResourceWatcherService
+            null, // ScriptService
+            null, // NamedXContentRegistry
+            null, // Environment
+            null, // NodeEnvironment
+            null, // NamedWriteableRegistry
+            null, // IndexNameExpressionResolver
+            null  // Supplier<RepositoriesService>
+        );
+
+        // Verify that the queryUtils instance was created and is available
+        assertNotNull("QueryUtils should be initialized after createComponents", newPlugin.getQueryUtils());
+
+        // Verify that the external converter was registered by checking it was called
+        Mockito.verify(mockConverter).getHandledQueryCase();
     }
 }
