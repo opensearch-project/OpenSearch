@@ -537,7 +537,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return slicesInternal(leaves, searchContext.getTargetMaxSliceCount());
+        return slicesInternal(leaves, new MaxTargetSliceSupplier.SliceInputConfig(searchContext));
     }
 
     public DirectoryReader getDirectoryReader() {
@@ -607,17 +607,52 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     // package-private for testing
-    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
+    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, MaxTargetSliceSupplier.SliceInputConfig sliceInputConfig) {
         LeafSlice[] leafSlices;
-        if (targetMaxSlice == 0) {
+        if (sliceInputConfig.targetMaxSliceCount == 0) {
             // use the default lucene slice calculation
             leafSlices = super.slices(leaves);
             logger.debug("Slice count using lucene default [{}]", leafSlices.length);
         } else {
             // use the custom slice calculation based on targetMaxSlice
-            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, sliceInputConfig);
             logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
         }
+        // FIXME: Remove before merging
+        printDistributionLogs(leaves, leafSlices);
         return leafSlices;
     }
+
+    private static void printDistributionLogs(List<LeafReaderContext> leaves, LeafSlice[] leafSlices) {
+        StringBuilder res = new StringBuilder();
+        long total = 0;
+        for (LeafReaderContext leaf : leaves) {
+            res.append(" Leaf [");
+            res.append(leaf.ord);
+            res.append(", ");
+            res.append(leaf.reader().maxDoc());
+            res.append(']');
+            total += leaf.reader().maxDoc();
+        }
+        res.append(" Total Docs = ").append(total).append("  ");
+        logger.info("Input leaves {}", res.toString());
+        res.setLength(0);
+        for (LeafSlice slice : leafSlices) {
+            res.append(" LeafSlice[ ");
+            res.append(" numParts = ");
+            res.append(slice.partitions.length);
+            res.append(" ");
+            total = 0;
+            for (LeafReaderContextPartition partition : slice.partitions) {
+                res.append("Part [ docs = ");
+                res.append(partition.maxDocId - partition.minDocId);
+                total += partition.maxDocId - partition.minDocId;
+                res.append("]");
+            }
+            res.append(", Total Docs = ").append(total).append("  ");
+            res.append(" ]");
+        }
+        logger.info("Output leaf slices {}", res.toString());
+    }
+
 }

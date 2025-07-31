@@ -273,6 +273,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Deprecated
     );
 
+    // TODO : Put these three into an enum
     // Allow concurrent segment search for all requests
     public static final String CONCURRENT_SEGMENT_SEARCH_MODE_ALL = "all";
 
@@ -285,6 +286,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<String> CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
         "search.concurrent_segment_search.mode",
         CONCURRENT_SEGMENT_SEARCH_MODE_AUTO,
+        // TODO : This should go inside the enum
         value -> {
             switch (value) {
                 case CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
@@ -314,6 +316,39 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
+
+    public static final String CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE_KEY = "search.concurrent_intra_segment_search.partition_size";
+    public static final int CONCURRENT_INTRA_SEGMENT_DEFAULT_PARTITION_SIZE_VALUE = 10_000;
+    public static final int CONCURRENT_INTRA_SEGMENT_MINIMUM_PARTITION_SIZE_VALUE = 2;
+
+    public static final Setting<String> CLUSTER_CONCURRENT_INTRA_SEGMENT_SEARCH_MODE = Setting.simpleString(
+        "search.concurrent_intra_segment_search.mode",
+        CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
+        // TODO : This should go inside the enum
+        value -> {
+            switch (value) {
+                // TODO : Handle auto mode.
+                case CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
+                case CONCURRENT_SEGMENT_SEARCH_MODE_NONE:
+                    // valid setting
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [all, none]");
+            }
+        },
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Integer> CONCURRENT_INTRA_SEGMENT_SEARCH_PARTITION_SIZE_SETTING = Setting.intSetting(
+        CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE_KEY,
+        CONCURRENT_INTRA_SEGMENT_DEFAULT_PARTITION_SIZE_VALUE,
+        CONCURRENT_INTRA_SEGMENT_MINIMUM_PARTITION_SIZE_VALUE,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+
     // value 0 means rewrite filters optimization in aggregations will be disabled
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
@@ -1383,6 +1418,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // nothing to parse...
         if (source == null) {
             context.evaluateRequestShouldUseConcurrentSearch();
+            context.evaluateRequestShouldUseIntraSegmentConcurrentSearch();
             return;
         }
 
@@ -1563,6 +1599,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.collapse(collapseContext);
         }
         context.evaluateRequestShouldUseConcurrentSearch();
+        context.evaluateRequestShouldUseIntraSegmentConcurrentSearch();
         if (source.profile()) {
             final Function<Query, Collection<Supplier<ProfileMetric>>> pluginProfileMetricsSupplier = (query) -> pluginProfilers.stream()
                 .flatMap(p -> p.getQueryProfileMetrics(context, query).stream())
