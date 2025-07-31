@@ -1,0 +1,43 @@
+[package]
+name = "opensearch-datafusion-jni"
+version = "0.1.0"
+edition = "2021"
+description = "JNI bindings for DataFusion integration with OpenSearch"
+license = "Apache-2.0"
+
+[lib]
+name = "opensearch_datafusion_jni"
+crate-type = ["cdylib"]
+
+[dependencies]
+datafusion = "49.0.0"
+arrow = "55.2"
+arrow-json = "55.2"
+
+# JNI dependencies
+jni = "0.21"
+
+# Async runtime
+tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 1          # Some optimization for reasonable performance
+lto = false           # Disable LTO for faster builds
+codegen-units = 16    # More parallel compilation
+incremental = true    # Enable incremental compilation
