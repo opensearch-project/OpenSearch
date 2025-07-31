@@ -622,6 +622,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 }
                 builder.endObject();
             }
+
             return builder;
         }
 
