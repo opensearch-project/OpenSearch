@@ -159,7 +159,6 @@ import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.FieldMaskingReader;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.store.MockFSDirectoryFactory;
-import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
@@ -3361,7 +3360,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indicesFieldDataCache,
             new NoneCircuitBreakerService(),
             shard.mapperService(),
-            new TestThreadPool("random_threadpool_name")
+            shard.getThreadPool()
         );
         IndexFieldData.Global ifd = indexFieldDataService.getForField(foo, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");

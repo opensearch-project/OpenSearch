@@ -91,6 +91,7 @@ import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
 import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -110,6 +111,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -178,6 +180,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
     private static Settings nodeSettings;
     private static Index index;
     private static long nowInMillis;
+    private static ThreadPool threadPool;
 
     protected static Index getIndex() {
         return index;
@@ -199,6 +202,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
 
         index = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
         nowInMillis = randomNonNegativeLong();
+        threadPool = new TestThreadPool("random_threadpool_name");
     }
 
     @Override
@@ -241,6 +245,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
     public static void afterClass() throws Exception {
         IOUtils.close(serviceHolder);
         IOUtils.close(serviceHolderWithNoType);
+        ThreadPool.terminate(threadPool, 1, TimeUnit.MINUTES);
         serviceHolder = null;
         serviceHolderWithNoType = null;
     }
@@ -434,7 +439,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 indicesFieldDataCache,
                 new NoneCircuitBreakerService(),
                 mapperService,
-                new TestThreadPool("random_threadpool_name")
+                threadPool
             );
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
                 @Override
