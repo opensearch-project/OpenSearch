@@ -112,7 +112,8 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
                 StreamTransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> remoteNode,
                 null,
-                transportService,
+                transportService.getTaskManager(),
+                null,
                 mock(Tracer.class)
             )
         );
