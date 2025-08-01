@@ -115,7 +115,6 @@ Agent-Class: org.opensearch.arrow.flight.chaos.ChaosAgent
 Can-Redefine-Classes: true
 Can-Retransform-Classes: true
 '''
-
     ant.jar(destfile: agentJar, manifest: manifestFile) {
       fileset(dir: sourceSets.internalClusterTest.output.classesDirs.first(), includes: 'org/opensearch/arrow/flight/chaos/ChaosAgent*.class')
     }

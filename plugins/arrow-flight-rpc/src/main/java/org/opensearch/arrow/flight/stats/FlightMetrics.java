@@ -588,11 +588,6 @@ class FlightMetrics implements Writeable, ToXContentFragment {
             return completed;
         }
 
-        long getCompletedByStatus(String status) {
-            LongAdder adder = completedByStatus.get(status);
-            return adder != null ? adder.sum() : 0;
-        }
-
         HistogramSnapshot getDuration() {
             return duration;
         }
@@ -601,9 +596,6 @@ class FlightMetrics implements Writeable, ToXContentFragment {
             return requestBytes;
         }
 
-        long getResponseBytes() {
-            return responseBytes;
-        }
     }
 
     static class ServerBatchMetrics {
