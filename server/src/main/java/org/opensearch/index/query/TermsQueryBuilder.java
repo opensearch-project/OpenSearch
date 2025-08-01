@@ -661,13 +661,19 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                                     }
 
                                     for (SearchHit hit : hits) {
-                                        Map<String, Object> sourceAsMap = hit.getSourceAsMap();
-                                        if (sourceAsMap != null) {
-                                            List<Object> extractedValues = XContentMapValues.extractRawValues(
-                                                termsLookup.path(),
-                                                sourceAsMap
-                                            );
-                                            terms.addAll(extractedValues);
+                                        if (termsLookup.store()) {
+                                            if (hit.field(termsLookup.path()) != null) {
+                                                terms.addAll(hit.field(termsLookup.path()).getValues());
+                                            }
+                                        } else {
+                                            Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                                            if (sourceAsMap != null) {
+                                                List<Object> extractedValues = XContentMapValues.extractRawValues(
+                                                    termsLookup.path(),
+                                                    sourceAsMap
+                                                );
+                                                terms.addAll(extractedValues);
+                                            }
                                         }
                                     }
                                     delegatedListener.onResponse(terms);
