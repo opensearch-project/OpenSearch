@@ -228,4 +228,30 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         }
         return new ProfileShardResult(queryResults, aggResults, fetchResult, networkTime);
     }
+
+    /**
+     * Helper method to build ProfileShardResult containing only fetch profile data.
+     * Used in multi-shard fetch phase where query profiling data is not available.
+     *
+     * @param profilers The {@link Profilers} to extract fetch data from
+     * @param request The shard search request
+     * @return A {@link ProfileShardResult} containing only fetch profile data
+     */
+    public static ProfileShardResult buildFetchOnlyShardResults(Profilers profilers, ShardSearchRequest request) {
+        FetchProfiler fetchProfiler = profilers.getFetchProfiler();
+        List<ProfileResult> fetchTree = fetchProfiler.getTree();
+        FetchProfileShardResult fetchResult = new FetchProfileShardResult(fetchTree);
+        NetworkTime networkTime = new NetworkTime(0, 0);
+        if (request != null) {
+            networkTime.setInboundNetworkTime(request.getInboundNetworkTime());
+            networkTime.setOutboundNetworkTime(request.getOutboundNetworkTime());
+        }
+        // Return ProfileShardResult with empty query/agg results and only fetch data
+        return new ProfileShardResult(
+            Collections.emptyList(), // No query results in fetch-only phase
+            new AggregationProfileShardResult(Collections.emptyList()), // No aggregation results
+            fetchResult,
+            networkTime
+        );
+    }
 }

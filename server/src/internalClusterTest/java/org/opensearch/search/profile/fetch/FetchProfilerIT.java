@@ -28,11 +28,6 @@ import java.util.Map;
 
 public class FetchProfilerIT extends OpenSearchIntegTestCase {
 
-    @Override
-    protected int numberOfShards() {
-        return 1; // Use a single shard to ensure all documents are in one shard
-    }
-
     /**
      * This test verifies that the fetch profiler returns reasonable results for a simple match_all query
      */
