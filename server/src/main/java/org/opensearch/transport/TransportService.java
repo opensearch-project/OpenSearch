@@ -264,6 +264,38 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
+    TransportService(
+        Settings settings,
+        Transport streamTransport,
+        ThreadPool threadPool,
+        TransportInterceptor transportInterceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        ConnectionManager connectionManager,
+        Tracer tracer,
+        TaskManager taskManager,
+        RemoteClusterService remoteClusterService,
+        boolean streamTransportMode
+    ) {
+        if (!streamTransportMode) {
+            throw new IllegalStateException("Constructor only supported to construct StreamTransportService");
+        }
+        this.transport = streamTransport;
+        this.streamTransport = streamTransport;
+        streamTransport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
+        this.threadPool = threadPool;
+        this.localNodeFactory = localNodeFactory;
+        this.connectionManager = connectionManager;
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+        tracerLog = Loggers.getLogger(logger, ".tracer");
+        this.taskManager = taskManager;
+        this.interceptor = transportInterceptor;
+        this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
+        this.remoteClusterClient = false;
+        this.tracer = tracer;
+        this.remoteClusterService = remoteClusterService;
+        responseHandlers = streamTransport.getResponseHandlers();
+    }
+
     public TransportService(
         Settings settings,
         Transport transport,

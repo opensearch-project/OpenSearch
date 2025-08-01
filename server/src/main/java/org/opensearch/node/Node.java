@@ -1276,7 +1276,7 @@ public class Node implements Closeable {
                         networkModule.getTransportInterceptor(),
                         new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService),
                         settingsModule.getClusterSettings(),
-                        taskHeaders,
+                        transportService,
                         tracer
                     )
                 )
@@ -1803,10 +1803,6 @@ public class Node implements Closeable {
         discovery.setNodeConnectionsService(nodeConnectionsService);
         clusterService.getClusterManagerService().setClusterStatePublisher(discovery);
 
-        if (streamTransportService != null) {
-            streamTransportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
-            streamTransportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(streamTransportService));
-        }
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
@@ -1814,10 +1810,7 @@ public class Node implements Closeable {
 
         TaskResourceTrackingService taskResourceTrackingService = injector.getInstance(TaskResourceTrackingService.class);
         transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
-        // TODO: revisit, if we really want this feature with Stream transport
-        if (streamTransportService != null) {
-            streamTransportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
-        }
+
         runnableTaskListener.set(taskResourceTrackingService);
         // start streamTransportService before transportService so that transport service has access to publish address
         // of stream transport for it to use it in localNode creation
