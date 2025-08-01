@@ -81,7 +81,7 @@ public class IndexReaderUtils {
 
     /**
      * For the input [ 10 -> 1, 9 -> 2 ]
-     * This verifies that there is one partition with 10 docs and 2 partitions with 9 docs.
+     * This verifies that there is one partition with 10 docs and 2 partitions with 9 docs each.
      */
     public static void verifyPartitionDocCountAcrossSlices(
         IndexSearcher.LeafSlice[] slices,
@@ -91,11 +91,28 @@ public class IndexReaderUtils {
         for (IndexSearcher.LeafSlice slice : slices) {
             for (IndexSearcher.LeafReaderContextPartition partition : slice.partitions) {
                 int partitionDocCount = MaxTargetSliceSupplier.getPartitionDocCount(partition);
-                int existingPartitionCount = actualDocCountToPartitionCount.getOrDefault(partitionDocCount, 0);
-                actualDocCountToPartitionCount.put(partitionDocCount, existingPartitionCount + 1);
+                int existingSliceCount = actualDocCountToPartitionCount.getOrDefault(partitionDocCount, 0);
+                actualDocCountToPartitionCount.put(partitionDocCount, existingSliceCount + 1);
             }
         }
         assertEquals(expectedDocCountToPartitionCount, actualDocCountToPartitionCount);
+    }
+
+    /**
+     * For the input [ 2 -> 1, 3 -> 1 ]
+     * This verifies that there is one slice with total 2 docs across all it's partitions and 1 slice with total 3 docs.
+     */
+    public static void verifyDocCountAcrossSlices(IndexSearcher.LeafSlice[] slices, Map<Integer, Integer> expectedDocCountToSliceCount) {
+        Map<Integer, Integer> actualDocCountToSliceCount = new HashMap<>();
+        for (IndexSearcher.LeafSlice slice : slices) {
+            int totalDocCount = 0;
+            for (IndexSearcher.LeafReaderContextPartition partition : slice.partitions) {
+                totalDocCount += MaxTargetSliceSupplier.getPartitionDocCount(partition);
+            }
+            int existingSliceCount = actualDocCountToSliceCount.getOrDefault(totalDocCount, 0);
+            actualDocCountToSliceCount.put(totalDocCount, existingSliceCount + 1);
+        }
+        assertEquals(expectedDocCountToSliceCount, actualDocCountToSliceCount);
     }
 
     public static void verifyUniqueSegmentPartitionsPerSlices(IndexSearcher.LeafSlice[] slices) {

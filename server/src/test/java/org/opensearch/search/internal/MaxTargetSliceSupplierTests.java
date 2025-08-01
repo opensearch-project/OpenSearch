@@ -8,17 +8,8 @@
 
 package org.opensearch.search.internal;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.store.Directory;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -26,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.search.internal.IndexReaderUtils.getLeaves;
+import static org.opensearch.search.internal.IndexReaderUtils.verifyDocCountAcrossSlices;
 import static org.opensearch.search.internal.IndexReaderUtils.verifyPartitionCountInSlices;
 import static org.opensearch.search.internal.IndexReaderUtils.verifyPartitionDocCountAcrossSlices;
 import static org.opensearch.search.internal.IndexReaderUtils.verifyUniqueSegmentPartitionsPerSlices;
@@ -101,47 +93,16 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
     }
 
     public void testOptimizedGroup() throws Exception {
-        try (
-            final Directory directory = newDirectory();
-            final IndexWriter iw = new IndexWriter(
-                directory,
-                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-            )
-        ) {
-            final String fieldValue = "value";
-            for (int i = 0; i < 3; ++i) {
-                Document document = new Document();
-                document.add(new StringField("field1", fieldValue, Field.Store.NO));
-                iw.addDocument(document);
-            }
-            iw.commit();
-            for (int i = 0; i < 1; ++i) {
-                Document document = new Document();
-                document.add(new StringField("field1", fieldValue, Field.Store.NO));
-                iw.addDocument(document);
-            }
-            iw.commit();
-            for (int i = 0; i < 1; ++i) {
-                Document document = new Document();
-                document.add(new StringField("field1", fieldValue, Field.Store.NO));
-                iw.addDocument(document);
-            }
-            iw.commit();
+        List<LeafReaderContext> leaves = new ArrayList<>(getLeaves(1, 3));
+        leaves.addAll(getLeaves(2, 1));
 
-            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                List<LeafReaderContext> leaves = directoryReader.leaves();
-                assertEquals(3, leaves.size());
-                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
-                    leaves,
-                    new MaxTargetSliceSupplier.SliceInputConfig(2, false, 0)
-                );
-                assertEquals(1, slices[0].partitions.length);
-                assertEquals(3, slices[0].getMaxDocs());
-
-                assertEquals(2, slices[1].partitions.length);
-                assertEquals(2, slices[1].getMaxDocs());
-            }
-        }
+        assertEquals(3, leaves.size());
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(
+            leaves,
+            new MaxTargetSliceSupplier.SliceInputConfig(2, false, 0)
+        );
+        verifyPartitionCountInSlices(slices, Map.of(2, 1, 1, 1));
+        verifyDocCountAcrossSlices(slices, Map.of(2, 1, 3, 1));
     }
 
     public void testPartitioningForOneLeaf() throws Exception {
