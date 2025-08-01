@@ -113,7 +113,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
+                    if (context.isStreamSearch()) {
+                        execution = ExecutionMode.STREAM;
+                    } else {
+                        execution = ExecutionMode.GLOBAL_ORDINALS;
+                    }
                 }
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
@@ -409,6 +413,56 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     metadata
                 );
             }
+        },
+        STREAM(new ParseField("stream")) {
+
+            @Override
+            Aggregator create(
+                String name,
+                AggregatorFactories factories,
+                ValuesSource valuesSource,
+                DocValueFormat format,
+                TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                IncludeExclude includeExclude,
+                SearchContext aggregationContext,
+                Aggregator parent,
+                SignificanceHeuristic significanceHeuristic,
+                SignificanceLookup lookup,
+                CardinalityUpperBound cardinality,
+                Map<String, Object> metadata
+            ) throws IOException {
+                int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
+                boolean remapGlobalOrd = true;
+                if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
+                    /*
+                     * We don't need to remap global ords iff this aggregator:
+                     *    - collects from a single bucket AND
+                     *    - has no include/exclude rules AND
+                     *    - has no sub-aggregator
+                     */
+                    remapGlobalOrd = false;
+                }
+                return new StreamingStringTermsAggregator(
+                    name,
+                    factories,
+                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
+                    (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource,
+                    null,
+                    format,
+                    bucketCountThresholds,
+                    filter,
+                    aggregationContext,
+                    parent,
+                    remapGlobalOrd,
+                    SubAggCollectionMode.DEPTH_FIRST,
+                    false,
+                    cardinality,
+                    metadata
+                );
+            }
         };
 
         public static ExecutionMode fromString(String value, final DeprecationLogger deprecationLogger) {
@@ -422,8 +476,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return GLOBAL_ORDINALS;
             } else if ("map".equals(value)) {
                 return MAP;
+            } else if ("stream".equals(value)) {
+                return STREAM;
             }
-            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
+            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals, stream]");
         }
 
         private final ParseField parseField;

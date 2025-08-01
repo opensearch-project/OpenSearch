@@ -397,6 +397,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 searchContext.shardTarget().getShardId().id()
             );
             searchContext.bucketCollectorProcessor().buildAggBatchAndSend(collector);
+            // TODO: sendBatch here
         }
 
         // Note: this is called if collection ran successfully, including the above special cases of

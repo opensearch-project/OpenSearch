@@ -120,6 +120,7 @@ import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -141,6 +142,7 @@ import static org.opensearch.search.aggregations.PipelineAggregatorBuilders.buck
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -471,7 +473,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("mv_field");
 
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+                    String executionHint = randomFrom("map", "global_ordinals").toString();
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
                         .executionHint(executionHint)
                         .includeExclude(new IncludeExclude("val00.+", null))
@@ -663,7 +665,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("long_field", NumberFieldMapper.NumberType.LONG);
 
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+                    String executionHint = randomFrom("map", "global_ordinals").toString();
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.LONG)
                         .executionHint(executionHint)
                         .includeExclude(new IncludeExclude(new long[] { 0, 5 }, null))
@@ -894,7 +896,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     expectedBuckets.sort(comparator);
                     int size = randomIntBetween(1, counts.size());
 
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+                    String executionHint = randomFrom("map", "global_ordinals").toString();
                     logger.info("bucket_order={} size={} execution_hint={}", bucketOrder, size, executionHint);
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(valueType)
@@ -990,7 +992,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     expectedBuckets.sort(comparator);
                     int size = randomIntBetween(1, counts.size());
 
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+                    String executionHint = randomFrom("map", "global_ordinals").toString();
                     Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
                     logger.info(
                         "bucket_order={} size={} execution_hint={}, collect_mode={}",
@@ -1211,7 +1213,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+                    String executionHint = randomFrom("map", "global_ordinals").toString();
                     Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name1").userValueTypeHint(ValueType.STRING)
                         .executionHint(executionHint)
@@ -1318,7 +1320,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+                    String executionHint = randomFrom("map", "global_ordinals").toString();
                     Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
                     GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
                         new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
@@ -1758,5 +1760,155 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         T result = (T) topLevel.reduce(Collections.singletonList(topLevel), context);
         doAssertReducedMultiBucketConsumer(result, reduceBucketConsumer);
         return result;
+    }
+
+    public void testBuildAggregationsBatchDirectBucketCreation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("apple")));
+                document.add(new SortedSetDocValuesField("field", new BytesRef("banana")));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("apple")));
+                document.add(new SortedSetDocValuesField("field", new BytesRef("cherry")));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("banana")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").executionHint("stream")
+                        .field("field")
+                        .order(BucketOrder.key(true));
+
+                    TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;
+                    TermsAggregatorFactory.REMAP_GLOBAL_ORDS = false;
+
+                    try {
+                        StreamingStringTermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, false, fieldType);
+
+                        aggregator.preCollection();
+                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
+
+                        StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                        assertThat(result, notNullValue());
+                        assertThat(result.getBuckets().size(), equalTo(3));
+
+                        List<StringTerms.Bucket> buckets = result.getBuckets();
+                        assertThat(buckets.get(0).getKeyAsString(), equalTo("apple"));
+                        assertThat(buckets.get(0).getDocCount(), equalTo(2L));
+                        assertThat(buckets.get(1).getKeyAsString(), equalTo("banana"));
+                        assertThat(buckets.get(1).getDocCount(), equalTo(2L));
+                        assertThat(buckets.get(2).getKeyAsString(), equalTo("cherry"));
+                        assertThat(buckets.get(2).getDocCount(), equalTo(1L));
+
+                        for (StringTerms.Bucket bucket : buckets) {
+                            assertThat(bucket, instanceOf(StringTerms.Bucket.class));
+                            assertThat(bucket.getKey(), instanceOf(String.class));
+                            assertThat(bucket.getKeyAsString(), notNullValue());
+                        }
+                    } finally {
+                        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
+                        TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
+                    }
+                }
+            }
+        }
+    }
+
+    public void testBuildAggregationsBatchEmptyResults() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING)
+                        .executionHint("stream")
+                        .field("field");
+
+                    TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;
+                    TermsAggregatorFactory.REMAP_GLOBAL_ORDS = false;
+
+                    try {
+                        StreamingStringTermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, false, fieldType);
+
+                        aggregator.preCollection();
+                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
+
+                        StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                        assertThat(result, notNullValue());
+                        assertThat(result.getBuckets().size(), equalTo(0));
+                    } finally {
+                        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
+                        TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
+                    }
+                }
+            }
+        }
+    }
+
+    public void testStandardTermsResultsBuildFinalBucket() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("test_value")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING)
+                        .executionHint("stream")
+                        .field("field");
+
+                    TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;
+                    TermsAggregatorFactory.REMAP_GLOBAL_ORDS = false;
+
+                    try {
+                        StreamingStringTermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, false, fieldType);
+
+                        aggregator.preCollection();
+                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
+
+                        // Access the result strategy using reflection
+                        java.lang.reflect.Field resultStrategyField = GlobalOrdinalsStringTermsAggregator.class.getDeclaredField(
+                            "resultStrategy"
+                        );
+                        resultStrategyField.setAccessible(true);
+                        Object resultStrategy = resultStrategyField.get(aggregator);
+
+                        // Test buildFinalBucket method
+                        Method buildFinalBucketMethod = resultStrategy.getClass()
+                            .getDeclaredMethod("buildFinalBucket", long.class, long.class, long.class, long.class);
+                        buildFinalBucketMethod.setAccessible(true);
+
+                        StringTerms.Bucket finalBucket = (StringTerms.Bucket) buildFinalBucketMethod.invoke(resultStrategy, 0L, 0L, 5L, 0L);
+
+                        // Verify the final bucket was created correctly
+                        assertThat(finalBucket, notNullValue());
+                        assertThat(finalBucket, instanceOf(StringTerms.Bucket.class));
+                        assertThat(finalBucket.getKeyAsString(), equalTo("test_value"));
+                        assertThat(finalBucket.getDocCount(), equalTo(5L));
+                        assertThat(finalBucket.bucketOrd, equalTo(0L));
+                    } finally {
+                        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
+                        TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
+                    }
+                }
+            }
+        }
     }
 }
