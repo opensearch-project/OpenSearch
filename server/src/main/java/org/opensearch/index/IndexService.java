@@ -274,7 +274,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 idFieldDataEnabled,
                 scriptService
             );
-            this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
+            this.indexFieldData = new IndexFieldDataService(
+                indexSettings,
+                indicesFieldDataCache,
+                circuitBreakerService,
+                mapperService,
+                threadPool
+            );
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.

@@ -90,6 +90,7 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
+import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.transport.client.Client;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -432,7 +433,8 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 idxSettings,
                 indicesFieldDataCache,
                 new NoneCircuitBreakerService(),
-                mapperService
+                mapperService,
+                new TestThreadPool("random_threadpool_name")
             );
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
                 @Override
