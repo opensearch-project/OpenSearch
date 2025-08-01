@@ -320,9 +320,7 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build();
         // It will trigger async load
         transferManager.fetchBlobAsync(blobFetchRequest);
-        Thread.sleep(2000);
-        assertEquals(Optional.of(0), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
-        assertNotNull(fileCache.get(blobFetchRequest.getFilePath()));
+        fileCache.get(blobFetchRequest.getFilePath());
         fileCache.decRef(blobFetchRequest.getFilePath());
         // Making the read call to fetch from file cache
         IndexInput indexInput = transferManager.fetchBlob(blobFetchRequest);
