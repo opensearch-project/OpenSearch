@@ -37,6 +37,7 @@ public class FlightMetricsTests extends FlightTransportTestBase {
         sendSuccessfulStreamingRequest();
         sendFailingStreamingRequest();
         sendCancelledStreamingRequest();
+        Thread.sleep(2000);
         verifyMetrics();
     }
 
@@ -68,12 +69,8 @@ public class FlightMetricsTests extends FlightTransportTestBase {
             TestRequest::new,
             (request, channel, task) -> {
                 try {
-                    throw new RuntimeException("Simulated failure");
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException ioException) {}
-                }
+                    channel.sendResponse(new RuntimeException("Simulated failure"));
+                } catch (IOException ignored) {}
             }
         );
 
