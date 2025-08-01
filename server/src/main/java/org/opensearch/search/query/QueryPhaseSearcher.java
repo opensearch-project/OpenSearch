@@ -57,10 +57,10 @@ public interface QueryPhaseSearcher {
     }
 
     /**
-     * Get the list of query phase extensions that should be executed before and after score collection.
-     * @return list of query phase extensions, empty list if none
+     * Get the list of query phase listeners that should be executed before and after score collection.
+     * @return list of query phase listeners, empty list if none
      */
-    default List<QueryPhaseExtension> queryPhaseExtensions() {
+    default List<QueryPhaseListener> queryPhaseListeners() {
         return Collections.emptyList();
     }
 }

@@ -19,7 +19,6 @@ import org.opensearch.search.aggregations.ConcurrentAggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.ProfileCollectorManager;
-import org.opensearch.search.query.QueryPhase.DefaultQueryPhaseSearcher;
 
 import java.io.IOException;
 import java.util.LinkedList;
@@ -30,7 +29,7 @@ import java.util.concurrent.ExecutionException;
  * The implementation of the {@link QueryPhaseSearcher} which attempts to use concurrent
  * search of Apache Lucene segments if it has been enabled.
  */
-public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
+public class ConcurrentQueryPhaseSearcher extends QueryPhase.AbstractQueryPhaseSearcher {
     private static final Logger LOGGER = LogManager.getLogger(ConcurrentQueryPhaseSearcher.class);
     private final AggregationProcessor aggregationProcessor = new ConcurrentAggregationProcessor();
 
@@ -40,7 +39,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     public ConcurrentQueryPhaseSearcher() {}
 
     @Override
-    public boolean searchWith(
+    protected boolean doSearchWith(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
@@ -48,30 +47,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        return executeWithExtensions(searchContext, () -> {
-            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
-            return searchWithCollectorManager(
-                searchContext,
-                searcher,
-                query,
-                collectors,
-                queryCollectorContext,
-                hasFilterCollector,
-                hasTimeout
-            );
-        });
-    }
-
-    @Override
-    protected boolean searchWithCollector(
-        SearchContext searchContext,
-        ContextIndexSearcher searcher,
-        Query query,
-        LinkedList<QueryCollectorContext> collectors,
-        QueryCollectorContext queryCollectorContext,
-        boolean hasFilterCollector,
-        boolean hasTimeout
-    ) throws IOException {
+        QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
         return searchWithCollectorManager(
             searchContext,
             searcher,

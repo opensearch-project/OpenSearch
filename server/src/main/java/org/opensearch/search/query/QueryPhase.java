@@ -34,7 +34,6 @@ package org.opensearch.search.query;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
@@ -408,22 +407,15 @@ public class QueryPhase {
     }
 
     /**
-     * Default {@link QueryPhaseSearcher} implementation which delegates to the {@link QueryPhase}.
+     * Abstract base class for QueryPhaseSearcher implementations that provides
+     * extension hook execution logic using the template pattern.
      *
      * @opensearch.internal
      */
-    public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
-        private final AggregationProcessor aggregationProcessor;
-
-        /**
-         * Please use {@link QueryPhase#DEFAULT_QUERY_PHASE_SEARCHER}
-         */
-        protected DefaultQueryPhaseSearcher() {
-            aggregationProcessor = new DefaultAggregationProcessor();
-        }
+    public abstract static class AbstractQueryPhaseSearcher implements QueryPhaseSearcher {
 
         @Override
-        public boolean searchWith(
+        public final boolean searchWith(
             SearchContext searchContext,
             ContextIndexSearcher searcher,
             Query query,
@@ -431,84 +423,39 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
-            return executeWithExtensions(
-                searchContext,
-                () -> searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout)
-            );
-        }
+            List<QueryPhaseListener> listeners = queryPhaseListeners();
 
-        /**
-         * Executes the provided search operation with before/after extension hooks.
-         * This method handles extension execution and error handling consistently.
-         */
-        protected boolean executeWithExtensions(SearchContext searchContext, SearchOperation searchOperation) throws IOException {
-            List<QueryPhaseExtension> extensions = queryPhaseExtensions();
-
-            // Execute beforeScoreCollection extensions
-            for (QueryPhaseExtension extension : extensions) {
-                try {
-                    extension.beforeScoreCollection(searchContext);
-                } catch (Exception e) {
-                    LOGGER.warn(
-                        new ParameterizedMessage("Failed to execute beforeScoreCollection extension [{}]", extension.getClass().getName()),
-                        e
-                    );
-                }
+            // Execute beforeCollection listeners
+            for (QueryPhaseListener listener : listeners) {
+                listener.beforeCollection(searchContext);
             }
 
             try {
-                return searchOperation.execute();
+                return doSearchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
             } finally {
-                // Execute afterScoreCollection extensions
-                for (QueryPhaseExtension extension : extensions) {
-                    try {
-                        extension.afterScoreCollection(searchContext);
-                    } catch (Exception e) {
-                        LOGGER.warn(
-                            new ParameterizedMessage(
-                                "Failed to execute afterScoreCollection extension [{}]",
-                                extension.getClass().getName()
-                            ),
-                            e
-                        );
-                    }
+                // Execute afterCollection listeners
+                for (QueryPhaseListener listener : listeners) {
+                    listener.afterCollection(searchContext);
                 }
             }
         }
 
         /**
-         * Functional interface for search operations that can throw IOException
+         * Template method for actual search implementation.
+         * Subclasses must implement this to define their specific search behavior.
          */
-        @FunctionalInterface
-        protected interface SearchOperation {
-            boolean execute() throws IOException;
-        }
-
-        @Override
-        public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
-            return aggregationProcessor;
-        }
-
-        protected boolean searchWithCollector(
+        protected abstract boolean doSearchWith(
             SearchContext searchContext,
             ContextIndexSearcher searcher,
             Query query,
             LinkedList<QueryCollectorContext> collectors,
             boolean hasFilterCollector,
             boolean hasTimeout
-        ) throws IOException {
-            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
-            return QueryPhase.searchWithCollector(
-                searchContext,
-                searcher,
-                query,
-                collectors,
-                queryCollectorContext,
-                hasFilterCollector,
-                hasTimeout
-            );
-        }
+        ) throws IOException;
 
+        /**
+         * Common method to create QueryCollectorContext that can be used by all implementations.
+         */
         protected QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
             throws IOException {
             // create the top docs collector last when the other collectors are known
@@ -537,6 +484,59 @@ public class QueryPhase {
             } else {
                 return createTopDocsCollectorContext(searchContext, hasFilterCollector);
             }
+        }
+    }
+
+    /**
+     * Default {@link QueryPhaseSearcher} implementation which delegates to the {@link QueryPhase}.
+     *
+     * @opensearch.internal
+     */
+    public static class DefaultQueryPhaseSearcher extends AbstractQueryPhaseSearcher {
+        private final AggregationProcessor aggregationProcessor;
+
+        /**
+         * Please use {@link QueryPhase#DEFAULT_QUERY_PHASE_SEARCHER}
+         */
+        protected DefaultQueryPhaseSearcher() {
+            aggregationProcessor = new DefaultAggregationProcessor();
+        }
+
+        @Override
+        protected boolean doSearchWith(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+
+        @Override
+        public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
+            return aggregationProcessor;
+        }
+
+        protected boolean searchWithCollector(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
+            return QueryPhase.searchWithCollector(
+                searchContext,
+                searcher,
+                query,
+                collectors,
+                queryCollectorContext,
+                hasFilterCollector,
+                hasTimeout
+            );
         }
 
         protected boolean searchWithCollector(
