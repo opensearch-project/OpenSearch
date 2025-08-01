@@ -468,7 +468,14 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
 
-        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
+        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
+            fieldType().name(),
+            scaledValue,
+            indexed,
+            hasDocValues,
+            false,
+            stored
+        );
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (indexed || stored)) {
