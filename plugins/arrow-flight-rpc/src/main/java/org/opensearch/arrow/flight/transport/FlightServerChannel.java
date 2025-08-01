@@ -122,11 +122,14 @@ class FlightServerChannel implements TcpChannel {
      *
      */
     public synchronized void completeStream() {
-        if (!open.get()) {
-            throw new IllegalStateException("FlightServerChannel already closed.");
+        try {
+            if (!open.get()) {
+                throw new IllegalStateException("FlightServerChannel already closed.");
+            }
+            serverStreamListener.completed();
+        } finally {
+            callTracker.recordCallEnd(StreamErrorCode.OK.name());
         }
-        serverStreamListener.completed();
-        callTracker.recordCallEnd(StreamErrorCode.OK.name());
     }
 
     /**
@@ -135,21 +138,25 @@ class FlightServerChannel implements TcpChannel {
      * @param error the error to send
      */
     public synchronized void sendError(ByteBuffer header, Exception error) {
-        if (!open.get()) {
-            throw new IllegalStateException("FlightServerChannel already closed.");
+        FlightRuntimeException flightExc = null;
+        try {
+            if (!open.get()) {
+                throw new IllegalStateException("FlightServerChannel already closed.");
+            }
+            if (error instanceof FlightRuntimeException) {
+                flightExc = (FlightRuntimeException) error;
+            } else {
+                flightExc = CallStatus.INTERNAL.withCause(error)
+                    .withDescription(error.getMessage() != null ? error.getMessage() : "Stream error")
+                    .toRuntimeException();
+            }
+            middleware.setHeader(header);
+            serverStreamListener.error(flightExc);
+            logger.debug(error);
+        } finally {
+            StreamErrorCode errorCode = flightExc != null ? mapFromCallStatus(flightExc) : StreamErrorCode.UNKNOWN;
+            callTracker.recordCallEnd(errorCode.name());
         }
-        FlightRuntimeException flightExc;
-        if (error instanceof FlightRuntimeException) {
-            flightExc = (FlightRuntimeException) error;
-        } else {
-            flightExc = CallStatus.INTERNAL.withCause(error)
-                .withDescription(error.getMessage() != null ? error.getMessage() : "Stream error")
-                .toRuntimeException();
-        }
-        middleware.setHeader(header);
-        serverStreamListener.error(flightExc);
-        callTracker.recordCallEnd(mapFromCallStatus(flightExc).name());
-        logger.debug(error);
     }
 
     @Override
