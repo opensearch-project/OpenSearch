@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -313,14 +314,16 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         executor.shutdownNow();
     }
 
-    public void testRefCount() throws IOException, InterruptedException {
+    public void testRefCount() throws Exception {
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         String blobname = "test-blob";
         blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build();
         // It will trigger async load
-        transferManager.fetchBlobAsync(blobFetchRequest);
-        fileCache.get(blobFetchRequest.getFilePath());
+        CompletableFuture<IndexInput> future = transferManager.fetchBlobAsync(blobFetchRequest);
+        future.get();
+        assertEquals(Optional.of(0), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
+        assertNotNull(fileCache.get(blobFetchRequest.getFilePath()));
         fileCache.decRef(blobFetchRequest.getFilePath());
         // Making the read call to fetch from file cache
         IndexInput indexInput = transferManager.fetchBlob(blobFetchRequest);
