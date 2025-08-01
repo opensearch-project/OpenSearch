@@ -8,6 +8,7 @@
 
 package org.opensearch.transport.stream;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportChannel;
 
@@ -22,8 +23,8 @@ import java.io.IOException;
  * {@link StreamErrorCode#CANCELLED}.
  * At this point, no action is needed as the underlying channel is already closed and call to
  * completeStream() will fail.
- * @opensearch.internal
  */
+@ExperimentalApi
 public interface StreamingTransportChannel extends TransportChannel {
 
     // TODO: introduce a way to poll for cancellation in addition to current way of detection i.e. depending on channel

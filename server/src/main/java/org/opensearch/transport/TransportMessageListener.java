@@ -32,6 +32,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.stream.StreamTransportResponse;
@@ -63,6 +64,7 @@ public interface TransportMessageListener {
      */
     default void onResponseSent(long requestId, String action, TransportResponse response) {}
 
+    @ExperimentalApi
     default void onStreamResponseSent(long requestId, String action, StreamTransportResponse response) {}
 
     /***

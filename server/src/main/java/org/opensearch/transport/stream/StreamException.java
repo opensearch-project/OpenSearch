@@ -8,6 +8,7 @@
 
 package org.opensearch.transport.stream;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportException;
@@ -19,8 +20,8 @@ import java.util.Objects;
  * Exception for streaming transport operations with standardized error codes.
  * This provides a consistent error model for stream-based transports like Arrow Flight RPC.
  *
- * @opensearch.internal
  */
+@ExperimentalApi
 public class StreamException extends TransportException {
 
     private final StreamErrorCode errorCode;

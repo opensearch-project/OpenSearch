@@ -8,7 +8,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
@@ -44,7 +44,7 @@ import org.opensearch.transport.stream.StreamTransportResponse;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@ExperimentalApi
 public interface StreamTransportResponseHandler<T extends TransportResponse> extends TransportResponseHandler<T> {
 
     /**

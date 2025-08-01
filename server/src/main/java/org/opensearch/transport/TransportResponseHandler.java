@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -85,6 +86,7 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      *
      * @param response the streaming response, which must be closed by the handler
      */
+    @ExperimentalApi
     default void handleStreamResponse(StreamTransportResponse<T> response) {
         throw new UnsupportedOperationException("Streaming responses not supported by this handler");
     }
