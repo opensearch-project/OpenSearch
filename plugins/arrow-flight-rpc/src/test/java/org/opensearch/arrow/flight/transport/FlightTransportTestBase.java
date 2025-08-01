@@ -24,6 +24,7 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -31,6 +32,7 @@ import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,6 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public abstract class FlightTransportTestBase extends OpenSearchTestCase {
 
@@ -99,7 +102,8 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             statsCollector
         );
         flightTransport.start();
-
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
         streamTransportService = spy(
             new StreamTransportService(
                 settings,
@@ -108,7 +112,7 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
                 StreamTransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> remoteNode,
                 null,
-                Collections.emptySet(),
+                transportService,
                 mock(Tracer.class)
             )
         );
