@@ -30,7 +30,8 @@ Metrics related to client-side calls:
 | `completed` | Number of client calls completed |
 | `duration` | Duration statistics for client calls (min, max, avg, sum) |
 | `request_bytes` | Size statistics for requests sent by clients (min, max, avg, sum) |
-| `response_bytes` | Total size of responses received by clients |
+| `response` | Total size of responses received by clients (with human-readable format) |
+| `response_bytes` | Total size of responses received by clients (in bytes) |
 
 ### Client Batch Metrics
 
@@ -53,7 +54,8 @@ Metrics related to server-side calls:
 | `completed` | Number of server calls completed |
 | `duration` | Duration statistics for server calls (min, max, avg, sum) |
 | `request_bytes` | Size statistics for requests received by servers (min, max, avg, sum) |
-| `response_bytes` | Total size of responses sent by servers |
+| `response` | Total size of responses sent by servers (with human-readable format) |
+| `response_bytes` | Total size of responses sent by servers (in bytes) |
 
 ### Server Batch Metrics
 
@@ -80,8 +82,11 @@ Metrics related to resource usage:
 
 | Metric | Description |
 |--------|-------------|
+| `arrow_allocated` | Current Arrow memory allocation (human-readable format) |
 | `arrow_allocated_bytes` | Current Arrow memory allocation in bytes |
+| `arrow_peak` | Peak Arrow memory allocation (human-readable format) |
 | `arrow_peak_bytes` | Peak Arrow memory allocation in bytes |
+| `direct_memory` | Current direct memory usage (human-readable format) |
 | `direct_memory_bytes` | Current direct memory usage in bytes |
 | `client_threads_active` | Number of active client threads |
 | `client_threads_total` | Total number of client threads |
@@ -89,8 +94,7 @@ Metrics related to resource usage:
 | `server_threads_total` | Total number of server threads |
 | `client_channels_active` | Number of active client channels |
 | `server_channels_active` | Number of active server channels |
-| `client_thread_utilization_percent` | Percentage of client threads that are active |
-| `server_thread_utilization_percent` | Percentage of server threads that are active |
+
 
 ## Cluster-Level Metrics
 
@@ -102,9 +106,11 @@ GET /_flight/stats
 
 The response includes a `cluster_stats` section with aggregated metrics for:
 
-- Client calls and batches
-- Server calls and batches
+- Client calls and batches (aggregated across all nodes)
+- Server calls and batches (aggregated across all nodes)
 - Average durations and throughput
+
+Note: All duration and size fields include both human-readable formats (e.g., "1s", "24.6kb") and raw values in nanoseconds/bytes.
 
 ## Example Response
 
@@ -117,102 +123,133 @@ The response includes a `cluster_stats` section with aggregated metrics for:
       "streamAddress": "localhost:9400",
       "flight_metrics": {
         "client_calls": {
-          "started": 100,
-          "completed": 98,
+          "started": 6,
+          "completed": 6,
           "duration": {
-            "count": 98,
-            "sum_nanos": 1250000000,
-            "min_nanos": 5000000,
-            "max_nanos": 50000000,
-            "avg_nanos": 12755102
+            "count": 6,
+            "sum": "1s",
+            "sum_nanos": 1019,
+            "min": "9ms",
+            "min_nanos": 9,
+            "max": "743.7ms",
+            "max_nanos": 743,
+            "avg": "169.8ms",
+            "avg_nanos": 169
           },
           "request_bytes": {
-            "count": 98,
-            "sum_bytes": 245000,
-            "min_bytes": 1000,
-            "max_bytes": 5000,
-            "avg_bytes": 2500
+            "count": 6,
+            "sum": "5.9kb",
+            "sum_bytes": 6132,
+            "min": "1022b",
+            "min_bytes": 1022,
+            "max": "1022b",
+            "max_bytes": 1022,
+            "avg": "1022b",
+            "avg_bytes": 1022
           },
-          "response_bytes": 980000
+          "response": "24.6kb",
+          "response_bytes": 25276
         },
         "client_batches": {
-          "requested": 150,
-          "received": 145,
+          "requested": 6,
+          "received": 6,
           "received_bytes": {
-            "count": 145,
-            "sum_bytes": 980000,
-            "min_bytes": 2000,
-            "max_bytes": 10000,
-            "avg_bytes": 6758
+            "count": 6,
+            "sum": "24.6kb",
+            "sum_bytes": 25276,
+            "min": "3.3kb",
+            "min_bytes": 3477,
+            "max": "4.2kb",
+            "max_bytes": 4361,
+            "avg": "4.1kb",
+            "avg_bytes": 4212
           },
           "processing_time": {
-            "count": 145,
-            "sum_nanos": 725000000,
-            "min_nanos": 1000000,
-            "max_nanos": 15000000,
-            "avg_nanos": 5000000
+            "count": 6,
+            "sum": "12.1ms",
+            "sum_nanos": 12,
+            "min": "352micros",
+            "min_nanos": 0,
+            "max": "9.5ms",
+            "max_nanos": 9,
+            "avg": "2ms",
+            "avg_nanos": 2
           }
         },
         "server_calls": {
-          "started": 200,
-          "completed": 195,
+          "started": 3,
+          "completed": 3,
           "duration": {
-            "count": 195,
-            "sum_nanos": 2500000000,
-            "min_nanos": 8000000,
-            "max_nanos": 60000000,
-            "avg_nanos": 12820512
+            "count": 3,
+            "sum": "147.9ms",
+            "sum_nanos": 147,
+            "min": "6ms",
+            "min_nanos": 6,
+            "max": "135.7ms",
+            "max_nanos": 135,
+            "avg": "49.3ms",
+            "avg_nanos": 49
           },
           "request_bytes": {
-            "count": 195,
-            "sum_bytes": 487500,
-            "min_bytes": 1000,
-            "max_bytes": 5000,
-            "avg_bytes": 2500
+            "count": 3,
+            "sum": "2.9kb",
+            "sum_bytes": 3066,
+            "min": "1022b",
+            "min_bytes": 1022,
+            "max": "1022b",
+            "max_bytes": 1022,
+            "avg": "1022b",
+            "avg_bytes": 1022
           },
-          "response_bytes": 1950000
+          "response": "12.7kb",
+          "response_bytes": 13083
         },
         "server_batches": {
-          "sent": 390,
+          "sent": 3,
           "sent_bytes": {
-            "count": 390,
-            "sum_bytes": 1950000,
-            "min_bytes": 2000,
-            "max_bytes": 10000,
-            "avg_bytes": 5000
+            "count": 3,
+            "sum": "12.7kb",
+            "sum_bytes": 13083,
+            "min": "4.2kb",
+            "min_bytes": 4361,
+            "max": "4.2kb",
+            "max_bytes": 4361,
+            "avg": "4.2kb",
+            "avg_bytes": 4361
           },
           "processing_time": {
-            "count": 390,
-            "sum_nanos": 1950000000,
-            "min_nanos": 2000000,
-            "max_nanos": 20000000,
-            "avg_nanos": 5000000
+            "count": 3,
+            "sum": "6.4ms",
+            "sum_nanos": 6,
+            "min": "525.4micros",
+            "min_nanos": 0,
+            "max": "5.3ms",
+            "max_nanos": 5,
+            "avg": "2.1ms",
+            "avg_nanos": 2
           }
         },
         "status": {
           "client": {
-            "OK": 95,
-            "CANCELLED": 2,
-            "UNAVAILABLE": 1
+            "OK": 6
           },
           "server": {
-            "OK": 190,
-            "CANCELLED": 3,
-            "INTERNAL": 2
+            "OK": 3
           }
         },
         "resources": {
-          "arrow_allocated_bytes": 10485760,
-          "arrow_peak_bytes": 20971520,
-          "direct_memory_bytes": 52428800,
-          "client_threads_active": 5,
-          "client_threads_total": 10,
-          "server_threads_active": 15,
-          "server_threads_total": 20,
-          "client_channels_active": 25,
-          "server_channels_active": 30,
-          "client_thread_utilization_percent": 50.0,
-          "server_thread_utilization_percent": 75.0
+          "arrow_allocated": "0b",
+          "arrow_allocated_bytes": 0,
+          "arrow_peak": "48kb",
+          "arrow_peak_bytes": 49152,
+          "direct_memory": "120.7mb",
+          "direct_memory_bytes": 126642920,
+          "client_threads_active": 0,
+          "client_threads_total": 0,
+          "server_threads_active": 0,
+          "server_threads_total": 0,
+          "client_channels_active": 2,
+          "server_channels_active": 1
         }
       }
     }
@@ -220,33 +257,45 @@ The response includes a `cluster_stats` section with aggregated metrics for:
   "cluster_stats": {
     "client": {
       "calls": {
-        "started": 100,
-        "completed": 98,
-        "duration_nanos": 1250000000,
-        "avg_duration_nanos": 12755102,
-        "request_bytes": 245000,
-        "response_bytes": 980000
+        "started": 6,
+        "completed": 6,
+        "duration": "1s",
+        "duration_nanos": 1019,
+        "avg_duration": "169.8ms",
+        "avg_duration_nanos": 169,
+        "request": "5.9kb",
+        "request_bytes": 6132,
+        "response": "24.6kb",
+        "response_bytes": 25276
       },
       "batches": {
-        "requested": 150,
-        "received": 145,
-        "received_bytes": 980000,
-        "avg_processing_time_nanos": 5000000
+        "requested": 6,
+        "received": 6,
+        "received_size": "24.6kb",
+        "received_bytes": 25276,
+        "avg_processing_time": "2ms",
+        "avg_processing_time_nanos": 2
       }
     },
     "server": {
       "calls": {
-        "started": 200,
-        "completed": 195,
-        "duration_nanos": 2500000000,
-        "avg_duration_nanos": 12820512,
-        "request_bytes": 487500,
-        "response_bytes": 1950000
+        "started": 6,
+        "completed": 6,
+        "duration": "556ms",
+        "duration_nanos": 556,
+        "avg_duration": "92.6ms",
+        "avg_duration_nanos": 92,
+        "request": "5.9kb",
+        "request_bytes": 6132,
+        "response": "24.6kb",
+        "response_bytes": 25276
       },
       "batches": {
-        "sent": 390,
-        "sent_bytes": 1950000,
-        "avg_processing_time_nanos": 5000000
+        "sent": 6,
+        "sent_size": "24.6kb",
+        "sent_bytes": 25276,
+        "avg_processing_time": "34.6ms",
+        "avg_processing_time_nanos": 34
       }
     }
   }
