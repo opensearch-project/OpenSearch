@@ -187,6 +187,16 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     @Override
     public void close() throws IOException {
         // Clear the field data cache for this index in an async manner
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(this::clear);
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            try {
+                this.clear();
+            } catch (Exception ex) {
+                logger.warn(
+                    "Exception occurred while clearing index field data cache for index: {}, exception: {}",
+                    indexSettings.getIndex().getName(),
+                    ex
+                );
+            }
+        });
     }
 }
