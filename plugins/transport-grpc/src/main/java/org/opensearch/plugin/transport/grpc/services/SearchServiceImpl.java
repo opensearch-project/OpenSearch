@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.plugin.transport.grpc.listeners.SearchRequestActionListener;
 import org.opensearch.plugin.transport.grpc.proto.request.search.SearchRequestProtoUtils;
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.protobufs.services.SearchServiceGrpc;
 import org.opensearch.transport.client.Client;
 
@@ -27,15 +28,24 @@ import io.grpc.stub.StreamObserver;
 public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
     private static final Logger logger = LogManager.getLogger(SearchServiceImpl.class);
     private final Client client;
+    private final AbstractQueryBuilderProtoUtils queryUtils;
 
     /**
      * Creates a new SearchServiceImpl.
      *
-     * @param client: Client for executing actions on the local node
+     * @param client Client for executing actions on the local node
+     * @param queryUtils Query utils instance for parsing protobuf queries
      */
-    public SearchServiceImpl(Client client) {
+    public SearchServiceImpl(Client client, AbstractQueryBuilderProtoUtils queryUtils) {
+        if (client == null) {
+            throw new IllegalArgumentException("Client cannot be null");
+        }
+        if (queryUtils == null) {
+            throw new IllegalArgumentException("Query utils cannot be null");
+        }
 
         this.client = client;
+        this.queryUtils = queryUtils;
     }
 
     /**
@@ -51,7 +61,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
     ) {
 
         try {
-            org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(request, client);
+            org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(request, client, queryUtils);
             SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver);
             client.search(searchRequest, listener);
         } catch (RuntimeException | IOException e) {
