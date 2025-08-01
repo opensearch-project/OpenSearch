@@ -1771,6 +1771,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         if (remoteStoreEnabled) {
             settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
+            settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
             settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
         }
         settingsBuilder.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), pathType.toString());
