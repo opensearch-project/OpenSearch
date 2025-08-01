@@ -8,6 +8,7 @@
 
 package org.opensearch.action.support;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportChannel;
@@ -18,8 +19,8 @@ import java.io.IOException;
 /**
  * A listener that sends the response back to the channel in streaming fashion
  *
- * @opensearch.internal
  */
+@ExperimentalApi
 public class StreamChannelActionListener<Response extends TransportResponse, Request extends TransportRequest>
     implements
         ActionListener<Response> {

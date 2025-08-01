@@ -36,6 +36,8 @@ import java.util.function.BiFunction;
 
 /**
  * Search transport service for streaming search
+ *
+ * @opensearch.internal
  */
 public class StreamSearchTransportService extends SearchTransportService {
     private final StreamTransportService transportService;

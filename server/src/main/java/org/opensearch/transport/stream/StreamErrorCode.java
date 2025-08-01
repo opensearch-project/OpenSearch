@@ -8,13 +8,15 @@
 
 package org.opensearch.transport.stream;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Error codes for streaming transport operations, inspired by gRPC and Arrow Flight error codes.
  * These codes provide standardized error categories for stream-based transports
  * like Arrow Flight RPC.
  *
- * @opensearch.internal
  */
+@ExperimentalApi
 public enum StreamErrorCode {
     /**
      * Operation completed successfully.

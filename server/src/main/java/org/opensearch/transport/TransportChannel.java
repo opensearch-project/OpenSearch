@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.stream.StreamErrorCode;
@@ -68,6 +69,7 @@ public interface TransportChannel {
      * @throws StreamException with {@link StreamErrorCode#CANCELLED} if the stream has been canceled.
      * Do not call this method again or completeStream() once canceled.
      */
+    @ExperimentalApi
     default void sendResponseBatch(TransportResponse response) {
         throw new UnsupportedOperationException();
     }
@@ -76,6 +78,7 @@ public interface TransportChannel {
      * Call this method on a successful completion the streaming response.
      * Note: not calling this method on success will result in a memory leak
      */
+    @ExperimentalApi
     default void completeStream() {
         throw new UnsupportedOperationException();
     }
