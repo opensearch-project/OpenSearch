@@ -118,11 +118,15 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
+                    if (context.isStreamSearch()) {
+                        execution = ExecutionMode.STREAM;
+                    } else {
+                        execution = ExecutionMode.GLOBAL_ORDINALS;
+                    }
                 }
                 final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
                 if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), maxOrd);
+                    subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), maxOrd, context);
                 }
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
@@ -192,7 +196,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), -1);
+                    subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), -1, context);
                 }
 
                 ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
@@ -329,13 +333,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * Pick a {@link SubAggCollectionMode} based on heuristics about what
      * we're collecting.
      */
-    static SubAggCollectionMode pickSubAggColectMode(AggregatorFactories factories, int expectedSize, long maxOrd) {
+    static SubAggCollectionMode pickSubAggCollectMode(AggregatorFactories factories, int expectedSize, long maxOrd, SearchContext context) {
         if (factories.countAggregators() == 0) {
             // Without sub-aggregations we pretty much ignore this field value so just pick something
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (expectedSize == Integer.MAX_VALUE) {
             // We expect to return all buckets so delaying them won't save any time
+            return SubAggCollectionMode.DEPTH_FIRST;
+        }
+        if (context.isStreamSearch()) {
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (maxOrd == -1 || maxOrd > expectedSize) {
@@ -437,38 +444,39 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
                 ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
 
-                // if (factories == AggregatorFactories.EMPTY
-                // && includeExclude == null
-                // && cardinality == CardinalityUpperBound.ONE
-                // && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
-                // &&
-                // // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
-                // (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
-                // /*
-                // * We can use the low cardinality execution mode iff this aggregator:
-                // * - has no sub-aggregator AND
-                // * - collects from a single bucket AND
-                // * - has a values source that can map from segment to global ordinals
-                // * - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
-                // * - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
-                // * which directly linked to maxOrd, so we need to limit).
-                // */
-                // return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
-                // name,
-                // factories,
-                // a -> a.new StandardTermsResults(),
-                // ordinalsValuesSource,
-                // order,
-                // format,
-                // bucketCountThresholds,
-                // context,
-                // parent,
-                // false,
-                // subAggCollectMode,
-                // showTermDocCountError,
-                // metadata
-                // );
-                // }
+                if (factories == AggregatorFactories.EMPTY
+                    && includeExclude == null
+                    && cardinality == CardinalityUpperBound.ONE
+                    && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
+                    &&
+                // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
+                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
+                    /*
+                    * We can use the low cardinality execution mode iff this aggregator:
+                    * - has no sub-aggregator AND
+                    * - collects from a single bucket AND
+                    * - has a values source that can map from segment to global ordinals
+                    * - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
+                    * - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
+                    * which directly linked to maxOrd, so we need to limit).
+                    */
+                    return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
+                        name,
+                        factories,
+                        a -> a.new StandardTermsResults(),
+                        ordinalsValuesSource,
+                        order,
+                        format,
+                        bucketCountThresholds,
+                        context,
+                        parent,
+                        false,
+                        subAggCollectMode,
+                        showTermDocCountError,
+                        metadata
+                    );
+
+                }
                 int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null
                     ? null
@@ -516,6 +524,75 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     metadata
                 );
             }
+        },
+        STREAM(new ParseField("stream")) {
+
+            @Override
+            Aggregator create(
+                String name,
+                AggregatorFactories factories,
+                ValuesSource valuesSource,
+                BucketOrder order,
+                DocValueFormat format,
+                TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                IncludeExclude includeExclude,
+                SearchContext context,
+                Aggregator parent,
+                SubAggCollectionMode subAggCollectMode,
+                boolean showTermDocCountError,
+                CardinalityUpperBound cardinality,
+                Map<String, Object> metadata
+            ) throws IOException {
+                assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
+                ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
+                boolean remapGlobalOrds;
+                if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
+                    /*
+                     * We use REMAP_GLOBAL_ORDS to allow tests to force
+                     * specific optimizations but this particular one
+                     * is only possible if we're collecting from a single
+                     * bucket.
+                     */
+                    remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
+                } else {
+                    remapGlobalOrds = true;
+                    if (includeExclude == null
+                        && cardinality == CardinalityUpperBound.ONE
+                        && (factories == AggregatorFactories.EMPTY
+                            || (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
+                        /*
+                         * We don't need to remap global ords iff this aggregator:
+                         *    - has no include/exclude rules AND
+                         *    - only collects from a single bucket AND
+                         *    - has no sub-aggregator or only sub-aggregator that can be deferred
+                         *      ({@link SubAggCollectionMode#BREADTH_FIRST}).
+                         */
+                        remapGlobalOrds = false;
+                    }
+                }
+                return new StreamingStringTermsAggregator(
+                    name,
+                    factories,
+                    a -> a.new StandardTermsResults(),
+                    ordinalsValuesSource,
+                    order,
+                    format,
+                    bucketCountThresholds,
+                    filter,
+                    context,
+                    parent,
+                    remapGlobalOrds,
+                    subAggCollectMode,
+                    showTermDocCountError,
+                    cardinality,
+                    metadata
+                );
+            }
         };
 
         public static ExecutionMode fromString(String value) {
@@ -524,8 +601,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     return GLOBAL_ORDINALS;
                 case "map":
                     return MAP;
+                case "stream":
+                    return STREAM;
                 default:
-                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
+                    throw new IllegalArgumentException(
+                        "Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals, stream]"
+                    );
             }
         }
 
