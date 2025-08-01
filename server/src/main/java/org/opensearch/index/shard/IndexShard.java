@@ -1855,7 +1855,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void removeExpiredPrimaryMergedSegmentCheckpoints() {
         Set<MergedSegmentCheckpoint> expiredMergedSegmentCheckpoints = primaryMergedSegmentCheckpoints.stream()
             .filter(
-                m -> Duration.ofNanos(DateUtils.toLong(Instant.now()) - m.getCreatedTimeStamp()).toMillis() > indexSettings
+                m -> Duration.ofNanos(DateUtils.toLong(Instant.now()) - m.getCreatedTimeStamp()).toMillis() >= indexSettings
                     .getMergedSegmentCheckpointRetentionTime()
                     .millis()
             )
