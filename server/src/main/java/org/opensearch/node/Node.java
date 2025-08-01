@@ -1276,7 +1276,8 @@ public class Node implements Closeable {
                         networkModule.getTransportInterceptor(),
                         new LocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService),
                         settingsModule.getClusterSettings(),
-                        transportService,
+                        transportService.getTaskManager(),
+                        transportService.getRemoteClusterService(),
                         tracer
                     )
                 )
