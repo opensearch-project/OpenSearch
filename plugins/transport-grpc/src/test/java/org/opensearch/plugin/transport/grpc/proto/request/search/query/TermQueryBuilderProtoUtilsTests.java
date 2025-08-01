@@ -23,17 +23,14 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithStringValue() {
         // Create a protobuf TermQuery with string value
         TermQuery termQuery = TermQuery.newBuilder()
-            .setName("test_query")
+            .setField("test_field")
+            .setUnderscoreName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setStringValue("test_value").build())
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -46,17 +43,14 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithNumberValue() {
         // Create a protobuf TermQuery with number value
         TermQuery termQuery = TermQuery.newBuilder()
-            .setName("test_query")
+            .setField("test_field")
+            .setUnderscoreName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setFloatValue(10.5f).build()).build())
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -69,17 +63,14 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithBooleanValue() {
         // Create a protobuf TermQuery with boolean value
         TermQuery termQuery = TermQuery.newBuilder()
-            .setName("test_query")
+            .setField("test_field")
+            .setUnderscoreName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setBoolValue(true).build())
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -101,17 +92,14 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         }
 
         TermQuery termQuery = TermQuery.newBuilder()
-            .setName("test_query")
+            .setField("test_field")
+            .setUnderscoreName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setObjectMap(objectMapBuilder.build()).build())
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -128,14 +116,13 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithDefaultValues() {
         // Create a protobuf TermQuery with minimal values
-        TermQuery termQuery = TermQuery.newBuilder().setValue(FieldValue.newBuilder().setStringValue("test_value").build()).build();
-
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setField("test_field")
+            .setValue(FieldValue.newBuilder().setStringValue("test_value").build())
+            .build();
 
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -148,17 +135,14 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithInvalidFieldValueType() {
         // Create a protobuf TermQuery with invalid field value type
         TermQuery termQuery = TermQuery.newBuilder()
+            .setField("test_field")
             .setValue(FieldValue.newBuilder().build()) // No value set
             .build();
-
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
 
         // Call the method under test, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TermQueryBuilderProtoUtils.fromProto(termQueryProto)
+            () -> TermQueryBuilderProtoUtils.fromProto(termQuery)
         );
 
         assertTrue(
@@ -167,35 +151,17 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         );
     }
 
-    public void testFromProtoWithTooManyElements() {
-        // Create a map with too many elements
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("field1", TermQuery.newBuilder().build());
-        termQueryProto.put("field2", TermQuery.newBuilder().build());
-
-        // Call the method under test, should throw IllegalArgumentException
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TermQueryBuilderProtoUtils.fromProto(termQueryProto)
-        );
-
-        assertTrue("Exception message should mention can only have 1 element", exception.getMessage().contains("can only have 1 element"));
-    }
-
     public void testFromProtoWithInt32Value() {
         // Create a protobuf TermQuery with int32 value
         TermQuery termQuery = TermQuery.newBuilder()
-            .setName("test_query")
+            .setField("test_field")
+            .setUnderscoreName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setInt32Value(42).build()).build())
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -208,19 +174,16 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithInt64Value() {
         // Create a protobuf TermQuery with int64 value
         TermQuery termQuery = TermQuery.newBuilder()
-            .setName("test_query")
+            .setField("test_field")
+            .setUnderscoreName("test_query")
             .setBoost(2.0f)
             .setValue(
                 FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(9223372036854775807L).build()).build()
             )
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -233,17 +196,14 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithDoubleValue() {
         // Create a protobuf TermQuery with double value
         TermQuery termQuery = TermQuery.newBuilder()
-            .setName("test_query")
+            .setField("test_field")
+            .setUnderscoreName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(3.14159).build()).build())
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -256,18 +216,15 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithCaseInsensitive() {
         // Create a protobuf TermQuery with case insensitive flag
         TermQuery termQuery = TermQuery.newBuilder()
-            .setName("test_query")
+            .setField("test_field")
+            .setUnderscoreName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setStringValue("test_value").build())
             .setCaseInsensitive(true)
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test
-        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQuery);
 
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
@@ -281,6 +238,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithUnsupportedGeneralNumberType() {
         // Create a protobuf TermQuery with unsupported general number type
         TermQuery termQuery = TermQuery.newBuilder()
+            .setField("test_field")
             .setValue(
                 FieldValue.newBuilder()
                     .setGeneralNumber(GeneralNumber.newBuilder().build()) // No value set
@@ -288,19 +246,15 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             )
             .build();
 
-        // Create a map with field name and TermQuery
-        Map<String, TermQuery> termQueryProto = new HashMap<>();
-        termQueryProto.put("test_field", termQuery);
-
         // Call the method under test, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TermQueryBuilderProtoUtils.fromProto(termQueryProto)
+            () -> TermQueryBuilderProtoUtils.fromProto(termQuery)
         );
 
         assertTrue(
             "Exception message should mention unsupported general number type",
-            exception.getMessage().contains("Unsupported general nunber type")
+            exception.getMessage().contains("Unsupported general number type")
         );
     }
 }

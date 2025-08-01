@@ -13,6 +13,8 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.protobufs.SourceConfigParam;
 import org.opensearch.protobufs.TrackHits;
@@ -27,19 +29,20 @@ import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 
-import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 import static org.mockito.Mockito.mock;
 
 public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private Client mockClient;
+    private AbstractQueryBuilderProtoUtils queryUtils;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         namedWriteableRegistry = mock(NamedWriteableRegistry.class);
         mockClient = mock(Client.class);
+        queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
     }
 
     public void testParseSearchRequestWithBasicFields() throws IOException {
@@ -67,7 +70,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {});
+        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
 
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
@@ -115,7 +118,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {});
+        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
 
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
@@ -330,7 +333,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
         assertNotNull("Source should not be null", searchRequest.source());
-        assertTrue("TrackTotalHits should be true", searchRequest.source().trackTotalHitsUpTo().intValue() > TRACK_TOTAL_HITS_DISABLED);
+        assertTrue("TrackTotalHits should be true", searchRequest.source().trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE);
     }
 
     public void testCheckProtoTotalHitsWithTrackTotalHitsUpTo() throws IOException {

@@ -131,7 +131,9 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.profile.ProfileMetric;
+import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.Profilers;
+import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
@@ -786,6 +788,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)) {
             shortcutDocIdsToLoad(context);
             fetchPhase.execute(context);
+            if (context.getProfilers() != null) {
+                ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(context.getProfilers(), context.request());
+                context.queryResult().profileResults(shardResults);
+            }
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
