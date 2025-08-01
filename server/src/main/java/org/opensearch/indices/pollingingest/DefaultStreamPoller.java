@@ -86,7 +86,7 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private PartitionedBlockingQueueContainer blockingQueueContainer;
 
-    public DefaultStreamPoller(
+    private DefaultStreamPoller(
         IngestionShardPointer startPointer,
         Set<IngestionShardPointer> persistedPointers,
         IngestionConsumerFactory consumerFactory,
