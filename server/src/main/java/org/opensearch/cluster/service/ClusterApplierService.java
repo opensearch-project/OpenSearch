@@ -44,6 +44,7 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.StreamNodeConnectionsService;
 import org.opensearch.cluster.TimeoutClusterStateListener;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -124,6 +125,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final String nodeName;
 
     private NodeConnectionsService nodeConnectionsService;
+    private NodeConnectionsService streamNodeConnectionsService;
+
     private final ClusterManagerMetrics clusterManagerMetrics;
 
     public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
@@ -157,6 +160,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
         assert this.nodeConnectionsService == null : "nodeConnectionsService is already set";
         this.nodeConnectionsService = nodeConnectionsService;
+    }
+
+    public synchronized void setStreamNodeConnectionsService(StreamNodeConnectionsService streamNodeConnectionsService) {
+        assert this.streamNodeConnectionsService == null : "streamNodeConnectionsService is already set";
+        this.streamNodeConnectionsService = streamNodeConnectionsService;
     }
 
     @Override
@@ -588,6 +596,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         logger.debug("completed calling appliers of cluster state for version {}", newClusterState.version());
 
         nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
+        if (streamNodeConnectionsService != null) {
+            streamNodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
+        }
 
         assert newClusterState.coordinationMetadata()
             .getLastAcceptedConfiguration()
@@ -614,6 +625,16 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (InterruptedException e) {
             logger.debug("interrupted while connecting to nodes, continuing", e);
             Thread.currentThread().interrupt();
+        }
+        final CountDownLatch streamNodeLatch = new CountDownLatch(1);
+        if (streamNodeConnectionsService != null) {
+            streamNodeConnectionsService.connectToNodes(newClusterState.nodes(), streamNodeLatch::countDown);
+            try {
+                streamNodeLatch.await();
+            } catch (InterruptedException e) {
+                logger.debug("interrupted while connecting to nodes, continuing", e);
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
