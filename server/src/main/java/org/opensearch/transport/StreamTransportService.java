@@ -23,7 +23,6 @@ import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.Set;
 import java.util.function.Function;
 
 import static org.opensearch.discovery.HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING;
@@ -51,7 +50,7 @@ public class StreamTransportService extends TransportService {
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders,
+        TransportService transportService,
         Tracer tracer
     ) {
         super(
@@ -60,8 +59,6 @@ public class StreamTransportService extends TransportService {
             threadPool,
             transportInterceptor,
             localNodeFactory,
-            clusterSettings,
-            taskHeaders,
             // it's a single channel profile and let underlying client handle parallelism by creating multiple channels as needed
             new ClusterConnectionManager(
                 ConnectionProfile.buildSingleChannelProfile(
@@ -73,9 +70,11 @@ public class StreamTransportService extends TransportService {
                 ),
                 streamTransport
             ),
-            tracer
+            tracer,
+            transportService.getTaskManager(),
+            transportService.getRemoteClusterService(),
+            true
         );
-
         this.streamTransportReqTimeout = STREAM_TRANSPORT_REQ_TIMEOUT_SETTING.get(settings);
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(STREAM_TRANSPORT_REQ_TIMEOUT_SETTING, this::setStreamTransportReqTimeout);
