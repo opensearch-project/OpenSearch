@@ -521,8 +521,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int getTargetMaxSliceCount();
 
-    public abstract int getSegmentPartitionSize();
-
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 
     public boolean getStarTreeIndexEnabled() {
@@ -544,5 +542,9 @@ public abstract class SearchContext implements Releasable {
 
     public boolean keywordIndexOrDocValuesEnabled() {
         return false;
+    }
+
+    public int getSegmentPartitionSize() {
+        return 2;
     }
 }
