@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -64,7 +65,11 @@ public final class FetchSearchResult extends SearchPhaseResult {
         super(in);
         contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
-        profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
+        } else {
+            profileShardResults = null;
+        }
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -119,6 +124,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         hits.writeTo(out);
-        out.writeOptionalWriteable(profileShardResults);
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            out.writeOptionalWriteable(profileShardResults);
+        }
     }
 }
