@@ -20,6 +20,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -50,7 +51,8 @@ public class StreamTransportService extends TransportService {
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        TransportService transportService,
+        TaskManager taskManager,
+        RemoteClusterService remoteClusterService,
         Tracer tracer
     ) {
         super(
@@ -71,8 +73,8 @@ public class StreamTransportService extends TransportService {
                 streamTransport
             ),
             tracer,
-            transportService.getTaskManager(),
-            transportService.getRemoteClusterService(),
+            taskManager,
+            remoteClusterService,
             true
         );
         this.streamTransportReqTimeout = STREAM_TRANSPORT_REQ_TIMEOUT_SETTING.get(settings);
