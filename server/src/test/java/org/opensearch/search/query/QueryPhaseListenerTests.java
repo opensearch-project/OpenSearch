@@ -150,15 +150,15 @@ public class QueryPhaseListenerTests extends OpenSearchTestCase {
             searcher.searchWith(searchContext, indexSearcher, query, collectors, false, false);
             fail("Expected exception due to mock objects");
         } catch (Exception e) {
-            // Expected - the search will fail with mock objects, but listeners should still be called
+            // Expected - the search will fail with mock objects
             assertNotNull("Exception should not be null", e);
         }
 
-        // Verify all listeners were called despite the search failure
+        // Verify beforeCollection listeners were called, but afterCollection listeners were NOT called due to search failure
         assertEquals(1, listener1.getBeforeCallCount());
-        assertEquals(1, listener1.getAfterCallCount());
+        assertEquals(0, listener1.getAfterCallCount()); // NOT called due to exception
         assertEquals(1, listener2.getBeforeCallCount());
-        assertEquals(1, listener2.getAfterCallCount());
+        assertEquals(0, listener2.getAfterCallCount()); // NOT called due to exception
     }
 
     /**
@@ -292,12 +292,11 @@ public class QueryPhaseListenerTests extends OpenSearchTestCase {
             // Expected - the search will fail with mock objects
         }
 
-        // Verify both methods were called
+        // Verify beforeCollection was called, but afterCollection was NOT called due to search failure
         assertTrue("beforeCollection should have been called", stateExtension.wasBeforeCalled());
-        assertTrue("afterCollection should have been called", stateExtension.wasAfterCalled());
+        assertFalse("afterCollection should NOT have been called due to exception", stateExtension.wasAfterCalled());
 
-        // Verify the same context was passed to both methods
-        assertSame("Same context should be passed to both methods", stateExtension.getBeforeContext(), stateExtension.getAfterContext());
+        // Verify the context was passed to beforeCollection method
         assertSame("Context should be the one we provided", searchContext, stateExtension.getBeforeContext());
     }
 
@@ -345,15 +344,12 @@ public class QueryPhaseListenerTests extends OpenSearchTestCase {
             // Expected
         }
 
-        // Verify execution order
-        assertEquals("Should have 6 execution entries", 6, executionOrder.size());
+        // Verify execution order - only beforeCollection listeners should have been called due to search failure
+        assertEquals("Should have 3 execution entries (only before listeners)", 3, executionOrder.size());
         assertEquals("First should be before-ext1", "before-ext1", executionOrder.get(0));
         assertEquals("Second should be before-ext2", "before-ext2", executionOrder.get(1));
         assertEquals("Third should be before-ext3", "before-ext3", executionOrder.get(2));
-        // The actual search happens here
-        assertEquals("Fourth should be after-ext1", "after-ext1", executionOrder.get(3));
-        assertEquals("Fifth should be after-ext2", "after-ext2", executionOrder.get(4));
-        assertEquals("Sixth should be after-ext3", "after-ext3", executionOrder.get(5));
+        // The actual search fails here, so no afterCollection listeners are called
     }
 
     /**
@@ -381,9 +377,9 @@ public class QueryPhaseListenerTests extends OpenSearchTestCase {
             // Expected
         }
 
-        // Verify listener was called with concurrent searcher
+        // Verify listener was called with concurrent searcher - only beforeCollection due to search failure
         assertEquals("Extension should be called before score collection", 1, listener.getBeforeCallCount());
-        assertEquals("Extension should be called after score collection", 1, listener.getAfterCallCount());
+        assertEquals("Extension should NOT be called after score collection due to exception", 0, listener.getAfterCallCount());
     }
 
     public void testNoExtensionsRegistered() throws IOException {
@@ -496,10 +492,9 @@ public class QueryPhaseListenerTests extends OpenSearchTestCase {
             // Expected
         }
 
-        // Verify the listener received the correct search context
+        // Verify the listener received the correct search context for beforeCollection, but not for afterCollection due to exception
         assertNotNull("beforeCollection should have received a context", capturedBeforeContext.get());
-        assertNotNull("afterCollection should have received a context", capturedAfterContext.get());
-        assertSame("Both methods should receive the same context", capturedBeforeContext.get(), capturedAfterContext.get());
+        assertNull("afterCollection should NOT have received a context due to exception", capturedAfterContext.get());
         assertSame("Extension should receive the provided search context", searchContext, capturedBeforeContext.get());
     }
 

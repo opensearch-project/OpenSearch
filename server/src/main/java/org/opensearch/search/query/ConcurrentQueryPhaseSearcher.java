@@ -29,7 +29,7 @@ import java.util.concurrent.ExecutionException;
  * The implementation of the {@link QueryPhaseSearcher} which attempts to use concurrent
  * search of Apache Lucene segments if it has been enabled.
  */
-public class ConcurrentQueryPhaseSearcher extends QueryPhase.AbstractQueryPhaseSearcher {
+public class ConcurrentQueryPhaseSearcher extends AbstractQueryPhaseSearcher {
     private static final Logger LOGGER = LogManager.getLogger(ConcurrentQueryPhaseSearcher.class);
     private final AggregationProcessor aggregationProcessor = new ConcurrentAggregationProcessor();
 
