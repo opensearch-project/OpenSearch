@@ -89,5 +89,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix leafSorter optimization for ReadOnlyEngine and NRTReplicationEngine ([#18639](https://github.com/opensearch-project/OpenSearch/pull/18639))
 
 ### Security
+- Create WaitForClusterSetup gradle plugin to abstract common logic across multiple plugins for setting up testing with security ([#18892](https://github.com/opensearch-project/OpenSearch/pull/18892))
 
 [Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.1...main
