@@ -25,10 +25,6 @@ public class MergedSegmentPublisher {
 
     // This Component is behind feature flag so we are manually binding this in IndicesModule.
     @Inject
-    public MergedSegmentPublisher(PublishMergedSegmentAction publishAction) {
-        this(publishAction::publish);
-    }
-
     public MergedSegmentPublisher(PublishAction publishAction) {
         this.publishAction = Objects.requireNonNull(publishAction);
     }

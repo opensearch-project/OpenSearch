@@ -9,10 +9,12 @@
 package org.opensearch.indices.replication;
 
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.util.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
@@ -22,14 +24,21 @@ import org.opensearch.index.shard.RemoteStoreRefreshListenerTests;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.mock;
@@ -175,6 +184,100 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         ExecutionException exception = assertThrows(ExecutionException.class, () -> res3.get());
         assertTrue(exception.getCause() instanceof IllegalStateException);
         assertTrue(exception.getCause().getMessage().contains("Remote metadata file can't be null if shard is active"));
+    }
+
+    public void testGetMergedSegmentFiles() throws IOException, ExecutionException, InterruptedException {
+        final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
+        Map<String, String> localToRemoteFilenameMap = new HashMap<>() {
+            {
+                Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard
+                    .getRemoteDirectory()
+                    .getSegmentsUploadedToRemoteStore();
+                segmentsUploadedToRemoteStore.forEach((segment, metadata) -> {
+                    if (segment.startsWith("segments_") == false) put(segment, metadata.getUploadedFilename());
+                });
+            }
+        };
+        replicaShard.getRemoteDirectory().markPendingMergedSegmentsDownload(localToRemoteFilenameMap);
+        RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
+            new MergedSegmentCheckpoint(
+                replicaShard.shardId(),
+                primaryTerm,
+                checkpoint.getSegmentInfosVersion(),
+                checkpoint.getLength(),
+                checkpoint.getCodec(),
+                checkpoint.getMetadataMap(),
+                "_0"
+            ),
+            localToRemoteFilenameMap
+        );
+        List<StoreFileMetadata> filesToFetch = new ArrayList<>(primaryShard.getSegmentMetadataMap().values());
+        final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
+        replicationSource = new RemoteStoreReplicationSource(primaryShard);
+        replicationSource.getMergedSegmentFiles(
+            REPLICATION_ID,
+            mergedSegmentCheckpoint,
+            filesToFetch,
+            replicaShard,
+            (fileName, bytesRecovered) -> {},
+            res
+        );
+        GetSegmentFilesResponse response = res.get();
+        assertEquals(response.files.size(), filesToFetch.size());
+        assertTrue(response.files.containsAll(filesToFetch));
+        closeShards(replicaShard);
+    }
+
+    public void testGetMergedSegmentFilesFailure() throws IOException, ExecutionException, InterruptedException {
+        // Testing failure scenario where segments are not a part of RemoteSegmentStoreDirectory.pendingMergedSegmentsDownloads
+        final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
+        Map<String, String> localToRemoteFilenameMap = Map.of("invalid.si", "invalid.si__uuid", "invalid.cfs", "invalid.cfs__uuid");
+        RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
+            new MergedSegmentCheckpoint(
+                replicaShard.shardId(),
+                primaryTerm,
+                checkpoint.getSegmentInfosVersion(),
+                checkpoint.getLength(),
+                checkpoint.getCodec(),
+                checkpoint.getMetadataMap(),
+                "_0"
+            ),
+            localToRemoteFilenameMap
+        );
+        List<StoreFileMetadata> filesToFetch = List.of(
+            new StoreFileMetadata("invalid.si", 1, "1", Version.LATEST),
+            new StoreFileMetadata("invalid.cfs", 1, "1", Version.LATEST)
+        );
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ActionListener<GetSegmentFilesResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(GetSegmentFilesResponse response) {
+                fail("Expected onFailure to be called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureRef.set(e);
+                latch.countDown();
+            }
+        };
+        replicationSource = new RemoteStoreReplicationSource(primaryShard);
+        replicationSource.getMergedSegmentFiles(
+            REPLICATION_ID,
+            mergedSegmentCheckpoint,
+            filesToFetch,
+            replicaShard,
+            (fileName, bytesRecovered) -> {},
+            listener
+        );
+        latch.await();
+        assertNotNull("onFailure should have been called", failureRef.get());
+        Exception observedException = failureRef.get();
+        assertTrue(observedException instanceof NoSuchFileException);
+        assertTrue(observedException.getMessage() != null && observedException.getMessage().startsWith("invalid."));
+        closeShards(replicaShard);
     }
 
     private void buildIndexShardBehavior(IndexShard mockShard, IndexShard indexShard) {

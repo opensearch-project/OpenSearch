@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,7 +68,13 @@ public class RemoteDirectory extends Directory {
 
     private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
 
-    private final UnaryOperator<InputStream> downloadRateLimiter;
+    private final DownloadRateLimiterProvider downloadRateLimiterProvider;
+
+    /**
+     * Map containing the mapping of segment files that are pending download as part of the pre-copy (warm) phase of
+     * {@link org.opensearch.index.engine.MergedSegmentWarmer}. The key is the local filename and value is the remote filename.
+     */
+    final Map<String, String> pendingDownloadMergedSegments;
 
     /**
      * Number of bytes in the segment file to store checksum
@@ -79,19 +86,22 @@ public class RemoteDirectory extends Directory {
     }
 
     public RemoteDirectory(BlobContainer blobContainer) {
-        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity());
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), null);
     }
 
     public RemoteDirectory(
         BlobContainer blobContainer,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
         UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
-        UnaryOperator<InputStream> downloadRateLimiter
+        UnaryOperator<InputStream> downloadRateLimiter,
+        UnaryOperator<InputStream> lowPriorityDownloadRateLimiter,
+        Map<String, String> pendingDownloadMergedSegments
     ) {
         this.blobContainer = blobContainer;
         this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
-        this.downloadRateLimiter = downloadRateLimiter;
+        this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
+        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
     }
 
     /**
@@ -236,7 +246,8 @@ public class RemoteDirectory extends Directory {
         InputStream inputStream = null;
         try {
             inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
+            UnaryOperator<InputStream> rateLimiter = downloadRateLimiterProvider.get(name);
+            return new RemoteIndexInput(name, rateLimiter.apply(inputStream), fileLength);
         } catch (Exception e) {
             // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
@@ -475,8 +486,37 @@ public class RemoteDirectory extends Directory {
         byte[] bytes;
         try (InputStream inputStream = blobContainer.readBlob(name, position, length)) {
             // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
-            bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
+            bytes = downloadRateLimiterProvider.get(name).apply(inputStream).readAllBytes();
         }
         return new ByteArrayIndexInput(name, bytes);
+    }
+
+    private boolean isMergedSegment(String remoteFilename) {
+        return pendingDownloadMergedSegments != null && pendingDownloadMergedSegments.containsValue(remoteFilename);
+    }
+
+    /**
+     * DownloadRateLimiterProvider returns a low-priority rate limited stream if the segment
+     * being downloaded is a merged segment as part of the pre-copy (warm) phase of
+     * {@link org.opensearch.index.engine.MergedSegmentWarmer}.
+     */
+    private class DownloadRateLimiterProvider {
+        private final UnaryOperator<InputStream> downloadRateLimiter;
+        private final UnaryOperator<InputStream> lowPriorityDownloadRateLimiter;
+
+        DownloadRateLimiterProvider(
+            UnaryOperator<InputStream> downloadRateLimiter,
+            UnaryOperator<InputStream> lowPriorityDownloadRateLimiter
+        ) {
+            this.downloadRateLimiter = downloadRateLimiter;
+            this.lowPriorityDownloadRateLimiter = lowPriorityDownloadRateLimiter;
+        }
+
+        public UnaryOperator<InputStream> get(final String filename) {
+            if (isMergedSegment(filename)) {
+                return lowPriorityDownloadRateLimiter;
+            }
+            return downloadRateLimiter;
+        }
     }
 }
