@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
@@ -43,7 +42,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     protected static final int EIGHT_MB = 1024 * 1024 * 8;
     protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
