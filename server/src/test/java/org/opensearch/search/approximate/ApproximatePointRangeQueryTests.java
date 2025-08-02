@@ -1284,7 +1284,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                         FieldDoc fieldDoc = (FieldDoc) scoreDoc;
                         Number value = (Number) fieldDoc.fields[0];
-                        System.out.println("Sort value: " + value + " (from " + numericType.getSortFieldName() + ")");
                         assertTrue(
                             "Doc value " + value + " should be > searchAfterValue " + searchAfterValue,
                             value.longValue() > searchAfterValue
@@ -1319,7 +1318,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     long upper = RandomNumbers.randomLongBetween(random(), 3 * numPoints / 4, numPoints - 1);
                     int size = RandomNumbers.randomIntBetween(random(), 10, 50);
                     long searchAfterValue = RandomNumbers.randomLongBetween(random(), lower, upper - size);
-                    System.out.println("Test parameters: lower=" + lower + ", upper=" + upper + ", searchAfter=" + searchAfterValue);
                     SearchContext mockContext = mock(SearchContext.class);
                     ShardSearchRequest mockRequest = mock(ShardSearchRequest.class);
                     SearchSourceBuilder source = new SearchSourceBuilder();
