@@ -179,6 +179,17 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Index setting describing the maximum retention time of merged segment checkpoint in the primary shard, used to prevent memory leak.
+     */
+    public static final Setting<TimeValue> INDEX_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME = Setting.timeSetting(
+        "index.merged_segment_checkpoint.retention_time",
+        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueSeconds(0),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<TimeValue> INDEX_SEARCH_IDLE_AFTER = Setting.timeSetting(
         "index.search.idle.after",
         TimeValue.timeValueSeconds(30),
@@ -823,6 +834,7 @@ public final class IndexSettings {
     private volatile Translog.Durability durability;
     private volatile TimeValue syncInterval;
     private volatile TimeValue publishReferencedSegmentsInterval;
+    private volatile TimeValue mergedSegmentCheckpointRetentionTime;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue translogRetentionAge;
@@ -1036,6 +1048,7 @@ public final class IndexSettings {
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         publishReferencedSegmentsInterval = INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.get(settings);
+        mergedSegmentCheckpointRetentionTime = INDEX_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
@@ -1160,6 +1173,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING,
             this::setPublishReferencedSegmentsInterval
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME,
+            this::setMergedSegmentCheckpointRetentionTime
         );
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
@@ -1545,6 +1562,14 @@ public final class IndexSettings {
 
     public void setPublishReferencedSegmentsInterval(TimeValue publishReferencedSegmentsInterval) {
         this.publishReferencedSegmentsInterval = publishReferencedSegmentsInterval;
+    }
+
+    public TimeValue getMergedSegmentCheckpointRetentionTime() {
+        return mergedSegmentCheckpointRetentionTime;
+    }
+
+    public void setMergedSegmentCheckpointRetentionTime(TimeValue mergedSegmentCheckpointRetentionTime) {
+        this.mergedSegmentCheckpointRetentionTime = mergedSegmentCheckpointRetentionTime;
     }
 
     /**
