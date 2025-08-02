@@ -11,7 +11,6 @@ package org.opensearch.remotestore;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -96,7 +95,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
 
     private static final String BASE_REMOTE_REPO = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
