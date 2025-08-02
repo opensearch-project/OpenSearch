@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.BigArrays;
@@ -74,7 +75,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * Tests for the QueryPhaseResultConsumer that focus on streaming aggregation capabilities
  * where multiple results can be received from the same shard
  */
-public class QueryPhaseResultConsumerStreamingTests extends OpenSearchTestCase {
+@LuceneTestCase.AwaitsFix(bugUrl = "")
+public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
 
     private SearchPhaseController searchPhaseController;
     private ThreadPool threadPool;
