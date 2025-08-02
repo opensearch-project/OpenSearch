@@ -119,6 +119,7 @@ public final class CompositeAggregator extends BucketsAggregator {
     private BucketCollector deferredCollectors;
 
     private boolean earlyTerminated;
+    private Weight weight;
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
     private LongKeyedBucketOrds bucketOrds;
@@ -567,8 +568,15 @@ public final class CompositeAggregator extends BucketsAggregator {
         }
     }
 
+    public void setWeight(Weight weight) {
+        this.weight = weight;
+    }
+
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (this.weight != null && this.weight.count(ctx) == 0) {
+            return true;
+        }
         finishLeaf(); // May need to wrap up previous leaf if it could not be precomputed
         return filterRewriteOptimizationContext.tryOptimize(
             ctx,
