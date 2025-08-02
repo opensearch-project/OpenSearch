@@ -227,9 +227,10 @@ public class MetadataCreateIndexService {
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
-        remoteStoreCustomMetadataResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
-            : null;
+        remoteStoreCustomMetadataResolver = RemoteStoreNodeAttribute.isSegmentRepoConfigured(settings)
+            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)
+                ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
+                : null;
     }
 
     public IndexScopedSettings getIndexScopedSettings() {
@@ -1178,10 +1179,19 @@ public class MetadataCreateIndexService {
             if (remoteNode.isPresent()) {
                 translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
                 segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
-                if (segmentRepo != null && translogRepo != null) {
-                    settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                        .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo)
-                        .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                if (segmentRepo != null) {
+                    settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true).put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
+                    if (translogRepo != null) {
+                        settingsBuilder.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                    } else if (isMigratingToRemoteStore(clusterSettings)) {
+                        ValidationException validationException = new ValidationException();
+                        validationException.addValidationErrors(
+                            Collections.singletonList(
+                                "Cluster is migrating to remote store but remote translog is not configured, failing index creation"
+                            )
+                        );
+                        throw new IndexCreationException(indexName, validationException);
+                    }
                 } else {
                     ValidationException validationException = new ValidationException();
                     validationException.addValidationErrors(

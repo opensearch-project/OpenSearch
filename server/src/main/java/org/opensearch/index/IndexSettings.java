@@ -1412,9 +1412,7 @@ public final class IndexSettings {
      * Returns if remote translog store is enabled for this index.
      */
     public boolean isRemoteTranslogStoreEnabled() {
-        // Today enabling remote store automatically enables remote translog as well.
-        // which is why isRemoteStoreEnabled is used to represent isRemoteTranslogStoreEnabled
-        return isRemoteStoreEnabled;
+        return remoteStoreTranslogRepository != null && remoteStoreTranslogRepository.isEmpty() == false;
     }
 
     /**
