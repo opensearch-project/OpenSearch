@@ -1227,7 +1227,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
     public void testApproximateRangeWithSearchAfterAsc() throws IOException {
         if (numericType == NumericType.HALF_FLOAT) {
-            // Skip - HALF_FLOAT uses different fields for storage vs sorting which causes issues with search_after boundary checking during tests
+            // Skip - HALF_FLOAT uses different fields for storage vs sorting which causes issues with search_after boundary checking during
+            // tests
             return;
         }
         try (Directory directory = newDirectory()) {
@@ -1296,7 +1297,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
     public void testApproximateRangeWithSearchAfterDesc() throws IOException {
         if (numericType == NumericType.HALF_FLOAT) {
-            // Skip - HALF_FLOAT uses different fields for storage vs sorting which causes issues with search_after boundary checking during tests
+            // Skip - HALF_FLOAT uses different fields for storage vs sorting which causes issues with search_after boundary checking during
+            // tests
             return;
         }
         try (Directory directory = newDirectory()) {
