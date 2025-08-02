@@ -153,12 +153,12 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 doc.add(new HalfFloatPoint(fieldName, value.floatValue()));
             }
 
+            // This ensures for half_float the BKD and doc_values stores the exact same value without losing the precision
             @Override
             void addDocValuesField(Document doc, String fieldName, Number value) {
                 byte[] bytes = new byte[HalfFloatPoint.BYTES];
                 HalfFloatPoint.encodeDimension(value.floatValue(), bytes, 0);
                 float actualHalfFloatValue = HalfFloatPoint.decodeDimension(bytes, 0);
-                // doc.add(new NumericDocValuesField(fieldName + "_sort", value.longValue()));
                 doc.add(new NumericDocValuesField(fieldName + "_sort", (long) actualHalfFloatValue));
             }
 
