@@ -123,6 +123,7 @@ import org.opensearch.index.mapper.RangeType;
 import org.opensearch.index.mapper.SemanticVersionFieldMapper;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.mapper.WildcardFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
@@ -1128,7 +1129,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             doc.add(new SortedNumericDocValuesField(fieldName, v));
 
         } else if (vst.equals(CoreValuesSourceType.BYTES)) {
-            if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE)) {
+            if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE) || typeName.equals(WildcardFieldMapper.CONTENT_TYPE)) {
                 doc.add(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes));
                 json = "{ \"" + fieldName + "\" : \"a\" }";
             } else {
