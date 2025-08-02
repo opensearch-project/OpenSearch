@@ -281,7 +281,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
 
     public void testMapUnmappedFieldAsText() throws IOException {
         Settings.Builder settings = Settings.builder().put("index.percolator.map_unmapped_fields_as_text", true);
-        createIndex("test", settings.build(), "query", "query", "type=percolator");
+        createIndexWithSimpleMappings("test", settings.build(), "query", "type=percolator");
         client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject())
@@ -302,10 +302,9 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testRangeQueriesWithNow() throws Exception {
-        IndexService indexService = createIndex(
+        IndexService indexService = createIndexWithSimpleMappings(
             "test",
             Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
             "field1",
             "type=keyword",
             "field2",
