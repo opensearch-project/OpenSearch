@@ -16,6 +16,22 @@ This returns metrics for all nodes. To get metrics for a specific node:
 GET /_flight/stats/{node_id}
 ```
 
+## Monitoring Streaming Tasks
+
+Streaming transport tasks can be monitored using the existing Tasks API:
+
+```bash
+curl "localhost:9200/_cat/tasks?v"
+```
+
+Streaming tasks are identified by the `stream-transport` type:
+
+```
+action                                task_id                     parent_task_id              type             start_time    timestamp running_time ip        node
+indices:data/read/search              TVk0SciMQtSwplV6rQwyMA:2165 -                           transport        1754082449785 21:07:29  169.5ms      127.0.0.1 node-1
+indices:data/read/search[phase/query] TVk0SciMQtSwplV6rQwyMA:2166 TVk0SciMQtSwplV6rQwyMA:2165 stream-transport 1754082449786 21:07:29  168.4ms      127.0.0.1 node-1
+```
+
 ## Metrics Structure
 
 Metrics are organized into the following categories:
