@@ -778,6 +778,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated
                 SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE,
+                SearchService.CLUSTER_CONCURRENT_INTRA_SEGMENT_SEARCH_MODE,
+                SearchService.CONCURRENT_INTRA_SEGMENT_SEARCH_PARTITION_SIZE_SETTING,
 
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,

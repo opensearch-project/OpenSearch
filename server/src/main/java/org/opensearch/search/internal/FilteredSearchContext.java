@@ -579,6 +579,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public int getSegmentPartitionSize() {
+        return in.getSegmentPartitionSize();
+    }
+
+    @Override
     public boolean shouldUseTimeSeriesDescSortOptimization() {
         return in.shouldUseTimeSeriesDescSortOptimization();
     }
