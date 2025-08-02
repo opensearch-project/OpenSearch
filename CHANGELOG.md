@@ -102,5 +102,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix query string regex queries incorrectly swallowing TooComplexToDeterminizeException ([#18883](https://github.com/opensearch-project/OpenSearch/pull/18883))
 
 ### Security
+- Create WaitForClusterSetup gradle plugin to abstract common logic across multiple plugins for setting up testing with security ([#18892](https://github.com/opensearch-project/OpenSearch/pull/18892))
 
 [Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.1...main
