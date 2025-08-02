@@ -219,9 +219,18 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public byte[] encodePoint(Object value, boolean roundUp) {
-            // Parse the object value to double and use existing encodePoint logic
             double doubleValue = parse(value);
-            return encodePoint(doubleValue);
+            long scaledValue = Math.round(scale(doubleValue));
+            if (roundUp) {
+                if (scaledValue < Long.MAX_VALUE) {
+                    scaledValue = scaledValue + 1;
+                }
+            } else {
+                if (scaledValue > Long.MIN_VALUE) {
+                    scaledValue = scaledValue - 1;
+                }
+            }
+            return encodePoint(scaledValue);
         }
 
         public double getScalingFactor() {

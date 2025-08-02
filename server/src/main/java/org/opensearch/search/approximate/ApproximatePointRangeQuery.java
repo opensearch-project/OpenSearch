@@ -56,7 +56,8 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     private int size;
     private SearchContext searchContext;
     private SortOrder sortOrder;
-    public final PointRangeQuery pointRangeQuery;
+    public PointRangeQuery pointRangeQuery;
+    private final Function<byte[], String> valueToString;
 
     public ApproximatePointRangeQuery(
         String field,
@@ -79,6 +80,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     ) {
         this.size = size;
         this.sortOrder = sortOrder;
+        this.valueToString = valueToString;
         this.pointRangeQuery = new PointRangeQuery(field, lowerPoint, upperPoint, numDims) {
             @Override
             protected String toString(int dimension, byte[] value) {
@@ -118,11 +120,25 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         // Pre-compute the effective bounds considering search_after
         final byte[] effectiveLower = computeEffectiveLowerBound();
         final byte[] effectiveUpper = computeEffectiveUpperBound();
+
+        this.pointRangeQuery = new PointRangeQuery(
+            pointRangeQuery.getField(),
+            effectiveLower,  // Use computed bounds, not original!
+            effectiveUpper,
+            pointRangeQuery.getNumDims()
+        ) {
+            @Override
+            protected String toString(int dimension, byte[] value) {
+                return valueToString.apply(value);
+            }
+        };
+
         final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
 
         Weight pointRangeQueryWeight = pointRangeQuery.createWeight(searcher, scoreMode, boost);
 
         return new ConstantScoreWeight(this, boost) {
+            boolean result;
 
             // we pull this from PointRangeQuery since it is final
             private boolean matches(byte[] packedValue) {
@@ -428,59 +444,46 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
     private byte[] computeEffectiveLowerBound() {
         byte[] originalLower = pointRangeQuery.getLowerPoint();
-
-        if (searchContext != null &&
-            searchContext.request() != null &&
-            searchContext.request().source() != null &&
-            searchContext.request().source().searchAfter() != null &&
-            searchContext.request().source().searchAfter().length > 0 &&
-            sortOrder == SortOrder.ASC) {
-
+        if (searchContext != null
+            && searchContext.request() != null
+            && searchContext.request().source() != null
+            && searchContext.request().source().searchAfter() != null
+            && searchContext.request().source().searchAfter().length > 0
+            && sortOrder == SortOrder.ASC) {
             Object searchAfterValue = searchContext.request().source().searchAfter()[0];
             MappedFieldType fieldType = searchContext.getQueryShardContext().fieldMapper(pointRangeQuery.getField());
-
             if (fieldType instanceof NumericPointEncoder encoder) {
                 // For ASC: we want values > searchAfter (exclusive lower bound)
                 byte[] searchAfterEncoded = encoder.encodePoint(searchAfterValue, true); // true = round up for exclusive
-
-                // Use the more restrictive bound
                 ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
-                if (originalLower == null ||
-                    comparator.compare(searchAfterEncoded, 0, originalLower, 0) > 0) {
+                if (originalLower == null || comparator.compare(searchAfterEncoded, 0, originalLower, 0) > 0) {
                     return searchAfterEncoded;
                 }
             }
         }
-
         return originalLower;
     }
 
     private byte[] computeEffectiveUpperBound() {
         byte[] originalUpper = pointRangeQuery.getUpperPoint();
 
-        if (searchContext != null &&
-            searchContext.request() != null &&
-            searchContext.request().source() != null &&
-            searchContext.request().source().searchAfter() != null &&
-            searchContext.request().source().searchAfter().length > 0 &&
-            sortOrder == SortOrder.DESC) {
-
+        if (searchContext != null
+            && searchContext.request() != null
+            && searchContext.request().source() != null
+            && searchContext.request().source().searchAfter() != null
+            && searchContext.request().source().searchAfter().length > 0
+            && sortOrder == SortOrder.DESC) {
             Object searchAfterValue = searchContext.request().source().searchAfter()[0];
             MappedFieldType fieldType = searchContext.getQueryShardContext().fieldMapper(pointRangeQuery.getField());
-
             if (fieldType instanceof NumericPointEncoder encoder) {
                 // For DESC: we want values < searchAfter (exclusive upper bound)
                 byte[] searchAfterEncoded = encoder.encodePoint(searchAfterValue, false); // false = round down for exclusive
-
-                // Use the more restrictive bound
                 ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
-                if (originalUpper == null ||
-                    comparator.compare(searchAfterEncoded, 0, originalUpper, 0) < 0) {
+                if (originalUpper == null || comparator.compare(searchAfterEncoded, 0, originalUpper, 0) < 0) {
                     return searchAfterEncoded;
                 }
             }
         }
-
         return originalUpper;
     }
 
@@ -496,10 +499,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
             return false;
         }
-
-        // Store context for later use
         this.searchContext = context;
-
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);

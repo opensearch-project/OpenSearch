@@ -822,33 +822,20 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return point;
             }
 
-            /*@Override
-            public byte[] encodePoint(Object value, boolean roundUp) {
-                Byte numericValue = parse(value, true);
-                return encodePoint(numericValue);
-            }*/
-
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 Byte numericValue = parse(value, true);
-
-                if (hasDecimalPart(value)) {
-                    // If the value has a decimal part and we're rounding up (for lower bounds)
-                    // and the value is positive, increment by 1
-                    if (roundUp && signum(value) > 0) {
-                        if (numericValue < Byte.MAX_VALUE) {
-                            numericValue = (byte)(numericValue + 1);
-                        }
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Byte.MAX_VALUE) {
+                        numericValue = (byte) (numericValue + 1);
                     }
-                    // If rounding down (for upper bounds) and the value is negative, decrement by 1
-                    else if (!roundUp && signum(value) < 0) {
-                        if (numericValue > Byte.MIN_VALUE) {
-                            numericValue = (byte)(numericValue - 1);
-                        }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue > Byte.MIN_VALUE) {
+                        numericValue = (byte) (numericValue - 1);
                     }
-                    // Otherwise, the parse() method already truncated appropriately
                 }
-
                 return encodePoint(numericValue);
             }
 
@@ -936,32 +923,19 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return point;
             }
 
-            /*@Override
-            public byte[] encodePoint(Object value, boolean roundUp) {
-                Short numericValue = parse(value, true);
-                return encodePoint(numericValue);
-            }*/
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 Short numericValue = parse(value, true);
-
-                if (hasDecimalPart(value)) {
-                    // If the value has a decimal part and we're rounding up (for lower bounds)
-                    // and the value is positive, increment by 1
-                    if (roundUp && signum(value) > 0) {
-                        if (numericValue < Short.MAX_VALUE) {
-                            numericValue = (short)(numericValue + 1);
-                        }
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Short.MAX_VALUE) {
+                        numericValue = (short) (numericValue + 1);
                     }
-                    // If rounding down (for upper bounds) and the value is negative, decrement by 1
-                    else if (!roundUp && signum(value) < 0) {
-                        if (numericValue > Short.MIN_VALUE) {
-                            numericValue = (short)(numericValue - 1);
-                        }
+                } else {
+                    if (numericValue > Short.MIN_VALUE) {
+                        numericValue = (short) (numericValue - 1);
                     }
-                    // Otherwise, the parse() method already truncated appropriately
                 }
-
                 return encodePoint(numericValue);
             }
 
@@ -1045,31 +1019,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return point;
             }
 
-            /*@Override
-            public byte[] encodePoint(Object value, boolean roundUp) {
-                Integer numericValue = parse(value, true);
-                return encodePoint(numericValue);
-            }*/
-
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 Integer numericValue = parse(value, true);
-
-                if (hasDecimalPart(value)) {
-                    // If the value has a decimal part and we're rounding up (for lower bounds)
-                    // and the value is positive, increment by 1
-                    if (roundUp && signum(value) > 0) {
-                        if (numericValue < Integer.MAX_VALUE) {
-                            numericValue = numericValue + 1;
-                        }
+                // Always apply exclusivity
+                if (roundUp) {
+                    if (numericValue < Integer.MAX_VALUE) {
+                        numericValue = numericValue + 1;
                     }
-                    // If rounding down (for upper bounds) and the value is negative, decrement by 1
-                    else if (!roundUp && signum(value) < 0) {
-                        if (numericValue > Integer.MIN_VALUE) {
-                            numericValue = numericValue - 1;
-                        }
+                } else {
+                    if (numericValue > Integer.MIN_VALUE) {
+                        numericValue = numericValue - 1;
                     }
-                    // Otherwise, the parse() method already truncated appropriately
                 }
 
                 return encodePoint(numericValue);
@@ -1261,33 +1222,20 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return point;
             }
 
-            /*@Override
-            public byte[] encodePoint(Object value, boolean roundUp) {
-                Long numericValue = parse(value, true);
-                return encodePoint(numericValue);
-            }*/
-
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 Long numericValue = parse(value, true);
-
-                if (hasDecimalPart(value)) {
-                    // If the value has a decimal part and we're rounding up (for lower bounds)
-                    // and the value is positive, increment by 1
-                    if (roundUp && signum(value) > 0) {
-                        if (numericValue < Long.MAX_VALUE) {
-                            numericValue = numericValue + 1;
-                        }
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Long.MAX_VALUE) {
+                        numericValue = numericValue + 1;
                     }
-                    // If rounding down (for upper bounds) and the value is negative, decrement by 1
-                    else if (!roundUp && signum(value) < 0) {
-                        if (numericValue > Long.MIN_VALUE) {
-                            numericValue = numericValue - 1;
-                        }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue > Long.MIN_VALUE) {
+                        numericValue = numericValue - 1;
                     }
-                    // Otherwise, the parse() method already truncated appropriately
                 }
-
                 return encodePoint(numericValue);
             }
 
@@ -1433,32 +1381,19 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return point;
             }
 
-            /*@Override
-            public byte[] encodePoint(Object value, boolean roundUp) {
-                BigInteger numericValue = parse(value, true);
-                return encodePoint(numericValue);
-            }*/
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 BigInteger numericValue = parse(value, true);
-
-                if (hasDecimalPart(value)) {
-                    // If the value has a decimal part and we're rounding up (for lower bounds)
-                    // and the value is positive, increment by 1
-                    if (roundUp && signum(value) > 0) {
-                        if (numericValue.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) < 0) {
-                            numericValue = numericValue.add(BigInteger.ONE);
-                        }
+                if (roundUp) {
+                    if (numericValue.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) < 0) {
+                        numericValue = numericValue.add(BigInteger.ONE);
                     }
-                    // If rounding down (for upper bounds) and the value is negative, decrement by 1
-                    else if (!roundUp && signum(value) < 0) {
-                        if (numericValue.compareTo(Numbers.MIN_UNSIGNED_LONG_VALUE) > 0) {
-                            numericValue = numericValue.subtract(BigInteger.ONE);
-                        }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue.compareTo(Numbers.MIN_UNSIGNED_LONG_VALUE) > 0) {
+                        numericValue = numericValue.subtract(BigInteger.ONE);
                     }
-                    // Otherwise, the parse() method already truncated appropriately
                 }
-
                 return encodePoint(numericValue);
             }
 
@@ -2034,9 +1969,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public byte[] encodePoint(Object value, boolean roundUp) {
-            // Use the existing parse method with coercion for search_after
-            Number numericValue = type.parse(value, true);
-            return encodePoint(numericValue);
+            return type.encodePoint(value, roundUp);
         }
 
         @Override

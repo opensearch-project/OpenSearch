@@ -621,9 +621,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public byte[] encodePoint(Object value, boolean roundUp) {
-            // Use the existing parseToLong method with proper rounding for search_after
-            long longValue = parseToLong(value, roundUp, null, null, () -> System.currentTimeMillis());
-            return encodePoint(longValue);
+            // Always parse with roundUp=false to get consistent date math
+            // In this method the parseToLong is only used for date math rounding operations
+            long timestamp = parseToLong(value, false, null, null, null);
+            if (roundUp) {
+                timestamp = timestamp + 1;
+            } else {
+                timestamp = timestamp - 1;
+            }
+
+            return encodePoint(timestamp);
         }
 
         @Override
