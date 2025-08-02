@@ -123,7 +123,6 @@ public class QueryPhaseResultConsumerStreamingTests extends OpenSearchTestCase {
      * This test verifies that QueryPhaseResultConsumer can correctly handle
      * multiple streaming results from the same shard, with segments arriving in order
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18874")
     public void testStreamingAggregationFromMultipleShards() throws Exception {
         int numShards = 3;
         int numSegmentsPerShard = 3;
@@ -253,7 +252,6 @@ public class QueryPhaseResultConsumerStreamingTests extends OpenSearchTestCase {
      * This test validates that QueryPhaseResultConsumer properly handles
      * out-of-order streaming results from multiple shards, where shards send results in mixed order
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18874")
     public void testStreamingAggregationWithOutOfOrderResults() throws Exception {
         int numShards = 3;
         int numSegmentsPerShard = 3;
@@ -411,7 +409,6 @@ public class QueryPhaseResultConsumerStreamingTests extends OpenSearchTestCase {
      * out-of-order segment results within the same shard, where segments
      * from the same shard arrive out of order
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18874")
     public void testStreamingAggregationWithOutOfOrderSegments() throws Exception {
         // Prepare test parameters
         int numShards = 3;  // Number of shards for the test
