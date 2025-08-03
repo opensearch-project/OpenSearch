@@ -55,7 +55,8 @@ public class RemoteStoreLockManagerFactory {
         RemoteStorePathStrategy pathStrategy,
         String segmentsPathFixedPrefix
     ) {
-        try (Repository repository = repositoriesService.repository(repositoryName)) {
+        try {
+            Repository repository = repositoriesService.repository(repositoryName);
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath repositoryBasePath = ((BlobStoreRepository) repository).basePath();
 
