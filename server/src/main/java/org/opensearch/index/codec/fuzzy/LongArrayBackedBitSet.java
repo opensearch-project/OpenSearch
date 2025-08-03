@@ -50,6 +50,15 @@ class LongArrayBackedBitSet implements Accountable, Closeable {
         in.skipBytes(streamLength);
     }
 
+    LongArrayBackedBitSet(LongArrayBackedBitSetMeta meta) throws IOException {
+        underlyingArrayLength = meta.underlyingArrayLength;
+        // Multiplying by 8 since the length above is of the long array, so we will have
+        // 8 times the number of bytes in our stream.
+        long streamLength = underlyingArrayLength << 3;
+        IndexInput in = meta.dataIn;
+        longArray = new IndexInputImmutableLongArray(underlyingArrayLength, in.randomAccessSlice(meta.startPointer, streamLength));
+    }
+
     public void writeTo(DataOutput out) throws IOException {
         out.writeLong(underlyingArrayLength);
         for (int idx = 0; idx < underlyingArrayLength; idx++) {
@@ -101,5 +110,18 @@ class LongArrayBackedBitSet implements Accountable, Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(longArray);
+    }
+
+    static class LongArrayBackedBitSetMeta {
+        long underlyingArrayLength;
+        long startPointer;
+        IndexInput dataIn;
+        public LongArrayBackedBitSetMeta(IndexInput in) throws IOException {
+            dataIn = in;
+            underlyingArrayLength = in.readLong();
+            startPointer = in.getFilePointer();
+            long streamLength = underlyingArrayLength << 3;
+            in.skipBytes(streamLength);
+        }
     }
 }
