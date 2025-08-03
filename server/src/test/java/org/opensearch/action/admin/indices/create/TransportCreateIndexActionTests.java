@@ -83,11 +83,7 @@ public class TransportCreateIndexActionTests extends OpenSearchTestCase {
 
         // Capture ActionListener passed to applyTransformers
         final ArgumentCaptor<ActionListener<String>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        doNothing().when(mappingTransformerRegistry).applyTransformers(
-            anyString(),
-            any(),
-            listenerCaptor.capture()
-        );
+        doNothing().when(mappingTransformerRegistry).applyTransformers(anyString(), any(), listenerCaptor.capture());
 
         // Act: Call the method
         action.clusterManagerOperation(request, clusterState, responseListener);
@@ -96,8 +92,9 @@ public class TransportCreateIndexActionTests extends OpenSearchTestCase {
         listenerCaptor.getValue().onResponse(transformedMapping);
 
         // Assert: Capture request sent to createIndexService
-        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> updateRequestCaptor =
-            ArgumentCaptor.forClass(CreateIndexClusterStateUpdateRequest.class);
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> updateRequestCaptor = ArgumentCaptor.forClass(
+            CreateIndexClusterStateUpdateRequest.class
+        );
         verify(createIndexService, times(1)).createIndex(updateRequestCaptor.capture(), any());
 
         // Ensure transformed mapping is passed correctly

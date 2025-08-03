@@ -179,13 +179,14 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0
-            ))
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0))
         );
         when(threadPool.stats()).thenReturn(stats);
 
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
@@ -195,13 +196,14 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0
-            ))
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0))
         );
         when(threadPool.stats()).thenReturn(stats);
         Settings settings = getConfiguredClusterSettings(false, false, Collections.emptyMap());
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(settings, getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            settings,
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
         assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
@@ -249,7 +251,10 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
     public void testNodeValidatorWithHighDiskUsage() {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(disk.getAvailable()).thenReturn(new ByteSizeValue(5));
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
@@ -257,14 +262,17 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
 
     public void testNodeValidatorWithHighJVMUsage() {
         when(cpu.getPercent()).thenReturn((short) 50);
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         when(jvm.getHeapUsedPercent()).thenReturn((short) 90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        for(int i = 0; i < 10; i++)
+        for (int i = 0; i < 10; i++)
             ResourceTrackerProvider.resourceTrackers.jvmOneMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        for(int i = 0; i < 10; i++)
+        for (int i = 0; i < 10; i++)
             ResourceTrackerProvider.resourceTrackers.jvmFiveMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
@@ -274,12 +282,13 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 1, 1, 0, 1, 0, -1
-            ))
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, 1, 1, 1, 0, 1, 0, -1))
         );
         when(threadPool.stats()).thenReturn(stats);
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         ThreadPoolStats emptyStats = new ThreadPoolStats(Collections.emptyList());
@@ -553,12 +562,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.localNode()).thenReturn(node);
 
-        return new AutoForceMergeManager(
-            threadPool,
-            monitorService,
-            indicesService,
-            clusterService
-        );
+        return new AutoForceMergeManager(threadPool, monitorService, indicesService, clusterService);
     }
 
     private IndexShard getShard(String indexName, TranslogStats translogStats, Integer segmentCount) {
