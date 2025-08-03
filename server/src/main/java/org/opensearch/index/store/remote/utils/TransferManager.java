@@ -113,7 +113,7 @@ public class TransferManager {
     }
 
     @ExperimentalApi
-    public void fetchBlobAsync(BlobFetchRequest blobFetchRequest) throws IOException {
+    public CompletableFuture<IndexInput> fetchBlobAsync(BlobFetchRequest blobFetchRequest) throws IOException {
         final Path key = blobFetchRequest.getFilePath();
         logger.trace("Asynchronous fetchBlob called for {}", key.toString());
         try {
@@ -133,7 +133,7 @@ public class TransferManager {
             // decrement this reference _after_ creating the clone to be returned.
             // Making sure remote recovery thread-pool take care of background download
             try {
-                cacheEntry.asyncLoadIndexInput(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY));
+                return cacheEntry.asyncLoadIndexInput(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY));
             } catch (Exception exception) {
                 fileCache.decRef(key);
                 throw exception;
