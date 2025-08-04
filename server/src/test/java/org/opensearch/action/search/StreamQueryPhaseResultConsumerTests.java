@@ -88,8 +88,7 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
                 return InternalAggregation.ReduceContext.forPartialReduction(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
-                    () -> PipelineAggregator.PipelineTree.EMPTY,
-                    true
+                    () -> PipelineAggregator.PipelineTree.EMPTY
                 );
             }
 
@@ -98,8 +97,7 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     b -> {},
-                    PipelineAggregator.PipelineTree.EMPTY,
-                    true
+                    PipelineAggregator.PipelineTree.EMPTY
                 );
             }
         });

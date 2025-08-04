@@ -36,7 +36,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
@@ -429,20 +428,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public QueryBuilder postFilter() {
         return postQueryBuilder;
-    }
-
-    // No writeable support for this field, as it's only for coordinator node aggregation reduce
-    private boolean stream = false;
-
-    @ExperimentalApi
-    public SearchSourceBuilder stream(boolean stream) {
-        this.stream = stream;
-        return this;
-    }
-
-    @ExperimentalApi
-    public boolean stream() {
-        return stream;
     }
 
     /**
@@ -1285,7 +1270,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.derivedFields = derivedFields;
         rewrittenBuilder.searchPipeline = searchPipeline;
         rewrittenBuilder.verbosePipeline = verbosePipeline;
-        rewrittenBuilder.stream = stream;
         return rewrittenBuilder;
     }
 
@@ -1517,10 +1501,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (stream) {
-            builder.field("stream", true);
-        }
-
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }

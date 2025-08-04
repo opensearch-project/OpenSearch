@@ -249,10 +249,6 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.query(queryBuilder);
         }
 
-        if (request.hasParam("stream")) {
-            searchSourceBuilder.stream(request.paramAsBoolean("stream", false));
-        }
-
         if (request.hasParam("from")) {
             searchSourceBuilder.from(request.paramAsInt("from", SearchService.DEFAULT_FROM));
         }

@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.Strings;
@@ -105,14 +104,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          */
         private final Supplier<PipelineTree> pipelineTreeForBwcSerialization;
 
-        // This is only for coordinator node aggregation reduce
-        private boolean stream;
-
-        @ExperimentalApi
-        public boolean isStream() {
-            return stream;
-        }
-
         /**
          * Build a {@linkplain ReduceContext} to perform a partial reduction.
          */
@@ -122,15 +113,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             Supplier<PipelineTree> pipelineTreeForBwcSerialization
         ) {
             return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
-        }
-
-        public static ReduceContext forPartialReduction(
-            BigArrays bigArrays,
-            ScriptService scriptService,
-            Supplier<PipelineTree> pipelineTreeForBwcSerialization,
-            boolean stream
-        ) {
-            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization, stream);
         }
 
         /**
@@ -152,23 +134,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             );
         }
 
-        public static ReduceContext forFinalReduction(
-            BigArrays bigArrays,
-            ScriptService scriptService,
-            IntConsumer multiBucketConsumer,
-            PipelineTree pipelineTreeRoot,
-            boolean stream
-        ) {
-            return new ReduceContext(
-                bigArrays,
-                scriptService,
-                multiBucketConsumer,
-                requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"),
-                () -> pipelineTreeRoot,
-                stream
-            );
-        }
-
         private ReduceContext(
             BigArrays bigArrays,
             ScriptService scriptService,
@@ -182,18 +147,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             this.pipelineTreeRoot = pipelineTreeRoot;
             this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
             this.isSliceLevel = false;
-        }
-
-        private ReduceContext(
-            BigArrays bigArrays,
-            ScriptService scriptService,
-            IntConsumer multiBucketConsumer,
-            PipelineTree pipelineTreeRoot,
-            Supplier<PipelineTree> pipelineTreeForBwcSerialization,
-            boolean stream
-        ) {
-            this(bigArrays, scriptService, multiBucketConsumer, pipelineTreeRoot, pipelineTreeForBwcSerialization);
-            this.stream = stream;
         }
 
         /**
