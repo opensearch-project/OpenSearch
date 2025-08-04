@@ -52,7 +52,15 @@ public class LocalTranslog extends Translog {
         final LongConsumer persistedSequenceNumberConsumer,
         final ChannelFactory channelFactory
     ) throws IOException {
-        super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer, channelFactory);
+        super(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            channelFactory
+        );
         try {
             final Checkpoint checkpoint = readCheckpoint(location);
             final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));

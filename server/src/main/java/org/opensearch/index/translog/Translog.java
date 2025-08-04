@@ -196,7 +196,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
-        this.channelFactory = channelFactory != null ? channelFactory : FileChannel :: open;
+        this.channelFactory = channelFactory != null ? channelFactory : FileChannel::open;
     }
 
     /** recover all translog files found on disk */
