@@ -59,11 +59,6 @@ setting 'grpc.netty.keepalive_timeout',                 '1s'
 
 ## Testing
 
-**Prerequisites:** Ensure Java 21 is configured:
-```bash
-export JAVA_HOME=/opt/jvm/jdk-21 && export PATH=$JAVA_HOME/bin:$PATH
-```
-
 ### Unit Tests
 
 ```bash
