@@ -24,8 +24,12 @@ import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
@@ -120,8 +124,9 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
             TransportService.class,
             node2
         );
-        CountDownLatch latch = new CountDownLatch(1);
-
+        CountDownLatch latch = new CountDownLatch(2);
+        AtomicLong numInvocations = new AtomicLong(0);
+        Set<String> executingThreads = ConcurrentHashMap.newKeySet();
         StubbableTransport.SendRequestBehavior behavior = (connection, requestId, action, request, options) -> {
             if (action.equals("indices:admin/remote_publish_merged_segment[r]")) {
                 assertTrue(
@@ -129,6 +134,8 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
                         .getRequest() instanceof RemoteStorePublishMergedSegmentRequest
                 );
                 latch.countDown();
+                numInvocations.incrementAndGet();
+                executingThreads.add(Thread.currentThread().getName());
             }
             connection.sendRequest(requestId, action, request, options);
         };
@@ -147,7 +154,10 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(2));
 
         waitForSegmentCount(INDEX_NAME, 2, logger);
+        logger.info("Number of merge invocations: {}", numInvocations.get());
         assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertTrue(executingThreads.size() > 1);
+        assertTrue(numInvocations.get() > 1);
         mockTransportServiceNode1.clearAllRules();
         mockTransportServiceNode2.clearAllRules();
     }
