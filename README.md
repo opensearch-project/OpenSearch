@@ -15,7 +15,7 @@
 
 ## Welcome!
 
-OpenSearch is a community-driven, open-source, enterprise-grade search and observability suite that brings order to unstructured data at scale.
+OpenSearch is an open-source, enterprise-grade search and observability suite that brings order to unstructured data at scale.
 
 ## Project Resources
 
