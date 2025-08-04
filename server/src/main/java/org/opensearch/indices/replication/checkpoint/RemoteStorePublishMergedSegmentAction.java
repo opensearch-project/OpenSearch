@@ -85,6 +85,14 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         if (checkpoint.getShardId().equals(replica.shardId())) {
             replica.getRemoteDirectory().markPendingMergedSegmentsDownload(checkpoint.getLocalToRemoteSegmentFilenameMap());
             replicationService.onNewMergedSegmentCheckpoint(checkpoint, replica);
+        } else {
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "Received merged segment checkpoint for shard {} on replica shard {}, ignoring checkpoint",
+                    checkpoint.getShardId(),
+                    replica.shardId()
+                )
+            );
         }
     }
 
@@ -123,7 +131,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
         } else {
             logger.warn(
                 () -> new ParameterizedMessage(
-                    "Unable to confirm upload of merged segment {} to remote store. Timeout of {}s exceeded. Skipping pre-copy.",
+                    "Unable to confirm upload of merged segment {} to remote store. Timeout of {}ms exceeded. Skipping pre-copy.",
                     checkpoint,
                     TimeValue.timeValueMillis(elapsedTimeMillis).toHumanReadableString(3)
                 )
