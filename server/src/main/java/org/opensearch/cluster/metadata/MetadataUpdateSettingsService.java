@@ -357,7 +357,9 @@ public class MetadataUpdateSettingsService {
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(
                                     finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
-                                    true
+                                    true, // validateDependencies
+                                    false, // ignorePrivateSettings
+                                    true  // ignoreArchivedSettings
                                 );
                                 metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
                             }
@@ -389,9 +391,9 @@ public class MetadataUpdateSettingsService {
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(
                                     finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
-                                    true,
-                                    false,
-                                    true
+                                    true, // validateDependencies
+                                    false, // ignorePrivateSettings
+                                    true  // ignoreArchivedSettings
                                 );
                                 metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
                             }
