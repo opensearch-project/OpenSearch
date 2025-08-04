@@ -133,6 +133,24 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
         });
     }
 
+    // This test validates shard initialization does not fail due to kafka connection errors.
+    public void testShardInitializationUsingUnknownTopic() throws Exception {
+        createIndexWithMappingSource(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", "unknownTopic")
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            mappings
+        );
+        ensureGreen(indexName);
+    }
+
     private void setupKafka() {
         kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1"))
             // disable topic auto creation

@@ -58,6 +58,7 @@ import org.opensearch.index.mapper.Mapper.BuilderContext;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.lookup.SearchLookup;
@@ -67,6 +68,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -93,7 +95,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
@@ -127,6 +130,63 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(fd instanceof SortedNumericIndexFieldData);
     }
 
+    public void testIndexFieldDataCacheIsCleredAfterIndexRemoval() throws IOException, InterruptedException {
+        final IndexService indexService = createIndex("test");
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        // copy the ifdService since we can set the listener only once.
+        final IndexFieldDataService ifdService = new IndexFieldDataService(
+            indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(),
+            indicesService.getCircuitBreakerService(),
+            indexService.mapperService(),
+            indexService.getThreadPool()
+        );
+
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(ctx)
+            .fieldType();
+        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(ctx)
+            .fieldType();
+        final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        Document doc = new Document();
+        doc.add(new StringField("field_1", "thisisastring", Store.NO));
+        doc.add(new StringField("field_2", "thisisanotherstring", Store.NO));
+        writer.addDocument(doc);
+        final IndexReader reader = DirectoryReader.open(writer);
+        final AtomicInteger onCacheCalled = new AtomicInteger();
+        final AtomicInteger onRemovalCalled = new AtomicInteger();
+        ifdService.setListener(new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
+        });
+        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, "test", () -> { throw new UnsupportedOperationException(); });
+        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, "test", () -> { throw new UnsupportedOperationException(); });
+        LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
+        LeafFieldData loadField1 = ifd1.load(leafReaderContext);
+        LeafFieldData loadField2 = ifd2.load(leafReaderContext);
+
+        assertEquals(2, indicesService.getIndicesFieldDataCache().getCache().count());
+
+        // Remove index
+        indicesService.removeIndex(
+            indexService.index(),
+            IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED,
+            "Please delete!"
+        );
+
+        waitUntil(() -> indicesService.getIndicesFieldDataCache().getCache().count() == 0);
+
+        reader.close();
+        loadField1.close();
+        loadField2.close();
+        writer.close();
+    }
+
     public void testGetForFieldRuntimeField() {
         final IndexService indexService = createIndex("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -134,7 +194,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
         MappedFieldType ft = mock(MappedFieldType.class);
@@ -159,7 +220,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
@@ -227,7 +289,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
@@ -284,7 +347,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService()
+            indexService.mapperService(),
+            indexService.getThreadPool()
         );
         // set it the first time...
         shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
@@ -325,7 +389,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 cache,
                 null,
-                null
+                null,
+                threadPool
             );
             if (ft.hasDocValues()) {
                 ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); }); // no exception
