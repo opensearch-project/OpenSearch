@@ -5154,7 +5154,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try (final GatedCloseable<SegmentInfos> ignored = tuple.v1()) {
             replicationTracker.setLatestReplicationCheckpoint(tuple.v2());
             if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)) {
-                updatePrimaryMergedSegmentCheckpoints(tuple.v1().get());
+                if (isPrimaryMode() && routingEntry().active()) {
+                    updatePrimaryMergedSegmentCheckpoints(tuple.v1().get());
+                }
             }
         } catch (IOException e) {
             throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
