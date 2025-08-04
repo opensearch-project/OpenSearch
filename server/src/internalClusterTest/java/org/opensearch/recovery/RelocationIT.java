@@ -97,6 +97,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,7 +105,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -916,24 +916,23 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             ).setMapping(mapping)
         );
 
-        // Start background indexing
-        AtomicBoolean stopIndexing = new AtomicBoolean(false);
-        AtomicInteger docCount = new AtomicInteger(0);
+        // Start indexing
+        int docCount = randomIntBetween(10, 100);
+        CountDownLatch docCountLatch = new CountDownLatch(docCount);
         Thread indexingThread = new Thread(() -> {
-            while (stopIndexing.get() == false) {
+            while (docCountLatch.getCount() > 0) {
                 try {
-                    int id = docCount.incrementAndGet();
+                    long id = docCountLatch.getCount();
                     client().prepareIndex("test").setId(String.valueOf(id)).setSource("name", "test" + id, "value", id).get();
+                    docCountLatch.countDown();
                     Thread.sleep(10); // Small delay to prevent overwhelming
                 } catch (Exception e) {
                     logger.error("Error in background indexing", e);
                 }
             }
         });
-        indexingThread.start();
 
-        // Let it index some documents
-        Thread.sleep(2000);
+        indexingThread.start();
 
         // Start relocation
         String node2 = internalCluster().startNode();
@@ -943,20 +942,18 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
         ensureGreen(TimeValue.timeValueMinutes(2));
 
-        // Stop indexing
-        stopIndexing.set(true);
+        // Let it index docCount documents
+        docCountLatch.await();
         indexingThread.join();
 
-        // Verify all documents
-        int finalDocCount = docCount.get();
         assertBusy(() -> {
             refresh();
             SearchResponse response = client().prepareSearch("test")
                 .setQuery(matchAllQuery())
-                .setSize(finalDocCount)
+                .setSize(docCount)
                 .addSort("value", SortOrder.ASC)
                 .get();
-            assertHitCount(response, finalDocCount);
+            assertHitCount(response, docCount);
 
             int expectedId = 1;
             for (SearchHit hit : response.getHits()) {
@@ -1006,37 +1003,28 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         logger.info("--> relocate the shard from node1 to node2");
         client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
 
-        AtomicBoolean stop = new AtomicBoolean(false);
+        final Set<Integer> docsToUpdate = new HashSet<>();
         final Set<Integer> updatedDocs = ConcurrentCollections.newConcurrentSet();
+        int updateCount = randomIntBetween(10, numDocs / 2);
+        for (int i = 0; i < updateCount; i++) {
+            docsToUpdate.add(randomIntBetween(0, numDocs - 1));
+        }
 
-        // Start doc update thread
-        Thread updateThread = new Thread(() -> {
-            while (stop.get() == false) {
-                try {
-                    int docId = randomIntBetween(0, numDocs - 1);
-                    client().prepareUpdate("test", String.valueOf(docId))
-                        .setRetryOnConflict(3)
-                        .setDoc("value", docId * 2)
-                        .execute()
-                        .actionGet();
-                    updatedDocs.add(docId);
-                    Thread.sleep(10);
-                } catch (Exception e) {
-                    if (e instanceof InterruptedException) {
-                        break;
-                    }
-                    logger.warn("Error in update thread", e);
-                }
+        docsToUpdate.stream().forEach(docId -> {
+            try {
+                client().prepareUpdate("test", String.valueOf(docId))
+                    .setRetryOnConflict(3)
+                    .setDoc("value", docId * 2)
+                    .execute()
+                    .actionGet();
+                updatedDocs.add(docId);
+                Thread.sleep(10);
+            } catch (Exception e) {
+                logger.warn("Error while updating doc with id = {}", docId, e);
             }
         });
-        updateThread.start();
 
-        // Wait for some updates to occur
-        Thread.sleep(2000);
-
-        stop.set(true);
-        updateThread.join();
-
+        assertEquals(docsToUpdate.size(), updatedDocs.size());
         refresh("test");
         ensureGreen(TimeValue.timeValueMinutes(2));
 
