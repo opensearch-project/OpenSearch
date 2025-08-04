@@ -91,7 +91,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         return new SearchStreamActionListener<SearchPhaseResult>(shard, shardIndex) {
             @Override
             public void innerOnResponse(SearchPhaseResult result) {
-                throw new RuntimeException("innerOnResponse is not used for stream search");
+                innerOnCompleteResponse(result);
             }
 
             @Override
