@@ -67,12 +67,18 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.profile.query.ProfileWeight;
@@ -396,13 +402,40 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 ctx.ord,
                 searchContext.shardTarget().getShardId().id()
             );
-            searchContext.bucketCollectorProcessor().buildAggBatchAndSend(collector);
-            // TODO: sendBatch here
+            InternalAggregation internalAggregation = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
+            sendBatch(internalAggregation);
         }
 
         // Note: this is called if collection ran successfully, including the above special cases of
         // CollectionTerminatedException and TimeExceededException, but no other exception.
         leafCollector.finish();
+    }
+
+    public void sendBatch(InternalAggregation batch) {
+        InternalAggregations batchAggResult = new InternalAggregations(List.of(batch));
+
+        final QuerySearchResult queryResult = searchContext.queryResult();
+        // clone the query result to avoid issue in concurrent scenario
+        final QuerySearchResult cloneResult = new QuerySearchResult(
+            queryResult.getContextId(),
+            queryResult.getSearchShardTarget(),
+            queryResult.getShardSearchRequest()
+        );
+        cloneResult.aggregations(batchAggResult);
+        logger.debug("Thread [{}]: set batchAggResult [{}]", Thread.currentThread(), batchAggResult.asMap());
+        // set a dummy topdocs
+        cloneResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+        // set a dummy fetch
+        final FetchSearchResult fetchResult = searchContext.fetchResult();
+        fetchResult.hits(SearchHits.empty());
+        final QueryFetchSearchResult result = new QueryFetchSearchResult(cloneResult, fetchResult);
+        // flush back
+        // logger.info("Thread [{}]: send agg result before [{}]", Thread.currentThread(),
+        // result.queryResult().aggregations().expand().asMap());
+        searchContext.getListener().onStreamResponse(result, false);
+        // logger.info("Thread [{}]: send agg result after [{}]", Thread.currentThread(),
+        // result.queryResult().aggregations().expand().asMap());
+        // logger.info("Thread [{}]: send total hits after [{}]", Thread.currentThread(), result.queryResult().topDocs().topDocs.totalHits);
     }
 
     private Weight wrapWeight(Weight weight) {

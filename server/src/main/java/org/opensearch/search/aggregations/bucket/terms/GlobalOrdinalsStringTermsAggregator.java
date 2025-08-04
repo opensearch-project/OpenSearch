@@ -224,8 +224,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        if (context.isStreamSearch()) return false;
-
         if (tryStarTreePrecompute(ctx) == true) {
             return true;
         }

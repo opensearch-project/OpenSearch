@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.opensearch.search.StreamSearchContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
-import org.opensearch.search.internal.SearchContext;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 public class TermsAggregatorFactoryTests extends OpenSearchTestCase {
     public void testPickEmpty() throws Exception {
         AggregatorFactories empty = mock(AggregatorFactories.class);
-        SearchContext context = mock(SearchContext.class);
+        StreamSearchContext context = mock(StreamSearchContext.class);
         when(empty.countAggregators()).thenReturn(0);
         assertThat(
             TermsAggregatorFactory.pickSubAggCollectMode(empty, randomInt(), randomInt(), context),
@@ -54,7 +54,7 @@ public class TermsAggregatorFactoryTests extends OpenSearchTestCase {
 
     public void testPickNonEempty() {
         AggregatorFactories nonEmpty = mock(AggregatorFactories.class);
-        SearchContext context = mock(SearchContext.class);
+        StreamSearchContext context = mock(StreamSearchContext.class);
         when(nonEmpty.countAggregators()).thenReturn(1);
         assertThat(
             TermsAggregatorFactory.pickSubAggCollectMode(nonEmpty, Integer.MAX_VALUE, -1, context),
