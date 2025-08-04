@@ -37,6 +37,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
@@ -44,7 +45,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.action.StreamActionListener;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -541,11 +541,11 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    public void setListener(StreamActionListener listener) {
+    public void setListener(StreamSearchChannelListener listener) {
 
     }
 
-    public StreamActionListener getListener() {
+    public StreamSearchChannelListener getListener() {
         throw new RuntimeException();
     }
 

@@ -45,6 +45,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -54,7 +55,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.action.StreamActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -1209,15 +1209,15 @@ final class DefaultSearchContext extends SearchContext {
         return false;
     }
 
-    StreamActionListener listener;
+    StreamSearchChannelListener listener;
 
     @Override
-    public void setListener(StreamActionListener listener) {
+    public void setListener(StreamSearchChannelListener listener) {
         this.listener = listener;
     }
 
     @Override
-    public StreamActionListener getListener() {
+    public StreamSearchChannelListener getListener() {
         return listener;
     }
 

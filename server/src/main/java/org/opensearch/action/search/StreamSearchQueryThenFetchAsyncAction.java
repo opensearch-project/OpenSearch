@@ -88,11 +88,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         final PendingExecutions pendingExecutions,
         final Thread thread
     ) {
-        return new SearchStreamActionListener<SearchPhaseResult>(shard, shardIndex) {
-            @Override
-            public void innerOnResponse(SearchPhaseResult result) {
-                innerOnCompleteResponse(result);
-            }
+        return new StreamSearchActionListener<SearchPhaseResult>(shard, shardIndex) {
 
             @Override
             protected void innerOnStreamResponse(SearchPhaseResult result) {

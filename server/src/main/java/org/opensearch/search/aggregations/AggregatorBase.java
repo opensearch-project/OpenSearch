@@ -340,7 +340,7 @@ public abstract class AggregatorBase extends Aggregator {
         // flush back
         // logger.info("Thread [{}]: send agg result before [{}]", Thread.currentThread(),
         // result.queryResult().aggregations().expand().asMap());
-        context.getListener().onStreamResponse(result);
+        context.getListener().onStreamResponse(result, false);
         // logger.info("Thread [{}]: send agg result after [{}]", Thread.currentThread(),
         // result.queryResult().aggregations().expand().asMap());
         // logger.info("Thread [{}]: send total hits after [{}]", Thread.currentThread(), result.queryResult().topDocs().topDocs.totalHits);
