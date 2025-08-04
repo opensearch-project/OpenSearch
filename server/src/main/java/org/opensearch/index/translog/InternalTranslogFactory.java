@@ -37,7 +37,8 @@ public class InternalTranslogFactory implements TranslogFactory {
             translogDeletionPolicy,
             globalCheckpointSupplier,
             primaryTermSupplier,
-            persistedSequenceNumberConsumer
+            persistedSequenceNumberConsumer,
+            null
         );
     }
 }

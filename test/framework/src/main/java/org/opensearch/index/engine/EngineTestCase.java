@@ -549,7 +549,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTermSupplier,
-            seqNo -> {}
+            seqNo -> {},
+            null
         );
     }
 

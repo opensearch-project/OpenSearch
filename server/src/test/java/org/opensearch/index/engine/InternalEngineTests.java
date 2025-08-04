@@ -4175,7 +4175,8 @@ public class InternalEngineTests extends EngineTestCase {
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            null
         );
         translog.add(new Translog.Index("SomeBogusId", 0, primaryTerm.get(), "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());

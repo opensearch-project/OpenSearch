@@ -109,7 +109,7 @@ public class RemoteFsTranslog extends Translog {
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
         RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
-        super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
+        super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer, null);
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
