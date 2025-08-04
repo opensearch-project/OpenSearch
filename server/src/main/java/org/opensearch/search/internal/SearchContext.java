@@ -541,9 +541,7 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    public void setListener(StreamSearchChannelListener listener) {
-
-    }
+    public void setListener(StreamSearchChannelListener listener) {};
 
     public StreamSearchChannelListener getListener() {
         throw new RuntimeException();

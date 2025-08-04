@@ -85,7 +85,7 @@ public class BucketCollectorProcessor {
         }
     }
 
-    public void buildAggBatchAndSend(Collector collectorTree) throws IOException {
+    public InternalAggregation buildAggBatch(Collector collectorTree) throws IOException {
         final Queue<Collector> collectors = new LinkedList<>();
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
@@ -101,7 +101,7 @@ public class BucketCollectorProcessor {
             } else if (currentCollector instanceof BucketCollector) {
                 // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator) {
-                    ((Aggregator) currentCollector).buildTopLevelAndSendBatch();
+                    return ((Aggregator) currentCollector).buildTopLevelBatch();
                 } else if (currentCollector instanceof MultiBucketCollector) {
                     for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
                         collectors.offer(innerCollector);
@@ -109,6 +109,7 @@ public class BucketCollectorProcessor {
                 }
             }
         }
+        return null;
     }
 
     /**

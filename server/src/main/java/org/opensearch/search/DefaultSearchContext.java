@@ -45,7 +45,6 @@ import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -135,12 +134,12 @@ import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTER
  *
  * @opensearch.internal
  */
-final class DefaultSearchContext extends SearchContext {
+class DefaultSearchContext extends SearchContext {
 
     private static final Logger logger = LogManager.getLogger(DefaultSearchContext.class);
 
     private final ReaderContext readerContext;
-    private final Engine.Searcher engineSearcher;
+    final Engine.Searcher engineSearcher;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
@@ -150,7 +149,7 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final ClusterService clusterService;
     private final IndexService indexService;
-    private final ContextIndexSearcher searcher;
+    ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
@@ -210,7 +209,7 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
-    private final String concurrentSearchMode;
+    final String concurrentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
@@ -1207,22 +1206,5 @@ final class DefaultSearchContext extends SearchContext {
             return clusterService.getClusterSettings().get(KEYWORD_INDEX_OR_DOC_VALUES_ENABLED);
         }
         return false;
-    }
-
-    StreamSearchChannelListener listener;
-
-    @Override
-    public void setListener(StreamSearchChannelListener listener) {
-        this.listener = listener;
-    }
-
-    @Override
-    public StreamSearchChannelListener getListener() {
-        return listener;
-    }
-
-    @Override
-    public boolean isStreamSearch() {
-        return listener != null;
     }
 }

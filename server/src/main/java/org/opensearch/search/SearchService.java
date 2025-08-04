@@ -785,7 +785,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true)
+            StreamSearchContext context = createStreamSearchContext(readerContext, request, task, true)
         ) {
             assert listener instanceof StreamSearchChannelListener;
             context.setListener((StreamSearchChannelListener) listener);
@@ -1275,6 +1275,38 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context;
     }
 
+    final StreamSearchContext createStreamSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTask task,
+        boolean includeAggregations
+    ) throws IOException {
+        final StreamSearchContext context = createStreamSearchContext(readerContext, request, defaultSearchTimeout, false);
+        try {
+            if (request.scroll() != null) {
+                context.scrollContext().scroll = request.scroll();
+            }
+            parseSource(context, request.source(), includeAggregations);
+
+            // if the from and size are still not set, default them
+            if (context.from() == -1) {
+                context.from(DEFAULT_FROM);
+            }
+            if (context.size() == -1) {
+                context.size(DEFAULT_SIZE);
+            }
+            context.setTask(task);
+
+            // pre process
+            queryPhase.preProcess(context);
+        } catch (Exception e) {
+            context.close();
+            throw e;
+        }
+
+        return context;
+    }
+
     public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, boolean validate) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
@@ -1307,6 +1339,64 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 OriginalIndices.NONE
             );
             searchContext = new DefaultSearchContext(
+                reader,
+                request,
+                shardTarget,
+                clusterService,
+                bigArrays,
+                threadPool::relativeTimeInMillis,
+                timeout,
+                fetchPhase,
+                lowLevelCancellation,
+                clusterService.state().nodes().getMinNodeVersion(),
+                validate,
+                indexSearcherExecutor,
+                this::aggReduceContextBuilder,
+                concurrentSearchDeciderFactories
+            );
+            // we clone the query shard context here just for rewriting otherwise we
+            // might end up with incorrect state since we are using now() or script services
+            // during rewrite and normalized / evaluate templates etc.
+            QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
+            DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+                searchContext.getQueryShardContext(),
+                Optional.ofNullable(request.source()).map(SearchSourceBuilder::getDerivedFieldsObject).orElse(Collections.emptyMap()),
+                Optional.ofNullable(request.source()).map(SearchSourceBuilder::getDerivedFields).orElse(Collections.emptyList()),
+                context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
+            );
+            context.setDerivedFieldResolver(derivedFieldResolver);
+            context.setKeywordFieldIndexOrDocValuesEnabled(searchContext.keywordIndexOrDocValuesEnabled());
+            searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
+            Rewriteable.rewrite(request.getRewriteable(), context, true);
+            assert searchContext.getQueryShardContext().isCacheable();
+            success = true;
+        } finally {
+            if (success == false) {
+                // we handle the case where `IndicesService#indexServiceSafe`or `IndexService#getShard`, or the DefaultSearchContext
+                // constructor throws an exception since we would otherwise leak a searcher and this can have severe implications
+                // (unable to obtain shard lock exceptions).
+                IOUtils.closeWhileHandlingException(searchContext);
+            }
+        }
+        return searchContext;
+    }
+
+    private StreamSearchContext createStreamSearchContext(
+        ReaderContext reader,
+        ShardSearchRequest request,
+        TimeValue timeout,
+        boolean validate
+    ) throws IOException {
+        boolean success = false;
+        StreamSearchContext searchContext = null;
+        try {
+            SearchShardTarget shardTarget = new SearchShardTarget(
+                clusterService.localNode().getId(),
+                reader.indexShard().shardId(),
+                request.getClusterAlias(),
+                OriginalIndices.NONE
+            );
+            searchContext = new StreamSearchContext(
                 reader,
                 request,
                 shardTarget,
