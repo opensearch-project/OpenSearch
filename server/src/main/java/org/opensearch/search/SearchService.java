@@ -50,6 +50,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.UpdatePitContextRequest;
 import org.opensearch.action.search.UpdatePitContextResponse;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
@@ -69,7 +70,6 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.action.StreamActionListener;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -736,7 +736,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ShardSearchRequest request,
         boolean keepStatesInContext,
         SearchShardTask task,
-        StreamActionListener<SearchPhaseResult> listener,
+        StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener,
         String executorName
     ) {
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
@@ -787,8 +787,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, true)
         ) {
-            assert listener instanceof StreamActionListener;
-            context.setListener((StreamActionListener) listener);
+            assert listener instanceof StreamSearchChannelListener;
+            context.setListener((StreamSearchChannelListener) listener);
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 loadOrExecuteQueryPhase(request, context);
