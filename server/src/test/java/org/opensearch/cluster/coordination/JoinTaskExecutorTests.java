@@ -662,7 +662,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
-        assertTrue(e.getMessage().equals("a remote store node [" + joiningNode + "] is trying to join a non remote store cluster"));
+        assertEquals("a remote store node [" + joiningNode + "] is trying to join a non remote store cluster", e.getMessage());
     }
 
     public void testPreventJoinRemotePublicationClusterWithIncompatibleAttributes() {
@@ -719,7 +719,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
-        assertTrue(e.getMessage().equals("a non remote store node [" + joiningNode + "] is trying to join a remote store cluster"));
+        assertEquals("a non remote store node [" + joiningNode + "] is trying to join a remote store cluster", e.getMessage());
     }
 
     public void testPreventJoinClusterWithRemoteStoreNodeJoiningRemoteStateCluster() {
@@ -739,7 +739,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
-        assertTrue(e.getMessage().equals("a remote store node [" + joiningNode + "] is trying to join a non remote store cluster"));
+        assertEquals("a remote store node [" + joiningNode + "] is trying to join a non remote store cluster", e.getMessage());
     }
 
     public void testUpdatesClusterStateWithSingleNodeCluster() throws Exception {
