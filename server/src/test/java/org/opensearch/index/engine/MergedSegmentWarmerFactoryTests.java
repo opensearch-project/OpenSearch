@@ -50,12 +50,7 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
     public void testGetWithSegmentReplicationEnabled() {
         IndexSettings indexSettings = createIndexSettings(
             false,
-            Settings
-                .builder()
-                .put(
-                    IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(),
-                    ReplicationType.SEGMENT)
-                .build()
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
         );
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         IndexWriter.IndexReaderWarmer warmer = factory.get(indexShard);
@@ -67,12 +62,7 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
     public void testGetWithRemoteStoreEnabled() {
         IndexSettings indexSettings = createIndexSettings(
             true,
-            Settings
-                .builder()
-                .put(
-                    IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(),
-                    ReplicationType.SEGMENT)
-                .build()
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
         );
         when(indexShard.indexSettings()).thenReturn(indexSettings);
 
@@ -85,12 +75,7 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
     public void testGetWithDocumentReplication() {
         IndexSettings indexSettings = createIndexSettings(
             false,
-            Settings
-                .builder()
-                .put(
-                    IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(),
-                    ReplicationType.DOCUMENT)
-                .build()
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build()
         );
 
         when(indexShard.indexSettings()).thenReturn(indexSettings);
