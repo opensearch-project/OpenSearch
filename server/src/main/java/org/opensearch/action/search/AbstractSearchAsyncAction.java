@@ -101,7 +101,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
-    protected SearchPhaseResults<Result> results;
+    protected final SearchPhaseResults<Result> results;
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
@@ -346,7 +346,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param thread the current thread for fork logic
      * @return the action listener to use for this shard
      */
-    protected SearchActionListener<Result> createShardActionListener(
+    SearchActionListener<Result> createShardActionListener(
         final SearchShardTarget shard,
         final int shardIndex,
         final SearchShardIterator shardIt,

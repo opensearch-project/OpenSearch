@@ -80,7 +80,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
      * Override the extension point to create streaming listeners instead of regular listeners
      */
     @Override
-    protected SearchActionListener<SearchPhaseResult> createShardActionListener(
+    SearchActionListener<SearchPhaseResult> createShardActionListener(
         final SearchShardTarget shard,
         final int shardIndex,
         final SearchShardIterator shardIt,
