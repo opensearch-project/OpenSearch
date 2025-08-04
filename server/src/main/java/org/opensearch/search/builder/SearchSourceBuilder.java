@@ -431,6 +431,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return postQueryBuilder;
     }
 
+    // No writeable support for this field, as it's only for coordinator node aggregation reduce
     private boolean stream = false;
 
     @ExperimentalApi

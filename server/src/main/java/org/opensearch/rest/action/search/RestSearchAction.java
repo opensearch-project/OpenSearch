@@ -136,13 +136,15 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
-            boolean stream = request.paramAsBoolean("stream", false);
-            if (stream) {
+        boolean stream = request.paramAsBoolean("stream", false);
+        if (stream) {
+            if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
                 return channel -> {
                     RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                     cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
                 };
+            } else {
+                throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
             }
         }
         return channel -> {
@@ -247,10 +249,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.query(queryBuilder);
         }
 
-        if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
-            if (request.hasParam("stream")) {
-                searchSourceBuilder.stream(request.paramAsBoolean("stream", false));
-            }
+        if (request.hasParam("stream")) {
+            searchSourceBuilder.stream(request.paramAsBoolean("stream", false));
         }
 
         if (request.hasParam("from")) {

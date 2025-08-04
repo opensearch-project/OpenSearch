@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.Strings;
@@ -104,8 +105,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          */
         private final Supplier<PipelineTree> pipelineTreeForBwcSerialization;
 
+        // This is only for coordinator node aggregation reduce
         private boolean stream;
 
+        @ExperimentalApi
         public boolean isStream() {
             return stream;
         }
