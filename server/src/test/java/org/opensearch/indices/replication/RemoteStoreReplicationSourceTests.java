@@ -202,7 +202,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
                 });
             }
         };
-        replicaShard.getRemoteDirectory().markPendingMergedSegmentsDownload(localToRemoteFilenameMap);
+        replicaShard.getRemoteDirectory().markMergedSegmentsPendingDownload(localToRemoteFilenameMap);
         RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
             new MergedSegmentCheckpoint(
                 replicaShard.shardId(),
@@ -243,7 +243,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
                 });
             }
         };
-        replicaShard.getRemoteDirectory().markPendingMergedSegmentsDownload(localToRemoteFilenameMap);
+        replicaShard.getRemoteDirectory().markMergedSegmentsPendingDownload(localToRemoteFilenameMap);
         RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
             new MergedSegmentCheckpoint(
                 replicaShard.shardId(),

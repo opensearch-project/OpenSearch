@@ -156,6 +156,7 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         logger.info("Number of merge invocations: {}", numInvocations.get());
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertTrue(executingThreads.size() > 1);
+        // Verify concurrent execution by checking that multiple unique threads handled merge operations
         assertTrue(numInvocations.get() > 1);
         mockTransportServiceNode1.clearAllRules();
         mockTransportServiceNode2.clearAllRules();

@@ -83,7 +83,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
     protected void doReplicaOperation(RemoteStorePublishMergedSegmentRequest shardRequest, IndexShard replica) {
         RemoteStoreMergedSegmentCheckpoint checkpoint = shardRequest.getMergedSegment();
         if (checkpoint.getShardId().equals(replica.shardId())) {
-            replica.getRemoteDirectory().markPendingMergedSegmentsDownload(checkpoint.getLocalToRemoteSegmentFilenameMap());
+            replica.getRemoteDirectory().markMergedSegmentsPendingDownload(checkpoint.getLocalToRemoteSegmentFilenameMap());
             replicationService.onNewMergedSegmentCheckpoint(checkpoint, replica);
         } else {
             logger.warn(

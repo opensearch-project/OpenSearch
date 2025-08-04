@@ -1201,6 +1201,26 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         assertTrue(uploadedSegments.containsKey("_0.cfs"));
     }
 
+    public void testMarkMergedSegmentPendingDownload() {
+        String localSegmentName1 = "_1.si";
+        String remoteSegmentName1 = "_1.si__uuid";
+        String localSegmentName2 = "_1.dvd";
+        String remoteSegmentName2 = "_1.dvd__uuid";
+        remoteSegmentStoreDirectory.markMergedSegmentsPendingDownload(
+            Map.of(localSegmentName1, remoteSegmentName1, localSegmentName2, remoteSegmentName2)
+        );
+
+        assertTrue(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName1));
+        assertTrue(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName2));
+        assertFalse(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload("_3.si"));
+        assertEquals(remoteSegmentName1, remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName1));
+        assertEquals(remoteSegmentName2, remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName2));
+
+        remoteSegmentStoreDirectory.unmarkMergedSegmentsPendingDownload(Set.of(localSegmentName1));
+        assertFalse(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName1));
+        assertNull(remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName1));
+    }
+
     private static class WrapperIndexOutput extends IndexOutput {
         public IndexOutput indexOutput;
 

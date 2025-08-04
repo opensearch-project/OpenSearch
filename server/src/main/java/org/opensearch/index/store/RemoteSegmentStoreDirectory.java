@@ -23,7 +23,9 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
@@ -136,8 +138,19 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
         ThreadPool threadPool,
+        ShardId shardId
+    ) throws IOException {
+        this(remoteDataDirectory, remoteMetadataDirectory, mdLockManager, threadPool, shardId, null);
+    }
+
+    @InternalApi
+    public RemoteSegmentStoreDirectory(
+        RemoteDirectory remoteDataDirectory,
+        RemoteDirectory remoteMetadataDirectory,
+        RemoteStoreLockManager mdLockManager,
+        ThreadPool threadPool,
         ShardId shardId,
-        Map<String, String> pendingDownloadMergedSegments
+        @Nullable Map<String, String> pendingDownloadMergedSegments
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
@@ -1126,7 +1139,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      *
      * @param localToRemoteFilenames Map of local filenames to their corresponding remote filenames
      */
-    public void markPendingMergedSegmentsDownload(Map<String, String> localToRemoteFilenames) {
+    public void markMergedSegmentsPendingDownload(Map<String, String> localToRemoteFilenames) {
         pendingDownloadMergedSegments.putAll(localToRemoteFilenames);
     }
 
@@ -1135,7 +1148,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      *
      * @param localFilenames Set of local filenames to remove from pending downloads
      */
-    public void unmarkPendingDownloadMergedSegments(Set<String> localFilenames) {
+    public void unmarkMergedSegmentsPendingDownload(Set<String> localFilenames) {
         localFilenames.forEach(pendingDownloadMergedSegments::remove);
     }
 
@@ -1146,6 +1159,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @return true if segment is pending download, false otherwise
      */
     public boolean isMergedSegmentPendingDownload(String localFilename) {
-        return pendingDownloadMergedSegments.containsKey(localFilename);
+        return pendingDownloadMergedSegments != null && pendingDownloadMergedSegments.containsKey(localFilename);
     }
 }

@@ -737,7 +737,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     private void unmarkPendingDownloadMergedSegments(IndexShard shard, ReplicationCheckpoint receivedCheckpoint) {
         if (isRemoteStoreMergedSegmentCheckpoint(receivedCheckpoint)) {
-            shard.getRemoteDirectory().unmarkPendingDownloadMergedSegments(receivedCheckpoint.getMetadataMap().keySet());
+            shard.getRemoteDirectory().unmarkMergedSegmentsPendingDownload(receivedCheckpoint.getMetadataMap().keySet());
         }
     }
 
