@@ -1308,14 +1308,14 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         );
                     }
                     // Also verify all returned docs are > searchAfterValue
-                    /*for (ScoreDoc scoreDoc : approxDocs.scoreDocs) {
+                    for (ScoreDoc scoreDoc : approxDocs.scoreDocs) {
                         FieldDoc fieldDoc = (FieldDoc) scoreDoc;
                         Number value = (Number) fieldDoc.fields[0];
                         assertTrue(
                             "Doc value " + value + " should be > searchAfterValue " + ((Number) searchAfterDoc.fields[0]).longValue(),
                             value.longValue() > ((Number) searchAfterDoc.fields[0]).longValue()
                         );
-                    }*/
+                    }
                 }
             }
         }
