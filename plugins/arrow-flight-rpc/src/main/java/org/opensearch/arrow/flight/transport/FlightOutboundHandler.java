@@ -89,7 +89,9 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         );
     }
 
-    public void sendResponseBatch(
+    /** This needs to be synchronized for the cases when multiple batches are written concurrently,
+     * as VectorSchemaRoot is shared across batches **/
+    public synchronized void sendResponseBatch(
         final Version nodeVersion,
         final Set<String> features,
         final TcpChannel channel,

@@ -18,9 +18,6 @@ opensearchplugin {
 }
 
 dependencies {
-  // Javassist for bytecode injection chaos testing
-  internalClusterTestImplementation 'org.javassist:javassist:3.29.2-GA'
-
   // all transitive dependencies exported to use arrow-vector and arrow-memory-core
   api "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
   api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
@@ -73,6 +70,9 @@ dependencies {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
     }
   }
+
+  // Javassist for bytecode injection chaos testing
+  internalClusterTestImplementation 'org.javassist:javassist:3.29.2-GA'
 }
 
 tasks.named('test').configure {

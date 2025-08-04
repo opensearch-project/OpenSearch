@@ -11,6 +11,7 @@ Chaos testing is disabled by default. To enable it, modify the `build.gradle` fi
 Add this to the `internalClusterTest` task:
 
 ```gradle
+
 internalClusterTest {
   // Enable chaos testing via bytecode injection
   doFirst {
