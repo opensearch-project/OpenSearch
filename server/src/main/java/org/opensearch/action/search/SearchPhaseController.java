@@ -333,18 +333,7 @@ public final class SearchPhaseController {
             }
         }
 
-        // Merge fetch profiles with query profiles
-        SearchProfileShardResults mergedProfileResults = mergeFetchProfiles(reducedQueryPhase.shardResults, fetchResults);
-
-        return new InternalSearchResponse(
-            hits,
-            reducedQueryPhase.aggregations,
-            reducedQueryPhase.suggest,
-            mergedProfileResults,
-            reducedQueryPhase.timedOut,
-            reducedQueryPhase.terminatedEarly,
-            reducedQueryPhase.numReducePhases
-        );
+        return reducedQueryPhase.buildResponse(hits, fetchResults, this);
     }
 
     private SearchHits getHits(
@@ -754,6 +743,22 @@ public final class SearchPhaseController {
         public InternalSearchResponse buildResponse(SearchHits hits) {
             return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly, numReducePhases);
         }
+
+        /**
+         * Creates a new search response from the given merged hits with fetch profile merging.
+         * @param hits the merged search hits
+         * @param fetchResults the fetch results to merge profiles from
+         * @param controller the SearchPhaseController instance to access mergeFetchProfiles method
+         * @see #merge(boolean, ReducedQueryPhase, Collection, IntFunction)
+         */
+        public InternalSearchResponse buildResponse(
+            SearchHits hits, 
+            Collection<? extends SearchPhaseResult> fetchResults,
+            SearchPhaseController controller
+        ) {
+            SearchProfileShardResults mergedProfileResults = controller.mergeFetchProfiles(shardResults, fetchResults);
+            return new InternalSearchResponse(hits, aggregations, suggest, mergedProfileResults, timedOut, terminatedEarly, numReducePhases);
+        }
     }
 
     InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request) {
@@ -886,7 +891,7 @@ public final class SearchPhaseController {
     /**
      * Merges fetch phase profile results with query phase profile results
      */
-    private SearchProfileShardResults mergeFetchProfiles(
+    public SearchProfileShardResults mergeFetchProfiles(
         SearchProfileShardResults queryProfiles,
         Collection<? extends SearchPhaseResult> fetchResults
     ) {
