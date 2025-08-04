@@ -45,7 +45,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class MergedSegmentWarmerIT extends SegmentReplicationIT {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("logger.org.opensearch.indices.replication", "TRACE").build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @Override

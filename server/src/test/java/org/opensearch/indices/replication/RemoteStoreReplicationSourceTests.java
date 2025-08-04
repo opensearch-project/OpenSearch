@@ -14,16 +14,19 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.index.shard.RemoteStoreRefreshListenerTests;
+import org.opensearch.index.shard.RemoteStoreRefreshListenerTests.TestFilterDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -38,10 +41,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelReplicationTestCase {
@@ -190,8 +195,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
         Map<String, String> localToRemoteFilenameMap = new HashMap<>() {
             {
-                Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard
-                    .getRemoteDirectory()
+                Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard.getRemoteDirectory()
                     .getSegmentsUploadedToRemoteStore();
                 segmentsUploadedToRemoteStore.forEach((segment, metadata) -> {
                     if (segment.startsWith("segments_") == false) put(segment, metadata.getUploadedFilename());
@@ -225,6 +229,70 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         GetSegmentFilesResponse response = res.get();
         assertEquals(response.files.size(), filesToFetch.size());
         assertTrue(response.files.containsAll(filesToFetch));
+        closeShards(replicaShard);
+    }
+
+    public void testGetMergedSegmentFilesDownloadTimeout() throws IOException, ExecutionException, InterruptedException {
+        final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
+        Map<String, String> localToRemoteFilenameMap = new HashMap<>() {
+            {
+                Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore = primaryShard.getRemoteDirectory()
+                    .getSegmentsUploadedToRemoteStore();
+                segmentsUploadedToRemoteStore.forEach((segment, metadata) -> {
+                    if (segment.startsWith("segments_") == false) put(segment, metadata.getUploadedFilename());
+                });
+            }
+        };
+        replicaShard.getRemoteDirectory().markPendingMergedSegmentsDownload(localToRemoteFilenameMap);
+        RemoteStoreMergedSegmentCheckpoint mergedSegmentCheckpoint = new RemoteStoreMergedSegmentCheckpoint(
+            new MergedSegmentCheckpoint(
+                replicaShard.shardId(),
+                primaryTerm,
+                checkpoint.getSegmentInfosVersion(),
+                checkpoint.getLength(),
+                checkpoint.getCodec(),
+                checkpoint.getMetadataMap(),
+                "_0"
+            ),
+            localToRemoteFilenameMap
+        );
+        List<StoreFileMetadata> filesToFetch = new ArrayList<>(primaryShard.getSegmentMetadataMap().values());
+        replicationSource = new RemoteStoreReplicationSource(primaryShard);
+        IndexShard replica = spy(replicaShard);
+        RecoverySettings mockRecoverySettings = mock(RecoverySettings.class);
+        when(mockRecoverySettings.getMergedSegmentReplicationTimeout()).thenReturn(TimeValue.ZERO);
+        when(replica.getRecoverySettings()).thenReturn(mockRecoverySettings);
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ActionListener<GetSegmentFilesResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(GetSegmentFilesResponse response) {
+                fail("Expected onFailure to be called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureRef.set(e);
+                latch.countDown();
+            }
+        };
+        replicationSource.getMergedSegmentFiles(
+            REPLICATION_ID,
+            mergedSegmentCheckpoint,
+            filesToFetch,
+            replica,
+            (fileName, bytesRecovered) -> {},
+            listener
+        );
+        latch.await();
+        assertNotNull("onFailure should have been called", failureRef.get());
+        Exception observedException = failureRef.get();
+        assertTrue(observedException instanceof TimeoutException);
+        assertTrue(
+            observedException.getMessage() != null
+                && observedException.getMessage().equals("Timed out waiting for merged segments download from remote store")
+        );
         closeShards(replicaShard);
     }
 
@@ -285,7 +353,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         Store remoteStore = mock(Store.class);
         when(mockShard.remoteStore()).thenReturn(remoteStore);
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate()).getDelegate();
-        FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory));
+        FilterDirectory remoteStoreFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(remoteSegmentStoreDirectory));
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
     }
 }
