@@ -737,14 +737,6 @@ public final class SearchPhaseController {
         }
 
         /**
-         * Creates a new search response from the given merged hits.
-         * @see #merge(boolean, ReducedQueryPhase, Collection, IntFunction)
-         */
-        public InternalSearchResponse buildResponse(SearchHits hits) {
-            return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly, numReducePhases);
-        }
-
-        /**
          * Creates a new search response from the given merged hits with fetch profile merging.
          * @param hits the merged search hits
          * @param fetchResults the fetch results to merge profiles from
@@ -752,12 +744,20 @@ public final class SearchPhaseController {
          * @see #merge(boolean, ReducedQueryPhase, Collection, IntFunction)
          */
         public InternalSearchResponse buildResponse(
-            SearchHits hits, 
+            SearchHits hits,
             Collection<? extends SearchPhaseResult> fetchResults,
             SearchPhaseController controller
         ) {
             SearchProfileShardResults mergedProfileResults = controller.mergeFetchProfiles(shardResults, fetchResults);
-            return new InternalSearchResponse(hits, aggregations, suggest, mergedProfileResults, timedOut, terminatedEarly, numReducePhases);
+            return new InternalSearchResponse(
+                hits,
+                aggregations,
+                suggest,
+                mergedProfileResults,
+                timedOut,
+                terminatedEarly,
+                numReducePhases
+            );
         }
     }
 
