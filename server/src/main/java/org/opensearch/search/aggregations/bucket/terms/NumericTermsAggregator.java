@@ -36,13 +36,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -76,7 +74,6 @@ import org.opensearch.search.startree.filter.MatchAllFilter;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -262,84 +259,41 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
                 int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
-                B spare = null;
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
 
-                // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
-                // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
-                // partiallyBuiltBucketComparator is null for significantTerm Aggregations use case and the way buckets sorted in the
-                // priority queue is based on the significanceScore
-                if ((size < 0.2 * bucketsInOrd)
-                    || isKeyOrder(order)
-                    || partiallyBuiltBucketComparator == null) {
-                    resultSelectionStrategy = "priority_queue";
-                    PriorityQueue<B> ordered = buildPriorityQueue(size);
-                    while (ordsEnum.next()) {
-                        long docCount = bucketDocCount(ordsEnum.ord());
-                        otherDocCounts[ordIdx] += docCount;
-                        if (docCount < localBucketCountThresholds.getMinDocCount()) {
-                            continue;
-                        }
-                        if (spare == null) {
-                            spare = emptyBucketBuilder.get();
-                        }
-                        updateBucket(spare, ordsEnum, docCount);
-                        spare = ordered.insertWithOverflow(spare);
-                    }
-                    // Get the top buckets
-                    topBucketsPerOrd[ordIdx] = buildBuckets(ordered.size());
-                    if (isKeyOrder(order)) {
-                        for (int b = ordered.size() - 1; b >= 0; --b) {
-                            topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                            otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
-                        }
-                    } else {
-                        // sorted buckets not needed as they will be sorted by key in buildResult() which is different from
-                        // order in priority queue ordered
-                        Iterator<B> itr = ordered.iterator();
-                        for (int b = ordered.size() - 1; b >= 0; --b) {
-                            topBucketsPerOrd[ordIdx][b] = itr.next();
-                            otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
-                        }
-                    }
-                } else {
-                    resultSelectionStrategy = "quick_select";
-                    B[] bucketsForOrd = buildBuckets((int) bucketsInOrd);
-                    int validBucketCount = 0;
+                BucketSelectionStrategy strategy = BucketSelectionStrategy.determine(
+                    size,
+                    bucketsInOrd,
+                    order,
+                    partiallyBuiltBucketComparator
+                );
+                resultSelectionStrategy = strategy.getStrategyName();
 
-                    // Collect all valid buckets
-                    while (ordsEnum.next()) {
-                        long docCount = bucketDocCount(ordsEnum.ord());
-                        otherDocCounts[ordIdx] += docCount;
-                        if (docCount < localBucketCountThresholds.getMinDocCount()) {
-                            continue;
+                BucketSelectionStrategy.SelectionInput<B> selectionInput = new BucketSelectionStrategy.SelectionInput<>(
+                    size,
+                    bucketsInOrd,
+                    ordsEnum,
+                    emptyBucketBuilder,
+                    localBucketCountThresholds,
+                    ordIdx,
+                    order,
+                    this::buildPriorityQueue,
+                    this::buildBuckets,
+                    (spare, ordsEnumParam, docCount) -> {
+                        try {
+                            updateBucket(spare, ordsEnumParam, docCount);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error updating bucket", e);
                         }
-                        spare = emptyBucketBuilder.get();
-                        updateBucket(spare, ordsEnum, docCount);
-                        bucketsForOrd[validBucketCount++] = spare;
-                    }
+                    },
+                    NumericTermsAggregator.this::bucketDocCount,
+                    partiallyBuiltBucketComparator
+                );
 
-                    if (validBucketCount > size) {
-                        // Use quick select to find top N buckets
-                        ArrayUtil.select(
-                            bucketsForOrd,
-                            0,
-                            validBucketCount,
-                            size,
-                            ((b1, b2) -> partiallyBuiltBucketComparator.compare((InternalTerms.Bucket<?>) b1, (InternalTerms.Bucket<?>) b2))
-                        );
-                        topBucketsPerOrd[ordIdx] = Arrays.copyOf(bucketsForOrd, size);
-                        // Adjust other doc counts by subtracting the doc counts of selected top buckets
-                        for (int b = 0; b < size; b++) {
-                            otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
-                        }
-                    } else {
-                        // All buckets fit within the required size, no selection needed
-                        topBucketsPerOrd[ordIdx] = Arrays.copyOf(bucketsForOrd, validBucketCount);
-                        otherDocCounts[ordIdx] = 0L;
-                    }
-                }
+                BucketSelectionStrategy.SelectionResult<B> result = strategy.selectTopBuckets(selectionInput);
+                topBucketsPerOrd[ordIdx] = result.topBuckets;
+                otherDocCounts[ordIdx] = result.otherDocCount;
             }
 
             buildSubAggs(topBucketsPerOrd);
