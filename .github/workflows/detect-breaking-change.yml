@@ -15,7 +15,7 @@ jobs:
       with:
         cache-disabled: true
         arguments: japicmp
-        gradle-version: 8.14
+        gradle-version: 8.14.3
         build-root-directory: server
     - if: failure()
       run: cat server/build/reports/java-compatibility/report.txt
