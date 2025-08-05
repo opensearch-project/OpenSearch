@@ -402,8 +402,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 ctx.ord,
                 searchContext.shardTarget().getShardId().id()
             );
-            InternalAggregation internalAggregation = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
-            if (internalAggregation != null) {
+            List<InternalAggregation> internalAggregation = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
+            if (!internalAggregation.isEmpty()) {
                 sendBatch(internalAggregation);
             }
         }
@@ -413,8 +413,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         leafCollector.finish();
     }
 
-    public void sendBatch(InternalAggregation batch) {
-        InternalAggregations batchAggResult = new InternalAggregations(List.of(batch));
+    public void sendBatch(List<InternalAggregation> batch) {
+        InternalAggregations batchAggResult = new InternalAggregations(batch);
 
         final QuerySearchResult queryResult = searchContext.queryResult();
         // clone the query result to avoid issue in concurrent scenario
