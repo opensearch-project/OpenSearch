@@ -282,6 +282,11 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
         }
     }
 
+    protected void updateMergedSegmentFileRecoveryBytes(String fileName, long bytesRecovered) {
+        indexShard.mergedSegmentReplicationTracker().addTotalBytesDownloaded(bytesRecovered);
+        updateFileRecoveryBytes(fileName, bytesRecovered);
+    }
+
     /**
      * Updates the state to reflect recovery progress for the given file and
      * updates the last access time for the target.
