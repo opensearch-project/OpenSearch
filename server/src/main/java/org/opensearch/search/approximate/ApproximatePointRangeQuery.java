@@ -36,6 +36,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -392,7 +393,12 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                             @Override
                             public Scorer get(long leadCost) throws IOException {
-                                intersectRight(values.getPointTree(), visitor, docCount);
+                                // Force term queries with desc sort through intersectLeft
+                                if (Arrays.equals(pointRangeQuery.getLowerPoint(), pointRangeQuery.getUpperPoint())) {
+                                    intersectLeft(values.getPointTree(), visitor, docCount);
+                                } else {
+                                    intersectRight(values.getPointTree(), visitor, docCount);
+                                }
                                 DocIdSetIterator iterator = result.build().iterator();
                                 return new ConstantScoreScorer(score(), scoreMode, iterator);
                             }
