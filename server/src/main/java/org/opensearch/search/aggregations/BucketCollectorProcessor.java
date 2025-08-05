@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.search.internal.SearchContext;
@@ -88,6 +89,7 @@ public class BucketCollectorProcessor {
     /**
      * For streaming aggregation, build one aggregation batch result
      */
+    @ExperimentalApi
     public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
         final List<InternalAggregation> aggregations = new ArrayList<>();
 
