@@ -533,7 +533,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         // subtract that from the sum of the error from all shards
         long docCountError = 0;
 
-        // List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         List<InternalAggregations> aggregationsList = new ArrayList<>();
         for (B bucket : buckets) {
             docCount += bucket.getDocCount();
@@ -545,18 +544,12 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 }
             }
 
-            // 2 logic to better handling sub agg
-            // 1. if the sub aggregations we get from bucket is empty, we don't add it to the array.
-            // This also help with the reduce later
-            // 2. If we know whether this bucket has sub agg directly from some interface, we can omit these logic directly.
-            // However, this would be a bigger change, we probably cannot do it within this PR
-
-            // aggregationsList.add((InternalAggregations) bucket.getAggregations());
             InternalAggregations subAggs = (InternalAggregations) bucket.getAggregations();
             if (subAggs != null && subAggs.subAggSize() > 0) {
                 aggregationsList.add(subAggs);
             }
         }
+
         InternalAggregations subAggs;
         if (aggregationsList.isEmpty()) {
             subAggs = InternalAggregations.EMPTY;
