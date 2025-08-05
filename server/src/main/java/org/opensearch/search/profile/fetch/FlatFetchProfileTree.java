@@ -49,20 +49,28 @@ class FlatFetchProfileTree {
         final String element;
         final FetchProfileBreakdown breakdown;
         final List<Node> children = new ArrayList<>();
+        int references;
 
         Node(String element) {
             this.element = element;
             this.breakdown = new FetchProfileBreakdown();
+            this.references = 0;
         }
     }
 
     private final List<Node> roots = new ArrayList<>();
+    private final Map<String, Node> rootsMap = new HashMap<>();
     private final Map<String, Node> phaseMap = new HashMap<>();
 
     /** Start profiling a new fetch phase and return its breakdown. */
     FetchProfileBreakdown startFetchPhase(String element) {
-        Node node = new Node(element);
-        roots.add(node);
+        Node node = rootsMap.get(element);
+        if (node == null) {
+            node = new Node(element);
+            roots.add(node);
+            rootsMap.put(element, node);
+        }
+        node.references++;
         phaseMap.put(element, node);
         return node.breakdown;
     }
@@ -82,7 +90,14 @@ class FlatFetchProfileTree {
      * Finish profiling of the specified fetch phase.
      */
     void endFetchPhase(String element) {
-        phaseMap.remove(element);
+        Node node = phaseMap.get(element);
+        if (node == null) {
+            throw new IllegalStateException("Fetch phase '" + element + "' does not exist");
+        }
+        node.references--;
+        if (node.references == 0) {
+            phaseMap.remove(element);
+        }
     }
 
     /**
