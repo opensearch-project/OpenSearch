@@ -138,6 +138,7 @@ public class BootstrapForTesting {
         IfConfig.logIfNecessary();
         if (FipsMode.CHECK.isFipsEnabled()) {
             SecurityProviderManager.removeNonCompliantFipsProviders();
+            MultiProviderTrustStoreHandler.configureTrustStore(javaTmpDir, Path.of(System.getProperty("java.home")));
         }
 
         // install security manager if requested
