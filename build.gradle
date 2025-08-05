@@ -28,25 +28,22 @@
  * under the License.
  */
 
-import java.nio.charset.StandardCharsets;
-import java.io.ByteArrayOutputStream;
 
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.opensearch.gradle.BuildPlugin
+import org.opensearch.gradle.CheckCompatibilityTask
 import org.opensearch.gradle.Version
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.plugin.PluginBuildPlugin
 import org.opensearch.gradle.tar.SymbolicLinkPreservingTar
-import org.gradle.plugins.ide.eclipse.model.AccessRule
-import org.gradle.plugins.ide.eclipse.model.EclipseJdt
-import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.gradle.api.Project;
-import org.gradle.process.ExecResult;
-import org.opensearch.gradle.CheckCompatibilityTask
+
+import java.nio.charset.StandardCharsets
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
@@ -54,8 +51,9 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.25.0" apply false
+  id "com.diffplug.spotless" version "7.2.1" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
+  id "org.openrewrite.rewrite" version "7.11.0" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
