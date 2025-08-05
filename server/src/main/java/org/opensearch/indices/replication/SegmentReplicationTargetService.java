@@ -34,6 +34,7 @@ import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
+import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
@@ -654,7 +656,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             logger.trace(() -> "Ignoring merged segment checkpoint, Shard is closed");
             return;
         }
-
         if (replicaShard.state().equals(IndexShardState.STARTED) == true) {
             // Checks if received checkpoint is already present
             List<MergedSegmentReplicationTarget> ongoingReplicationTargetList = getMergedSegmentReplicationTarget(replicaShard.shardId());
@@ -695,6 +696,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                             )
                         );
                         latch.countDown();
+                        unmarkPendingDownloadMergedSegments(replicaShard, receivedCheckpoint);
                     }
 
                     @Override
@@ -703,18 +705,18 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
-                        try {
-                            logReplicationFailure(state, e, replicaShard);
-                            if (sendShardFailure == true) {
-                                failShard(e, replicaShard);
-                            }
-                        } finally {
-                            latch.countDown();
-                        }
+                        latch.countDown();
+                        unmarkPendingDownloadMergedSegments(replicaShard, receivedCheckpoint);
                     }
                 });
                 try {
-                    latch.await();
+                    if (latch.await(recoverySettings.getMergedSegmentReplicationTimeout().seconds(), TimeUnit.SECONDS) == false) {
+                        logger.warn(
+                            "Merged segment replication for {} timed out after [{}] seconds",
+                            receivedCheckpoint,
+                            recoverySettings.getMergedSegmentReplicationTimeout().seconds()
+                        );
+                    }
                 } catch (InterruptedException e) {
                     logger.warn(
                         () -> new ParameterizedMessage("Interrupted while waiting for pre copy merged segment [{}]", receivedCheckpoint),
@@ -731,6 +733,16 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                 )
             );
         }
+    }
+
+    private void unmarkPendingDownloadMergedSegments(IndexShard shard, ReplicationCheckpoint receivedCheckpoint) {
+        if (isRemoteStoreMergedSegmentCheckpoint(receivedCheckpoint)) {
+            shard.getRemoteDirectory().unmarkMergedSegmentsPendingDownload(receivedCheckpoint.getMetadataMap().keySet());
+        }
+    }
+
+    private boolean isRemoteStoreMergedSegmentCheckpoint(ReplicationCheckpoint checkpoint) {
+        return checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
     }
 
     List<MergedSegmentReplicationTarget> getMergedSegmentReplicationTarget(ShardId shardId) {
@@ -770,5 +782,4 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             }
         }
     }
-
 }

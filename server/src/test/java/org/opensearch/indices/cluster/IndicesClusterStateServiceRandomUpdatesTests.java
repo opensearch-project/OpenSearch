@@ -69,6 +69,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -587,7 +588,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             RetentionLeaseSyncer.EMPTY,
             null,
             null,
-            MergedSegmentPublisher.EMPTY
+            MergedSegmentPublisher.EMPTY,
+            ReferencedSegmentsPublisher.EMPTY
         );
     }
 
