@@ -145,7 +145,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             new DocumentServiceImpl(client),
             new SearchServiceImpl(client, queryUtils)
         );
-        return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService));
+        return Collections.singletonMap(
+            GRPC_TRANSPORT_SETTING_KEY,
+            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService)
+        );
     }
 
     /**
@@ -185,12 +188,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             new DocumentServiceImpl(client),
             new SearchServiceImpl(client, queryUtils)
         );
-        return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> new SecureNetty4GrpcServerTransport(
-            settings,
-            grpcServices,
-            networkService,
-            secureAuxTransportSettingsProvider
-        ));
+        return Collections.singletonMap(
+            GRPC_SECURE_TRANSPORT_SETTING_KEY,
+            () -> new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider)
+        );
     }
 
     /**
