@@ -748,8 +748,8 @@ public final class SearchPhaseController {
             Collection<? extends SearchPhaseResult> fetchResults,
             SearchPhaseController controller
         ) {
-            SearchProfileShardResults mergedProfileResults = shardResults != null 
-                ? controller.mergeFetchProfiles(shardResults, fetchResults) 
+            SearchProfileShardResults mergedProfileResults = shardResults != null
+                ? controller.mergeFetchProfiles(shardResults, fetchResults)
                 : null;
             return new InternalSearchResponse(
                 hits,
@@ -892,7 +892,7 @@ public final class SearchPhaseController {
 
     /**
      * Merges fetch phase profile results with query phase profile results.
-     * 
+     *
      * @param queryProfiles the query phase profile results (must not be null)
      * @param fetchResults the fetch phase results to merge profiles from
      * @return merged profile results containing both query and fetch phase data

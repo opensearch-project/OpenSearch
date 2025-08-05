@@ -653,9 +653,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
         // The caller should handle null queryProfiles and not call mergeFetchProfiles
         // This simulates what happens in buildResponse when shardResults is null
-        SearchProfileShardResults mergedProfiles = null != null 
-            ? searchPhaseController.mergeFetchProfiles(null, fetchResults) 
-            : null;
+        SearchProfileShardResults mergedProfiles = null != null ? searchPhaseController.mergeFetchProfiles(null, fetchResults) : null;
 
         assertNull("Merged profiles should be null when queryProfiles is null", mergedProfiles);
     }
