@@ -54,7 +54,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     public static final Function<byte[], String> UNSIGNED_LONG_FORMAT = bytes -> BigIntegerPoint.decodeDimension(bytes, 0).toString();
 
     private int size;
-    private SearchContext searchContext;
     private SortOrder sortOrder;
     public PointRangeQuery pointRangeQuery;
     private final Function<byte[], String> valueToString;
@@ -117,38 +116,21 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
     @Override
     public final ConstantScoreWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        // Pre-compute the effective bounds considering search_after
-        final byte[] effectiveLower = computeEffectiveLowerBound();
-        final byte[] effectiveUpper = computeEffectiveUpperBound();
-
-        this.pointRangeQuery = new PointRangeQuery(
-            pointRangeQuery.getField(),
-            effectiveLower,  // Use computed bounds, not original!
-            effectiveUpper,
-            pointRangeQuery.getNumDims()
-        ) {
-            @Override
-            protected String toString(int dimension, byte[] value) {
-                return valueToString.apply(value);
-            }
-        };
-
         final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
 
         Weight pointRangeQueryWeight = pointRangeQuery.createWeight(searcher, scoreMode, boost);
 
         return new ConstantScoreWeight(this, boost) {
-            boolean result;
 
             // we pull this from PointRangeQuery since it is final
             private boolean matches(byte[] packedValue) {
                 for (int dim = 0; dim < pointRangeQuery.getNumDims(); dim++) {
                     int offset = dim * pointRangeQuery.getBytesPerDim();
-                    if (comparator.compare(packedValue, offset, effectiveLower, offset) < 0) {
+                    if (comparator.compare(packedValue, offset, pointRangeQuery.getLowerPoint(), offset) < 0) {
                         // Doc's value is too low, in this dimension
                         return false;
                     }
-                    if (comparator.compare(packedValue, offset, effectiveUpper, offset) > 0) {
+                    if (comparator.compare(packedValue, offset, pointRangeQuery.getUpperPoint(), offset) > 0) {
                         // Doc's value is too high, in this dimension
                         return false;
                     }
@@ -163,13 +145,13 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 for (int dim = 0; dim < pointRangeQuery.getNumDims(); dim++) {
                     int offset = dim * pointRangeQuery.getBytesPerDim();
 
-                    if (comparator.compare(minPackedValue, offset, effectiveUpper, offset) > 0
-                        || comparator.compare(maxPackedValue, offset, effectiveLower, offset) < 0) {
+                    if (comparator.compare(minPackedValue, offset, pointRangeQuery.getUpperPoint(), offset) > 0
+                        || comparator.compare(maxPackedValue, offset, pointRangeQuery.getLowerPoint(), offset) < 0) {
                         return PointValues.Relation.CELL_OUTSIDE_QUERY;
                     }
 
-                    crosses |= comparator.compare(minPackedValue, offset, effectiveLower, offset) < 0
-                        || comparator.compare(maxPackedValue, offset, effectiveUpper, offset) > 0;
+                    crosses |= comparator.compare(minPackedValue, offset, pointRangeQuery.getLowerPoint(), offset) < 0
+                        || comparator.compare(maxPackedValue, offset, pointRangeQuery.getUpperPoint(), offset) > 0;
                 }
 
                 if (crosses) {
@@ -371,6 +353,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 if (checkValidPointValues(values) == false) {
                     return null;
                 }
+                // values.size(): total points indexed, In most cases: values.size() ≈ number of documents (assuming single-valued fields)
                 if (size > values.size()) {
                     return pointRangeQueryWeight.scorerSupplier(context);
                 } else {
@@ -442,49 +425,17 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         };
     }
 
-    private byte[] computeEffectiveLowerBound() {
-        byte[] originalLower = pointRangeQuery.getLowerPoint();
-        if (searchContext != null
-            && searchContext.request() != null
-            && searchContext.request().source() != null
-            && searchContext.request().source().searchAfter() != null
-            && searchContext.request().source().searchAfter().length > 0
-            && sortOrder == SortOrder.ASC) {
-            Object searchAfterValue = searchContext.request().source().searchAfter()[0];
-            MappedFieldType fieldType = searchContext.getQueryShardContext().fieldMapper(pointRangeQuery.getField());
+    private byte[] computeEffectiveBound(SearchContext context, boolean isLowerBound) {
+        byte[] originalBound = isLowerBound ? pointRangeQuery.getLowerPoint() : pointRangeQuery.getUpperPoint();
+        boolean isAscending = sortOrder == null || sortOrder.equals(SortOrder.ASC);
+        if ((isLowerBound && isAscending) || (isLowerBound == false && isAscending == false)) {
+            Object searchAfterValue = context.request().source().searchAfter()[0];
+            MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(pointRangeQuery.getField());
             if (fieldType instanceof NumericPointEncoder encoder) {
-                // For ASC: we want values > searchAfter (exclusive lower bound)
-                byte[] searchAfterEncoded = encoder.encodePoint(searchAfterValue, true); // true = round up for exclusive
-                ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
-                if (originalLower == null || comparator.compare(searchAfterEncoded, 0, originalLower, 0) > 0) {
-                    return searchAfterEncoded;
-                }
+                return encoder.encodePoint(searchAfterValue, isLowerBound);
             }
         }
-        return originalLower;
-    }
-
-    private byte[] computeEffectiveUpperBound() {
-        byte[] originalUpper = pointRangeQuery.getUpperPoint();
-
-        if (searchContext != null
-            && searchContext.request() != null
-            && searchContext.request().source() != null
-            && searchContext.request().source().searchAfter() != null
-            && searchContext.request().source().searchAfter().length > 0
-            && sortOrder == SortOrder.DESC) {
-            Object searchAfterValue = searchContext.request().source().searchAfter()[0];
-            MappedFieldType fieldType = searchContext.getQueryShardContext().fieldMapper(pointRangeQuery.getField());
-            if (fieldType instanceof NumericPointEncoder encoder) {
-                // For DESC: we want values < searchAfter (exclusive upper bound)
-                byte[] searchAfterEncoded = encoder.encodePoint(searchAfterValue, false); // false = round down for exclusive
-                ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
-                if (originalUpper == null || comparator.compare(searchAfterEncoded, 0, originalUpper, 0) < 0) {
-                    return searchAfterEncoded;
-                }
-            }
-        }
-        return originalUpper;
+        return originalBound;
     }
 
     @Override
@@ -499,7 +450,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
             return false;
         }
-        this.searchContext = context;
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
@@ -524,6 +474,23 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     return false;
                 }
                 this.setSortOrder(primarySortField.order());
+                if (context.request().source().searchAfter() != null) {
+                    byte[] lower;
+                    byte[] upper;
+                    if (sortOrder == SortOrder.ASC) {
+                        lower = computeEffectiveBound(context, true);
+                        upper = pointRangeQuery.getUpperPoint();
+                    } else {
+                        lower = pointRangeQuery.getLowerPoint();
+                        upper = computeEffectiveBound(context, false);
+                    }
+                    this.pointRangeQuery = new PointRangeQuery(pointRangeQuery.getField(), lower, upper, pointRangeQuery.getNumDims()) {
+                        @Override
+                        protected String toString(int dimension, byte[] value) {
+                            return valueToString.apply(value);
+                        }
+                    };
+                }
             }
             return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
         }

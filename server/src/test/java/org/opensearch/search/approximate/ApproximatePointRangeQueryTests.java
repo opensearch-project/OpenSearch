@@ -1284,6 +1284,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         numericType.encode(lower),
                         numericType.encode(upper),
                         dims,
+                        size,
+                        SortOrder.ASC,
                         numericType.format
                     );
                     assertTrue("Should be able to approximate", approxQuery.canApproximate(mockContext));
@@ -1380,6 +1382,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         numericType.encode(lower),
                         numericType.encode(upper),
                         dims,
+                        size,
+                        SortOrder.DESC,
                         numericType.format
                     );
                     assertTrue("Should be able to approximate", approxQuery.canApproximate(mockContext));
