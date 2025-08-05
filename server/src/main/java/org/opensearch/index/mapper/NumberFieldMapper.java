@@ -1989,10 +1989,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         return coerce.value();
     }
 
-    boolean skiplist() {
-        return skiplist;
-    }
-
     @Override
     protected Explicit<Boolean> ignoreMalformed() {
         return ignoreMalformed;
