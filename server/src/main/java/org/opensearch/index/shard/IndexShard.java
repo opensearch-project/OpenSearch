@@ -157,6 +157,8 @@ import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentReplicationTracker;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
@@ -389,6 +391,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
+    private final MergedSegmentReplicationTracker mergedSegmentReplicationTracker;
+
 
     @InternalApi
     public IndexShard(
@@ -549,6 +553,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.clusterApplierService = clusterApplierService;
         this.mergedSegmentPublisher = mergedSegmentPublisher;
         this.referencedSegmentsPublisher = referencedSegmentsPublisher;
+        this.mergedSegmentReplicationTracker = new MergedSegmentReplicationTracker(shardId(), indexSettings);
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -1564,6 +1569,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mergeStats;
     }
 
+    public MergedSegmentWarmerStats mergedSegmentWarmerStats() {
+        return mergedSegmentReplicationTracker.stats();
+    }
+
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
@@ -2263,6 +2272,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+    }
+
+    public MergedSegmentReplicationTracker mergedSegmentReplicationTracker() {
+        return mergedSegmentReplicationTracker;
     }
 
     /**
