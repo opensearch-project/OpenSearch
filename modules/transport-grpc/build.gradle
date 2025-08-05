@@ -16,7 +16,7 @@ opensearchplugin {
 
 testClusters {
   integTest {
-    setting 'aux.transport.types', '[experimental-transport-grpc]'
+    setting 'aux.transport.types', '[transport-grpc]'
   }
 }
 
