@@ -2821,14 +2821,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     syncSegmentsFromRemoteSegmentStore(false);
                 }
                 if (shardRouting.primary()) {
-                    if (syncFromRemote) {
-                        syncRemoteTranslogAndUpdateGlobalCheckpoint();
-                    } else if (isSnapshotV2Restore() == false) {
-                        // we will enter this block when we do not want to recover from remote translog.
-                        // currently only during snapshot restore, we are coming into this block.
-                        // here, as while initiliazing remote translog we cannot skip downloading translog files,
-                        // so before that step, we are deleting the translog files present in remote store.
-                        deleteTranslogFilesFromRemoteTranslog();
+                    if (indexSettings.isRemoteTranslogStoreEnabled()) {
+                        if (syncFromRemote) {
+                            syncRemoteTranslogAndUpdateGlobalCheckpoint();
+                        } else if (isSnapshotV2Restore() == false) {
+                            // we will enter this block when we do not want to recover from remote translog.
+                            // currently only during snapshot restore, we are coming into this block.
+                            // here, as while initiliazing remote translog we cannot skip downloading translog files,
+                            // so before that step, we are deleting the translog files present in remote store.
+                            deleteTranslogFilesFromRemoteTranslog();
+                        }
                     }
                 } else if (syncFromRemote) {
                     // For replicas, when we download segments from remote segment store, we need to make sure that local
