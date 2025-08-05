@@ -57,7 +57,7 @@ public class InboundHandler {
 
     private final Map<TransportProtocol, ProtocolMessageHandler> protocolMessageHandlers;
 
-    InboundHandler(
+    public InboundHandler(
         String nodeName,
         Version version,
         String[] features,
@@ -73,7 +73,39 @@ public class InboundHandler {
         Tracer tracer
     ) {
         this.threadPool = threadPool;
-        this.protocolMessageHandlers = Map.of(
+        this.protocolMessageHandlers = createProtocolMessageHandlers(
+            nodeName,
+            version,
+            features,
+            statsTracker,
+            threadPool,
+            bigArrays,
+            outboundHandler,
+            namedWriteableRegistry,
+            handshaker,
+            requestHandlers,
+            responseHandlers,
+            tracer,
+            keepAlive
+        );
+    }
+
+    protected Map<TransportProtocol, ProtocolMessageHandler> createProtocolMessageHandlers(
+        String nodeName,
+        Version version,
+        String[] features,
+        StatsTracker statsTracker,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        OutboundHandler outboundHandler,
+        NamedWriteableRegistry namedWriteableRegistry,
+        TransportHandshaker handshaker,
+        Transport.RequestHandlers requestHandlers,
+        Transport.ResponseHandlers responseHandlers,
+        Tracer tracer,
+        TransportKeepAlive keepAlive
+    ) {
+        return Map.of(
             TransportProtocol.NATIVE,
             new NativeMessageHandler(
                 nodeName,
@@ -118,5 +150,9 @@ public class InboundHandler {
             throw new IllegalStateException("No protocol message handler found for protocol: " + message.getTransportProtocol());
         }
         protocolMessageHandler.messageReceived(channel, message, startTime, slowLogThresholdMs, messageListener);
+    }
+
+    public TransportMessageListener getMessageListener() {
+        return messageListener;
     }
 }
