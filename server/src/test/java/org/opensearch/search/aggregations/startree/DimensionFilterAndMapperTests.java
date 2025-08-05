@@ -42,6 +42,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -55,6 +56,20 @@ public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
         MappedFieldType mappedFieldType = new IpFieldMapper.IpFieldType("ip_field");
         BytesRef ipAsBytes = new BytesRef(InetAddressPoint.encode(InetAddress.getByName("192.168.1.1")));
         testOrdinalMapping(mappedFieldType, ipAsBytes);
+    }
+
+    public void testRawValuesIpParsing() throws UnknownHostException {
+        SearchContext searchContext = mock(SearchContext.class);
+        MappedFieldType mappedFieldType = new IpFieldMapper.IpFieldType("ip_field");
+        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType, searchContext);
+
+        assertThrows(IllegalArgumentException.class, () -> dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(1.0f)));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of("not.a.valid.ip"))
+        );
+        DimensionFilter df = dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(InetAddress.getByName("192.168.1.1")));
+        assertEquals("ip_field", df.getMatchingDimension());
     }
 
     public void testKeywordOrdinalMapping() throws IOException {

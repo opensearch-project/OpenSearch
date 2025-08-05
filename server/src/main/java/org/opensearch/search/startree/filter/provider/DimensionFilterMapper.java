@@ -539,7 +539,23 @@ class IpFieldMapper extends OrdinalFieldMapper {
         Object parsedValue = null;
         if (rawValue != null) {
             try {
-                return org.opensearch.index.mapper.IpFieldMapper.IpFieldType.parse(rawValue);
+                switch (rawValue) {
+                    case InetAddress inetAddress -> {
+                        parsedValue = new BytesRef(InetAddressPoint.encode(inetAddress));
+                    }
+                    case BytesRef bytesRef -> {
+                        return bytesRef;
+                    }
+                    case String s -> {
+                        InetAddress addr = InetAddress.getByName(s);
+                        parsedValue = new BytesRef(InetAddressPoint.encode(addr));
+                    }
+                    default -> {
+                        throw new IllegalArgumentException(
+                            "Unsupported value type for IP field [" + field + "]: " + rawValue.getClass().getName()
+                        );
+                    }
+                }
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to parse IP value for field [" + field + "]", e);
             }
