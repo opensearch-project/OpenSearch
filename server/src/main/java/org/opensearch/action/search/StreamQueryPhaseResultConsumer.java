@@ -18,6 +18,8 @@ import java.util.function.Consumer;
 
 /**
  * Streaming query phase result consumer
+ *
+ * @opensearch.internal
  */
 public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
 
@@ -41,6 +43,16 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
             expectedResultSize,
             onPartialMergeFailure
         );
+    }
+
+    /**
+     * For stream search, the minBatchReduceSize is set higher than shard number
+     *
+     * @param minBatchReduceSize: pass as number of shard
+     */
+    @Override
+    int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
+        return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
     }
 
     void consumeStreamResult(SearchPhaseResult result, Runnable next) {

@@ -115,8 +115,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchSourceBuilder source = request.source();
         this.hasTopDocs = source == null || source.size() != 0;
         this.hasAggs = source != null && source.aggregations() != null;
-        int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
+        int batchReduceSize = getBatchReduceSize(request.getBatchedReduceSize(), expectedResultSize);
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
+    }
+
+    int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
+        return (hasAggs || hasTopDocs) ? Math.min(requestBatchedReduceSize, minBatchReduceSize) : minBatchReduceSize;
     }
 
     @Override
