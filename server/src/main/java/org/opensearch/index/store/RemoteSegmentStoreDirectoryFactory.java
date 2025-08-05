@@ -71,7 +71,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         String indexUUID,
         ShardId shardId,
         RemoteStorePathStrategy pathStrategy,
-        String writerNodeId
+        String indexFixedPrefix
     ) throws IOException {
         assert Objects.nonNull(pathStrategy);
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
@@ -88,7 +88,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .dataCategory(SEGMENTS)
                 .dataType(DATA)
                 .fixedPrefix(segmentsPathFixedPrefix)
-                .writerNodeId(writerNodeId)
+                .indexFixedPrefix(indexFixedPrefix)
                 .build();
             // Derive the path for data directory of SEGMENTS
             BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
@@ -106,7 +106,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .dataCategory(SEGMENTS)
                 .dataType(METADATA)
                 .fixedPrefix(segmentsPathFixedPrefix)
-                .writerNodeId(writerNodeId)
+                .indexFixedPrefix(indexFixedPrefix)
                 .build();
             // Derive the path for metadata directory of SEGMENTS
             BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
@@ -120,7 +120,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 shardIdStr,
                 pathStrategy,
                 segmentsPathFixedPrefix,
-                writerNodeId
+                indexFixedPrefix
             );
 
             return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId);

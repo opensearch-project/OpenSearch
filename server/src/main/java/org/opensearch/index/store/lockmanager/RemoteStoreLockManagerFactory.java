@@ -65,7 +65,7 @@ public class RemoteStoreLockManagerFactory {
         String shardId,
         RemoteStorePathStrategy pathStrategy,
         String segmentsPathFixedPrefix,
-        String writerNodeId
+        String indexFixedPrefix
     ) {
         try (Repository repository = repositoriesService.repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
@@ -78,7 +78,7 @@ public class RemoteStoreLockManagerFactory {
                 .dataCategory(SEGMENTS)
                 .dataType(LOCK_FILES)
                 .fixedPrefix(segmentsPathFixedPrefix)
-                .writerNodeId(writerNodeId)
+                .indexFixedPrefix(indexFixedPrefix)
                 .build();
             BlobPath lockDirectoryPath = pathStrategy.generatePath(lockFilesPathInput);
             BlobContainer lockDirectoryBlobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(lockDirectoryPath);

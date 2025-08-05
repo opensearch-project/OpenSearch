@@ -128,7 +128,7 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
         assertEquals(BlobPath.cleanPath().add(SHARD_ID).add(INDEX_UUID), input.hashPath());
     }
 
-    public void testShardDataPathInputWithWriterNodeId() {
+    public void testShardDataPathInputWithIndexFixedPrefix() {
         RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(PathType.FIXED);
 
         RemoteStorePathStrategy.ShardDataPathInput pathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
@@ -137,17 +137,17 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
             .shardId("0")
             .dataCategory(DataCategory.SEGMENTS)
             .dataType(DataType.DATA)
-            .writerNodeId("writer-node-1")
+            .indexFixedPrefix("writer-node-1")
             .build();
 
         BlobPath result = pathStrategy.generatePath(pathInput);
         String pathString = result.buildAsString();
 
-        assertTrue("Path should contain writer node ID", pathString.contains("writer-node-1"));
+        assertTrue("Path should contain index fixed prefix", pathString.contains("writer-node-1"));
         assertTrue("Path should follow expected structure", pathString.contains("test-repo/test-index-uuid/0/writer-node-1/segments/data"));
     }
 
-    public void testShardDataPathInputWithoutWriterNodeId() {
+    public void testShardDataPathInputWithoutIndexFixedPrefix() {
         RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(PathType.FIXED);
 
         RemoteStorePathStrategy.ShardDataPathInput pathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
@@ -161,11 +161,11 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
         BlobPath result = pathStrategy.generatePath(pathInput);
         String pathString = result.buildAsString();
 
-        assertFalse("Path should not contain writer node ID", pathString.contains("writer-node-1"));
+        assertFalse("Path should not contain index fixed prefix", pathString.contains("writer-node-1"));
         assertTrue("Path should follow expected structure", pathString.contains("test-repo/test-index-uuid/0/segments/data"));
     }
 
-    public void testShardDataPathInputWithEmptyWriterNodeId() {
+    public void testShardDataPathInputWithEmptyIndexFixedPrefix() {
         RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(PathType.FIXED);
 
         RemoteStorePathStrategy.ShardDataPathInput pathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
@@ -174,19 +174,19 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
             .shardId("0")
             .dataCategory(DataCategory.SEGMENTS)
             .dataType(DataType.DATA)
-            .writerNodeId("")
+            .indexFixedPrefix("")
             .build();
 
         BlobPath result = pathStrategy.generatePath(pathInput);
         String pathString = result.buildAsString();
 
-        assertFalse("Path should not contain empty writer node ID", pathString.contains("//"));
+        assertFalse("Path should not contain empty index fixed prefix", pathString.contains("//"));
         assertTrue("Path should contain shard ID", pathString.contains("/0/"));
         assertTrue("Path should contain segments", pathString.contains("/segments/"));
         assertTrue("Path should contain data", pathString.contains("/data/"));
     }
 
-    public void testShardDataPathInputWithWhitespaceOnlyWriterNodeId() {
+    public void testShardDataPathInputWithWhitespaceOnlyIndexFixedPrefix() {
         RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(PathType.FIXED);
 
         RemoteStorePathStrategy.ShardDataPathInput pathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
@@ -195,17 +195,17 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
             .shardId("0")
             .dataCategory(DataCategory.SEGMENTS)
             .dataType(DataType.DATA)
-            .writerNodeId("   ")
+            .indexFixedPrefix("   ")
             .build();
 
         BlobPath result = pathStrategy.generatePath(pathInput);
         String pathString = result.buildAsString();
 
-        assertFalse("Path should not contain whitespace-only writer node ID", pathString.contains("//"));
+        assertFalse("Path should not contain whitespace-only index fixed prefix", pathString.contains("//"));
         assertTrue("Path should follow expected structure", pathString.contains("test-repo/test-index-uuid/0/segments/data"));
     }
 
-    public void testHashedPathWithWriterNodeId() {
+    public void testHashedPathWithIndexFixedPrefix() {
         RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_BASE64);
 
         RemoteStorePathStrategy.ShardDataPathInput pathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
@@ -214,13 +214,13 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
             .shardId("0")
             .dataCategory(DataCategory.SEGMENTS)
             .dataType(DataType.DATA)
-            .writerNodeId("writer-node-1")
+            .indexFixedPrefix("writer-node-1")
             .build();
 
         BlobPath result = pathStrategy.generatePath(pathInput);
         String pathString = result.buildAsString();
 
-        assertTrue("Path should contain writer node ID", pathString.contains("writer-node-1"));
+        assertTrue("Path should contain index fixed prefix", pathString.contains("writer-node-1"));
         assertTrue("Path should follow expected structure", pathString.contains("test-repo/test-index-uuid/0/writer-node-1/segments/data"));
     }
 }

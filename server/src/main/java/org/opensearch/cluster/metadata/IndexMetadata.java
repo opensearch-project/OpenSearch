@@ -505,7 +505,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         },
         Property.IndexScope,
-        Property.InternalIndex,
+        Property.PrivateIndex,
         Property.Dynamic
     );
 
