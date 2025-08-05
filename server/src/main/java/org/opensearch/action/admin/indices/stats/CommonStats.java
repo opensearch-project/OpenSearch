@@ -49,6 +49,7 @@ import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.search.stats.SearchStats;
@@ -91,6 +92,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
     @Nullable
     public MergeStats merge;
+
+    @Nullable
+    public MergedSegmentWarmerStats mergedSegmentWarmerStats;
 
     @Nullable
     public RefreshStats refresh;
@@ -179,6 +183,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Recovery:
                     recoveryStats = new RecoveryStats();
                     break;
+                case MergedSegmentWarmer:
+                    mergedSegmentWarmerStats = new MergedSegmentWarmerStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -238,6 +245,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Recovery:
                         recoveryStats = indexShard.recoveryStats();
                         break;
+                    case MergedSegmentWarmer:
+                        mergedSegmentWarmerStats = indexShard.mergedSegmentWarmerStats();
+                        break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);
                 }
@@ -264,6 +274,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
+        mergedSegmentWarmerStats = in.readOptionalWriteable(MergedSegmentWarmerStats::new);
     }
 
     @Override
@@ -284,6 +295,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
+        out.writeOptionalWriteable(mergedSegmentWarmerStats);
     }
 
     public void add(CommonStats stats) {
@@ -416,6 +428,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             recoveryStats.add(stats.getRecoveryStats());
         }
+        if (mergedSegmentWarmerStats == null) {
+            if (stats.getMergedSegmentWarmer() != null) {
+                mergedSegmentWarmerStats = new MergedSegmentWarmerStats();
+                mergedSegmentWarmerStats.add(stats.getMergedSegmentWarmer());
+            }
+        } else {
+            mergedSegmentWarmerStats.add(stats.getMergedSegmentWarmer());
+        }
     }
 
     @Nullable
@@ -498,6 +518,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return recoveryStats;
     }
 
+    @Nullable
+    public MergedSegmentWarmerStats getMergedSegmentWarmer() {
+        return mergedSegmentWarmerStats;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (index writer, version map)
@@ -537,7 +562,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 segments,
                 translog,
                 requestCache,
-                recoveryStats }
+                recoveryStats,
+                mergedSegmentWarmerStats }
         ).filter(Objects::nonNull);
         for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
             toXContent.toXContent(builder, params);

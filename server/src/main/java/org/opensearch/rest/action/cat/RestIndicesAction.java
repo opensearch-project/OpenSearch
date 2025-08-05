@@ -591,6 +591,55 @@ public class RestIndicesAction extends AbstractListAction {
         );
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
 
+        table.addCell(
+            "merged_segment_warmer.total_warm_invocations",
+            "alias:mswtwi,mergedSegmentWarmerTotalWarmInvocations;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.total_warm_invocations", "default:false;text-align:right;desc:UPDATE");
+
+        table.addCell(
+            "merged_segment_warmer.total_warm_time_millis",
+            "alias:mswtwtm,mergedSegmentWarmerTotalWarmTimeMillis;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.total_warm_time_millis", "default:false;text-align:right;desc:UPDATE");
+
+        table.addCell(
+            "merged_segment_warmer.ongoing_warms",
+            "alias:mswow,mergedSegmentWarmerOngoingWarms;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.ongoing_warms", "default:false;text-align:right;desc:UPDATE");
+
+        table.addCell(
+            "merged_segment_warmer.total_bytes_downloaded",
+            "alias:mswtbd,mergedSegmentWarmerTotalBytesDownloaded;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.total_bytes_downloaded", "default:false;text-align:right;desc:UPDATE");
+
+        table.addCell(
+            "merged_segment_warmer.total_bytes_uploaded",
+            "alias:mswtbu,mergedSegmentWarmerTotalBytesUploaded;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.total_bytes_uploaded", "default:false;text-align:right;desc:UPDATE");
+
+        table.addCell(
+            "merged_segment_warmer.total_download_time_millis",
+            "alias:mswtdtm,mergedSegmentWarmerTotalDownloadTimeMillis;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.total_download_time_millis", "default:false;text-align:right;desc:UPDATE");
+
+        table.addCell(
+            "merged_segment_warmer.total_warm_failure_count",
+            "alias:mswtwfc,mergedSegmentWarmerTotalWarmFailureCount;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.total_warm_failure_count", "default:false;text-align:right;desc:UPDATE");
+
+        table.addCell(
+            "merged_segment_warmer.total_upload_time_millis",
+            "alias:mswtutm,mergedSegmentWarmerTotalUploadTimeMillis;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.total_upload_time_millis", "default:false;text-align:right;desc:UPDATE");
+
+
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
 
@@ -980,6 +1029,56 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalTime());
             table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalTime());
+
+            table.addCell(
+                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalWarmInvocationsCount()
+            );
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalWarmInvocationsCount()
+            );
+
+            table.addCell(
+                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalWarmTimeMillis()
+            );
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalWarmTimeMillis()
+            );
+
+            table.addCell(totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getOngoingWarms());
+            table.addCell(primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getOngoingWarms());
+
+            table.addCell(
+                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalBytesDownloaded()
+            );
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalBytesDownloaded()
+            );
+
+            table.addCell(totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalBytesUploaded());
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalBytesUploaded()
+            );
+
+            table.addCell(
+                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalDownloadTimeMillis()
+            );
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalDownloadTimeMillis()
+            );
+
+            table.addCell(
+                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalWarmFailureCount()
+            );
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalWarmFailureCount()
+            );
+
+            table.addCell(
+                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalUploadTimeMillis()
+            );
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalUploadTimeMillis()
+            );
 
             table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());
             table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotal());
