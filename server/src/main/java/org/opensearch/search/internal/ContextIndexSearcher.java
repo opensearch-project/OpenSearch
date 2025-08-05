@@ -424,7 +424,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             queryResult.getShardSearchRequest()
         );
         cloneResult.aggregations(batchAggResult);
-        logger.debug("Thread [{}]: set batchAggResult [{}]", Thread.currentThread(), batchAggResult.asMap());
         // set a dummy topdocs
         cloneResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
         // set a dummy fetch
@@ -432,12 +431,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         fetchResult.hits(SearchHits.empty());
         final QueryFetchSearchResult result = new QueryFetchSearchResult(cloneResult, fetchResult);
         // flush back
-        // logger.info("Thread [{}]: send agg result before [{}]", Thread.currentThread(),
-        // result.queryResult().aggregations().expand().asMap());
         searchContext.getListener().onStreamResponse(result, false);
-        // logger.info("Thread [{}]: send agg result after [{}]", Thread.currentThread(),
-        // result.queryResult().aggregations().expand().asMap());
-        // logger.info("Thread [{}]: send total hits after [{}]", Thread.currentThread(), result.queryResult().topDocs().topDocs.totalHits);
     }
 
     private Weight wrapWeight(Weight weight) {

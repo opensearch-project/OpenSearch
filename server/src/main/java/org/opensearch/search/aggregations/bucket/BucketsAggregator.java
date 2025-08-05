@@ -104,14 +104,14 @@ public abstract class BucketsAggregator extends AggregatorBase {
     /**
      * Ensure there are at least <code>maxBucketOrd</code> buckets available.
      */
-    public void grow(long maxBucketOrd) {
+    public final void grow(long maxBucketOrd) {
         docCounts = bigArrays.grow(docCounts, maxBucketOrd);
     }
 
     /**
      * Utility method to collect the given doc in the given bucket (identified by the bucket ordinal)
      */
-    public void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+    public final void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         grow(bucketOrd + 1);
         collectExistingBucket(subCollector, doc, bucketOrd);
     }
@@ -119,7 +119,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     /**
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
-    public void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+    public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         long docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We calculate the final number of buckets only during the reduce phase. But we still need to
@@ -204,7 +204,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     /**
      * Utility method to return the number of documents that fell in the given bucket (identified by the bucket ordinal)
      */
-    public long bucketDocCount(long bucketOrd) {
+    public final long bucketDocCount(long bucketOrd) {
         if (bucketOrd >= docCounts.size()) {
             // This may happen eg. if no document in the highest buckets is accepted by a sub aggregator.
             // For example, if there is a long terms agg on 3 terms 1,2,3 with a sub filter aggregator and if no document with 3 as a value
