@@ -207,8 +207,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * For streaming aggregation, build one aggregation batch result and
-     * reset so it can continue with a clean state
+     * For streaming aggregation, build the aggregation batch result and
+     * reset so this aggregator can continue with a clean state
      */
     public final InternalAggregation buildTopLevelBatch() throws IOException {
         assert parent() == null;

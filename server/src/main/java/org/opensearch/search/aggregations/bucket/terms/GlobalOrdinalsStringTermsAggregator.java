@@ -99,8 +99,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected final ResultStrategy<?, ?, ?> resultStrategy;
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
-    final LongPredicate acceptedGlobalOrdinals;
-    private long valueCount;
+    private final LongPredicate acceptedGlobalOrdinals;
+    private final long valueCount;
     protected final String fieldName;
     private Weight weight;
     protected CollectionStrategy collectionStrategy;
@@ -653,10 +653,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Convert the global ordinal into a bucket ordinal.
          */
         abstract long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) throws IOException;
-
-        void reset() {
-            throw new IllegalStateException("reset should be implemented for stream aggregation");
-        }
     }
 
     interface BucketInfoConsumer {
@@ -714,9 +710,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public void close() {}
-
-        @Override
-        void reset() {}
     }
 
     /**
@@ -726,7 +719,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * less when collecting only a few.
      */
     private class RemapGlobalOrds extends CollectionStrategy {
-        protected LongKeyedBucketOrds bucketOrds;
+        protected final LongKeyedBucketOrds bucketOrds;
 
         private RemapGlobalOrds(CardinalityUpperBound cardinality) {
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
@@ -805,12 +798,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         public void close() {
             bucketOrds.close();
         }
-
-        @Override
-        void reset() {
-            bucketOrds.close();
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinalityUpperBound);
-        }
     }
 
     private class RemapGlobalOrdsStarTree extends RemapGlobalOrds {
@@ -843,7 +830,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         B extends InternalMultiBucketAggregation.InternalBucket,
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
-        InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             if (valueCount == 0) { // no context in this reader
                 InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
@@ -1225,12 +1212,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     /**
      * Predicate used for {@link #acceptedGlobalOrdinals} if there is no filter.
      */
-    static final LongPredicate ALWAYS_TRUE = l -> true;
+    private static final LongPredicate ALWAYS_TRUE = l -> true;
 
     /**
      * If DocValues have not been initialized yet for reduce phase, create and set them.
      */
-    SortedSetDocValues getDocValues() throws IOException {
+    private SortedSetDocValues getDocValues() throws IOException {
         if (dvs.get() == null) {
             dvs.set(
                 !context.searcher().getIndexReader().leaves().isEmpty()

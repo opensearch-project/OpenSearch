@@ -85,6 +85,9 @@ public class BucketCollectorProcessor {
         }
     }
 
+    /**
+     * For streaming aggregation, build one aggregation batch result
+     */
     public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
         final List<InternalAggregation> aggregations = new ArrayList<>();
 
