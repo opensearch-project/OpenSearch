@@ -32,10 +32,9 @@ public class BinaryDocValuesFetcher extends FieldValueFetcher {
         List<Object> values = new ArrayList<>();
         try {
             final BinaryDocValues binaryDocValues = reader.getBinaryDocValues(mappedFieldType.name());
-            if (binaryDocValues == null || !binaryDocValues.advanceExact(docId)) {
-                return values;
+            if (binaryDocValues != null && binaryDocValues.advanceExact(docId)) {
+                values.add(binaryDocValues.binaryValue());
             }
-            values.add(binaryDocValues.binaryValue());
         } catch (IOException e) {
             throw new IOException("Failed to read doc values for document " + docId + " in field " + mappedFieldType.name(), e);
         }
