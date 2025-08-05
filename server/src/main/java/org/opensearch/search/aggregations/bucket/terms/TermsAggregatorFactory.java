@@ -120,7 +120,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (execution == null) {
                     // if user doesn't set execution mode and enable stream search
                     // we create streaming aggregator
-                    if (context.isStreamSearch()) {
+                    if (context.isStreamSearch() && includeExclude == null) {
                         return createStreamAggregator(
                             name,
                             factories,
@@ -600,10 +600,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
             ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
 
-            int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
-            final IncludeExclude.OrdinalsFilter filter = includeExclude == null
-                ? null
-                : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
+            assert includeExclude == null : "Stream term aggregation doesn't support include exclude.";
+
             boolean remapGlobalOrds;
             if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
                 /*
@@ -614,20 +612,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                  */
                 remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
             } else {
-                remapGlobalOrds = true;
-                if (includeExclude == null
-                    && cardinality == CardinalityUpperBound.ONE
-                    && (factories == AggregatorFactories.EMPTY
-                        || (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
-                    /*
-                     * We don't need to remap global ords iff this aggregator:
-                     *    - has no include/exclude rules AND
-                     *    - only collects from a single bucket AND
-                     *    - has no sub-aggregator or only sub-aggregator that can be deferred
-                     *      ({@link SubAggCollectionMode#BREADTH_FIRST}).
-                     */
-                    remapGlobalOrds = false;
-                }
+                /*
+                 * We don't need to remap global ords iff this aggregator:
+                 *    - has no include/exclude rules AND
+                 *    - only collects from a single bucket AND
+                 *    - has no sub-aggregator or only sub-aggregator that can be deferred
+                 *      ({@link SubAggCollectionMode#BREADTH_FIRST}).
+                 */
+                remapGlobalOrds = cardinality != CardinalityUpperBound.ONE
+                    || factories != AggregatorFactories.EMPTY
+                        && (isAggregationSort(order) || subAggCollectMode != SubAggCollectionMode.BREADTH_FIRST);
             }
             return new StreamingStringTermsAggregator(
                 name,
@@ -637,7 +631,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 order,
                 format,
                 bucketCountThresholds,
-                filter,
+                null,
                 context,
                 parent,
                 remapGlobalOrds,

@@ -42,13 +42,13 @@ public class StreamSearchChannelListener<Response extends TransportResponse, Req
      * Send streaming responses
      * This allows multiple responses to be sent for a single request.
      *
-     * @param response the intermediate response to send
-     * @param isLast whether this response is the last one
+     * @param response    the intermediate response to send
+     * @param isLastBatch whether this response is the last one
      */
-    public void onStreamResponse(Response response, boolean isLast) {
+    public void onStreamResponse(Response response, boolean isLastBatch) {
         assert response != null;
         channel.sendResponseBatch(response);
-        if (isLast) {
+        if (isLastBatch) {
             channel.completeStream();
         }
     }

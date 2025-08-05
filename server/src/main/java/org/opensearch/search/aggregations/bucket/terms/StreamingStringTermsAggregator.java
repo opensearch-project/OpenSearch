@@ -92,33 +92,12 @@ public class StreamingStringTermsAggregator extends GlobalOrdinalsStringTermsAgg
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         this.sortedDocValuesPerBatch = valuesSource.ordinalsValues(ctx);
-        this.valueCount = sortedDocValuesPerBatch.getValueCount(); // for streaming case, the value count is reset to per batch
-        // cardinality
-        if (docCounts == null) {
-            this.docCounts = context.bigArrays().newLongArray(valueCount, true);
-        } else {
-            this.docCounts = context.bigArrays().grow(docCounts, valueCount);
-        }
+        this.valueCount = sortedDocValuesPerBatch.getValueCount();
+        this.docCounts = context.bigArrays().grow(docCounts, valueCount);
 
         SortedDocValues singleValues = DocValues.unwrapSingleton(sortedDocValuesPerBatch);
         if (singleValues != null) {
             segmentsWithSingleValuedOrds++;
-            if (acceptedGlobalOrdinals == ALWAYS_TRUE) {
-                /*
-                 * Optimize when there isn't a filter because that is very
-                 * common and marginally faster.
-                 */
-                return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, sortedDocValuesPerBatch) {
-                    @Override
-                    public void collect(int doc, long owningBucketOrd) throws IOException {
-                        if (false == singleValues.advanceExact(doc)) {
-                            return;
-                        }
-                        int batchOrd = singleValues.ordValue();
-                        collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, batchOrd, sub);
-                    }
-                });
-            }
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, sortedDocValuesPerBatch) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -126,33 +105,11 @@ public class StreamingStringTermsAggregator extends GlobalOrdinalsStringTermsAgg
                         return;
                     }
                     int batchOrd = singleValues.ordValue();
-                    if (false == acceptedGlobalOrdinals.test(batchOrd)) {
-                        return;
-                    }
                     collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, batchOrd, sub);
                 }
             });
         }
         segmentsWithMultiValuedOrds++;
-        if (acceptedGlobalOrdinals == ALWAYS_TRUE) {
-            /*
-             * Optimize when there isn't a filter because that is very
-             * common and marginally faster.
-             */
-            return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, sortedDocValuesPerBatch) {
-                @Override
-                public void collect(int doc, long owningBucketOrd) throws IOException {
-                    if (false == sortedDocValuesPerBatch.advanceExact(doc)) {
-                        return;
-                    }
-                    int count = sortedDocValuesPerBatch.docValueCount();
-                    long globalOrd;
-                    while ((count-- > 0) && (globalOrd = sortedDocValuesPerBatch.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
-                        collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
-                    }
-                }
-            });
-        }
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, sortedDocValuesPerBatch) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -160,23 +117,15 @@ public class StreamingStringTermsAggregator extends GlobalOrdinalsStringTermsAgg
                     return;
                 }
                 int count = sortedDocValuesPerBatch.docValueCount();
-                long batchOrd;
-                while ((count-- > 0) && (batchOrd = sortedDocValuesPerBatch.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
-                    if (false == acceptedGlobalOrdinals.test(batchOrd)) {
-                        continue;
-                    }
-                    collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, batchOrd, sub);
+                long globalOrd;
+                while ((count-- > 0) && (globalOrd = sortedDocValuesPerBatch.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                    collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                 }
             }
         });
     }
 
     class StandardTermsResults extends GlobalOrdinalsStringTermsAggregator.StandardTermsResults {
-        @Override
-        String describe() {
-            return "streaming_terms";
-        }
-
         @Override
         StringTerms.Bucket buildFinalBucket(long globalOrd, long bucketOrd, long docCount, long owningBucketOrd) throws IOException {
             // Recreate DocValues as needed for concurrent segment search

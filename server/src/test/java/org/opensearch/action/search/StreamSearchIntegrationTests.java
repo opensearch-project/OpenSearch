@@ -60,7 +60,7 @@ import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
  * - StreamSearchTransportService
  * - SearchStreamActionListener
  */
-public class StreamingSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
+public class StreamSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
 
     private static final String TEST_INDEX = "test_streaming_index";
     private static final int NUM_SHARDS = 3;

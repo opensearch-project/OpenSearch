@@ -164,7 +164,6 @@ public class StreamSearchTransportService extends SearchTransportService {
                     response.close();
                 } catch (Exception e) {
                     response.cancel("Client error during search phase", e);
-                    logger.error("Failed to handle stream response in the stream callback", e);
                     streamListener.onFailure(e);
                 }
             }
