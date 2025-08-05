@@ -309,6 +309,5 @@ public class ReorganizingLongHash implements Releasable {
     @Override
     public void close() {
         Releasables.close(table, keys);
-        size = 0;
     }
 }

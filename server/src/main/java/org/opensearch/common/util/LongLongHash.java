@@ -159,7 +159,6 @@ public final class LongLongHash extends AbstractHash {
     @Override
     public void close() {
         Releasables.close(keys, () -> super.close());
-        size = 0;
     }
 
     static long hash(long key1, long key2) {
