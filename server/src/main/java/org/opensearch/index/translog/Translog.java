@@ -154,6 +154,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     protected final TranslogDeletionPolicy deletionPolicy;
     protected final LongConsumer persistedSequenceNumberConsumer;
     protected final TranslogOperationHelper translogOperationHelper;
+    protected final ChannelFactory channelFactory;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -198,6 +199,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
         this.translogOperationHelper = translogOperationHelper;
+        this.channelFactory = channelFactory != null ? channelFactory : FileChannel::open;
     }
 
     /**
@@ -218,7 +220,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
         assert config.getIndexSettings().isDerivedSourceEnabled() == false; // For derived source supported index, it is incorrect to use
                                                                             // this constructor
@@ -324,7 +327,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
-        FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
+        FileChannel channel = getChannelFactory().open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: "
                 + Translog.parseIdFromFileName(path)
@@ -1931,7 +1934,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     ChannelFactory getChannelFactory() {
-        return FileChannel::open;
+        return this.channelFactory;
     }
 
     /**
