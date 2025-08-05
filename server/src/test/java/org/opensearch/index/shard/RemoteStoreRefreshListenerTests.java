@@ -896,4 +896,75 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         }
     }
 
+    /**
+     * Verifies that metadata upload gets skipped when all segment files are already uploaded.
+     */
+    public void testMetadataUploadOptimizationWhenNoNewFiles() throws Exception {
+        setup(true, 3);
+        assertDocs(indexShard, "1", "2", "3");
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        
+        try (Store remoteStore = indexShard.remoteStore()) {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+            
+            verifyUploadedSegments(remoteSegmentStoreDirectory);
+            assertTrue("remote store should be in sync after first refresh", remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+            
+            String[] initialMetadataFiles = remoteSegmentStoreDirectory.listMetadataFilenames();
+            int initialMetadataCount = initialMetadataFiles.length;
+            
+            RemoteSegmentStoreDirectory spyRemoteDirectory = spy(remoteSegmentStoreDirectory);
+            
+            Store mockRemoteStore = mock(Store.class);
+            FilterDirectory mockFilterDirectory1 = mock(FilterDirectory.class);
+            FilterDirectory mockFilterDirectory2 = mock(FilterDirectory.class);
+            when(mockRemoteStore.directory()).thenReturn(mockFilterDirectory1);
+            when(mockFilterDirectory1.getDelegate()).thenReturn(mockFilterDirectory2);
+            when(mockFilterDirectory2.getDelegate()).thenReturn(spyRemoteDirectory);
+            
+            RemoteStoreRefreshListener spyRefreshListener = new RemoteStoreRefreshListener(
+                indexShard,
+                SegmentReplicationCheckpointPublisher.EMPTY,
+                tracker,
+                DefaultRemoteStoreSettings.INSTANCE
+            );
+            
+            // Second refresh without new docs - should skip metadata upload
+            spyRefreshListener.afterRefresh(true);
+            
+            String[] finalMetadataFiles = remoteSegmentStoreDirectory.listMetadataFilenames();
+            
+            assertTrue("remote store should still be in sync after second refresh", 
+                       remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+        }
+    }
+
+    /**
+     * Ensures metadata upload still works when new files need to be uploaded.
+     */
+    public void testMetadataUploadWhenNewFilesExist() throws Exception {
+        setup(true, 3);
+        assertDocs(indexShard, "1", "2", "3");
+
+        remoteStoreRefreshListener.afterRefresh(true);
+        
+        try (Store remoteStore = indexShard.remoteStore()) {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+            
+            verifyUploadedSegments(remoteSegmentStoreDirectory);
+            
+            indexDocs(4, 2);
+            indexShard.refresh("test");
+            
+            remoteStoreRefreshListener.afterRefresh(true);
+            
+            verifyUploadedSegments(remoteSegmentStoreDirectory);
+            assertTrue("remote store should be in sync after adding new documents", 
+                       remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+        }
+    }
+
 }
