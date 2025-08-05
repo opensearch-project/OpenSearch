@@ -88,11 +88,11 @@ public interface TcpChannel extends CloseableChannel {
      * Sends a tcp message to the channel. The listener will be executed once the send process has been
      * completed.
      *
-     * @param reqId request Id
+     * @param requestId request Id
      * @param reference to send to channel
      * @param listener to execute upon send completion
      */
-    default void sendMessage(long reqId, BytesReference reference, ActionListener<Void> listener) {
+    default void sendMessage(long requestId, BytesReference reference, ActionListener<Void> listener) {
         sendMessage(reference, listener);
     }
 

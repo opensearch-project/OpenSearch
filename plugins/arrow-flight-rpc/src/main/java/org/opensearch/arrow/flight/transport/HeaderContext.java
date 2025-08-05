@@ -15,11 +15,11 @@ import java.util.concurrent.ConcurrentHashMap;
 class HeaderContext {
     private final ConcurrentHashMap<Long, Header> headerMap = new ConcurrentHashMap<>();
 
-    void setHeader(long reqId, Header header) {
-        headerMap.put(reqId, header);
+    void setHeader(long correlationId, Header header) {
+        headerMap.put(correlationId, header);
     }
 
-    Header getHeader(long reqId) {
-        return headerMap.remove(reqId);
+    Header getHeader(long correlationId) {
+        return headerMap.remove(correlationId);
     }
 }

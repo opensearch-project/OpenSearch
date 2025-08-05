@@ -34,7 +34,7 @@ import java.util.Objects;
  */
 class ClientHeaderMiddleware implements FlightClientMiddleware {
     static final String RAW_HEADER_KEY = "raw-header";
-    static final String REQUEST_ID_KEY = "req-id";
+    static final String CORRELATION_ID_KEY = "correlation-id";
 
     private final HeaderContext context;
     private final Version version;
@@ -60,13 +60,13 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
     @Override
     public void onHeadersReceived(CallHeaders incomingHeaders) {
         String encodedHeader = incomingHeaders.get(RAW_HEADER_KEY);
-        String reqId = incomingHeaders.get(REQUEST_ID_KEY);
+        String correlationId = incomingHeaders.get(CORRELATION_ID_KEY);
 
         if (encodedHeader == null) {
             throw new StreamException(StreamErrorCode.INVALID_ARGUMENT, "Missing required header: " + RAW_HEADER_KEY);
         }
-        if (reqId == null) {
-            throw new StreamException(StreamErrorCode.INVALID_ARGUMENT, "Missing required header: " + REQUEST_ID_KEY);
+        if (correlationId == null) {
+            throw new StreamException(StreamErrorCode.INVALID_ARGUMENT, "Missing required header: " + CORRELATION_ID_KEY);
         }
 
         try {
@@ -87,12 +87,11 @@ class ClientHeaderMiddleware implements FlightClientMiddleware {
             }
 
             // Store the header in context for later retrieval
-            long requestId = Long.parseLong(reqId);
-            context.setHeader(requestId, header);
+            context.setHeader(Long.parseLong(correlationId), header);
         } catch (IOException e) {
             throw new StreamException(StreamErrorCode.INTERNAL, "Failed to decode header", e);
         } catch (NumberFormatException e) {
-            throw new StreamException(StreamErrorCode.INVALID_ARGUMENT, "Invalid request ID format: " + reqId, e);
+            throw new StreamException(StreamErrorCode.INVALID_ARGUMENT, "Invalid request ID format: " + correlationId, e);
         }
     }
 

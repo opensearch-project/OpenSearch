@@ -332,7 +332,8 @@ public final class SearchPhaseController {
                 assert currentOffset == sortedDocs.length : "expected no more score doc slices";
             }
         }
-        return reducedQueryPhase.buildResponse(hits);
+
+        return reducedQueryPhase.buildResponse(hits, fetchResults, this);
     }
 
     private SearchHits getHits(
@@ -741,11 +742,29 @@ public final class SearchPhaseController {
         }
 
         /**
-         * Creates a new search response from the given merged hits.
+         * Creates a new search response from the given merged hits with fetch profile merging.
+         * @param hits the merged search hits
+         * @param fetchResults the fetch results to merge profiles from
+         * @param controller the SearchPhaseController instance to access mergeFetchProfiles method
          * @see #merge(boolean, ReducedQueryPhase, Collection, IntFunction)
          */
-        public InternalSearchResponse buildResponse(SearchHits hits) {
-            return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly, numReducePhases);
+        public InternalSearchResponse buildResponse(
+            SearchHits hits,
+            Collection<? extends SearchPhaseResult> fetchResults,
+            SearchPhaseController controller
+        ) {
+            SearchProfileShardResults mergedProfileResults = shardResults != null
+                ? controller.mergeFetchProfiles(shardResults, fetchResults)
+                : null;
+            return new InternalSearchResponse(
+                hits,
+                aggregations,
+                suggest,
+                mergedProfileResults,
+                timedOut,
+                terminatedEarly,
+                numReducePhases
+            );
         }
     }
 
@@ -897,5 +916,41 @@ public final class SearchPhaseController {
             this.collapseField = collapseField;
             this.collapseValues = collapseValues;
         }
+    }
+
+    /**
+     * Merges fetch phase profile results with query phase profile results.
+     *
+     * @param queryProfiles the query phase profile results (must not be null)
+     * @param fetchResults the fetch phase results to merge profiles from
+     * @return merged profile results containing both query and fetch phase data
+     */
+    public SearchProfileShardResults mergeFetchProfiles(
+        SearchProfileShardResults queryProfiles,
+        Collection<? extends SearchPhaseResult> fetchResults
+    ) {
+        Map<String, ProfileShardResult> mergedResults = new HashMap<>(queryProfiles.getShardResults());
+
+        // Merge fetch profiles into existing query profiles
+        for (SearchPhaseResult fetchResult : fetchResults) {
+            if (fetchResult.fetchResult() != null && fetchResult.fetchResult().getProfileResults() != null) {
+                ProfileShardResult fetchProfile = fetchResult.fetchResult().getProfileResults();
+                String shardId = fetchResult.getSearchShardTarget().toString();
+
+                ProfileShardResult existingProfile = mergedResults.get(shardId);
+                if (existingProfile != null) {
+                    // Merge fetch profile data into existing query profile
+                    ProfileShardResult merged = new ProfileShardResult(
+                        existingProfile.getQueryProfileResults(),
+                        existingProfile.getAggregationProfileResults(),
+                        fetchProfile.getFetchProfileResult(), // Use fetch profile data
+                        existingProfile.getNetworkTime()
+                    );
+                    mergedResults.put(shardId, merged);
+                }
+            }
+        }
+
+        return new SearchProfileShardResults(mergedResults);
     }
 }

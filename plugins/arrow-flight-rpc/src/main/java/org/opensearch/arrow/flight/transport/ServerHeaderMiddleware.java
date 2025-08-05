@@ -17,8 +17,8 @@ import org.apache.arrow.flight.RequestContext;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 
+import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.CORRELATION_ID_KEY;
 import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.RAW_HEADER_KEY;
-import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.REQUEST_ID_KEY;
 
 /**
  * ServerHeaderMiddleware is created per call to handle the response header
@@ -27,10 +27,10 @@ import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.REQUE
  */
 class ServerHeaderMiddleware implements FlightServerMiddleware {
     private ByteBuffer headerBuffer;
-    private final String reqId;
+    private final String requestId;
 
-    ServerHeaderMiddleware(String reqId) {
-        this.reqId = reqId;
+    ServerHeaderMiddleware(String requestId) {
+        this.requestId = requestId;
     }
 
     void setHeader(ByteBuffer headerBuffer) {
@@ -44,11 +44,11 @@ class ServerHeaderMiddleware implements FlightServerMiddleware {
             headerBuffer.get(headerBytes);
             String encodedHeader = Base64.getEncoder().encodeToString(headerBytes);
             outgoingHeaders.insert(RAW_HEADER_KEY, encodedHeader);
-            outgoingHeaders.insert(REQUEST_ID_KEY, reqId);
+            outgoingHeaders.insert(CORRELATION_ID_KEY, requestId);
             headerBuffer.rewind();
         } else {
             outgoingHeaders.insert(RAW_HEADER_KEY, "");
-            outgoingHeaders.insert(REQUEST_ID_KEY, reqId);
+            outgoingHeaders.insert(CORRELATION_ID_KEY, requestId);
         }
     }
 
@@ -61,8 +61,8 @@ class ServerHeaderMiddleware implements FlightServerMiddleware {
     public static class Factory implements FlightServerMiddleware.Factory<ServerHeaderMiddleware> {
         @Override
         public ServerHeaderMiddleware onCallStarted(CallInfo callInfo, CallHeaders incomingHeaders, RequestContext context) {
-            String reqId = incomingHeaders.get(REQUEST_ID_KEY);
-            return new ServerHeaderMiddleware(reqId);
+            String requestId = incomingHeaders.get(CORRELATION_ID_KEY);
+            return new ServerHeaderMiddleware(requestId);
         }
     }
 }
