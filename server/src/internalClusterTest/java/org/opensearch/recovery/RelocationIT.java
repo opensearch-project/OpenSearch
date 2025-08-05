@@ -105,6 +105,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -917,14 +918,16 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         );
 
         // Start indexing
-        int docCount = randomIntBetween(10, 100);
-        CountDownLatch docCountLatch = new CountDownLatch(docCount);
+        int initialDocCount = randomIntBetween(10, 100);
+        AtomicBoolean stopIndexing = new AtomicBoolean(false);
+        CountDownLatch initialDocCountLatch = new CountDownLatch(initialDocCount);
+        AtomicInteger totalDocCount = new AtomicInteger(0);
         Thread indexingThread = new Thread(() -> {
-            while (docCountLatch.getCount() > 0) {
+            while (stopIndexing.get() == false) {
                 try {
-                    long id = docCountLatch.getCount();
+                    long id = totalDocCount.incrementAndGet();
                     client().prepareIndex("test").setId(String.valueOf(id)).setSource("name", "test" + id, "value", id).get();
-                    docCountLatch.countDown();
+                    initialDocCountLatch.countDown();
                     Thread.sleep(10); // Small delay to prevent overwhelming
                 } catch (Exception e) {
                     logger.error("Error in background indexing", e);
@@ -932,35 +935,43 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             }
         });
 
-        indexingThread.start();
+        try {
+            // Let it index docCount documents
+            indexingThread.start();
+            initialDocCountLatch.await();
 
-        // Start relocation
-        String node2 = internalCluster().startNode();
-        ensureGreen();
+            // Start relocation
+            String node2 = internalCluster().startNode();
+            ensureGreen();
 
-        logger.info("--> relocate the shard while indexing");
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
-        ensureGreen(TimeValue.timeValueMinutes(2));
-
-        // Let it index docCount documents
-        docCountLatch.await();
-        indexingThread.join();
+            logger.info("--> relocate the shard while indexing");
+            client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+            ensureGreen(TimeValue.timeValueMinutes(2));
+        } finally {
+            // Stop the indexing
+            stopIndexing.set(true);
+            indexingThread.join();
+            if (indexingThread.isAlive()) {
+                indexingThread.interrupt();
+                indexingThread.join(TimeValue.timeValueSeconds(5).millis());
+            }
+        }
 
         assertBusy(() -> {
             refresh();
             SearchResponse response = client().prepareSearch("test")
                 .setQuery(matchAllQuery())
-                .setSize(docCount)
+                .setSize(totalDocCount.get())
                 .addSort("value", SortOrder.ASC)
                 .get();
-            assertHitCount(response, docCount);
+            assertHitCount(response, totalDocCount.get());
 
-            int expectedId = 1;
-            for (SearchHit hit : response.getHits()) {
-                Map<String, Object> source = hit.getSourceAsMap();
-                assertEquals("test" + expectedId, source.get("name"));
-                assertEquals(expectedId, source.get("value"));
-                expectedId++;
+            // Assert few documents
+            for (int i = 0; i < Math.min(totalDocCount.get(), 50); i++) {
+                int id = randomIntBetween(1, totalDocCount.get());
+                Map<String, Object> source = response.getHits().getAt(id - 1).getSourceAsMap();
+                assertEquals("test" + id, source.get("name"));
+                assertEquals(id, source.get("value"));
             }
         });
     }

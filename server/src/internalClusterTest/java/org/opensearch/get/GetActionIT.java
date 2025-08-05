@@ -801,7 +801,8 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                         "number_of_replicas": 0,
                         "derived_source": {
                             "enabled": true
-                        }
+                        },
+                        "refresh_interval": -1
                     }
                 },
                 "mappings": {

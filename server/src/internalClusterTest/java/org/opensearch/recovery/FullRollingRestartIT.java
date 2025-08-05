@@ -604,30 +604,24 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
 
         final AtomicBoolean stop = new AtomicBoolean(false);
         final AtomicInteger successfulUpdates = new AtomicInteger(0);
-        final CountDownLatch updateLatch = new CountDownLatch(1);
+        final CountDownLatch updateDocLatch = new CountDownLatch(docCount / 3);
         final Thread updateThread = new Thread(() -> {
-            try {
-                updateLatch.await();
-                while (stop.get() == false) {
-                    try {
-                        // Update documents sequentially to avoid conflicts
-                        for (int i = 0; i < docCount && !stop.get(); i++) {
-                            client().prepareUpdate("test", String.valueOf(i))
-                                .setRetryOnConflict(3)
-                                .setDoc("counter", successfulUpdates.get() + 1, "last_updated", System.currentTimeMillis(), "version", 1)
-                                .execute()
-                                .actionGet(TimeValue.timeValueSeconds(5));
-                            successfulUpdates.incrementAndGet();
-                            Thread.sleep(50); // Larger delay between updates
-                        }
-                    } catch (Exception e) {
-                        if (stop.get() == false) {
-                            logger.warn("Error in update thread", e);
-                        }
+            while (stop.get() == false) {
+                try {
+                    // Update documents sequentially to avoid conflicts
+                    for (int i = 0; i < docCount && !stop.get(); i++) {
+                        client().prepareUpdate("test", String.valueOf(i))
+                            .setRetryOnConflict(3)
+                            .setDoc("counter", successfulUpdates.get() + 1, "last_updated", System.currentTimeMillis(), "version", 1)
+                            .execute()
+                            .actionGet(TimeValue.timeValueSeconds(5));
+                        successfulUpdates.incrementAndGet();
+                        updateDocLatch.countDown();
+                        Thread.sleep(50); // Larger delay between updates
                     }
+                } catch (Exception e) {
+                    logger.warn("Error in background update thread", e);
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
             }
         });
 
@@ -638,17 +632,13 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
             );
 
             // Start additional nodes
-            for (int i = 0; i < 1; i++) {
-                internalCluster().startNode();
-            }
+            internalCluster().startNode();
             ensureGreen("test");
 
             // Start updates after cluster is stable
             updateThread.start();
-            updateLatch.countDown();
-
-            // Wait for some updates to occur
-            assertBusy(() -> { assertTrue("No successful updates occurred", successfulUpdates.get() > 0); }, 30, TimeUnit.SECONDS);
+            // Wait for fix number of updates to go through
+            updateDocLatch.await();
 
             // Rolling restart of all nodes
             for (String node : internalCluster().getNodeNames()) {
