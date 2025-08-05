@@ -283,7 +283,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return point;
             }
 
-
             @Override
             public byte[] encodePoint(Object value, boolean roundUp) {
                 Float numericValue = parse(value, true);

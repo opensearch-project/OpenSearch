@@ -658,7 +658,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(Byte.MIN_VALUE, decoded);
     }
 
-
     public void testShortEncodePoint() {
         NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.SHORT;
         // Test roundUp = true
@@ -674,7 +673,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         decoded = IntPoint.decodeDimension(encoded, 0);
         assertEquals(Short.MAX_VALUE, decoded);
     }
-
 
     public void testUnsignedLongEncodePoint() {
         NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.UNSIGNED_LONG;
@@ -708,7 +706,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         decoded = LongPoint.decodeDimension(encoded, 0);
         assertEquals(99L, decoded);
     }
-
 
     public void testNegativeNumberHandling() {
         // Test negative numbers for integer types
