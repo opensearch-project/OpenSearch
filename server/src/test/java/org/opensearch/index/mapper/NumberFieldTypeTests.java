@@ -181,8 +181,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("field", 42);
-        Query query = new IndexOrDocValuesQuery(LongPoint.newExactQuery("field", 42), dvQuery);
-        assertEquals(query, ft.termQuery("42", null));
+        Query pointQuery = LongPoint.newExactQuery("field", 42);
+        Query indexOrDocValuesQuery = new IndexOrDocValuesQuery(pointQuery, dvQuery);
+        Query approximateQuery = new ApproximateScoreQuery(
+            indexOrDocValuesQuery,
+            new ApproximatePointRangeQuery(
+                "field",
+                LongPoint.pack(new long[] { 42 }).bytes,
+                LongPoint.pack(new long[] { 42 }).bytes,
+                1,
+                ApproximatePointRangeQuery.LONG_FORMAT
+            )
+        );
+        assertEquals(approximateQuery, ft.termQuery("42", null));
 
         MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", null));
@@ -641,10 +652,26 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, true, MOCK_QSC)
         );
 
-        assertFalse(NumberType.DOUBLE.termQuery("field", -0d, true, true).equals(NumberType.DOUBLE.termQuery("field", +0d, true, true)));
-        assertFalse(NumberType.FLOAT.termQuery("field", -0f, true, true).equals(NumberType.FLOAT.termQuery("field", +0f, true, true)));
+        // For term queries, we need to extract the original query from the ApproximateScoreQuery
+        Query negativeZeroDouble = NumberType.DOUBLE.termQuery("field", -0d, true, true);
+        Query positiveZeroDouble = NumberType.DOUBLE.termQuery("field", +0d, true, true);
         assertFalse(
-            NumberType.HALF_FLOAT.termQuery("field", -0f, true, true).equals(NumberType.HALF_FLOAT.termQuery("field", +0f, true, true))
+            ((ApproximateScoreQuery) negativeZeroDouble).getOriginalQuery()
+                .equals(((ApproximateScoreQuery) positiveZeroDouble).getOriginalQuery())
+        );
+
+        Query negativeZeroFloat = NumberType.FLOAT.termQuery("field", -0f, true, true);
+        Query positiveZeroFloat = NumberType.FLOAT.termQuery("field", +0f, true, true);
+        assertFalse(
+            ((ApproximateScoreQuery) negativeZeroFloat).getOriginalQuery()
+                .equals(((ApproximateScoreQuery) positiveZeroFloat).getOriginalQuery())
+        );
+
+        Query negativeZeroHalfFloat = NumberType.HALF_FLOAT.termQuery("field", -0f, true, true);
+        Query positiveZeroHalfFloat = NumberType.HALF_FLOAT.termQuery("field", +0f, true, true);
+        assertFalse(
+            ((ApproximateScoreQuery) negativeZeroHalfFloat).getOriginalQuery()
+                .equals(((ApproximateScoreQuery) positiveZeroHalfFloat).getOriginalQuery())
         );
     }
 

@@ -280,7 +280,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numDocs = RandomNumbers.randomIntBetween(random(), 1500, 3000);
+                int numDocs = RandomNumbers.randomIntBetween(random(), 15000, 20000);
                 for (int i = 0; i < numDocs; i++) {
                     int numValues = RandomNumbers.randomIntBetween(random(), 1, 10);
                     Document doc = new Document();
@@ -356,7 +356,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 1000, 3000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 12000, 15000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -402,7 +402,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 1000, 3000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 12000, 15000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -447,7 +447,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 1000, 3000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 12000, 15000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -527,7 +527,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 3000, 10000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 12000, 15000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -657,7 +657,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 2000, 5000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 12000, 15000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -796,7 +796,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numPoints = RandomNumbers.randomIntBetween(random(), 1000, 3000);
+                int numPoints = RandomNumbers.randomIntBetween(random(), 12000, 15000);
                 for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
                     numericType.addField(doc, numericType.fieldName, i);
@@ -841,7 +841,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-                int numSameValueDocs = RandomNumbers.randomIntBetween(random(), 1000, 3000);
+                int numSameValueDocs = RandomNumbers.randomIntBetween(random(), 12000, 15000);
                 long sameValue = RandomNumbers.randomLongBetween(random(), 500, 2000);
                 for (int i = 0; i < numSameValueDocs; i++) {
                     Document doc = new Document();
@@ -887,27 +887,34 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
                 String fieldName = numericType.fieldName;
-                // Sparse range: 100-199 (100 docs, one per value)
+
+                // Sparse range: 100-199 (200 docs, 2 per value)
                 for (int i = 100; i < 200; i++) {
-                    Document doc = new Document();
-                    numericType.addField(doc, fieldName, i);
-                    numericType.addDocValuesField(doc, fieldName, i);
-                    iw.addDocument(doc);
+                    for (int j = 0; j < 2; j++) {
+                        Document doc = new Document();
+                        numericType.addField(doc, fieldName, i);
+                        numericType.addDocValuesField(doc, fieldName, i);
+                        iw.addDocument(doc);
+                    }
                 }
-                // Dense range: 1000-1999 (5000 docs, 5 per value)
-                for (int i = 0; i < 5000; i++) {
-                    long value = 1000 + (i / 5); // Creates 5 docs per value from 1000-1999
+
+                // Dense range: 1000-1999 (10000 docs, 10 per value)
+                for (int i = 0; i < 10000; i++) {
+                    long value = 1000 + (i / 10); // Creates 10 docs per value from 1000-1999
                     Document doc = new Document();
                     numericType.addField(doc, fieldName, value);
                     numericType.addDocValuesField(doc, fieldName, value);
                     iw.addDocument(doc);
                 }
-                // 0-99 (100 docs)
+
+                // 0-99 (200 docs, 2 per value)
                 for (int i = 0; i < 100; i++) {
-                    Document doc = new Document();
-                    numericType.addField(doc, fieldName, i);
-                    numericType.addDocValuesField(doc, fieldName, i);
-                    iw.addDocument(doc);
+                    for (int j = 0; j < 2; j++) {
+                        Document doc = new Document();
+                        numericType.addField(doc, fieldName, i);
+                        numericType.addDocValuesField(doc, fieldName, i);
+                        iw.addDocument(doc);
+                    }
                 }
                 iw.flush();
                 iw.forceMerge(1);
@@ -973,6 +980,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         if (numericType != NumericType.LONG) {
             return;
         }
+
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
@@ -1046,7 +1054,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             exactQuery = LongPoint.newRangeQuery(field, (long) lower, (long) upper);
         }
 
-        ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(field, upperBytes, lowerBytes, dims, size, null, format);
+        ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(field, lowerBytes, upperBytes, dims, size, null, format);
         // Test with exact query
         TopDocs approxDocs = searcher.search(approxQuery, size);
         TopDocs exactDocs = searcher.search(exactQuery, size);
@@ -1144,6 +1152,172 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             exactDocsAsc.scoreDocs.length,
             approxDocsAsc.scoreDocs.length
         );
+    }
+
+    // Test term queries with the same parameterized approach as range queries
+    public void testApproximateTermEqualsActualTerm() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                int numDocs = 15000;
+                long targetValue = 100;
+
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+
+                    // Every 10th document will contain the target value
+                    boolean hasTargetValue = (i % 10 == 0);
+                    long docValueForSort = i;
+
+                    if (hasTargetValue) {
+                        // Add target value as first field
+                        numericType.addField(doc, numericType.fieldName, targetValue);
+                        docValueForSort = targetValue; // Use target value for sorting
+                    }
+
+                    // Add 2-3 additional field values based on document index
+                    for (int j = 0; j < 3; j++) {
+                        long value = (i * 10) + j;
+                        numericType.addField(doc, numericType.fieldName, value);
+                    }
+
+                    // Add DocValues field for sorting
+                    numericType.addDocValuesField(doc, numericType.fieldName, docValueForSort);
+                    iw.addDocument(doc);
+
+                    if (i % 100 == 0) { // Deterministic flush pattern
+                        iw.flush();
+                    }
+                }
+                iw.flush();
+                iw.forceMerge(1); // Always force merge for consistency
+
+                try (IndexReader reader = iw.getReader()) {
+                    int searchSize = 25;
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    testApproximateVsExactQuery(searcher, numericType.fieldName, targetValue, targetValue, searchSize, dims);
+                }
+            }
+        }
+    }
+
+    public void testApproximateTermWithHighCardinality() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                int numDocs = 15000;
+                int targetValue = 1520;
+
+                // Create documents with a mix of values, but ensure we have multiple docs with the target value
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    long value;
+
+                    // Make every 20th document have the target value (deterministic 5%)
+                    if (i % 20 == 0) {
+                        value = targetValue;
+                    } else {
+                        value = i;
+                    }
+                    numericType.addField(doc, numericType.fieldName, value);
+                    numericType.addDocValuesField(doc, numericType.fieldName, value);
+                    iw.addDocument(doc);
+                    if (i % 100 == 0) { // Deterministic flush pattern
+                        iw.flush();
+                    }
+                }
+                iw.flush();
+                iw.forceMerge(1); // Always force merge for consistency
+
+                try (IndexReader reader = iw.getReader()) {
+                    int[] testSizes = { 5, 20, 50, 100, 500 };
+                    for (int size : testSizes) {
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        testApproximateVsExactQuery(searcher, numericType.fieldName, targetValue, targetValue, size, dims);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testApproximateTermWithDifferentNumericTypes() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                int numDocs = 12000;
+                long targetValue = RandomNumbers.randomLongBetween(random(), 10, 50);
+
+                // Create documents with the target value
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    // Every 10th document has the target value
+                    long value = (i % 10 == 0) ? targetValue : i;
+                    numericType.addField(doc, numericType.fieldName, value);
+                    numericType.addDocValuesField(doc, numericType.fieldName, value);
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+
+                try (IndexReader reader = iw.getReader()) {
+                    int size = RandomNumbers.randomIntBetween(random(), 20, 50);
+                    IndexSearcher searcher = new IndexSearcher(reader);
+
+                    // Test term query using testApproximateVsExactQuery with same upper and lower bounds
+                    testApproximateVsExactQuery(searcher, numericType.fieldName, targetValue, targetValue, size, dims);
+
+                }
+            }
+        }
+    }
+
+    public void testApproximateTermWithMultipleValuesPerDoc() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                int numDocs = 12000;
+                long targetValue = 150;
+
+                // Create documents with multiple values per document
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    int numValues = 3;
+                    boolean hasTargetValue = false;
+                    long docValueForSort = 0; // Track value for DocValues field
+
+                    // Add multiple field values to each document
+                    for (int j = 0; j < numValues; j++) {
+                        long value;
+                        // Make one of the values the target value for every 5th document (deterministic 20%)
+                        if (!hasTargetValue && i % 5 == 0 && j == 0) {
+                            value = targetValue;
+                            hasTargetValue = true;
+                            docValueForSort = value; // Use target value for sorting
+                        } else {
+                            value = i * 10 + j;
+                            if (docValueForSort == 0) {
+                                docValueForSort = value; // Use first value for sorting if no target value
+                            }
+                        }
+                        numericType.addField(doc, numericType.fieldName, value);
+                    }
+
+                    // Add a consistent doc value field (for sorting)
+                    numericType.addDocValuesField(doc, numericType.fieldName, docValueForSort);
+
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                iw.forceMerge(1); // Always force merge for consistency
+
+                try (IndexReader reader = iw.getReader()) {
+                    int size = 50; // Fixed size instead of random
+                    IndexSearcher searcher = new IndexSearcher(reader);
+
+                    // Test term query using testApproximateVsExactQuery with same upper and lower bounds
+                    testApproximateVsExactQuery(searcher, numericType.fieldName, targetValue, targetValue, size, dims);
+                }
+            }
+        }
     }
 
     public void testApproximateWithSort() {
