@@ -1,8 +1,12 @@
-package org.opensearch.index.fielddata.plain;
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
 
-import java.io.IOException;
-import java.util.Comparator;
-import java.util.function.Function;
+package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.index.IndexSorter;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -18,12 +22,16 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.ScriptDocValues;
-import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.util.Comparator;
+import java.util.function.Function;
 
 public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinalsIndexFieldData {
 
@@ -52,7 +60,7 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
             return new NonPruningSortedSetOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, scriptFunction);
         }
     }
-    
+
     public NonPruningSortedSetOrdinalsIndexFieldData(
         IndexFieldDataCache cache,
         String fieldName,
@@ -75,11 +83,13 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
             || (source.sortMissingLast(missingValue) == false && source.sortMissingFirst(missingValue) == false)) {
             return new NonPruningSortField(new SortField(getFieldName(), source, reverse));
         }
-        SortField sortField = new NonPruningSortField(new SortedSetSortField(
-            getFieldName(),
-            reverse,
-            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
-        ));
+        SortField sortField = new NonPruningSortField(
+            new SortedSetSortField(
+                getFieldName(),
+                reverse,
+                sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
+            )
+        );
         sortField.setMissingValue(
             source.sortMissingLast(missingValue) ^ reverse ? SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST
         );
@@ -88,6 +98,7 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
 
     public static class NonPruningSortField extends SortField {
         private final SortField delegate;
+
         private NonPruningSortField(SortField sortField) {
             super(sortField.getField(), sortField.getType());
             this.delegate = sortField;
