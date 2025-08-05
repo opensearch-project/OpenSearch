@@ -81,8 +81,17 @@ class FlatFetchProfileTree {
         if (parent == null) {
             throw new IllegalStateException("Parent phase '" + parentElement + "' does not exist for sub-phase '" + element + "'");
         }
-        Node child = new Node(element);
-        parent.children.add(child);
+        Node child = null;
+        for (Node existing : parent.children) {
+            if (existing.element.equals(element)) {
+                child = existing;
+                break;
+            }
+        }
+        if (child == null) {
+            child = new Node(element);
+            parent.children.add(child);
+        }
         return child.breakdown;
     }
 
