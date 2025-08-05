@@ -213,8 +213,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         return batch;
     }
 
-    public void sendBatch(InternalAggregation batch) {};
-
     /**
      * Build an empty aggregation.
      */

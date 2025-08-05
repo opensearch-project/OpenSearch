@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -104,6 +103,4 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
             bucketCountThresholds
         );
     }
-
-    abstract SortedSetDocValues getDocValues() throws IOException;
 }

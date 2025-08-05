@@ -403,7 +403,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 searchContext.shardTarget().getShardId().id()
             );
             InternalAggregation internalAggregation = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
-            sendBatch(internalAggregation);
+            if (internalAggregation != null) {
+                sendBatch(internalAggregation);
+            }
         }
 
         // Note: this is called if collection ran successfully, including the above special cases of

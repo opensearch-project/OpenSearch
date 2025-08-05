@@ -120,7 +120,6 @@ import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1849,60 +1848,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                         assertThat(result, notNullValue());
                         assertThat(result.getBuckets().size(), equalTo(0));
-                    } finally {
-                        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
-                        TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
-                    }
-                }
-            }
-        }
-    }
-
-    public void testStandardTermsResultsBuildFinalBucket() throws Exception {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedSetDocValuesField("field", new BytesRef("test_value")));
-                indexWriter.addDocument(document);
-
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
-                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING)
-                        .executionHint("stream")
-                        .field("field");
-
-                    TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;
-                    TermsAggregatorFactory.REMAP_GLOBAL_ORDS = false;
-
-                    try {
-                        StreamingStringTermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, false, fieldType);
-
-                        aggregator.preCollection();
-                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                        aggregator.postCollection();
-
-                        // Access the result strategy using reflection
-                        java.lang.reflect.Field resultStrategyField = GlobalOrdinalsStringTermsAggregator.class.getDeclaredField(
-                            "resultStrategy"
-                        );
-                        resultStrategyField.setAccessible(true);
-                        Object resultStrategy = resultStrategyField.get(aggregator);
-
-                        // Test buildFinalBucket method
-                        Method buildFinalBucketMethod = resultStrategy.getClass()
-                            .getDeclaredMethod("buildFinalBucket", long.class, long.class, long.class, long.class);
-                        buildFinalBucketMethod.setAccessible(true);
-
-                        StringTerms.Bucket finalBucket = (StringTerms.Bucket) buildFinalBucketMethod.invoke(resultStrategy, 0L, 0L, 5L, 0L);
-
-                        // Verify the final bucket was created correctly
-                        assertThat(finalBucket, notNullValue());
-                        assertThat(finalBucket, instanceOf(StringTerms.Bucket.class));
-                        assertThat(finalBucket.getKeyAsString(), equalTo("test_value"));
-                        assertThat(finalBucket.getDocCount(), equalTo(5L));
-                        assertThat(finalBucket.bucketOrd, equalTo(0L));
                     } finally {
                         TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
                         TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;

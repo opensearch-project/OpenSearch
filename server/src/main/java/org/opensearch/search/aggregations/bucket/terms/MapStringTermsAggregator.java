@@ -31,9 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -152,12 +150,6 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     @Override
     public void doClose() {
         Releasables.close(collectorSource, resultStrategy, bucketOrds);
-    }
-
-    @Override
-    SortedSetDocValues getDocValues() throws IOException {
-        // MapStringTermsAggregator doesn't use global ordinals, so return empty
-        return DocValues.emptySortedSet();
     }
 
     /**

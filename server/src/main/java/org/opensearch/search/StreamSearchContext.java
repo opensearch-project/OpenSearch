@@ -30,6 +30,9 @@ import java.util.function.LongSupplier;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 
+/**
+ * Search context for stream search
+ */
 public class StreamSearchContext extends DefaultSearchContext {
     StreamSearchChannelListener listener;
 
