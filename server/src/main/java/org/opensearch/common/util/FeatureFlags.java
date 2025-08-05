@@ -130,16 +130,6 @@ public class FeatureFlags {
     public static final Setting<Boolean> ARROW_STREAMS_SETTING = Setting.boolSetting(ARROW_STREAMS, false, Property.NodeScope);
 
     /**
-     * Gates the terms aggregation optimization algorithm selection.
-     */
-    public static final String TERMS_AGGREGATION_OPTIMIZATION_ENABLE = OS_EXPERIMENTAL_PREFIX + "optimization.terms_aggregation.enabled";
-    public static final Setting<Boolean> TERMS_AGGREGATION_OPTIMIZATION_ENABLE_SETTING = Setting.boolSetting(
-        TERMS_AGGREGATION_OPTIMIZATION_ENABLE,
-        true,
-        Property.NodeScope
-    );
-
-    /**
      * Underlying implementation for feature flags.
      * All settable feature flags are tracked here in FeatureFlagsImpl.featureFlags.
      * Contains all functionality across test and server use cases.
@@ -168,10 +158,6 @@ public class FeatureFlags {
                     SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING.getDefault(Settings.EMPTY)
                 );
                 put(MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING, MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
-                put(
-                    TERMS_AGGREGATION_OPTIMIZATION_ENABLE_SETTING,
-                    TERMS_AGGREGATION_OPTIMIZATION_ENABLE_SETTING.getDefault(Settings.EMPTY)
-                );
             }
         };
 
