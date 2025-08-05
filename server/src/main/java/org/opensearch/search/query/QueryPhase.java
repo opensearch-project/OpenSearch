@@ -76,6 +76,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
@@ -83,6 +84,7 @@ import static org.opensearch.search.query.QueryCollectorContext.createEarlyTermi
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createMultiCollectorContext;
+import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -409,7 +411,7 @@ public class QueryPhase {
      *
      * @opensearch.internal
      */
-    public static class DefaultQueryPhaseSearcher extends AbstractQueryPhaseSearcher {
+    public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
         private final AggregationProcessor aggregationProcessor;
 
         /**
@@ -420,7 +422,7 @@ public class QueryPhase {
         }
 
         @Override
-        protected boolean doSearchWith(
+        public boolean searchWith(
             SearchContext searchContext,
             ContextIndexSearcher searcher,
             Query query,
@@ -445,6 +447,47 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
+            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
+        }
+
+        private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector) throws IOException {
+            // create the top docs collector last when the other collectors are known
+            final Optional<QueryCollectorContext> queryCollectorContextOpt = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
+                searchContext,
+                new QueryCollectorArguments.Builder().hasFilterCollector(hasFilterCollector).build()
+            ).map(queryCollectorContextSpec -> new QueryCollectorContext(queryCollectorContextSpec.getContextName()) {
+                @Override
+                Collector create(Collector in) throws IOException {
+                    return queryCollectorContextSpec.create(in);
+                }
+
+                @Override
+                CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in)
+                    throws IOException {
+                    return queryCollectorContextSpec.createManager(in);
+                }
+
+                @Override
+                void postProcess(QuerySearchResult result) throws IOException {
+                    queryCollectorContextSpec.postProcess(result);
+                }
+            });
+            if (queryCollectorContextOpt.isPresent()) {
+                return queryCollectorContextOpt.get();
+            } else {
+                return createTopDocsCollectorContext(searchContext, hasFilterCollector);
+            }
+        }
+
+        protected boolean searchWithCollector(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            QueryCollectorContext queryCollectorContext,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
             return QueryPhase.searchWithCollector(
                 searchContext,
                 searcher,
@@ -455,6 +498,5 @@ public class QueryPhase {
                 hasTimeout
             );
         }
-
     }
 }

@@ -1,7 +1,10 @@
 # transport-grpc
 
 An auxiliary transport which runs in parallel to the REST API.
-The `transport-grpc` plugin initializes a new client/server transport implementing a gRPC protocol on Netty4.
+The `transport-grpc` module initializes a new client/server transport implementing a gRPC protocol on Netty4.
+
+**Note:** As a module, transport-grpc is included by default with all OpenSearch installations. However, it remains opt-in and must be explicitly enabled via configuration settings.
+
 ## GRPC Settings
 Enable this transport with:
 
@@ -50,7 +53,7 @@ setting 'grpc.netty.worker_count',                      '2'
 setting 'grpc.netty.max_concurrent_connection_calls',   '200'
 setting 'grpc.netty.max_connection_age',                '500ms'
 setting 'grpc.netty.max_connection_idle',               '2m'
-setting 'grpc.netty.max_msg_size:                       '10mb'
+setting 'grpc.netty.max_msg_size',                      '10mb'
 setting 'grpc.netty.keepalive_timeout',                 '1s'
 ```
 
@@ -58,12 +61,20 @@ setting 'grpc.netty.keepalive_timeout',                 '1s'
 
 ### Unit Tests
 
-```
-./gradlew :plugins:transport-grpc:test
+```bash
+./gradlew :modules:transport-grpc:test
 ```
 
 ### Integration Tests
 
+```bash
+./gradlew :modules:transport-grpc:internalClusterTest
 ```
-./gradlew :plugins:transport-grpc:internalClusterTest
+
+### Running OpenSearch with gRPC Enabled
+
+To run OpenSearch with the gRPC transport enabled:
+
+```bash
+./gradlew run -Dtests.opensearch.aux.transport.types="[experimental-transport-grpc]"
 ```
