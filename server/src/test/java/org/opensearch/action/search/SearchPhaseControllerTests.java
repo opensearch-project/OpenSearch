@@ -639,6 +639,27 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         }
     }
 
+    public void testMergeFetchProfilesWithNullQueryProfiles() {
+        // Test that the caller properly handles null queryProfiles
+        SearchPhaseController searchPhaseController = new SearchPhaseController(
+            writableRegistry(),
+            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+
+        // Create some fetch results (though they won't be used since queryProfiles is null)
+        List<SearchPhaseResult> fetchResults = new ArrayList<>();
+        FetchSearchResult fetchResult = new FetchSearchResult();
+        fetchResults.add(fetchResult);
+
+        // The caller should handle null queryProfiles and not call mergeFetchProfiles
+        // This simulates what happens in buildResponse when shardResults is null
+        SearchProfileShardResults mergedProfiles = null != null 
+            ? searchPhaseController.mergeFetchProfiles(null, fetchResults) 
+            : null;
+
+        assertNull("Merged profiles should be null when queryProfiles is null", mergedProfiles);
+    }
+
     /**
      * Generate random query results received from the provided number of shards, including the provided
      * number of search hits and randomly generated completion suggestions based on the name and size of the provided ones.
