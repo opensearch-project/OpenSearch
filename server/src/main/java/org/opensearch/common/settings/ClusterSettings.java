@@ -368,6 +368,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME,
                 AuxTransport.AUX_TRANSPORT_TYPES_SETTING,
+                AuxTransport.AUX_TRANSPORT_PORT,
                 HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                 HttpTransportSettings.SETTING_CORS_ENABLED,
                 HttpTransportSettings.SETTING_CORS_MAX_AGE,
