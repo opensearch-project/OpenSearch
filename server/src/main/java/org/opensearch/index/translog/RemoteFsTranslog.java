@@ -117,7 +117,8 @@ public class RemoteFsTranslog extends Translog {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            translogOperationHelper
+            translogOperationHelper,
+            null
         );
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
