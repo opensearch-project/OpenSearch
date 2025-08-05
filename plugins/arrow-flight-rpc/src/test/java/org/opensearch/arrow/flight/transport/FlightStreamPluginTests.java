@@ -6,12 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight;
+package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
 import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
-import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
+import org.opensearch.arrow.flight.stats.FlightStatsAction;
+import org.opensearch.arrow.flight.stats.FlightStatsRestHandler;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -33,16 +34,18 @@ import java.util.function.Supplier;
 
 import static org.opensearch.arrow.flight.bootstrap.FlightService.ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
+import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FlightStreamPluginTests extends OpenSearchTestCase {
-    private final Settings settings = Settings.EMPTY;
+    private Settings settings;
     private ClusterService clusterService;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        settings = Settings.builder().put("flight.ssl.enable", true).build();
         clusterService = mock(ClusterService.class);
         ClusterState clusterState = mock(ClusterState.class);
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
@@ -52,7 +55,7 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
     }
 
     @LockFeatureFlag(ARROW_STREAMS)
-    public void testPluginEnabled() throws IOException {
+    public void testPluginEnabledWithStreamManagerApproach() throws IOException {
         FlightStreamPlugin plugin = new FlightStreamPlugin(settings);
         plugin.createComponents(null, clusterService, mock(ThreadPool.class), null, null, null, null, null, null, null, null);
         Map<String, Supplier<AuxTransport>> aux_map = plugin.getAuxTransports(
@@ -71,7 +74,7 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         List<ExecutorBuilder<?>> executorBuilders = plugin.getExecutorBuilders(settings);
         assertNotNull(executorBuilders);
         assertFalse(executorBuilders.isEmpty());
-        assertEquals(2, executorBuilders.size());
+        assertEquals(3, executorBuilders.size());
 
         Optional<StreamManager> streamManager = plugin.getStreamManager();
         assertTrue(streamManager.isPresent());
@@ -80,8 +83,6 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         assertNotNull(settings);
         assertFalse(settings.isEmpty());
 
-        assertNotNull(plugin.getSecureTransports(null, null, null, null, null, null, mock(SecureTransportSettingsProvider.class), null));
-
         assertTrue(
             plugin.getAuxTransports(null, null, null, new NetworkService(List.of()), null, null)
                 .get(ARROW_FLIGHT_TRANSPORT_SETTING_KEY)
@@ -89,9 +90,63 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         );
         assertEquals(1, plugin.getRestHandlers(null, null, null, null, null, null, null).size());
         assertTrue(plugin.getRestHandlers(null, null, null, null, null, null, null).get(0) instanceof FlightServerInfoAction);
+
         assertEquals(1, plugin.getActions().size());
         assertEquals(NodesFlightInfoAction.INSTANCE.name(), plugin.getActions().get(0).getAction().name());
 
+        plugin.close();
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testPluginEnabledStreamTransportApproach() throws IOException {
+        FlightStreamPlugin plugin = new FlightStreamPlugin(settings);
+        plugin.createComponents(null, clusterService, mock(ThreadPool.class), null, null, null, null, null, null, null, null);
+        List<ExecutorBuilder<?>> executorBuilders = plugin.getExecutorBuilders(settings);
+        assertNotNull(executorBuilders);
+        assertFalse(executorBuilders.isEmpty());
+        assertEquals(3, executorBuilders.size());
+
+        Optional<StreamManager> streamManager = plugin.getStreamManager();
+        assertTrue(streamManager.isEmpty());
+
+        List<Setting<?>> settings = plugin.getSettings();
+        assertNotNull(settings);
+        assertFalse(settings.isEmpty());
+
+        assertFalse(
+            plugin.getSecureTransports(null, null, null, null, null, null, mock(SecureTransportSettingsProvider.class), null).isEmpty()
+        );
+
+        assertEquals(1, plugin.getRestHandlers(null, null, null, null, null, null, null).size());
+        assertTrue(plugin.getRestHandlers(null, null, null, null, null, null, null).get(0) instanceof FlightStatsRestHandler);
+
+        assertEquals(1, plugin.getActions().size());
+        assertEquals(FlightStatsAction.INSTANCE.name(), plugin.getActions().get(0).getAction().name());
+
+        plugin.close();
+    }
+
+    public void testBothDisabled() throws IOException {
+        FlightStreamPlugin plugin = new FlightStreamPlugin(settings);
+        plugin.createComponents(null, clusterService, mock(ThreadPool.class), null, null, null, null, null, null, null, null);
+
+        List<ExecutorBuilder<?>> executorBuilders = plugin.getExecutorBuilders(settings);
+        assertTrue(executorBuilders.isEmpty());
+
+        Optional<StreamManager> streamManager = plugin.getStreamManager();
+        assertTrue(streamManager.isEmpty());
+
+        List<Setting<?>> settings = plugin.getSettings();
+        assertNotNull(settings);
+        assertTrue(settings.isEmpty());
+
+        assertTrue(
+            plugin.getSecureTransports(null, null, null, null, null, null, mock(SecureTransportSettingsProvider.class), null).isEmpty()
+        );
+
+        assertEquals(0, plugin.getRestHandlers(null, null, null, null, null, null, null).size());
+
+        assertEquals(0, plugin.getActions().size());
         plugin.close();
     }
 }
