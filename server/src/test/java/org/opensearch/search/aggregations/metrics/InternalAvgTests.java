@@ -124,10 +124,11 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         // Add regular InternalAvg
         aggregations.add(new InternalAvg(name, 50.0, 10L, formatter, null));
 
-        // Add ScriptedMetric with double array [sum, count]
+        // Add ScriptedMetric with ScriptedAvg object
         InternalScriptedMetric scriptedMetric1 = mock(InternalScriptedMetric.class);
         when(scriptedMetric1.getName()).thenReturn(name);
-        when(scriptedMetric1.aggregation()).thenReturn(new double[] { 100.0, 20.0 });
+        ScriptedAvg scriptedAvg = new ScriptedAvg(100.0, 20L);
+        when(scriptedMetric1.aggregation()).thenReturn(scriptedAvg);
         aggregations.add(scriptedMetric1);
 
         InternalAvg avg = new InternalAvg(name, 0.0, 0L, formatter, null);
@@ -181,7 +182,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
 
         // Expect an IllegalArgumentException when reducing with invalid type
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> avg.reduce(aggregations, null));
-        assertEquals("Invalid ScriptedMetric result for [test_scripted_metric] avg aggregation. Expected a double array but received [java.lang.String]", e.getMessage());
+        assertEquals("Invalid ScriptedMetric result for [test_scripted_metric] avg aggregation. Expected ScriptedAvg but received [java.lang.String]", e.getMessage());
     }
 
     public void testReduceWithScriptedMetricInvalidArrayLength() {
@@ -203,8 +204,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         // Expect an IllegalArgumentException when reducing with invalid array length
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> avg.reduce(aggregations, null));
         assertEquals(
-            "Invalid ScriptedMetric result for [test_scripted_metric] avg aggregation. Expected a double array of length 2 " +
-                "but received an array of length [3]",
+            "Invalid ScriptedMetric result for [test_scripted_metric] avg aggregation. Expected ScriptedAvg but received [[D]",
             e.getMessage()
         );
     }

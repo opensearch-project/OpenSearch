@@ -112,20 +112,13 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
             if (aggregation instanceof InternalScriptedMetric) {
                 // If using InternalScriptedMetric in place of InternalAvg
                 Object value = ((InternalScriptedMetric) aggregation).aggregation();
-                if (value instanceof double[]) {
-                    double[] values = (double[]) value;
-                    if (values.length != 2) {
-                        throw new IllegalArgumentException(
-                            "Invalid ScriptedMetric result for [" + getName() + "] avg aggregation. Expected a double array of length 2 " +
-                            "but received an array of length [" + values.length + "]"
-                        );
-                    }
-                    count += Double.valueOf(values[1]).longValue();  // count is at index 1
-                    kahanSummation.add(values[0]);  // sum is at index 0
+                if (value instanceof ScriptedAvg scriptedAvg) {
+                    count += scriptedAvg.getCount();
+                    kahanSummation.add(scriptedAvg.getSum());
                 } else {
                     throw new IllegalArgumentException(
-                        "Invalid ScriptedMetric result for [" + getName() + "] avg aggregation. Expected a double array " +
-                        "but received [" + (value == null ? "null" : value.getClass().getName()) + "]"
+                        "Invalid ScriptedMetric result for [" + getName() + "] avg aggregation. Expected ScriptedAvg " +
+                            "but received [" + (value == null ? "null" : value.getClass().getName()) + "]"
                     );
                 }
             } else {
