@@ -115,6 +115,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -123,6 +124,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
@@ -474,6 +476,71 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
             assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
             assertThat(segments.get(2).getSegmentSort(), equalTo(indexSort));
+        }
+    }
+
+    public void testSegmentsWithNestedFieldIndexSort() throws Exception {
+        Sort indexSort = new Sort(new SortedSetSortField("foo1", false));
+        try (
+            Store store = createStore();
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, null, indexSort, null)
+        ) {
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            List<ParsedDocument> docs = List.of(
+                createDocumentWithNestedField("1", "Alice", 30),
+                createDocumentWithNestedField("2", "Bob", 25),
+                createDocumentWithNestedField("3", "Charlie", 35)
+            );
+            for (ParsedDocument doc : docs) {
+                engine.index(indexForDoc(doc));
+            }
+            engine.refresh("test");
+            segments = engine.segments(true);
+
+            assertThat(segments.size(), equalTo(1));
+            assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
+
+        }
+    }
+
+    public void testSegmentsWithNestedFieldIndexSortWithMerge() throws Exception {
+        Sort indexSort = new Sort(new SortedSetSortField("foo1", false));
+        try (
+            Store store = createStore();
+            Engine engine = createEngine(
+                defaultSettings,
+                store,
+                createTempDir(),
+                new TieredMergePolicy(),
+                null,
+                null,
+                null,
+                indexSort,
+                null
+            )
+        ) {
+            List<ParsedDocument> docs = List.of(
+                createDocumentWithNestedField("1", "Alice", 30),
+                createDocumentWithNestedField("2", "Bob", 25),
+                createDocumentWithNestedField("3", "Charlie", 35)
+            );
+            for (ParsedDocument doc : docs) {
+                engine.index(indexForDoc(doc));
+                engine.refresh("test");
+            }
+            List<Segment> preMergeSegments = engine.segments(true);
+            assertThat(preMergeSegments.size(), equalTo(3));
+            for (Segment segment : preMergeSegments) {
+                assertThat(segment.getSegmentSort(), equalTo(indexSort));
+            }
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
+            engine.refresh("test");
+            List<Segment> mergedSegments = engine.segments(true);
+
+            assertThat(mergedSegments.size(), equalTo(1));
+            assertThat(mergedSegments.get(0).getSegmentSort(), equalTo(indexSort));
         }
     }
 
@@ -8224,4 +8291,27 @@ public class InternalEngineTests extends EngineTestCase {
         store.close();
         engine.close();
     }
+
+    private ParsedDocument createDocumentWithNestedField(String id, String contactName, int contactAge) {
+        BytesReference source = null;
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("foo", 123)
+                .field("foo1", contactAge)
+                .startArray("contacts")
+                .startObject()
+                .field("name", contactName)
+                .field("age", contactAge)
+                .endObject()
+                .endArray()
+                .endObject();
+            source = BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return testParsedDocument(id, null, testDocumentWithTextField(), source, null);
+    }
+
 }

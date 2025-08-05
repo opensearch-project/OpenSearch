@@ -23,12 +23,11 @@ public class FileCacheSettings {
      * the file cache. For example, if 100GB disk space is configured for use as a file cache and the
      * remote_data_ratio of 5 is defined, then a total of 500GB of remote data can be loaded as searchable snapshots.
      * This is designed to be a safeguard to prevent oversubscribing a cluster.
-     * Specify a value of zero for no limit, which is the default for compatibility reasons.
      */
     public static final Setting<Double> DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING = Setting.doubleSetting(
         "cluster.filecache.remote_data_ratio",
-        0.0,
-        0.0,
+        5.0,
+        1.0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

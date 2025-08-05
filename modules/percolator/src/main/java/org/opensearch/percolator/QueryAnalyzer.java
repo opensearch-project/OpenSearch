@@ -55,6 +55,7 @@ import org.opensearch.Version;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.lucene.queries.BlendedTermQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -180,7 +181,8 @@ final class QueryAnalyzer {
 
         @Override
         public QueryVisitor getSubVisitor(Occur occur, Query parent) {
-            if (parent instanceof DateRangeIncludingNowQuery) {
+            if (parent instanceof ApproximateScoreQuery
+                && ((ApproximateScoreQuery) parent).getOriginalQuery() instanceof DateRangeIncludingNowQuery) {
                 terms.add(Result.UNKNOWN);
                 return QueryVisitor.EMPTY_VISITOR;
             }
