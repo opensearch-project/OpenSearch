@@ -118,8 +118,24 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
+                    // if user doesn't provide execution mode, and using stream search
+                    // we use stream aggregation
                     if (context.isStreamSearch()) {
-                        execution = ExecutionMode.STREAM;
+                        return createStreamAggregator(
+                            name,
+                            factories,
+                            valuesSource,
+                            order,
+                            format,
+                            bucketCountThresholds,
+                            includeExclude,
+                            context,
+                            parent,
+                            SubAggCollectionMode.DEPTH_FIRST,
+                            showTermDocCountError,
+                            cardinality,
+                            metadata
+                        );
                     } else {
                         execution = ExecutionMode.GLOBAL_ORDINALS;
                     }
@@ -524,75 +540,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     metadata
                 );
             }
-        },
-        STREAM(new ParseField("stream")) {
-
-            @Override
-            Aggregator create(
-                String name,
-                AggregatorFactories factories,
-                ValuesSource valuesSource,
-                BucketOrder order,
-                DocValueFormat format,
-                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                IncludeExclude includeExclude,
-                SearchContext context,
-                Aggregator parent,
-                SubAggCollectionMode subAggCollectMode,
-                boolean showTermDocCountError,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
-                assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
-                ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-
-                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null
-                    ? null
-                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
-                boolean remapGlobalOrds;
-                if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
-                    /*
-                     * We use REMAP_GLOBAL_ORDS to allow tests to force
-                     * specific optimizations but this particular one
-                     * is only possible if we're collecting from a single
-                     * bucket.
-                     */
-                    remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
-                } else {
-                    remapGlobalOrds = true;
-                    if (includeExclude == null
-                        && cardinality == CardinalityUpperBound.ONE
-                        && (factories == AggregatorFactories.EMPTY
-                            || (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
-                        /*
-                         * We don't need to remap global ords iff this aggregator:
-                         *    - has no include/exclude rules AND
-                         *    - only collects from a single bucket AND
-                         *    - has no sub-aggregator or only sub-aggregator that can be deferred
-                         *      ({@link SubAggCollectionMode#BREADTH_FIRST}).
-                         */
-                        remapGlobalOrds = false;
-                    }
-                }
-                return new StreamingStringTermsAggregator(
-                    name,
-                    factories,
-                    a -> a.new StandardTermsResults(),
-                    ordinalsValuesSource,
-                    order,
-                    format,
-                    bucketCountThresholds,
-                    filter,
-                    context,
-                    parent,
-                    remapGlobalOrds,
-                    subAggCollectMode,
-                    showTermDocCountError,
-                    cardinality,
-                    metadata
-                );
-            }
         };
 
         public static ExecutionMode fromString(String value) {
@@ -601,12 +548,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     return GLOBAL_ORDINALS;
                 case "map":
                     return MAP;
-                case "stream":
-                    return STREAM;
                 default:
-                    throw new IllegalArgumentException(
-                        "Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals, stream]"
-                    );
+                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
             }
         }
 
@@ -635,6 +578,74 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         @Override
         public String toString() {
             return parseField.getPreferredName();
+        }
+    }
+
+    static Aggregator createStreamAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource valuesSource,
+        BucketOrder order,
+        DocValueFormat format,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        IncludeExclude includeExclude,
+        SearchContext context,
+        Aggregator parent,
+        SubAggCollectionMode subAggCollectMode,
+        boolean showTermDocCountError,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        {
+            assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
+            ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+
+            int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+            final IncludeExclude.OrdinalsFilter filter = includeExclude == null
+                ? null
+                : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
+            boolean remapGlobalOrds;
+            if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
+                /*
+                 * We use REMAP_GLOBAL_ORDS to allow tests to force
+                 * specific optimizations but this particular one
+                 * is only possible if we're collecting from a single
+                 * bucket.
+                 */
+                remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
+            } else {
+                remapGlobalOrds = true;
+                if (includeExclude == null
+                    && cardinality == CardinalityUpperBound.ONE
+                    && (factories == AggregatorFactories.EMPTY
+                        || (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
+                    /*
+                     * We don't need to remap global ords iff this aggregator:
+                     *    - has no include/exclude rules AND
+                     *    - only collects from a single bucket AND
+                     *    - has no sub-aggregator or only sub-aggregator that can be deferred
+                     *      ({@link SubAggCollectionMode#BREADTH_FIRST}).
+                     */
+                    remapGlobalOrds = false;
+                }
+            }
+            return new StreamingStringTermsAggregator(
+                name,
+                factories,
+                a -> a.new StandardTermsResults(),
+                ordinalsValuesSource,
+                order,
+                format,
+                bucketCountThresholds,
+                filter,
+                context,
+                parent,
+                remapGlobalOrds,
+                subAggCollectMode,
+                showTermDocCountError,
+                cardinality,
+                metadata
+            );
         }
     }
 
