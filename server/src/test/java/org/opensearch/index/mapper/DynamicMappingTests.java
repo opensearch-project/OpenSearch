@@ -33,6 +33,7 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -40,6 +41,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,6 +88,11 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("field2"), nullValue());
+
+        // Verify that field2 is still present in _source even though it's not indexed
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(doc.source(), false, doc.getMediaType()).v2();
+        assertThat(sourceMap.get("field1"), equalTo("value1"));
+        assertThat(sourceMap.get("field2"), equalTo("value2"));
     }
 
     public void testDynamicFalseAllowTemplates() throws IOException {
@@ -135,6 +142,13 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertThat(doc2.rootDoc().get("date_timestamp"), equalTo("1704067200000"));
         assertThat(doc2.rootDoc().get("date_timezone"), equalTo("1704153600000"));
         assertThat(doc2.rootDoc().get("author"), nullValue());
+
+        // Verify that author is still present in _source even though it's not indexed
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(doc2.source(), false, doc2.getMediaType()).v2();
+        assertThat(sourceMap.get("author"), equalTo("John Doe"));
+        assertThat(sourceMap.get("url"), equalTo("https://example.com/"));
+        assertThat(sourceMap.get("date_timestamp"), equalTo("2024-01-01T00:00:00Z"));
+        assertThat(sourceMap.get("date_timezone"), equalTo("2024-01-02T00:00:00Z"));
     }
 
     public void testDynamicStrict() throws IOException {
