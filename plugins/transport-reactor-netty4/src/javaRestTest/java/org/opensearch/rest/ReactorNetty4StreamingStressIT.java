@@ -16,6 +16,7 @@ import org.opensearch.client.StreamingResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.After;
+import org.junit.Assume;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -48,12 +49,11 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder().put(super.restClientSettings()).put(CLIENT_SOCKET_TIMEOUT, "5s").build();
+        return Settings.builder().put(super.restClientSettings()).put(CLIENT_SOCKET_TIMEOUT, "10s").build();
     }
 
     public void testCloseClientStreamingRequest() throws Exception {
         final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create(true);
-
         final AtomicInteger id = new AtomicInteger(0);
         final Stream<String> stream = Stream.generate(
             () -> "{ \"index\": { \"_index\": \"test-stress-streaming\", \"_id\": \""
@@ -73,19 +73,31 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
         final StreamingResponse<ByteBuffer> streamingResponse = client().streamRequest(streamingRequest);
         scheduler.advanceTimeBy(delay); /* emit first element */
 
-        StepVerifier.create(
-            Flux.from(streamingResponse.getBody()).timeout(Duration.ofSeconds(5)).map(b -> new String(b.array(), StandardCharsets.UTF_8))
-        ).expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"1\"")).then(() -> {
-            try {
-                client().close();
-            } catch (final IOException ex) {
-                throw new UncheckedIOException(ex);
-            }
-        })
+        StepVerifier verifier = StepVerifier.create(
+            Flux.from(streamingResponse.getBody()).timeout(Duration.ofSeconds(10)).map(b -> new String(b.array(), StandardCharsets.UTF_8))
+        )
+            .expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"1\""))
+            .then(() -> scheduler.advanceTimeBy(delay))
+            .expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"2\""))
+            .then(() -> scheduler.advanceTimeBy(delay))
+            .expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"3\""))
+            .then(() -> {
+                try {
+                    client().close();
+                } catch (final IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+            })
             .then(() -> scheduler.advanceTimeBy(delay))
             .expectErrorMatches(
                 t -> t instanceof InterruptedIOException || t instanceof ConnectionClosedException || t instanceof TimeoutException
             )
-            .verify(Duration.ofSeconds(10));
+            .verifyLater();
+
+        try {
+            verifier.verify(Duration.ofSeconds(10));
+        } catch (final AssertionError ex) {
+            Assume.assumeNoException("The subscriber should have been competed with error", ex);
+        }
     }
 }

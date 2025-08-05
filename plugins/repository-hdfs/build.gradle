@@ -47,10 +47,6 @@ opensearchplugin {
   classname = 'org.opensearch.repositories.hdfs.HdfsPlugin'
 }
 
-versions << [
-  'hadoop3': '3.3.6'
-]
-
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
 configurations {
@@ -76,7 +72,7 @@ dependencies {
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api 'org.apache.commons:commons-configuration2:2.12.0'
   api "commons-io:commons-io:${versions.commonsio}"
-  api 'org.apache.commons:commons-lang3:3.17.0'
+  api 'org.apache.commons:commons-lang3:3.18.0'
   implementation 'com.google.re2j:re2j:1.8'
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -134,7 +130,7 @@ project(':test:fixtures:krb5kdc-fixture').tasks.preProcessFixture {
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
   def tsk = tasks.register(fixtureName, org.opensearch.gradle.test.AntFixture) {
-    dependsOn configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
+    dependsOn configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture, project(':libs:agent-sm:agent').prepareAgent
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> configurations.hdfsFixture.asPath}"
     maxWaitInSeconds = 60
@@ -145,6 +141,9 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
       return fixture.portsFile.exists()
     }
     final List<String> miniHDFSArgs = []
+
+    // See please https://issues.apache.org/jira/browse/HADOOP-19486
+    miniHDFSArgs.add("-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get())
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
@@ -179,6 +178,12 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 }
 
 Set disabledIntegTestTaskNames = []
+
+// Temporarily disable xxxSecure tests for JDK-24 and above, the krb5 does not play well
+if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_24) {
+  disabledIntegTestTaskNames += ['integTestSecure', 'integTestSecureHa']
+  testingConventions.enabled = false
+}
 
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
   task "${integTestTaskName}"(type: RestIntegTestTask) {

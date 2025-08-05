@@ -109,6 +109,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File rootDir = project.getRootDir();
         GitInfo gitInfo = gitInfo(rootDir);
 
+        FipsBuildParams.init(project::findProperty);
+
         BuildParams.init(params -> {
             // Initialize global build parameters
             boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
@@ -129,7 +131,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsCi(System.getenv("JENKINS_URL") != null);
             params.setIsInternal(isInternal);
             params.setDefaultParallel(findDefaultParallel(project));
-            params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
+            params.setInFipsJvm(FipsBuildParams.isInFipsMode());
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             if (isInternal) {
                 params.setBwcVersions(resolveBwcVersions(rootDir));
@@ -179,7 +181,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
-        LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());
+        LOGGER.quiet("  Crypto Standard       : " + FipsBuildParams.getFipsMode());
         LOGGER.quiet("=======================================");
     }
 

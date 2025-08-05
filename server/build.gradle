@@ -39,6 +39,8 @@ plugins {
   id('me.champeau.gradle.japicmp') version '0.4.6'
 }
 
+apply from: "$rootDir/gradle/fips.gradle"
+
 publishing {
   publications {
     nebula(MavenPublication) {
@@ -122,6 +124,7 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -392,7 +395,7 @@ tasks.named("sourcesJar").configure {
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
     // See please https://github.com/siom79/japicmp/issues/201
-    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT" ]
+    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
     oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
     newClasspath.from(tasks.named('jar'))
     onlyModified = true
@@ -400,7 +403,7 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     ignoreMissingClasses = true
     failOnSourceIncompatibility = true
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
-    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
+    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi', '@org.opensearch.common.annotation.ExperimentalApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
     dependsOn downloadJapicmpCompareTarget

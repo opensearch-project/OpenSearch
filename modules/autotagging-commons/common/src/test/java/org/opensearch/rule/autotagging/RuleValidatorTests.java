@@ -22,11 +22,15 @@ import static org.opensearch.rule.autotagging.RuleTests.FEATURE_TYPE;
 import static org.opensearch.rule.autotagging.RuleTests.FEATURE_VALUE;
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
 import static org.opensearch.rule.autotagging.RuleTests.UPDATED_AT;
+import static org.opensearch.rule.autotagging.RuleTests._ID;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RuleValidatorTests extends OpenSearchTestCase {
 
     public void testValidRule() {
-        RuleValidator validator = new RuleValidator(DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
+        RuleValidator validator = new RuleValidator(_ID, DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
         try {
             validator.validate();
         } catch (Exception e) {
@@ -41,7 +45,7 @@ public class RuleValidatorTests extends OpenSearchTestCase {
         String updatedAt,
         String description
     ) {
-        RuleValidator validator = new RuleValidator(description, attributeMap, featureValue, updatedAt, featureType);
+        RuleValidator validator = new RuleValidator(_ID, description, attributeMap, featureValue, updatedAt, featureType);
         validator.validate();
     }
 
@@ -113,8 +117,18 @@ public class RuleValidatorTests extends OpenSearchTestCase {
     }
 
     public void testEqualRuleValidators() {
-        RuleValidator validator = new RuleValidator(DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
-        RuleValidator otherValidator = new RuleValidator(DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
+        RuleValidator validator = new RuleValidator(_ID, DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
+        RuleValidator otherValidator = new RuleValidator(_ID, DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
         assertEquals(validator, otherValidator);
+    }
+
+    public void testFeatureValueValidationThrows() {
+        FeatureType mockFeatureType = mock(FeatureType.class);
+        FeatureValueValidator mockValidator = mock(FeatureValueValidator.class);
+        when(mockFeatureType.getFeatureValueValidator()).thenReturn(mockValidator);
+        doThrow(new IllegalArgumentException("Invalid feature value")).when(mockValidator).validate("bad-value");
+        RuleValidator validator = new RuleValidator(_ID, DESCRIPTION, ATTRIBUTE_MAP, "bad-value", UPDATED_AT, mockFeatureType);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, validator::validate);
+        assertTrue(ex.getMessage().contains("Invalid feature value"));
     }
 }

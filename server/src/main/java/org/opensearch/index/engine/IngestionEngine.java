@@ -13,16 +13,18 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
-import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.DocumentMapperForType;
@@ -39,6 +41,7 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.indices.pollingingest.DefaultStreamPoller;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
+import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
@@ -75,6 +78,14 @@ public class IngestionEngine extends InternalEngine {
      * Starts the ingestion engine to pull.
      */
     public void start() {
+        initializeStreamPoller(null, null, null);
+    }
+
+    private void initializeStreamPoller(
+        @Nullable StreamPoller.ResetState resetStateOverride,
+        @Nullable String resetValueOverride,
+        @Nullable IngestionShardPointer startPointerOverride
+    ) {
         IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
         assert indexMetadata != null;
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
@@ -86,31 +97,42 @@ public class IngestionEngine extends InternalEngine {
             + engineConfig.getIndexSettings().getIndex().getName()
             + "-"
             + engineConfig.getShardId().getId();
-        IngestionShardConsumer ingestionShardConsumer = this.ingestionConsumerFactory.createShardConsumer(
-            clientId,
-            engineConfig.getShardId().getId()
-        );
-        logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
+
         Map<String, String> commitData = commitDataAsMap(indexWriter);
         StreamPoller.ResetState resetState = ingestionSource.getPointerInitReset().getType();
+        String resetValue = ingestionSource.getPointerInitReset().getValue();
         IngestionShardPointer startPointer = null;
         Set<IngestionShardPointer> persistedPointers = new HashSet<>();
+        boolean forceResetPoller = resetStateOverride != null
+            && Strings.isNullOrEmpty(resetValueOverride) == false
+            && startPointerOverride != null;
 
-        if (commitData.containsKey(StreamPoller.BATCH_START)) {
-            // try recovering from commit data
-            String batchStartStr = commitData.get(StreamPoller.BATCH_START);
-            startPointer = this.ingestionConsumerFactory.parsePointerFromString(batchStartStr);
+        // load persisted pointers
+        if (commitData.containsKey(StreamPoller.BATCH_START) || forceResetPoller) {
+            if (forceResetPoller) {
+                startPointer = startPointerOverride;
+            } else {
+                // try recovering from commit data
+                String batchStartStr = commitData.get(StreamPoller.BATCH_START);
+                startPointer = this.ingestionConsumerFactory.parsePointerFromString(batchStartStr);
+
+                // reset to none so the poller will poll from the startPointer
+                resetState = StreamPoller.ResetState.NONE;
+            }
+
             try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
                 persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), startPointer);
-                logger.info("recovered persisted pointers: {}", persistedPointers);
+                logger.debug("recovered persisted pointers: {}", persistedPointers);
             } catch (IOException e) {
                 throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
             }
-            // reset to none so the poller will poll from the startPointer
-            resetState = StreamPoller.ResetState.NONE;
         }
 
-        String resetValue = ingestionSource.getPointerInitReset().getValue();
+        if (forceResetPoller) {
+            resetState = resetStateOverride;
+            resetValue = resetValueOverride;
+        }
+
         IngestionErrorStrategy ingestionErrorStrategy = IngestionErrorStrategy.create(
             ingestionSource.getErrorStrategy(),
             ingestionSource.getType()
@@ -119,21 +141,32 @@ public class IngestionEngine extends InternalEngine {
         StreamPoller.State initialPollerState = indexMetadata.getIngestionStatus().isPaused()
             ? StreamPoller.State.PAUSED
             : StreamPoller.State.NONE;
-        streamPoller = new DefaultStreamPoller(
+
+        // initialize the stream poller
+        DefaultStreamPoller.Builder streamPollerBuilder = new DefaultStreamPoller.Builder(
             startPointer,
             persistedPointers,
-            ingestionShardConsumer,
-            this,
-            resetState,
-            resetValue,
-            ingestionErrorStrategy,
-            initialPollerState,
-            ingestionSource.getMaxPollSize(),
-            ingestionSource.getPollTimeout(),
-            ingestionSource.getNumProcessorThreads(),
-            ingestionSource.getBlockingQueueSize()
+            ingestionConsumerFactory,
+            clientId,
+            engineConfig.getShardId().getId(),
+            this
         );
+        streamPoller = streamPollerBuilder.resetState(resetState)
+            .resetValue(resetValue)
+            .errorStrategy(ingestionErrorStrategy)
+            .initialState(initialPollerState)
+            .maxPollSize(ingestionSource.getMaxPollSize())
+            .pollTimeout(ingestionSource.getPollTimeout())
+            .numProcessorThreads(ingestionSource.getNumProcessorThreads())
+            .blockingQueueSize(ingestionSource.getBlockingQueueSize())
+            .build();
+        registerStreamPollerListener();
 
+        // start the polling loop
+        streamPoller.start();
+    }
+
+    private void registerStreamPollerListener() {
         // Register the poller with the ClusterService for receiving cluster state updates.
         // Also initialize cluster write block state in the poller.
         if (engineConfig.getClusterApplierService() != null) {
@@ -144,9 +177,12 @@ public class IngestionEngine extends InternalEngine {
                 .indexBlocked(ClusterBlockLevel.WRITE, engineConfig.getIndexSettings().getIndex().getName());
             streamPoller.setWriteBlockEnabled(isWriteBlockEnabled);
         }
+    }
 
-        // start the polling loop
-        streamPoller.start();
+    private void unregisterStreamPollerListener() {
+        if (engineConfig.getClusterApplierService() != null) {
+            engineConfig.getClusterApplierService().removeListener(streamPoller);
+        }
     }
 
     protected Set<IngestionShardPointer> fetchPersistedOffsets(DirectoryReader directoryReader, IngestionShardPointer batchStart)
@@ -426,6 +462,7 @@ public class IngestionEngine extends InternalEngine {
         if (streamPoller != null) {
             streamPoller.close();
         }
+        unregisterStreamPollerListener();
         super.close();
     }
 
@@ -504,31 +541,83 @@ public class IngestionEngine extends InternalEngine {
     }
 
     /**
-     * Pause the poller. Used by management flows.
+     * Apply updated ingestion settings, resetting consumer and updating poller.
      */
-    public void pauseIngestion() {
-        streamPoller.pause();
+    public void updateIngestionSettings(IngestionSettings ingestionSettings) {
+        // reset poller position and reinitialize poller
+        if (ingestionSettings.getResetState() != null && ingestionSettings.getResetValue() != null) {
+            resetStreamPoller(ingestionSettings.getResetState(), ingestionSettings.getResetValue());
+        }
+
+        // update ingestion state
+        if (ingestionSettings.getIsPaused() != null) {
+            updateIngestionState(ingestionSettings);
+        }
     }
 
     /**
-     * Resumes the poller. Used by management flows.
+     * Update ingestion state of the poller.
      */
-    public void resumeIngestion() {
-        streamPoller.resume();
+    private void updateIngestionState(IngestionSettings ingestionSettings) {
+        if (ingestionSettings.getIsPaused()) {
+            streamPoller.pause();
+        } else {
+            streamPoller.resume();
+        }
+    }
+
+    /**
+     * Reinitialize the poller with provided state and value. The current poller is first closed, before initializing
+     * the new poller. Once new poller is initialized, a flush is triggered to persist the new batch start pointer.
+     */
+    private void resetStreamPoller(StreamPoller.ResetState resetState, String resetValue) {
+        if (streamPoller.isPaused() == false) {
+            throw new IllegalStateException("Cannot reset consumer when poller is not paused");
+        }
+
+        if (streamPoller.getConsumer() == null) {
+            throw new IllegalStateException("Consumer is not yet initialized");
+        }
+
+        try {
+            // refresh is needed for persisted pointers to be visible
+            refresh("reset poller", SearcherScope.INTERNAL, true);
+
+            IngestionShardPointer startPointer = null;
+            if (resetState == StreamPoller.ResetState.RESET_BY_OFFSET) {
+                startPointer = streamPoller.getConsumer().pointerFromOffset(resetValue);
+            } else if (resetState == StreamPoller.ResetState.RESET_BY_TIMESTAMP) {
+                startPointer = streamPoller.getConsumer().pointerFromTimestampMillis(Long.parseLong(resetValue));
+            }
+
+            streamPoller.close();
+            unregisterStreamPollerListener();
+            initializeStreamPoller(resetState, resetValue, startPointer);
+        } catch (Exception e) {
+            throw new OpenSearchException("Failed to reset stream poller", e);
+        }
+
+        try {
+            // force flush to persist the new batch start pointer
+            flush(true, true);
+        } catch (Exception e) {
+            throw new OpenSearchException("Exception during flush. Poller successfully reset, but reset value might not be persisted.", e);
+        }
     }
 
     /**
      * Get current ingestion state. Used by management flows.
      */
     public ShardIngestionState getIngestionState() {
+        IngestionShardPointer shardPointer = streamPoller.getBatchStartPointer();
         return new ShardIngestionState(
             engineConfig.getIndexSettings().getIndex().getName(),
             engineConfig.getShardId().getId(),
             streamPoller.getState().toString(),
             streamPoller.getErrorStrategy().getName(),
             streamPoller.isPaused(),
-            streamPoller.isWriteBlockEnabled()
-
+            streamPoller.isWriteBlockEnabled(),
+            shardPointer != null ? shardPointer.toString() : ""
         );
     }
 }

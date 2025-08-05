@@ -10,6 +10,7 @@ package org.opensearch.index.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
@@ -24,21 +25,24 @@ import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.store.remote.utils.FileTypeUtils.BLOCK_FILE_IDENTIFIER;
 import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
 
 /**
@@ -56,6 +60,7 @@ public class CompositeDirectory extends FilterDirectory {
     protected final RemoteSegmentStoreDirectory remoteDirectory;
     protected final FileCache fileCache;
     protected final TransferManager transferManager;
+    protected final ThreadPool threadPool;
 
     /**
      * Constructor to initialise the composite directory
@@ -63,18 +68,20 @@ public class CompositeDirectory extends FilterDirectory {
      * @param remoteDirectory corresponding to the remote directory
      * @param fileCache used to cache the remote files locally
      */
-    public CompositeDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache) {
+    public CompositeDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache, ThreadPool threadPool) {
         super(localDirectory);
         validate(localDirectory, remoteDirectory, fileCache);
         this.localDirectory = (FSDirectory) localDirectory;
         this.remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectory;
         this.fileCache = fileCache;
+        this.threadPool = threadPool;
         transferManager = new TransferManager(
             (name, position, length) -> new InputStreamIndexInput(
                 CompositeDirectory.this.remoteDirectory.openBlockInput(name, position, length, IOContext.DEFAULT),
                 length
             ),
-            fileCache
+            fileCache,
+            threadPool
         );
     }
 
@@ -114,11 +121,31 @@ public class CompositeDirectory extends FilterDirectory {
         ensureOpen();
         logger.trace("Composite Directory[{}]: listAll() called", this::toString);
         String[] localFiles = localDirectory.listAll();
-        Set<String> allFiles = new HashSet<>(Arrays.asList(localFiles));
-        String[] remoteFiles = getRemoteFiles();
-        allFiles.addAll(Arrays.asList(remoteFiles));
+        String[] remoteFiles;
+
+        // Check if local directory has any segments_n files
+        boolean hasLocalSegments = Arrays.stream(localFiles).anyMatch(fileName -> fileName.startsWith(IndexFileNames.SEGMENTS));
+
+        try {
+            if (hasLocalSegments) {
+                // If local has segments_n, filter out segments_n from remote
+                remoteFiles = Arrays.stream(remoteDirectory.listAll())
+                    .filter(fileName -> !fileName.startsWith(IndexFileNames.SEGMENTS))
+                    .toArray(String[]::new);
+            } else {
+                // If local doesn't have segments_n, include all remote files
+                remoteFiles = remoteDirectory.listAll();
+            }
+        } catch (NullPointerException e) {
+            remoteFiles = new String[] {};
+        }
+
         logger.trace("Composite Directory[{}]: Local Directory files - {}", this::toString, () -> Arrays.toString(localFiles));
-        logger.trace("Composite Directory[{}]: Remote Directory files - {}", this::toString, () -> Arrays.toString(remoteFiles));
+        String[] finalRemoteFiles = remoteFiles;
+        logger.trace("Composite Directory[{}]: Remote Directory files - {}", this::toString, () -> Arrays.toString(finalRemoteFiles));
+        Set<String> allFiles = Stream.concat(Arrays.stream(localFiles), Arrays.stream(remoteFiles))
+            .map(s -> s.contains(BLOCK_FILE_IDENTIFIER) ? s.substring(0, s.indexOf(BLOCK_FILE_IDENTIFIER)) : s)
+            .collect(Collectors.toSet());
         Set<String> nonBlockLuceneFiles = allFiles.stream()
             .filter(file -> !FileTypeUtils.isBlockFile(file))
             .collect(Collectors.toUnmodifiableSet());
@@ -226,10 +253,16 @@ public class CompositeDirectory extends FilterDirectory {
     public void sync(Collection<String> names) throws IOException {
         ensureOpen();
         logger.trace("Composite Directory[{}]: sync() called {}", this::toString, () -> names);
-        Collection<String> remoteFiles = Arrays.asList(getRemoteFiles());
-        Collection<String> filesToSync = names.stream().filter(name -> remoteFiles.contains(name) == false).collect(Collectors.toList());
-        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> filesToSync);
-        localDirectory.sync(filesToSync);
+        Set<String> remoteFiles = Set.of(getRemoteFiles());
+        Set<String> localFilesHavingBlocks = Arrays.stream(listLocalFiles())
+            .filter(FileTypeUtils::isBlockFile)
+            .map(file -> file.substring(0, file.indexOf(BLOCK_FILE_IDENTIFIER)))
+            .collect(Collectors.toSet());
+        Collection<String> fullFilesToSync = names.stream()
+            .filter(name -> (remoteFiles.contains(name) == false) && (localFilesHavingBlocks.contains(name) == false))
+            .collect(Collectors.toList());
+        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> fullFilesToSync);
+        localDirectory.sync(fullFilesToSync);
     }
 
     /**
@@ -264,7 +297,27 @@ public class CompositeDirectory extends FilterDirectory {
         }
         // Return directly from the FileCache (via TransferManager) if complete file is present
         Path key = getFilePath(name);
-        CachedIndexInput indexInput = fileCache.get(key);
+
+        CachedIndexInput indexInput = fileCache.compute(key, (path, cachedIndexInput) -> {
+            // If entry exists and is not closed, use it
+            if (cachedIndexInput != null && cachedIndexInput.isClosed() == false) {
+                return cachedIndexInput;
+            }
+
+            // If entry is closed but file exists locally, create new IndexInput from local
+            if (cachedIndexInput != null && cachedIndexInput.isClosed() && Files.exists(key)) {
+                try {
+                    assert cachedIndexInput instanceof RestoredCachedIndexInput;
+                    return new CachedFullFileIndexInput(fileCache, key, localDirectory.openInput(name, IOContext.DEFAULT));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // Return null to fall back to remote store block download/existing block reuse.
+            return null;
+        });
+
         if (indexInput != null) {
             logger.trace("Composite Directory[{}]: Complete file {} found in FileCache", this::toString, () -> name);
             try {
@@ -285,7 +338,8 @@ public class CompositeDirectory extends FilterDirectory {
             if (uploadedSegmentMetadata == null) {
                 throw new NoSuchFileException("File " + name + " not found in directory");
             }
-            // TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot specific
+            // TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot
+            // specific
             BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
                 name,
                 new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(), uploadedSegmentMetadata.getChecksum(), Version.LATEST),
@@ -311,7 +365,6 @@ public class CompositeDirectory extends FilterDirectory {
                 fileCache.remove(getFilePath(localFile));
             }
         }
-        fileCache.prune();
         localDirectory.close();
     }
 
@@ -327,19 +380,15 @@ public class CompositeDirectory extends FilterDirectory {
      */
     public void afterSyncToRemote(String file) {
         ensureOpen();
-        /*
-        Decrementing the refCount here for the path so that it becomes eligible for eviction
-        This is a temporary solution until pinning support is added
-        TODO - Unpin the files here from FileCache so that they become eligible for eviction, once pinning/unpinning support is added in FileCache
-        Uncomment the below commented line(to remove the file from cache once uploaded) to test block based functionality
-         */
+
         logger.trace(
             "Composite Directory[{}]: File {} uploaded to Remote Store and now can be eligible for eviction in FileCache",
             this::toString,
             () -> file
         );
-        fileCache.decRef(getFilePath(file));
-        // fileCache.remove(getFilePath(fileName));
+        final Path filePath = getFilePath(file);
+        fileCache.unpin(filePath);
+        // fileCache.remove(filePath);
     }
 
     // Visibility public since we need it in IT tests
@@ -390,12 +439,10 @@ public class CompositeDirectory extends FilterDirectory {
 
     protected void cacheFile(String name) throws IOException {
         Path filePath = getFilePath(name);
-        // put will increase the refCount for the path, making sure it is not evicted, will decrease the ref after it is uploaded to Remote
-        // so that it can be evicted after that
-        // this is just a temporary solution, will pin the file once support for that is added in FileCache
-        // TODO : Pin the above filePath in the file cache once pinning support is added so that it cannot be evicted unless it has been
-        // successfully uploaded to Remote
+
         fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
+        fileCache.pin(filePath);
+        fileCache.decRef(filePath);
     }
 
 }

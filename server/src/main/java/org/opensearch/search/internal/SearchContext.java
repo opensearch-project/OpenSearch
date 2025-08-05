@@ -519,6 +519,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 
+    public boolean getStarTreeIndexEnabled() {
+        return false;
+    }
+
     public int maxAggRewriteFilters() {
         return 0;
     }

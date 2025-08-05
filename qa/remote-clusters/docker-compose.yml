@@ -16,6 +16,7 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
+       - "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}"
     volumes:
        - ./build/repo:/tmp/opensearch-repo
        - ./build/logs/1:/usr/share/opensearch/logs
@@ -50,6 +51,7 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
+       - "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}"
     volumes:
        - ./build/repo:/tmp/opensearch-repo
        - ./build/logs/2:/usr/share/opensearch/logs

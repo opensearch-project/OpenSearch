@@ -34,7 +34,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -75,8 +74,6 @@ import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -93,7 +90,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.objectToUnsignedLong;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
@@ -105,20 +101,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetricAggregatorTests extends AggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     private static final String FIELD_NAME = "field";
     private static final NumberFieldMapper.NumberType DEFAULT_FIELD_TYPE = NumberFieldMapper.NumberType.LONG;
     private static final MappedFieldType DEFAULT_MAPPED_FIELD = new NumberFieldMapper.NumberFieldType(FIELD_NAME, DEFAULT_FIELD_TYPE);
-
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
-    }
 
     protected Codec getCodec(
         Supplier<Integer> maxLeafDocsSupplier,
@@ -137,7 +122,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18110")
     public void testStarTreeDocValues() throws IOException {
         final List<Supplier<Integer>> MAX_LEAF_DOC_VARIATIONS = List.of(
             () -> 1,
@@ -563,18 +547,25 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         public QueryBuilder getBoolQueryBuilder() {
             // MUST only
-            BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder()).must(getRangeQueryBuilder());
+            BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder());
+            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
+                mustOnly.must(getTermQueryBuilder());
+            } else {
+                mustOnly.must(getRangeQueryBuilder());
+            }
 
             // MUST with nested SHOULD on same dimension
             BoolQueryBuilder mustWithShould = new BoolQueryBuilder().must(getTermQueryBuilder())
-                .must(
-                    new BoolQueryBuilder().should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                        .should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                );
+                .must(new BoolQueryBuilder().should(getTermQueryBuilder()).should(getTermQueryBuilder()));
 
             // SHOULD only on same dimension
-            BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                .should(new RangeQueryBuilder(fieldName).from(valueSupplier.get()).to(valueSupplier.get()));
+            BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(getTermQueryBuilder());
+
+            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
+                shouldOnly.should(getTermQueryBuilder());
+            } else {
+                shouldOnly.should(getRangeQueryBuilder());
+            }
 
             return randomFrom(mustOnly, mustWithShould, shouldOnly);
         }

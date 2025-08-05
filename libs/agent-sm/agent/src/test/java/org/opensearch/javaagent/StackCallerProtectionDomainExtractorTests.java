@@ -19,12 +19,14 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 public class StackCallerProtectionDomainExtractorTests {
 
@@ -113,6 +115,146 @@ public class StackCallerProtectionDomainExtractorTests {
                 );
                 return null;
             }
+        });
+    }
+
+    @Test
+    public void testStackTruncationWithOpenSearchAccessController() {
+        org.opensearch.secure_sm.AccessController.doPrivileged(() -> {
+            StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
+            Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
+            assertEquals(1, protectionDomains.size());
+            List<String> simpleNames = protectionDomains.stream().map(pd -> {
+                try {
+                    return pd.getCodeSource().getLocation().toURI();
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+            })
+                .map(URI::getPath)
+                .map(Paths::get)
+                .map(Path::getFileName)
+                .map(Path::toString)
+                // strip trailing “-VERSION.jar” if present
+                .map(name -> name.replaceFirst("-\\d[\\d\\.]*\\.jar$", ""))
+                // otherwise strip “.jar”
+                .map(name -> name.replaceFirst("\\.jar$", ""))
+                .toList();
+            assertThat(
+                simpleNames,
+                containsInAnyOrder(
+                    "test"    // from the build/classes/java/test directory
+                )
+            );
+        });
+    }
+
+    @Test
+    public void testStackTruncationWithOpenSearchAccessControllerUsingSupplier() {
+        org.opensearch.secure_sm.AccessController.doPrivileged((Supplier<Void>) () -> {
+            StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
+            Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
+            assertEquals(1, protectionDomains.size());
+            List<String> simpleNames = protectionDomains.stream().map(pd -> {
+                try {
+                    return pd.getCodeSource().getLocation().toURI();
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+            })
+                .map(URI::getPath)
+                .map(Paths::get)
+                .map(Path::getFileName)
+                .map(Path::toString)
+                // strip trailing “-VERSION.jar” if present
+                .map(name -> name.replaceFirst("-\\d[\\d\\.]*\\.jar$", ""))
+                // otherwise strip “.jar”
+                .map(name -> name.replaceFirst("\\.jar$", ""))
+                .toList();
+            assertThat(
+                simpleNames,
+                containsInAnyOrder(
+                    "test"    // from the build/classes/java/test directory
+                )
+            );
+            return null;
+        });
+    }
+
+    @Test
+    public void testStackTruncationWithOpenSearchAccessControllerUsingCallable() throws Exception {
+        org.opensearch.secure_sm.AccessController.doPrivilegedChecked(() -> {
+            StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
+            Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
+            assertEquals(1, protectionDomains.size());
+            List<String> simpleNames = protectionDomains.stream().map(pd -> {
+                try {
+                    return pd.getCodeSource().getLocation().toURI();
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+            })
+                .map(URI::getPath)
+                .map(Paths::get)
+                .map(Path::getFileName)
+                .map(Path::toString)
+                // strip trailing “-VERSION.jar” if present
+                .map(name -> name.replaceFirst("-\\d[\\d\\.]*\\.jar$", ""))
+                // otherwise strip “.jar”
+                .map(name -> name.replaceFirst("\\.jar$", ""))
+                .toList();
+            assertThat(
+                simpleNames,
+                containsInAnyOrder(
+                    "test"    // from the build/classes/java/test directory
+                )
+            );
+            return null;
+        });
+    }
+
+    @Test
+    public void testAccessControllerUsingCallableThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            org.opensearch.secure_sm.AccessController.doPrivilegedChecked(() -> { throw new IllegalArgumentException("Test exception"); });
+        });
+    }
+
+    @Test
+    public void testStackTruncationWithOpenSearchAccessControllerUsingCheckedRunnable() throws IllegalArgumentException {
+        org.opensearch.secure_sm.AccessController.doPrivilegedChecked(() -> {
+            StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
+            Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
+            assertEquals(1, protectionDomains.size());
+            List<String> simpleNames = protectionDomains.stream().map(pd -> {
+                try {
+                    return pd.getCodeSource().getLocation().toURI();
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+            })
+                .map(URI::getPath)
+                .map(Paths::get)
+                .map(Path::getFileName)
+                .map(Path::toString)
+                // strip trailing “-VERSION.jar” if present
+                .map(name -> name.replaceFirst("-\\d[\\d\\.]*\\.jar$", ""))
+                // otherwise strip “.jar”
+                .map(name -> name.replaceFirst("\\.jar$", ""))
+                .toList();
+            assertThat(
+                simpleNames,
+                containsInAnyOrder(
+                    "test"    // from the build/classes/java/test directory
+                )
+            );
+        });
+    }
+
+    @Test
+    public void testAccessControllerUsingCheckedRunnableThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            org.opensearch.secure_sm.AccessController.doPrivilegedChecked(() -> { throw new IllegalArgumentException("Test exception"); });
         });
     }
 }

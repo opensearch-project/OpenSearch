@@ -51,14 +51,19 @@ import org.opensearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
- * A Query that matches documents within an range of terms.
+ * A Query that matches documents within a range of terms.
  *
  * @opensearch.internal
  */
-public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
+public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder>
+    implements
+        MultiTermQueryBuilder,
+        ComplementAwareQueryBuilder {
     public static final String NAME = "range";
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
@@ -541,5 +546,40 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             && Objects.equals(includeLower, other.includeLower)
             && Objects.equals(includeUpper, other.includeUpper)
             && Objects.equals(format, other.format);
+    }
+
+    @Override
+    public List<? extends QueryBuilder> getComplement(QueryShardContext context) {
+        // This implementation doesn't need info from QueryShardContext
+        if (relation != null && relation != ShapeRelation.INTERSECTS) {
+            return null;
+        }
+        List<RangeQueryBuilder> complement = new ArrayList<>();
+        if (from != null) {
+            RangeQueryBuilder belowRange = new RangeQueryBuilder(fieldName);
+            belowRange.to(from);
+            belowRange.includeUpper(!includeLower);
+            complement.add(belowRange);
+        }
+
+        if (to != null) {
+            RangeQueryBuilder aboveRange = new RangeQueryBuilder(fieldName);
+            aboveRange.from(to);
+            aboveRange.includeLower(!includeUpper);
+            complement.add(aboveRange);
+        }
+
+        if (format != null) {
+            for (RangeQueryBuilder rq : complement) {
+                rq.format(format);
+            }
+        }
+        if (timeZone != null) {
+            for (RangeQueryBuilder rq : complement) {
+                rq.timeZone = timeZone;
+            }
+        }
+
+        return complement;
     }
 }

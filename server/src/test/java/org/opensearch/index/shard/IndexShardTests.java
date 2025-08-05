@@ -1825,6 +1825,7 @@ public class IndexShardTests extends IndexShardTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
                 .build()
         );
         shard.awaitRemoteStoreSync();
@@ -3370,7 +3371,8 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.indexSettings,
             indicesFieldDataCache,
             new NoneCircuitBreakerService(),
-            shard.mapperService()
+            shard.mapperService(),
+            shard.getThreadPool()
         );
         IndexFieldData.Global ifd = indexFieldDataService.getForField(foo, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");

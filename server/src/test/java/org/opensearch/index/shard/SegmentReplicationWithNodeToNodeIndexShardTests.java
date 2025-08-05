@@ -421,6 +421,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
             SegmentReplicationSource segmentReplicationSource = getSegmentReplicationSource(
                 primaryShard,
                 (repId) -> targetService.get(repId),
+                (repId) -> targetService.getMergedSegmentReplicationRef(repId),
                 runnablePostGetFiles
             );
             when(sourceFactory.get(any())).thenReturn(segmentReplicationSource);

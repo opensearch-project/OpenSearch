@@ -13,10 +13,10 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
@@ -32,8 +32,6 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfig
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
@@ -54,17 +51,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
  * Tests for {@link StarTreeMapper}.
  */
 public class StarTreeMapperTests extends MapperTestCase {
-    FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
-
-    @Before
-    public void setup() {
-        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() {
-        ffLock.close();
-    }
 
     @Override
     protected Settings getIndexSettings() {
@@ -300,7 +286,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         }
     }
 
-    public void testValidStarTreeNestedFields() throws IOException {
+    public void testValidStarTreeNestedFieldsAndMultiFields() throws IOException {
         MapperService mapperService = createMapperService(getMinMappingWithNestedField());
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
@@ -318,6 +304,11 @@ public class StarTreeMapperTests extends MapperTestCase {
                 assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
             }
             assertEquals("nested.status", starTreeFieldType.getDimensions().get(1).getField());
+            assertEquals("nested.name.keyword1", starTreeFieldType.getDimensions().get(2).getField());
+            assertEquals("nested.name.keyword2", starTreeFieldType.getDimensions().get(3).getField());
+            assertEquals("name.keyword1", starTreeFieldType.getDimensions().get(4).getField());
+            assertEquals("name.keyword2", starTreeFieldType.getDimensions().get(5).getField());
+
             assertEquals("nested.status", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
@@ -623,17 +614,70 @@ public class StarTreeMapperTests extends MapperTestCase {
         );
         CompositeIndexValidator.validate(mapperService, enabledCompositeIndexSettings, mapperService.getIndexSettings());
         settings = Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), false).build();
-        CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(
+        CompositeIndexSettings disabledCompositeIndexSettings = new CompositeIndexSettings(
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         MapperService finalMapperService = mapperService;
+
+        // Since the mapper has no specific index setting to enable star tree, throw error
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> CompositeIndexValidator.validate(finalMapperService, compositeIndexSettings, finalMapperService.getIndexSettings())
+            () -> CompositeIndexValidator.validate(
+                finalMapperService,
+                disabledCompositeIndexSettings,
+                finalMapperService.getIndexSettings()
+            )
         );
         assertEquals(
-            "star tree index cannot be created, enable it using [indices.composite_index.star_tree.enabled] setting",
+            "star tree index cannot be created, enable it using [indices.composite_index.star_tree.enabled] cluster setting or [index.search.star_tree_index.enabled] index setting",
+            ex.getMessage()
+        );
+
+        IndexSettings enabledIndexSettings = new IndexSettings(
+            IndexMetadata.builder("test")
+                .settings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+                        .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                        .put(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(), true)
+                        .put(SETTINGS)
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            Settings.EMPTY
+        );
+
+        // since index setting is enabled, throws no error
+        CompositeIndexValidator.validate(mapperService, disabledCompositeIndexSettings, enabledIndexSettings);
+
+        IndexSettings disabledIndexSettings = new IndexSettings(
+            IndexMetadata.builder("test")
+                .settings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+                        .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                        .put(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(), false)
+                        .put(SETTINGS)
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            Settings.EMPTY
+        );
+
+        // since index setting is disabled, throw exception
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> CompositeIndexValidator.validate(finalMapperService, enabledCompositeIndexSettings, disabledIndexSettings)
+        );
+        assertEquals(
+            "star tree index cannot be created, enable it using [indices.composite_index.star_tree.enabled] cluster setting or [index.search.star_tree_index.enabled] index setting",
             ex.getMessage()
         );
 
@@ -1123,6 +1167,18 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject();
             b.field("name", "nested.status");
             b.endObject();
+            b.startObject();
+            b.field("name", "nested.name.keyword1");
+            b.endObject();
+            b.startObject();
+            b.field("name", "nested.name.keyword2");
+            b.endObject();
+            b.startObject();
+            b.field("name", "name.keyword1");
+            b.endObject();
+            b.startObject();
+            b.field("name", "name.keyword2");
+            b.endObject();
             b.endArray();
 
             b.startArray("metrics");
@@ -1147,6 +1203,19 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject("status");
             b.field("type", "integer");
             b.endObject();
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.field("ignore_above", 512);
+            b.endObject();
+            b.startObject("keyword2");
+            b.field("type", "keyword");
+            b.field("ignore_above", 512);
+            b.endObject();
+            b.endObject();
+            b.endObject();
             b.endObject();
             b.endObject();
             b.startObject("metric_field");
@@ -1154,6 +1223,19 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject("keyword1");
             b.field("type", "keyword");
+            b.endObject();
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.field("ignore_above", 512);
+            b.endObject();
+            b.startObject("keyword2");
+            b.field("type", "keyword");
+            b.field("ignore_above", 512);
+            b.endObject();
+            b.endObject();
             b.endObject();
             b.endObject();
         });

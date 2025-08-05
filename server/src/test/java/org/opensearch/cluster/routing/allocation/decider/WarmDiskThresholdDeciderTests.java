@@ -55,6 +55,8 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
@@ -92,11 +94,12 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         shardSizes.put("[test2][0][p]", 1000L); // 1000 bytes
         shardSizes.put("[test2][0][r]", 1000L);
 
-        Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = createFileCacheStatsMap(1000L, "node1", "node2");
 
         final Map<String, DiskUsage> usages = new HashMap<>();
+        // With file cache of 1000 bytes and ratio of 5.0, total addressable space = 1000 * 5 = 5000 bytes
+        usages.put("node1", createDiskUsage("node1", 5000, 5000));
+        usages.put("node2", createDiskUsage("node2", 5000, 5000));
         final ClusterInfo clusterInfo = new DiskThresholdDeciderTests.DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -154,16 +157,19 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
             .build();
 
         final Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 4000L); // 5000 bytes
-        shardSizes.put("[test][0][r]", 4000L);
+        shardSizes.put("[test][0][p]", 5500L); // 5500 bytes shard size and total addressable space - 5000 bytes
+        shardSizes.put("[test][0][r]", 5500L);
         shardSizes.put("[test2][0][p]", 1000L); // 1000 bytes
         shardSizes.put("[test2][0][r]", 1000L);
 
-        Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = createFileCacheStatsMap(1000L, "node1", "node2");
 
         final Map<String, DiskUsage> usages = new HashMap<>();
+        // With file cache of 1000 bytes and ratio of 5.0, total addressable space = 1000 * 5 = 5000 bytes
+        // For 70% low watermark, we need at least 30% free = 1500 bytes free
+        // Test shard is 5500 bytes, which exceeds the total addressable space
+        usages.put("node1", createDiskUsage("node1", 5000, 5000));
+        usages.put("node2", createDiskUsage("node2", 5000, 5000));
         final ClusterInfo clusterInfo = new DiskThresholdDeciderTests.DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -232,11 +238,12 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         shardSizes.put("[test2][0][p]", 1000L); // 1000 bytes
         shardSizes.put("[test2][0][r]", 1000L);
 
-        Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = createFileCacheStatsMap(1000L, "node1", "node2");
 
         final Map<String, DiskUsage> usages = new HashMap<>();
+        // With file cache of 1000 bytes and ratio of 5.0, total addressable space = 1000 * 5 = 5000 bytes
+        usages.put("node1", createDiskUsage("node1", 5000, 3000));
+        usages.put("node2", createDiskUsage("node2", 5000, 4000));
         final ClusterInfo clusterInfo = new DiskThresholdDeciderTests.DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
         Metadata metadata = Metadata.builder()
@@ -293,16 +300,18 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         WarmDiskThresholdDecider decider = new WarmDiskThresholdDecider(settings, clusterSettings);
 
         final Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 4000L); // 4000 bytes
-        shardSizes.put("[test][0][r]", 4000L);
+        shardSizes.put("[test][0][p]", 5500L); // Shard size more than total addressable space - 5000 bytes
+        shardSizes.put("[test][0][r]", 5500L);
         shardSizes.put("[test2][0][p]", 1000L); // 1000 bytes
         shardSizes.put("[test2][0][r]", 1000L);
 
-        Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = createFileCacheStatsMap(1000L, "node1", "node2");
 
         final Map<String, DiskUsage> usages = new HashMap<>();
+        // With file cache of 1000 bytes and ratio of 5.0, total addressable space = 1000 * 5 = 5000 bytes
+        // For high watermark of 250b, we set free space < 250b to trigger NO decision
+        usages.put("node1", createDiskUsage("node1", 5000, 0));
+        usages.put("node2", createDiskUsage("node2", 5000, 4000));
         final ClusterInfo clusterInfo = new DiskThresholdDeciderTests.DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
         Metadata metadata = Metadata.builder()
@@ -358,17 +367,20 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         WarmDiskThresholdDecider decider = new WarmDiskThresholdDecider(settings, clusterSettings);
 
         final Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 3000L); // 4000 bytes
+        shardSizes.put("[test][0][p]", 3000L); // 3000 bytes
         shardSizes.put("[test][0][r]", 3000L);
         shardSizes.put("[test2][0][p]", 1000L); // 1000 bytes
         shardSizes.put("[test2][0][r]", 1000L);
         shardSizes.put("[test3][0][p]", 1500L);
 
-        Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = createFileCacheStatsMap(1000L, "node1", "node2");
 
         final Map<String, DiskUsage> usages = new HashMap<>();
+        // With file cache of 1000 bytes and ratio of 5.0, total addressable space = 1000 * 5 = 5000 bytes
+        // We need enough free space to handle relocation - with [test3][0][p] relocating away,
+        // node1 will gain 1500b of free space
+        usages.put("node1", createDiskUsage("node1", 5000, 500));
+        usages.put("node2", createDiskUsage("node2", 5000, 4000));
         final ClusterInfo clusterInfo = new DiskThresholdDeciderTests.DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
         Metadata metadata = Metadata.builder()
@@ -438,4 +450,35 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
             rn.shardsWithState(ShardRoutingState.STARTED)
         );
     }
+
+    /**
+     * Creates a standard FileCacheStats map for testing with warm nodes.
+     * @param fileCacheSize the size of the file cache
+     * @param nodes the node IDs to create stats for
+     * @return a map of node ID to AggregateFileCacheStats
+     */
+    private Map<String, AggregateFileCacheStats> createFileCacheStatsMap(long fileCacheSize, String... nodes) {
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = new HashMap<>();
+        for (String node : nodes) {
+            fileCacheStatsMap.put(
+                node,
+                new AggregateFileCacheStats(
+                    randomNonNegativeInt(),
+                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                    new FileCacheStats(0, fileCacheSize, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+                )
+            );
+        }
+        return fileCacheStatsMap;
+    }
+
+    /**
+     * Creates a DiskUsage with the specified free bytes and total bytes.
+     */
+    private DiskUsage createDiskUsage(String nodeId, long totalBytes, long freeBytes) {
+        return new DiskUsage(nodeId, nodeId, "/dev/null", totalBytes, freeBytes);
+    }
+
 }

@@ -11,6 +11,7 @@ package org.opensearch.javaagent;
 import java.lang.StackWalker.StackFrame;
 import java.security.ProtectionDomain;
 import java.util.Collection;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -24,6 +25,18 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
      */
     public static final StackCallerProtectionDomainChainExtractor INSTANCE = new StackCallerProtectionDomainChainExtractor();
 
+    private static final StackWalker STACK_WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
+    /**
+     * Classes that are used to check if the stack frame is from AccessController. Temporarily supports both the
+     * AccessController from the JDK (marked for removal) and its replacement in the Java Agent.
+     */
+    private static final Set<String> ACCESS_CONTROLLER_CLASSES = Set.of(
+        "java.security.AccessController",
+        "org.opensearch.secure_sm.AccessController"
+    );
+
+    private static final Set<String> DO_PRIVILEGED_METHODS = Set.of("doPrivileged", "doPrivilegedChecked");
+
     /**
      * Constructor
      */
@@ -36,7 +49,7 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
     @Override
     public Collection<ProtectionDomain> apply(Stream<StackFrame> frames) {
         return frames.takeWhile(
-            frame -> !(frame.getClassName().equals("java.security.AccessController") && frame.getMethodName().equals("doPrivileged"))
+            frame -> !(ACCESS_CONTROLLER_CLASSES.contains(frame.getClassName()) && DO_PRIVILEGED_METHODS.contains(frame.getMethodName()))
         )
             .map(StackFrame::getDeclaringClass)
             .map(Class::getProtectionDomain)

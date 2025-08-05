@@ -8,18 +8,22 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCachedIndexInputTests extends OpenSearchTestCase {
 
     protected FileCache fileCache;
@@ -74,6 +78,6 @@ public class FileCachedIndexInputTests extends OpenSearchTestCase {
     }
 
     protected boolean isActiveAndTotalUsageSame() {
-        return fileCache.usage().activeUsage() == fileCache.usage().usage();
+        return fileCache.activeUsage() == fileCache.usage();
     }
 }

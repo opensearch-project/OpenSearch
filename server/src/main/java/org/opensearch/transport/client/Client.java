@@ -315,6 +315,11 @@ public interface Client extends OpenSearchClient, Releasable {
     SearchRequestBuilder prepareSearch(String... indices);
 
     /**
+     * Search across one or more indices with a query.
+     */
+    SearchRequestBuilder prepareStreamSearch(String... indices);
+
+    /**
      * A search scroll request to continue searching a previous scrollable search request.
      *
      * @param request The search scroll request

@@ -76,7 +76,7 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 #### JDK
 
-OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-23 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`. 
+OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-24 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`. 
 
 Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11). 
 
@@ -87,11 +87,11 @@ In addition, certain backward compatibility tests check out and compile the prev
 ./gradlew check -Dorg.gradle.warning.mode=none
 ```
 
-By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 23 (non-LTS).
+By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 24 (non-LTS).
 
 ```
 bundled_jdk_vendor = adoptium
-bundled_jdk = 23.0.1+11
+bundled_jdk = 24.0.1+9
 ```
 
 #### Custom Runtime JDK
@@ -189,7 +189,9 @@ It's typically easier to wait until the console stops scrolling, and then run `c
 
 ```bash
 curl localhost:9200
-
+```
+The expected reponse should be
+```
 {
   "name" : "runTask-0",
   "cluster_name" : "runTask",

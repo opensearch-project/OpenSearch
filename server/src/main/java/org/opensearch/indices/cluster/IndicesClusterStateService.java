@@ -85,6 +85,8 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
@@ -154,6 +156,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
+    private final MergedSegmentPublisher mergedSegmentPublisher;
+    private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
+
     @Inject
     public IndicesClusterStateService(
         final Settings settings,
@@ -174,7 +179,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        final MergedSegmentPublisher mergedSegmentPublisher,
+        final ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) {
         this(
             settings,
@@ -195,7 +202,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             globalCheckpointSyncAction::updateGlobalCheckpointForShard,
             retentionLeaseSyncer,
             remoteStoreStatsTrackerFactory,
-            mergedSegmentWarmerFactory
+            mergedSegmentWarmerFactory,
+            mergedSegmentPublisher,
+            referencedSegmentsPublisher
         );
     }
 
@@ -219,7 +228,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        final MergedSegmentPublisher mergedSegmentPublisher,
+        final ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
@@ -245,6 +256,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
         this.mergedSegmentWarmerFactory = mergedSegmentWarmerFactory;
+        this.mergedSegmentPublisher = mergedSegmentPublisher;
+        this.referencedSegmentsPublisher = referencedSegmentsPublisher;
     }
 
     @Override
@@ -689,7 +702,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 sourceNode,
                 remoteStoreStatsTrackerFactory,
                 nodes,
-                mergedSegmentWarmerFactory
+                mergedSegmentWarmerFactory,
+                mergedSegmentPublisher,
+                referencedSegmentsPublisher
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -1055,6 +1070,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
          * @param remoteStoreStatsTrackerFactory factory for remote store stats trackers
+         * @param mergedSegmentWarmerFactory factory for merged segment warmer
+         * @param mergedSegmentPublisher merged segment publisher
          * @return a new shard
          * @throws IOException if an I/O exception occurs when creating the shard
          */
@@ -1071,7 +1088,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             @Nullable DiscoveryNode sourceNode,
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
             DiscoveryNodes discoveryNodes,
-            MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+            MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+            MergedSegmentPublisher mergedSegmentPublisher,
+            ReferencedSegmentsPublisher referencedSegmentsPublisher
         ) throws IOException;
 
         /**
