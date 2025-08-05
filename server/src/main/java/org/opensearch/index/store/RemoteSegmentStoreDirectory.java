@@ -23,7 +23,9 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
@@ -98,6 +100,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private final ThreadPool threadPool;
 
     /**
+     Only relevant for remote-store-enabled domains on replica shards
+     to store localSegmentFilename -> remoteSegmentFilename mappings
+     */
+    private final Map<String, String> pendingDownloadMergedSegments;
+
+    /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
      * This map acts as a cache layer for uploaded segment filenames which helps avoid calling listAll() each time.
      * It is important to initialize this map on creation of RemoteSegmentStoreDirectory and update it on each upload and delete.
@@ -132,6 +140,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         ThreadPool threadPool,
         ShardId shardId
     ) throws IOException {
+        this(remoteDataDirectory, remoteMetadataDirectory, mdLockManager, threadPool, shardId, null);
+    }
+
+    @InternalApi
+    public RemoteSegmentStoreDirectory(
+        RemoteDirectory remoteDataDirectory,
+        RemoteDirectory remoteMetadataDirectory,
+        RemoteStoreLockManager mdLockManager,
+        ThreadPool threadPool,
+        ShardId shardId,
+        @Nullable Map<String, String> pendingDownloadMergedSegments
+    ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
@@ -139,6 +159,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         this.threadPool = threadPool;
         this.metadataFilePinnedTimestampMap = new HashMap<>();
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
         init();
     }
 
@@ -354,6 +375,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return originalFilename;
         }
 
+        public String getUploadedFilename() {
+            return uploadedFilename;
+        }
+
         public void setWrittenByMajor(int writtenByMajor) {
             if (writtenByMajor <= Version.LATEST.major && writtenByMajor >= Version.MIN_SUPPORTED_MAJOR) {
                 this.writtenByMajor = writtenByMajor;
@@ -503,9 +528,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String remoteFilename = getExistingRemoteFilename(name);
         if (remoteFilename != null) {
             return remoteDataDirectory.fileLength(remoteFilename);
-        } else {
-            throw new NoSuchFileException(name);
         }
+        throw new NoSuchFileException(name);
     }
 
     /**
@@ -817,12 +841,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
-    private String getExistingRemoteFilename(String localFilename) {
+    public String getExistingRemoteFilename(String localFilename) {
         if (segmentsUploadedToRemoteStore.containsKey(localFilename)) {
             return segmentsUploadedToRemoteStore.get(localFilename).uploadedFilename;
-        } else {
-            return null;
+        } else if (isMergedSegmentPendingDownload(localFilename)) {
+            return pendingDownloadMergedSegments.get(localFilename);
         }
+        return null;
     }
 
     private String getNewRemoteSegmentFilename(String localFilename) {
@@ -1106,5 +1131,34 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     @Override
     public void close() throws IOException {
         deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
+    }
+
+    /**
+     * [REPLICA SHARD] Marks merged segments that are pending download from the remote store.
+     * We mark segments as pending-download after receiving a MergedSegmentCheckpoint from the primary shard.
+     *
+     * @param localToRemoteFilenames Map of local filenames to their corresponding remote filenames
+     */
+    public void markMergedSegmentsPendingDownload(Map<String, String> localToRemoteFilenames) {
+        pendingDownloadMergedSegments.putAll(localToRemoteFilenames);
+    }
+
+    /**
+     * [REPLICA SHARD] Removes segments from the pending download list after they have been downloaded.
+     *
+     * @param localFilenames Set of local filenames to remove from pending downloads
+     */
+    public void unmarkMergedSegmentsPendingDownload(Set<String> localFilenames) {
+        localFilenames.forEach(pendingDownloadMergedSegments::remove);
+    }
+
+    /**
+     * [REPLICA SHARD] Checks if a segment is a merged segment in pending-download state.
+     *
+     * @param localFilename Local filename to check
+     * @return true if segment is pending download, false otherwise
+     */
+    public boolean isMergedSegmentPendingDownload(String localFilename) {
+        return pendingDownloadMergedSegments != null && pendingDownloadMergedSegments.containsKey(localFilename);
     }
 }

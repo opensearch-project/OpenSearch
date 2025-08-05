@@ -59,8 +59,6 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
-import java.net.Authenticator;
-import java.net.PasswordAuthentication;
 import java.net.URISyntaxException;
 import java.security.AccessController;
 import java.security.InvalidKeyException;
@@ -209,15 +207,11 @@ public class AzureStorageService implements AutoCloseable {
         SocketAccess.doPrivilegedVoidException(() -> {
             final ProxySettings proxySettings = azureStorageSettings.getProxySettings();
             if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+                final ProxyOptions proxyOptions = new ProxyOptions(proxySettings.getType().toProxyType(), proxySettings.getAddress());
                 if (proxySettings.isAuthenticated()) {
-                    Authenticator.setDefault(new Authenticator() {
-                        @Override
-                        protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(proxySettings.getUsername(), proxySettings.getPassword().toCharArray());
-                        }
-                    });
+                    proxyOptions.setCredentials(proxySettings.getUsername(), proxySettings.getPassword());
                 }
-                clientBuilder.proxy(new ProxyOptions(proxySettings.getType().toProxyType(), proxySettings.getAddress()));
+                clientBuilder.proxy(proxyOptions);
             }
         });
 

@@ -1613,8 +1613,8 @@ public abstract class TransportReplicationAction<
      *
      * @opensearch.internal
      */
-    protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
-
+    public static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
+        // public for tests
         private final long globalCheckpoint;
         private final long maxSeqNoOfUpdatesOrDeletes;
 

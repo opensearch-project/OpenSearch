@@ -47,6 +47,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -157,7 +158,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
             mock(ThreadPool.class),
-            shardId
+            shardId,
+            new HashMap<>()
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
@@ -224,7 +226,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
             mock(ThreadPool.class),
-            shardId
+            shardId,
+            new HashMap<>()
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
@@ -730,7 +733,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 mock(RemoteDirectory.class),
                 mock(RemoteStoreLockManager.class),
                 indexShard.getThreadPool(),
-                indexShard.shardId
+                indexShard.shardId,
+                new HashMap<>()
             );
         } else {
             remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore()
