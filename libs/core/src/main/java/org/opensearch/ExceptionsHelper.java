@@ -76,6 +76,38 @@ import static org.opensearch.OpenSearchException.getExceptionSimpleClassName;
 public final class ExceptionsHelper {
     private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
+    /**
+     * Shared error message constants for consistent error handling across HTTP and gRPC protocols.
+     * These constants ensure that both REST API and gRPC API return identical error messages
+     * for the same types of exceptions.
+     */
+    public static class ErrorMessages {
+        /** Error message for invalid argument exceptions */
+        public static final String INVALID_ARGUMENT = "Invalid argument";
+
+        /** Error message for JSON parsing failures */
+        public static final String JSON_PARSE_FAILED = "Failed to parse JSON";
+
+        /** Error message for rate limiting / rejected execution */
+        public static final String TOO_MANY_REQUESTS = "Too many requests";
+
+        /** Error message for JSON type coercion failures */
+        public static final String JSON_COERCION_FAILED = "Incompatible JSON value";
+
+        /** Error message for content format issues */
+        public static final String INVALID_CONTENT_FORMAT = "Invalid content format";
+
+        /** Error message for compression format issues */
+        public static final String INVALID_COMPRESSION_FORMAT = "Invalid compression format";
+
+        /** Generic fallback error message for unknown exceptions */
+        public static final String INTERNAL_FAILURE = "Internal failure";
+
+        private ErrorMessages() {
+            // Utility class, no instances
+        }
+    }
+
     // utility class: no ctor
     private ExceptionsHelper() {}
 
@@ -117,16 +149,16 @@ public final class ExceptionsHelper {
             if (t instanceof OpenSearchException) {
                 return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
             } else if (t instanceof IllegalArgumentException) {
-                return "Invalid argument";
+                return ErrorMessages.INVALID_ARGUMENT;
             } else if (t instanceof InputCoercionException) {
-                return "Incompatible JSON value";
+                return ErrorMessages.JSON_COERCION_FAILED;
             } else if (t instanceof JsonParseException) {
-                return "Failed to parse JSON";
+                return ErrorMessages.JSON_PARSE_FAILED;
             } else if (t instanceof OpenSearchRejectedExecutionException) {
-                return "Too many requests";
+                return ErrorMessages.TOO_MANY_REQUESTS;
             }
         }
-        return "Internal failure";
+        return ErrorMessages.INTERNAL_FAILURE;
     }
 
     public static Throwable unwrapCause(Throwable t) {
@@ -147,6 +179,25 @@ public final class ExceptionsHelper {
             result = result.getCause();
         }
         return result;
+    }
+
+    /**
+     * Unwraps exception causes up to 10 levels looking for the first OpenSearchException.
+     * This method is used by both HTTP and gRPC error handling to ensure consistent exception
+     * unwrapping behavior across protocols.
+     *
+     * @param e The exception to unwrap
+     * @return The first OpenSearchException found in the cause chain, or the original exception if none found
+     */
+    public static Throwable unwrapToOpenSearchException(Throwable e) {
+        Throwable t = e;
+        for (int counter = 0; counter < 10 && t != null; counter++) {
+            if (t instanceof OpenSearchException) {
+                break;
+            }
+            t = t.getCause();
+        }
+        return t != null ? t : e;
     }
 
     /**

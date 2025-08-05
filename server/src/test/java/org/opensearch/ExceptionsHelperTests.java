@@ -264,4 +264,28 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
         ExceptionsHelper.unwrap(e1, IOException.class);
         ExceptionsHelper.unwrapCorruption(e1);
     }
+
+    public void testUnwrapToOpenSearchException() {
+        // Test with OpenSearchException directly - should return the same exception
+        OpenSearchException directException = new OpenSearchException("direct error");
+        assertSame(directException, ExceptionsHelper.unwrapToOpenSearchException(directException));
+
+        // Test with nested OpenSearchException - should unwrap to it
+        OpenSearchException nestedOpenSearchException = new OpenSearchException("nested error");
+        RuntimeException wrapper = new RuntimeException("wrapper", nestedOpenSearchException);
+        assertSame(nestedOpenSearchException, ExceptionsHelper.unwrapToOpenSearchException(wrapper));
+
+        // Test with non-OpenSearchException - should return original
+        IllegalArgumentException nonOpenSearchException = new IllegalArgumentException("not opensearch");
+        assertSame(nonOpenSearchException, ExceptionsHelper.unwrapToOpenSearchException(nonOpenSearchException));
+
+        // Test with multiple levels of nesting
+        OpenSearchException deepNested = new OpenSearchException("deep error");
+        RuntimeException level1 = new RuntimeException("level 1", deepNested);
+        RuntimeException level2 = new RuntimeException("level 2", level1);
+        assertSame(deepNested, ExceptionsHelper.unwrapToOpenSearchException(level2));
+
+        // Test with null - should return null
+        assertThat(ExceptionsHelper.unwrapToOpenSearchException(null), nullValue());
+    }
 }
