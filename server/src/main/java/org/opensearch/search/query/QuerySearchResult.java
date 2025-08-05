@@ -370,7 +370,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(isNull);
         if (isNull == false) {
             contextId.writeTo(out);
