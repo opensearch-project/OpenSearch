@@ -57,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Move transport-grpc from a core plugin to a module ([#18897](https://github.com/opensearch-project/OpenSearch/pull/18897))
 - Optimize the repetitive code in the NumericType.rangeQuery method of the NumberFieldMapper class ([#18901](https://github.com/opensearch-project/OpenSearch/pull/18901))
 - Move transport-grpc from a core plugin to a module ([#18897](https://github.com/opensearch-project/OpenSearch/pull/18897))
+- Optimize the repetitive code in the NumericType.rangeQuery method of the NumberFieldMapper class ([#18901](https://github.com/opensearch-project/OpenSearch/pull/18901))
 
 ### Dependencies
 - Bump `stefanzweifel/git-auto-commit-action` from 5 to 6 ([#18524](https://github.com/opensearch-project/OpenSearch/pull/18524))
