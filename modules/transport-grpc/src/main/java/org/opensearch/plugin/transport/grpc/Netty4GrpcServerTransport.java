@@ -62,7 +62,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     /**
      * Type key for configuring settings of this auxiliary transport.
      */
-    public static final String GRPC_TRANSPORT_SETTING_KEY = "experimental-transport-grpc";
+    public static final String GRPC_TRANSPORT_SETTING_KEY = "transport-grpc";
 
     /**
      * Port range on which to bind.
