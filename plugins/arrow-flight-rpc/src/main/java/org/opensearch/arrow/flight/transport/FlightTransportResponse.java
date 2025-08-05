@@ -28,7 +28,7 @@ import org.opensearch.transport.stream.StreamTransportResponse;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.REQUEST_ID_KEY;
+import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.CORRELATION_ID_KEY;
 
 /**
  * Arrow Flight implementation of streaming transport responses.
@@ -42,7 +42,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private final FlightStream flightStream;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final HeaderContext headerContext;
-    private final long reqId;
+    private final long correlationId;
     private final FlightTransportConfig config;
 
     private final TransportResponseHandler<T> handler;
@@ -62,7 +62,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
      */
     public FlightTransportResponse(
         TransportResponseHandler<T> handler,
-        long reqId,
+        long correlationId,
         FlightClient flightClient,
         HeaderContext headerContext,
         Ticket ticket,
@@ -70,13 +70,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         FlightTransportConfig config
     ) {
         this.handler = handler;
-        this.reqId = reqId;
+        this.correlationId = correlationId;
         this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.config = config;
-        // Initialize Flight stream with request ID header
+        // Initialize Flight stream with correlation ID header
         FlightCallHeaders callHeaders = new FlightCallHeaders();
-        callHeaders.insert(REQUEST_ID_KEY, String.valueOf(reqId));
+        callHeaders.insert(CORRELATION_ID_KEY, String.valueOf(correlationId));
         HeaderCallOption callOptions = new HeaderCallOption(callHeaders);
         this.flightStream = flightClient.getStream(ticket, callOptions);
 
@@ -118,7 +118,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
             if (flightStream.next()) {
                 currentRoot = flightStream.getRoot();
-                currentHeader = headerContext.getHeader(reqId);
+                currentHeader = headerContext.getHeader(correlationId);
                 // Capture the batch size before deserialization
                 currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(currentRoot);
                 return deserializeResponse();
@@ -202,7 +202,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         try {
             if (flightStream.next()) {
                 currentRoot = flightStream.getRoot();
-                currentHeader = headerContext.getHeader(reqId);
+                currentHeader = headerContext.getHeader(correlationId);
                 // Capture the batch size before deserialization
                 currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(currentRoot);
                 streamInitialized = true;
@@ -212,13 +212,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         } catch (FlightRuntimeException e) {
             // TODO maybe add a check - handshake and validate if node is connected
             // Try to get headers even if stream failed
-            currentHeader = headerContext.getHeader(reqId);
+            currentHeader = headerContext.getHeader(correlationId);
             streamExhausted = true;
             initializationException = FlightErrorMapper.fromFlightException(e);
             logger.warn("Stream initialization failed", e);
         } catch (Exception e) {
             // Try to get headers even if stream failed
-            currentHeader = headerContext.getHeader(reqId);
+            currentHeader = headerContext.getHeader(correlationId);
             streamExhausted = true;
             initializationException = new StreamException(StreamErrorCode.INTERNAL, "Stream initialization failed", e);
             logger.warn("Stream initialization failed", e);

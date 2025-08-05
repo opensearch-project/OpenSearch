@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 class FlightClientChannel implements TcpChannel {
     private static final Logger logger = LogManager.getLogger(FlightClientChannel.class);
-    private final AtomicLong requestIdGenerator = new AtomicLong();
+    private final AtomicLong correlationIdGenerator = new AtomicLong();
     private final FlightClient client;
     private final DiscoveryNode node;
     private final BoundTransportAddress boundAddress;
@@ -199,7 +199,7 @@ class FlightClientChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(long reqId, BytesReference reference, ActionListener<Void> listener) {
+    public void sendMessage(long requestId, BytesReference reference, ActionListener<Void> listener) {
         if (!isOpen()) {
             listener.onFailure(new StreamException(StreamErrorCode.UNAVAILABLE, "FlightClientChannel is closed"));
             return;
@@ -214,8 +214,8 @@ class FlightClientChannel implements TcpChannel {
         try {
             // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
-            TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(reqId, messageListener);
-            long correlationId = requestIdGenerator.incrementAndGet();
+            TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
+            long correlationId = correlationIdGenerator.incrementAndGet();
 
             if (callTracker != null) {
                 handler = new MetricsTrackingResponseHandler<>(handler, callTracker);
@@ -243,7 +243,7 @@ class FlightClientChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        throw new IllegalStateException("sendMessage must be accompanied with reqId for FlightClientChannel, use the right variant.");
+        throw new IllegalStateException("sendMessage must be accompanied with requestId for FlightClientChannel, use the right variant.");
     }
 
     private void processStreamResponse(FlightTransportResponse<?> streamResponse) {

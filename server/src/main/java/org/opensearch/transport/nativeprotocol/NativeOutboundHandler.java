@@ -180,11 +180,11 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
         sendMessage(requestId, channel, message, listener);
     }
 
-    private void sendMessage(long reqId, TcpChannel channel, NativeOutboundMessage networkMessage, ActionListener<Void> listener)
+    private void sendMessage(long requestId, TcpChannel channel, NativeOutboundMessage networkMessage, ActionListener<Void> listener)
         throws IOException {
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         OutboundHandler.SendContext sendContext = new OutboundHandler.SendContext(statsTracker, channel, serializer, listener, serializer);
-        handler.sendBytes(reqId, channel, sendContext);
+        handler.sendBytes(requestId, channel, sendContext);
     }
 
     @Override
