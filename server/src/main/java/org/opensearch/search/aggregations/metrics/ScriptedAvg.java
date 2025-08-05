@@ -72,6 +72,11 @@ public class ScriptedAvg implements Writeable {
         out.writeLong(count);
     }
 
-    public double getSum() { return sum; }
-    public long getCount() { return count; }
+    public double getSum() {
+        return sum;
+    }
+
+    public long getCount() {
+        return count;
+    }
 }

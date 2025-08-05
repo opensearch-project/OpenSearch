@@ -117,8 +117,12 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
                     kahanSummation.add(scriptedAvg.getSum());
                 } else {
                     throw new IllegalArgumentException(
-                        "Invalid ScriptedMetric result for [" + getName() + "] avg aggregation. Expected ScriptedAvg " +
-                            "but received [" + (value == null ? "null" : value.getClass().getName()) + "]"
+                        "Invalid ScriptedMetric result for ["
+                            + getName()
+                            + "] avg aggregation. Expected ScriptedAvg "
+                            + "but received ["
+                            + (value == null ? "null" : value.getClass().getName())
+                            + "]"
                     );
                 }
             } else {

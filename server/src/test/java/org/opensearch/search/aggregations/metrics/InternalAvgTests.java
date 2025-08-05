@@ -182,7 +182,10 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
 
         // Expect an IllegalArgumentException when reducing with invalid type
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> avg.reduce(aggregations, null));
-        assertEquals("Invalid ScriptedMetric result for [test_scripted_metric] avg aggregation. Expected ScriptedAvg but received [java.lang.String]", e.getMessage());
+        assertEquals(
+            "Invalid ScriptedMetric result for [test_scripted_metric] avg aggregation. Expected ScriptedAvg but received [java.lang.String]",
+            e.getMessage()
+        );
     }
 
     public void testReduceWithScriptedMetricInvalidArrayLength() {

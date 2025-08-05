@@ -122,14 +122,13 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
         InternalValueCount valueCount = new InternalValueCount(name, 0L, null);
 
         // Expect an IllegalArgumentException when reducing with invalid value type
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> valueCount.reduce(aggregations, null)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> valueCount.reduce(aggregations, null));
 
         assertEquals(
-            "Invalid ScriptedMetric result for [" + name + "] valueCount aggregation. " +
-                "Expected numeric value from ScriptedMetric aggregation but got [java.lang.String]",
+            "Invalid ScriptedMetric result for ["
+                + name
+                + "] valueCount aggregation. "
+                + "Expected numeric value from ScriptedMetric aggregation but got [java.lang.String]",
             e.getMessage()
         );
     }
