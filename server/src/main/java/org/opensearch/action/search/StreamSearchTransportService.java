@@ -63,12 +63,13 @@ public class StreamSearchTransportService extends SearchTransportService {
             AdmissionControlActionType.SEARCH,
             ShardSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhaseStream(
+                searchService.executeQueryPhase(
                     request,
                     false,
                     (SearchShardTask) task,
                     new StreamSearchChannelListener<>(channel, QUERY_ACTION_NAME, request),
-                    ThreadPool.Names.STREAM_SEARCH
+                    ThreadPool.Names.STREAM_SEARCH,
+                    true
                 );
             }
         );
