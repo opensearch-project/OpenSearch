@@ -42,7 +42,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
     /**
      * Type key to select secure transport.
      */
-    public static final String GRPC_SECURE_TRANSPORT_SETTING_KEY = "experimental-secure-transport-grpc";
+    public static final String GRPC_SECURE_TRANSPORT_SETTING_KEY = "secure-transport-grpc";
 
     /**
      * Distinct port setting required as it depends on transport type key.
