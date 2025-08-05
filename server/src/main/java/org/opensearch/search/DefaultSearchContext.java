@@ -135,12 +135,12 @@ import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTER
  *
  * @opensearch.internal
  */
-class DefaultSearchContext extends SearchContext {
+final class DefaultSearchContext extends SearchContext {
 
     private static final Logger logger = LogManager.getLogger(DefaultSearchContext.class);
 
     private final ReaderContext readerContext;
-    final Engine.Searcher engineSearcher;
+    private final Engine.Searcher engineSearcher;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
@@ -150,7 +150,7 @@ class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final ClusterService clusterService;
     private final IndexService indexService;
-    ContextIndexSearcher searcher;
+    private final ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
@@ -210,7 +210,7 @@ class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
-    final String concurrentSearchMode;
+    private final String concurrentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
@@ -1249,12 +1249,13 @@ class DefaultSearchContext extends SearchContext {
         return false;
     }
 
-    public void setListener(StreamSearchChannelListener listener) {
+    public void setStreamChannelListener(StreamSearchChannelListener listener) {
+        assert isStreamSearch() : "Stream search not enabled";
         this.listener = listener;
     }
 
-    public StreamSearchChannelListener getListener() {
-        assert isStreamSearch() : "Only stream search can get listener";
+    public StreamSearchChannelListener getStreamChannelListener() {
+        assert isStreamSearch() : "Stream search not enabled";
         return listener;
     }
 

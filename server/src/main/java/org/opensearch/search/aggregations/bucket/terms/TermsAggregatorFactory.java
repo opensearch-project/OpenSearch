@@ -118,8 +118,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    // if user doesn't provide execution mode, and using stream search
-                    // we use stream aggregation
+                    // if user doesn't set execution mode and enable stream search
+                    // we create streaming aggregator
                     if (context.isStreamSearch()) {
                         return createStreamAggregator(
                             name,

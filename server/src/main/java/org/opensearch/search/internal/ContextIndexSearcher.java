@@ -300,7 +300,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
-        logger.debug("searching for {} partitions", partitions.length);
         searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
         try {
             // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
@@ -431,7 +430,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         fetchResult.hits(SearchHits.empty());
         final QueryFetchSearchResult result = new QueryFetchSearchResult(cloneResult, fetchResult);
         // flush back
-        searchContext.getListener().onStreamResponse(result, false);
+        searchContext.getStreamChannelListener().onStreamResponse(result, false);
     }
 
     private Weight wrapWeight(Weight weight) {

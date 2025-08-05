@@ -541,13 +541,12 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    public void setListener(StreamSearchChannelListener listener) {
-        assert isStreamSearch() : "Only stream search can set listener";
+    public void setStreamChannelListener(StreamSearchChannelListener listener) {
+        throw new IllegalStateException("Set search channel listener should be implemented for stream search");
     }
 
-    public StreamSearchChannelListener getListener() {
-        assert isStreamSearch() : "Only stream search can get listener";
-        return null;
+    public StreamSearchChannelListener getStreamChannelListener() {
+        throw new IllegalStateException("Get search channel listener should be implemented for stream search");
     }
 
     public boolean isStreamSearch() {
