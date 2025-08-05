@@ -79,7 +79,6 @@ import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -904,50 +903,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             return results;
         }
 
-        // build aggregation batch for stream search
-        InternalAggregation[] buildAggregationsBatch(long[] owningBucketOrds) throws IOException {
-            LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
-            if (valueCount == 0) { // no context in this reader
-                InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-                for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                    results[ordIdx] = buildNoValuesResult(owningBucketOrds[ordIdx]);
-                }
-                return results;
-            }
-
-            // for each owning bucket, there will be list of bucket ord of this aggregation
-            B[][] topBucketsPerOwningOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
-            long[] otherDocCount = new long[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                // processing each owning bucket
-                checkCancelled();
-                List<B> bucketsPerOwningOrd = new ArrayList<>();
-                int finalOrdIdx = ordIdx;
-                collectionStrategy.forEach(owningBucketOrds[ordIdx], (globalOrd, bucketOrd, docCount) -> {
-                    if (docCount >= localBucketCountThresholds.getMinDocCount()) {
-                        B finalBucket = buildFinalBucket(globalOrd, bucketOrd, docCount, owningBucketOrds[finalOrdIdx]);
-                        bucketsPerOwningOrd.add(finalBucket);
-                    }
-                });
-
-                // Get the top buckets
-                // ordered contains the top buckets for the owning bucket
-                topBucketsPerOwningOrd[ordIdx] = buildBuckets(bucketsPerOwningOrd.size());
-
-                for (int i = 0; i < topBucketsPerOwningOrd[ordIdx].length; i++) {
-                    topBucketsPerOwningOrd[ordIdx][i] = bucketsPerOwningOrd.get(i);
-                }
-            }
-
-            buildSubAggs(topBucketsPerOwningOrd);
-
-            InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                results[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCount[ordIdx], topBucketsPerOwningOrd[ordIdx]);
-            }
-            return results;
-        }
-
         /**
          * Short description of the collection mechanism added to the profile
          * output to help with debugging.
@@ -1015,13 +970,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * there aren't any values for the field on this shard.
          */
         abstract R buildNoValuesResult(long owningBucketOrdinal);
-
-        /**
-         * Build a final bucket directly with the provided data, skipping temporary bucket creation.
-         */
-        B buildFinalBucket(long globalOrd, long bucketOrd, long docCount, long owningBucketOrd) throws IOException {
-            throw new IllegalStateException("build final bucket should be implemented for stream aggregation");
-        }
     }
 
     interface BucketUpdater<TB extends InternalMultiBucketAggregation.InternalBucket> {
@@ -1123,18 +1071,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public void close() {}
-
-        @Override
-        StringTerms.Bucket buildFinalBucket(long globalOrd, long bucketOrd, long docCount, long owningBucketOrd) throws IOException {
-            // Recreate DocValues as needed for concurrent segment search
-            SortedSetDocValues values = getDocValues();
-            BytesRef term = BytesRef.deepCopyOf(values.lookupOrd(globalOrd));
-
-            StringTerms.Bucket result = new StringTerms.Bucket(term, docCount, null, showTermDocCountError, 0, format);
-            result.bucketOrd = bucketOrd;
-            result.docCountError = 0;
-            return result;
-        }
     }
 
     /**

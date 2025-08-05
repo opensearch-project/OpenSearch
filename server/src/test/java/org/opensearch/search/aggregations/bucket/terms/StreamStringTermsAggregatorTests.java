@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
+public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
     public void testBuildAggregationsBatchDirectBucketCreation() throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -76,7 +76,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
                         .order(BucketOrder.key(true));
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -124,7 +124,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -165,7 +165,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
                         .order(BucketOrder.count(false));
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -236,7 +236,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field").size(5);
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -295,7 +295,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
                         .order(BucketOrder.count(false));
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -341,7 +341,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -387,7 +387,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -437,7 +437,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
                         .subAggregation(new MaxAggregationBuilder("max_price").field("price"));
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -509,7 +509,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
                         .subAggregation(new SumAggregationBuilder("total_sales").field("sales"));
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -579,7 +579,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("products").field("product")
                         .subAggregation(new AvgAggregationBuilder("avg_rating").field("rating"));
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -653,7 +653,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                         .subAggregation(new MinAggregationBuilder("min_inventory").field("inventory"))
                         .subAggregation(new ValueCountAggregationBuilder("inventory_count").field("inventory"));
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -743,7 +743,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                         .subAggregation(new MinAggregationBuilder("min_humidity").field("humidity"))
                         .subAggregation(new SumAggregationBuilder("total_humidity").field("humidity"));
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -1065,7 +1065,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
                         .order(BucketOrder.count(false)); // Order by count descending
 
-                    StreamingStringTermsAggregator aggregator = createStreamAggregator(
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         searcher,
@@ -1149,7 +1149,7 @@ public class StreamingStringTermsAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType2,
         IndexSearcher searcher
     ) throws IOException {
-        StreamingStringTermsAggregator aggregator;
+        StreamStringTermsAggregator aggregator;
         if (fieldType2 != null) {
             aggregator = createStreamAggregator(
                 null,

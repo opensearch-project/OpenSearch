@@ -118,9 +118,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    // if user doesn't set execution mode and enable stream search
-                    // we create streaming aggregator
-                    if (context.isStreamSearch() && includeExclude == null) {
+                    // if user doesn't provide execution mode, and using stream search
+                    // we use stream aggregation
+                    if (context.isStreamSearch()) {
                         return createStreamAggregator(
                             name,
                             factories,
@@ -128,12 +128,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                             order,
                             format,
                             bucketCountThresholds,
-                            includeExclude,
                             context,
                             parent,
-                            SubAggCollectionMode.DEPTH_FIRST,
                             showTermDocCountError,
-                            cardinality,
                             metadata
                         );
                     } else {
@@ -587,43 +584,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         ValuesSource valuesSource,
         BucketOrder order,
         DocValueFormat format,
-        TermsAggregator.BucketCountThresholds bucketCountThresholds,
-        IncludeExclude includeExclude,
+        BucketCountThresholds bucketCountThresholds,
         SearchContext context,
         Aggregator parent,
-        SubAggCollectionMode subAggCollectMode,
         boolean showTermDocCountError,
-        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         {
             assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
             ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-
-            assert includeExclude == null : "Stream term aggregation doesn't support include exclude.";
-
-            boolean remapGlobalOrds;
-            if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
-                /*
-                 * We use REMAP_GLOBAL_ORDS to allow tests to force
-                 * specific optimizations but this particular one
-                 * is only possible if we're collecting from a single
-                 * bucket.
-                 */
-                remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
-            } else {
-                /*
-                 * We don't need to remap global ords iff this aggregator:
-                 *    - has no include/exclude rules AND
-                 *    - only collects from a single bucket AND
-                 *    - has no sub-aggregator or only sub-aggregator that can be deferred
-                 *      ({@link SubAggCollectionMode#BREADTH_FIRST}).
-                 */
-                remapGlobalOrds = cardinality != CardinalityUpperBound.ONE
-                    || factories != AggregatorFactories.EMPTY
-                        && (isAggregationSort(order) || subAggCollectMode != SubAggCollectionMode.BREADTH_FIRST);
-            }
-            return new StreamingStringTermsAggregator(
+            return new StreamStringTermsAggregator(
                 name,
                 factories,
                 a -> a.new StandardTermsResults(),
@@ -631,13 +601,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 order,
                 format,
                 bucketCountThresholds,
-                null,
                 context,
                 parent,
-                remapGlobalOrds,
-                subAggCollectMode,
+                SubAggCollectionMode.DEPTH_FIRST,
                 showTermDocCountError,
-                cardinality,
                 metadata
             );
         }
