@@ -10,7 +10,6 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -489,51 +488,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 replicationCheckpoint,
                 indexShard.getNodeId()
             );
-        }
-    }
-
-    private void uploadNewSegments(
-        Collection<String> localSegmentsPostRefresh,
-        Map<String, Long> localSegmentsSizeMap,
-        ActionListener<Void> listener
-    ) {
-        if (isClosed() || shardClosed()) {
-            logger.debug("Skipping segment upload as shard is closed");
-            listener.onFailure(null);
-            return;
-        }
-
-        Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
-        if (filteredFiles.size() == 0) {
-            logger.debug("No new segments to upload in uploadNewSegments");
-            listener.onResponse(null);
-            return;
-        }
-
-        logger.debug("Effective new segments files to upload {}", filteredFiles);
-        ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
-        GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
-        Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
-
-        for (String src : filteredFiles) {
-            // Initializing listener here to ensure that the stats increment operations are thread-safe
-            UploadListener statsListener = createUploadListener(localSegmentsSizeMap);
-            ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
-                statsListener.onSuccess(src);
-                batchUploadListener.onResponse(resp);
-                if (directory instanceof CompositeDirectory) {
-                    ((CompositeDirectory) directory).afterSyncToRemote(src);
-                }
-            }, ex -> {
-                logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
-                if (ex instanceof CorruptIndexException) {
-                    indexShard.failShard(ex.getMessage(), ex);
-                }
-                statsListener.onFailure(src);
-                batchUploadListener.onFailure(ex);
-            });
-            statsListener.beforeUpload(src);
-            remoteDirectory.copyFrom(storeDirectory, src, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload());
         }
     }
 
