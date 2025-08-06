@@ -325,12 +325,6 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
                 shardsWithDocuments++;
                 List<ProfileResult> fetchProfileResults = fetchProfileResult.getFetchProfileResults();
 
-                System.out.println("DEBUG: Shard has " + fetchProfileResults.size() + " fetch profile results");
-                for (int i = 0; i < fetchProfileResults.size(); i++) {
-                    ProfileResult result = fetchProfileResults.get(i);
-                    System.out.println("DEBUG: Fetch result " + i + ": " + result.getQueryName());
-                }
-
                 assertEquals(
                     "Every shard with documents should have 2 fetch operations (1 main + 1 inner hit)",
                     2,
