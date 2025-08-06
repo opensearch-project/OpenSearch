@@ -55,6 +55,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchExtBuilder;
+import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
@@ -542,12 +543,12 @@ public abstract class SearchContext implements Releasable {
     }
 
     @ExperimentalApi
-    public void setStreamChannelListener(StreamSearchChannelListener listener) {
+    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {
         throw new IllegalStateException("Set search channel listener should be implemented for stream search");
     }
 
     @ExperimentalApi
-    public StreamSearchChannelListener getStreamChannelListener() {
+    public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() {
         throw new IllegalStateException("Get search channel listener should be implemented for stream search");
     }
 

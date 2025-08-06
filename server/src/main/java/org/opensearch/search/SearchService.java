@@ -773,7 +773,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ) {
             if (isStreamSearch) {
                 assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
-                context.setStreamChannelListener((StreamSearchChannelListener) listener);
+                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
             }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
