@@ -84,7 +84,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final boolean hasAggs;
     private final boolean performFinalReduce;
 
-    private final PendingMerges pendingMerges;
+    final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
 
     /**
@@ -115,8 +115,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchSourceBuilder source = request.source();
         this.hasTopDocs = source == null || source.size() != 0;
         this.hasAggs = source != null && source.aggregations() != null;
-        int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
+        int batchReduceSize = getBatchReduceSize(request.getBatchedReduceSize(), expectedResultSize);
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
+    }
+
+    int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
+        return (hasAggs || hasTopDocs) ? Math.min(requestBatchedReduceSize, minBatchReduceSize) : minBatchReduceSize;
     }
 
     @Override
@@ -247,7 +251,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      *
      * @opensearch.internal
      */
-    private class PendingMerges implements Releasable {
+    class PendingMerges implements Releasable {
         private final int batchReduceSize;
         private final List<QuerySearchResult> buffer = new ArrayList<>();
         private final List<SearchShard> emptyResults = new ArrayList<>();
