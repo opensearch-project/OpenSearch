@@ -76,6 +76,16 @@ public class RecoverySettings {
     );
 
     /**
+     * Dynamic setting to enable the merged segment warming(pre-copy) feature, default: false
+     */
+    public static final Setting<Boolean> INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING = Setting.boolSetting(
+        "indices.replication.merged_segment_warmer_enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Individual speed setting for merged segment replication, default -1B to reuse the setting of recovery.
      */
     public static final Setting<ByteSizeValue> INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
@@ -211,6 +221,7 @@ public class RecoverySettings {
 
     private volatile ByteSizeValue recoveryMaxBytesPerSec;
     private volatile ByteSizeValue replicationMaxBytesPerSec;
+    private volatile boolean mergedSegmentReplicationWarmerEnabled;
     private volatile ByteSizeValue mergedSegmentReplicationMaxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
@@ -250,6 +261,7 @@ public class RecoverySettings {
             recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
         this.replicationMaxBytesPerSec = INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        this.mergedSegmentReplicationWarmerEnabled = INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.get(settings);
         this.mergedSegmentReplicationMaxBytesPerSec = INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
         this.mergedSegmentReplicationTimeout = INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.get(settings);
         replicationRateLimiter = getReplicationRateLimiter(replicationMaxBytesPerSec);
@@ -261,6 +273,7 @@ public class RecoverySettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING, this::setIndicesMergedSegmentReplicationWarmerEnabled);
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
             this::setMergedSegmentReplicationMaxBytesPerSec
@@ -440,6 +453,14 @@ public class RecoverySettings {
 
     private void setMaxConcurrentRemoteStoreStreams(int maxConcurrentRemoteStoreStreams) {
         this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
+    }
+
+    public boolean getMergedSegmentReplicationWarmerEnabled() {
+        return mergedSegmentReplicationWarmerEnabled;
+    }
+
+    public void setIndicesMergedSegmentReplicationWarmerEnabled(boolean mergedSegmentReplicationWarmerEnabled) {
+        this.mergedSegmentReplicationWarmerEnabled = mergedSegmentReplicationWarmerEnabled;
     }
 
 }
