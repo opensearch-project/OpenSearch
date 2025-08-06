@@ -170,6 +170,15 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
+    public static final Setting<TimeValue> INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING = Setting.timeSetting(
+        "index.segment_replication.publish_referenced_segments_interval",
+        TimeValue.timeValueMinutes(10),
+        TimeValue.timeValueSeconds(1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<TimeValue> INDEX_SEARCH_IDLE_AFTER = Setting.timeSetting(
         "index.search.idle.after",
         TimeValue.timeValueSeconds(30),
@@ -813,6 +822,7 @@ public final class IndexSettings {
     private final boolean defaultAllowUnmappedFields;
     private volatile Translog.Durability durability;
     private volatile TimeValue syncInterval;
+    private volatile TimeValue publishReferencedSegmentsInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue translogRetentionAge;
@@ -1025,6 +1035,7 @@ public final class IndexSettings {
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
+        publishReferencedSegmentsInterval = INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
@@ -1146,6 +1157,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING,
+            this::setPublishReferencedSegmentsInterval
+        );
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
@@ -1397,9 +1412,7 @@ public final class IndexSettings {
      * Returns if remote translog store is enabled for this index.
      */
     public boolean isRemoteTranslogStoreEnabled() {
-        // Today enabling remote store automatically enables remote translog as well.
-        // which is why isRemoteStoreEnabled is used to represent isRemoteTranslogStoreEnabled
-        return isRemoteStoreEnabled;
+        return remoteStoreTranslogRepository != null && remoteStoreTranslogRepository.isEmpty() == false;
     }
 
     /**
@@ -1522,6 +1535,14 @@ public final class IndexSettings {
 
     public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
         this.syncInterval = translogSyncInterval;
+    }
+
+    public TimeValue getPublishReferencedSegmentsInterval() {
+        return publishReferencedSegmentsInterval;
+    }
+
+    public void setPublishReferencedSegmentsInterval(TimeValue publishReferencedSegmentsInterval) {
+        this.publishReferencedSegmentsInterval = publishReferencedSegmentsInterval;
     }
 
     /**

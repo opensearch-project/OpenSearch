@@ -12,9 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -28,6 +30,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -49,10 +52,12 @@ public class TransferManager {
 
     private final StreamReader streamReader;
     private final FileCache fileCache;
+    private final ThreadPool threadPool;
 
-    public TransferManager(final StreamReader streamReader, final FileCache fileCache) {
+    public TransferManager(final StreamReader streamReader, final FileCache fileCache, ThreadPool threadPool) {
         this.streamReader = streamReader;
         this.fileCache = fileCache;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -104,6 +109,38 @@ public class TransferManager {
             } else {
                 throw new IOException(cause);
             }
+        }
+    }
+
+    @ExperimentalApi
+    public CompletableFuture<IndexInput> fetchBlobAsync(BlobFetchRequest blobFetchRequest) throws IOException {
+        final Path key = blobFetchRequest.getFilePath();
+        logger.trace("Asynchronous fetchBlob called for {}", key.toString());
+        try {
+            CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
+                if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
+                    logger.trace("Transfer Manager - IndexInput closed or not in cache");
+                    // Doesn't exist or is closed, either way create a new one
+                    return new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest);
+                } else {
+                    logger.trace("Transfer Manager - Required blob Already in cache: {}", blobFetchRequest.toString());
+                    // already in the cache and ready to be used (open)
+                    return cachedIndexInput;
+                }
+            });
+            // Cache entry was either retrieved from the cache or newly added, either
+            // way the reference count has been incremented by one. We can only
+            // decrement this reference _after_ creating the clone to be returned.
+            // Making sure remote recovery thread-pool take care of background download
+            try {
+                return cacheEntry.asyncLoadIndexInput(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY));
+            } catch (Exception exception) {
+                fileCache.decRef(key);
+                throw exception;
+            }
+        } catch (Exception cause) {
+            logger.error("Exception while asynchronous fetching blob key:{}, Exception {}", key, cause.getMessage());
+            throw (RuntimeException) cause;
         }
     }
 
@@ -193,6 +230,33 @@ public class TransferManager {
                 }
                 throw e;
             }
+        }
+
+        @ExperimentalApi
+        public CompletableFuture<IndexInput> asyncLoadIndexInput(Executor executor) {
+            if (isClosed.get()) {
+                return CompletableFuture.failedFuture(new IllegalStateException("Already closed"));
+            }
+            if (isStarted.getAndSet(true) == false) {
+                // Create new future and set it as the result
+                CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return createIndexInput(fileCache, streamReader, request);
+                    } catch (Exception e) {
+                        fileCache.remove(request.getFilePath());
+                        throw new CompletionException(e);
+                    }
+                }, executor).handle((indexInput, throwable) -> {
+                    fileCache.decRef(request.getFilePath());
+                    if (throwable != null) {
+                        result.completeExceptionally(throwable);
+                    } else {
+                        result.complete(indexInput);
+                    }
+                    return null;
+                });
+            }
+            return result;
         }
 
         @Override

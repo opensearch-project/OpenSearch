@@ -66,7 +66,7 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         localDirectory = FSDirectory.open(createTempDir());
         removeExtraFSFiles();
         fileCache = FileCacheFactory.createConcurrentLRUFileCache(FILE_CACHE_CAPACITY, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
-        compositeDirectory = new CompositeDirectory(localDirectory, remoteSegmentStoreDirectory, fileCache);
+        compositeDirectory = new CompositeDirectory(localDirectory, remoteSegmentStoreDirectory, fileCache, threadPool);
         addFilesToDirectory(LOCAL_FILES);
     }
 

@@ -275,4 +275,9 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             (bucket, metricValue) -> maxes.set(bucket, Math.max(maxes.get(bucket), (NumericUtils.sortableLongToDouble(metricValue))))
         );
     }
+
+    @Override
+    public void doReset() {
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
+    }
 }
