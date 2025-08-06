@@ -125,6 +125,8 @@ dependencies {
     exclude group: 'org.opensearch', module: 'server'
   }
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 tasks.withType(JavaCompile).configureEach {
