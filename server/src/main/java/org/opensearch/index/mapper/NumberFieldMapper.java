@@ -284,6 +284,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Float numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = HalfFloatPoint.nextUp(numericValue);
+                } else {
+                    numericValue = HalfFloatPoint.nextDown(numericValue);
+                }
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return HalfFloatPoint.sortableShortToHalfFloat((short) value);
             }
@@ -460,6 +471,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Float numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = FloatPoint.nextUp(numericValue);
+                } else {
+                    numericValue = FloatPoint.nextDown(numericValue);
+                }
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return NumericUtils.sortableIntToFloat((int) value);
             }
@@ -627,6 +649,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Double numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = DoublePoint.nextUp(numericValue);
+                } else {
+                    numericValue = DoublePoint.nextDown(numericValue);
+                }
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return NumericUtils.sortableLongToDouble(value);
             }
@@ -790,6 +823,23 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Byte numericValue = parse(value, true);
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Byte.MAX_VALUE) {
+                        numericValue = (byte) (numericValue + 1);
+                    }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue > Byte.MIN_VALUE) {
+                        numericValue = (byte) (numericValue - 1);
+                    }
+                }
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return objectToDouble(value);
             }
@@ -874,6 +924,22 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Short numericValue = parse(value, true);
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Short.MAX_VALUE) {
+                        numericValue = (short) (numericValue + 1);
+                    }
+                } else {
+                    if (numericValue > Short.MIN_VALUE) {
+                        numericValue = (short) (numericValue - 1);
+                    }
+                }
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return (double) value;
             }
@@ -951,6 +1017,23 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[Integer.BYTES];
                 IntPoint.encodeDimension(value.intValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Integer numericValue = parse(value, true);
+                // Always apply exclusivity
+                if (roundUp) {
+                    if (numericValue < Integer.MAX_VALUE) {
+                        numericValue = numericValue + 1;
+                    }
+                } else {
+                    if (numericValue > Integer.MIN_VALUE) {
+                        numericValue = numericValue - 1;
+                    }
+                }
+
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -1140,6 +1223,23 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Long numericValue = parse(value, true);
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Long.MAX_VALUE) {
+                        numericValue = numericValue + 1;
+                    }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue > Long.MIN_VALUE) {
+                        numericValue = numericValue - 1;
+                    }
+                }
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return (double) value;
             }
@@ -1279,6 +1379,22 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[BigIntegerPoint.BYTES];
                 BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false, true), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                BigInteger numericValue = parse(value, true);
+                if (roundUp) {
+                    if (numericValue.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) < 0) {
+                        numericValue = numericValue.add(BigInteger.ONE);
+                    }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue.compareTo(Numbers.MIN_UNSIGNED_LONG_VALUE) > 0) {
+                        numericValue = numericValue.subtract(BigInteger.ONE);
+                    }
+                }
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -1849,6 +1965,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public byte[] encodePoint(Number value) {
             return type.encodePoint(value);
+        }
+
+        @Override
+        public byte[] encodePoint(Object value, boolean roundUp) {
+            return type.encodePoint(value, roundUp);
         }
 
         @Override

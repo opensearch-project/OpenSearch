@@ -33,6 +33,10 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -40,9 +44,11 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -546,5 +552,171 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             }
         }
         return doc;
+    }
+
+    public void testHalfFloatEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.HALF_FLOAT;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100.5f, true);
+        float decoded = HalfFloatPoint.decodeDimension(encoded, 0);
+        assertTrue("Should round up", decoded > 100.5f);
+        // Test roundUp = false
+        encoded = type.encodePoint(100.5f, false);
+        decoded = HalfFloatPoint.decodeDimension(encoded, 0);
+        assertTrue("Should round down", decoded < 100.5f);
+        encoded = type.encodePoint(0.0f, true);
+        decoded = HalfFloatPoint.decodeDimension(encoded, 0);
+        assertTrue("Zero roundUp should be positive", decoded > 0.0f);
+        encoded = type.encodePoint("123.45", true);
+        decoded = HalfFloatPoint.decodeDimension(encoded, 0);
+        assertTrue("String parsing should work", decoded > 123.45f);
+    }
+
+    public void testFloatEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.FLOAT;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100.5f, true);
+        float decoded = FloatPoint.decodeDimension(encoded, 0);
+        assertEquals(FloatPoint.nextUp(100.5f), decoded, 0.0f);
+        // Test roundUp = false
+        encoded = type.encodePoint(100.5f, false);
+        decoded = FloatPoint.decodeDimension(encoded, 0);
+        assertEquals(FloatPoint.nextDown(100.5f), decoded, 0.0f);
+    }
+
+    public void testDoubleEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.DOUBLE;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100.5, true);
+        double decoded = DoublePoint.decodeDimension(encoded, 0);
+        assertEquals(DoublePoint.nextUp(100.5), decoded, 0.0);
+        // Test roundUp = false
+        encoded = type.encodePoint(100.5, false);
+        decoded = DoublePoint.decodeDimension(encoded, 0);
+        assertEquals(DoublePoint.nextDown(100.5), decoded, 0.0);
+        encoded = type.encodePoint("123.456789", true);
+        decoded = DoublePoint.decodeDimension(encoded, 0);
+        assertTrue("String parsing should work", decoded > 123.456789);
+    }
+
+    public void testIntegerEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.INTEGER;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100, true);
+        int decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(101, decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint(100, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(99, decoded);
+        encoded = type.encodePoint(Integer.MAX_VALUE, true);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Integer.MAX_VALUE, decoded); // Can't increment
+        encoded = type.encodePoint(Integer.MIN_VALUE, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Integer.MIN_VALUE, decoded); // Can't decrement
+        encoded = type.encodePoint(100.7f, true);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(101, decoded); // 100.7 coerced to 100, then incremented
+    }
+
+    public void testLongEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(100L, true);
+        long decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(101L, decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint(100L, false);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(99L, decoded);
+        // Test edge cases
+        encoded = type.encodePoint(Long.MAX_VALUE, true);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(Long.MAX_VALUE, decoded); // Can't increment
+        encoded = type.encodePoint("9223372036854775806", true);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(9223372036854775807L, decoded);
+    }
+
+    public void testByteEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.BYTE;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint((byte) 100, true);
+        int decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(101, decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint((byte) 100, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(99, decoded);
+        // Test edge cases
+        encoded = type.encodePoint(Byte.MAX_VALUE, true);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Byte.MAX_VALUE, decoded);
+        encoded = type.encodePoint(Byte.MIN_VALUE, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Byte.MIN_VALUE, decoded);
+    }
+
+    public void testShortEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.SHORT;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint((short) 100, true);
+        int decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(101, decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint((short) 100, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(99, decoded);
+        // Test edge cases
+        encoded = type.encodePoint(Short.MAX_VALUE, true);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(Short.MAX_VALUE, decoded);
+    }
+
+    public void testUnsignedLongEncodePoint() {
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.UNSIGNED_LONG;
+        // Test roundUp = true
+        byte[] encoded = type.encodePoint(BigInteger.valueOf(100L), true);
+        BigInteger decoded = BigIntegerPoint.decodeDimension(encoded, 0);
+        assertEquals(BigInteger.valueOf(101L), decoded);
+        // Test roundUp = false
+        encoded = type.encodePoint(BigInteger.valueOf(100L), false);
+        decoded = BigIntegerPoint.decodeDimension(encoded, 0);
+        assertEquals(BigInteger.valueOf(99L), decoded);
+        // Test edge cases
+        BigInteger maxUnsignedLong = Numbers.MAX_UNSIGNED_LONG_VALUE;
+        encoded = type.encodePoint(maxUnsignedLong, true);
+        decoded = BigIntegerPoint.decodeDimension(encoded, 0);
+        assertEquals(maxUnsignedLong, decoded); // Can't increment
+        encoded = type.encodePoint("18446744073709551614", true);
+        decoded = BigIntegerPoint.decodeDimension(encoded, 0);
+        assertEquals(new BigInteger("18446744073709551615"), decoded);
+    }
+
+    public void testCoercionBehavior() {
+        // Test that decimal values are properly coerced for integer types
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.LONG;
+        // 100.7 should be coerced to 100, then incremented to 101
+        byte[] encoded = type.encodePoint(100.7, true);
+        long decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(101L, decoded);
+        // 100.3 should be coerced to 100, then decremented to 99
+        encoded = type.encodePoint(100.3, false);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(99L, decoded);
+    }
+
+    public void testNegativeNumberHandling() {
+        // Test negative numbers for integer types
+        NumberFieldMapper.NumberType type = NumberFieldMapper.NumberType.INTEGER;
+        // Negative number roundUp (exclusive lower bound)
+        byte[] encoded = type.encodePoint(-100, true);
+        int decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(-99, decoded);
+        // Negative number roundDown (exclusive upper bound)
+        encoded = type.encodePoint(-100, false);
+        decoded = IntPoint.decodeDimension(encoded, 0);
+        assertEquals(-101, decoded);
     }
 }
