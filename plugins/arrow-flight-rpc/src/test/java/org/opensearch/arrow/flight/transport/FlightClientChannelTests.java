@@ -446,6 +446,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertNull(handlerException.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18938")
     public void testStreamResponseWithEarlyCancellation() throws InterruptedException {
         String action = "internal:test/early-cancel";
         CountDownLatch handlerLatch = new CountDownLatch(1);
