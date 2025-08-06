@@ -705,6 +705,11 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public int getSegmentPartitionSize() {
+        return 2;
+    }
+
+    @Override
     public boolean shouldUseTimeSeriesDescSortOptimization() {
         return indexShard != null
             && indexShard.isTimeSeriesDescSortOptimizationEnabled()

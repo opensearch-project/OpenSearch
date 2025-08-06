@@ -250,6 +250,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE,
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT,
+                IndexSettings.INDEX_CONCURRENT_INTRA_SEGMENT_SEARCH_MODE,
+                IndexSettings.INDEX_CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE,
                 IndexSettings.ALLOW_DERIVED_FIELDS,
 
                 // Settings for star tree index

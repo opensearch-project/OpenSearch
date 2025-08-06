@@ -433,6 +433,10 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
+    public boolean shouldUseIntraSegmentConcurrentSearch() {
+        return false;
+    }
+
     /**
      * Returns local bucket count thresholds based on concurrent segment search status
      */
@@ -538,5 +542,9 @@ public abstract class SearchContext implements Releasable {
 
     public boolean keywordIndexOrDocValuesEnabled() {
         return false;
+    }
+
+    public int getSegmentPartitionSize() {
+        return 2;
     }
 }

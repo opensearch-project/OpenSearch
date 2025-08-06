@@ -75,6 +75,8 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.opensearch.search.SearchService.CONCURRENT_INTRA_SEGMENT_DEFAULT_PARTITION_SIZE_VALUE;
+import static org.opensearch.search.SearchService.CONCURRENT_INTRA_SEGMENT_MINIMUM_PARTITION_SIZE_VALUE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
@@ -713,6 +715,7 @@ public final class IndexSettings {
         Property.Deprecated
     );
 
+    // TODO : Should use enum
     public static final Setting<String> INDEX_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
         "index.search.concurrent_segment_search.mode",
         CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
@@ -735,6 +738,32 @@ public final class IndexSettings {
         "index.search.concurrent.max_slice_count",
         CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
         CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<String> INDEX_CONCURRENT_INTRA_SEGMENT_SEARCH_MODE = Setting.simpleString(
+        "index.search.concurrent_intra_segment_search.mode",
+        CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
+        value -> {
+            // TODO : Add support for Auto mode with Intra Segment Search
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
+                case CONCURRENT_SEGMENT_SEARCH_MODE_NONE:
+                    // valid setting
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [all, none]");
+            }
+        },
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<Integer> INDEX_CONCURRENT_INTRA_SEGMENT_PARTITION_SIZE = Setting.intSetting(
+        "index.search.concurrent_intra_segment_search.partition_size",
+        CONCURRENT_INTRA_SEGMENT_DEFAULT_PARTITION_SIZE_VALUE,
+        CONCURRENT_INTRA_SEGMENT_MINIMUM_PARTITION_SIZE_VALUE,
         Property.Dynamic,
         Property.IndexScope
     );
