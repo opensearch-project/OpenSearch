@@ -823,6 +823,7 @@ public final class IndexSettings {
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
+    private volatile String remoteStoreSegmentPathPrefix;
     private int remoteTranslogKeepExtraGen;
     private boolean autoForcemergeEnabled;
 
@@ -1041,6 +1042,9 @@ public final class IndexSettings {
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
         this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
+        String rawPrefix = IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(settings);
+        // Only set the prefix if it's explicitly set and not empty
+        this.remoteStoreSegmentPathPrefix = (rawPrefix != null && !rawPrefix.trim().isEmpty()) ? rawPrefix : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.shouldCleanupUnreferencedFiles = INDEX_UNREFERENCED_FILE_CLEANUP.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -1443,6 +1447,13 @@ public final class IndexSettings {
 
     public String getRemoteStoreTranslogRepository() {
         return remoteStoreTranslogRepository;
+    }
+
+    /**
+     * Returns the custom path prefix for remote store segments, if set.
+     */
+    public String getRemoteStoreSegmentPathPrefix() {
+        return remoteStoreSegmentPathPrefix;
     }
 
     /**

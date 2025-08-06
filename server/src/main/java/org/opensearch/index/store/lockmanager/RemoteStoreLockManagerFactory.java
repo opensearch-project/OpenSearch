@@ -44,7 +44,7 @@ public class RemoteStoreLockManagerFactory {
         String shardId,
         RemoteStorePathStrategy pathStrategy
     ) {
-        return newLockManager(repositoriesService.get(), repositoryName, indexUUID, shardId, pathStrategy, segmentsPathFixedPrefix);
+        return newLockManager(repositoriesService.get(), repositoryName, indexUUID, shardId, pathStrategy, segmentsPathFixedPrefix, null);
     }
 
     public static RemoteStoreMetadataLockManager newLockManager(
@@ -54,6 +54,18 @@ public class RemoteStoreLockManagerFactory {
         String shardId,
         RemoteStorePathStrategy pathStrategy,
         String segmentsPathFixedPrefix
+    ) {
+        return newLockManager(repositoriesService, repositoryName, indexUUID, shardId, pathStrategy, segmentsPathFixedPrefix, null);
+    }
+
+    public static RemoteStoreMetadataLockManager newLockManager(
+        RepositoriesService repositoriesService,
+        String repositoryName,
+        String indexUUID,
+        String shardId,
+        RemoteStorePathStrategy pathStrategy,
+        String segmentsPathFixedPrefix,
+        String indexFixedPrefix
     ) {
         try (Repository repository = repositoriesService.repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
@@ -66,6 +78,7 @@ public class RemoteStoreLockManagerFactory {
                 .dataCategory(SEGMENTS)
                 .dataType(LOCK_FILES)
                 .fixedPrefix(segmentsPathFixedPrefix)
+                .indexFixedPrefix(indexFixedPrefix)
                 .build();
             BlobPath lockDirectoryPath = pathStrategy.generatePath(lockFilesPathInput);
             BlobContainer lockDirectoryBlobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(lockDirectoryPath);
