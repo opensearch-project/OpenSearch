@@ -40,6 +40,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -127,7 +128,9 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.NONE, dvField.fieldType().docValuesSkipIndexType());
         assertFalse(dvField.fieldType().stored());
+
     }
 
     @Override
@@ -139,6 +142,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(1, fields.length);
         IndexableField dvField = fields[0];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.NONE, dvField.fieldType().docValuesSkipIndexType());
     }
 
     @Override
@@ -165,6 +169,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(DocValuesSkipIndexType.NONE, dvField.fieldType().docValuesSkipIndexType());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
         // The 'unsigned_long' is stored as a string
@@ -475,6 +480,21 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 String source = builder.toString();
                 assertEquals("{\"" + FIELD_NAME + "\":[" + value1 + "," + value2 + "," + value2 + "]}", source);
             }
+        }
+    }
+
+    public void testSkipList() throws IOException {
+        for (String type : types()) {
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", type).field("index", false).field("skip_list", true))
+            );
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
+
+            IndexableField[] fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.length);
+            IndexableField dvField = fields[0];
+            assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+            assertEquals(DocValuesSkipIndexType.RANGE, dvField.fieldType().docValuesSkipIndexType());
         }
     }
 
