@@ -102,10 +102,17 @@ public class FetchContext {
     }
 
     /**
-     * The {@code SearchLookup} for the this context
+     * The {@code SearchLookup} for this context
      */
     public SearchLookup searchLookup() {
         return searchLookup;
+    }
+
+    /**
+     * The search context of the request
+     */
+    public SearchContext searchContext() {
+        return searchContext;
     }
 
     /**
