@@ -194,8 +194,8 @@ setup:
 ---
 "post a mapping with setting dynamic to false_allow_templates":
   - skip:
-      version: " - 3.11.99"
-      reason: "introduced in 3.2.0"
+      version: " - 3.2.99"
+      reason: "introduced in 3.3.0"
   - do:
       indices.put_mapping:
         index: test_index1
