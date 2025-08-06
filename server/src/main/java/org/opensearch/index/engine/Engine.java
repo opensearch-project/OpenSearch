@@ -79,6 +79,11 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.exec.bridge.CheckpointState;
+import org.opensearch.index.engine.exec.bridge.Indexer;
+import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
+import org.opensearch.index.engine.exec.bridge.StatsHolder;
+import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
@@ -134,7 +139,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public abstract class Engine implements LifecycleAware, Closeable {
+public abstract class Engine implements LifecycleAware, Closeable, Indexer, CheckpointState, StatsHolder, IndexingThrottler {
 
     public static final String SYNC_COMMIT_ID = "sync_id";  // TODO: remove sync_id in 3.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
@@ -275,7 +280,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
             }
         }
-        return new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(sizeInBytes).build();
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     /**

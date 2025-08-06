@@ -106,7 +106,6 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
-import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
@@ -120,6 +119,7 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.exec.format.DataSourceRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -132,7 +132,6 @@ import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
-import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -419,6 +418,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int maxSizeInRequestCache;
     private volatile int defaultMaxMergeAtOnce;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
+    private final DataSourceRegistry dataSourceRegistry;
 
     @Override
     protected void doStart() {
@@ -461,7 +461,8 @@ public class IndicesService extends AbstractLifecycleComponent
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        DataSourceRegistry dataSourceRegistry
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -601,6 +602,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
+
+        this.dataSourceRegistry = dataSourceRegistry;
     }
 
     @InternalApi
@@ -665,6 +668,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoverySettings,
             cacheService,
             remoteStoreSettings,
+            null,
             null,
             null,
             null,
@@ -1128,7 +1132,8 @@ public class IndicesService extends AbstractLifecycleComponent
             replicator,
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            dataSourceRegistry
         );
     }
 

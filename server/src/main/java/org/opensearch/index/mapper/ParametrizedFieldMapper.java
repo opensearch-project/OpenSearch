@@ -770,4 +770,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return builder;
         }
     }
+
+    public static void main(String[] args) {
+
+    }
 }
