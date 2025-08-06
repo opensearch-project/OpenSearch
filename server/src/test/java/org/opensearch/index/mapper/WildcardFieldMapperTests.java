@@ -251,7 +251,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         );
         assertEquals(new BytesRef("uri"), fields[1].binaryValue());
         assertEquals(IndexOptions.NONE, fields[1].fieldType().indexOptions());
-        assertEquals(DocValuesType.BINARY, fields[1].fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
     }
 
     public void testDefaults() throws Exception {

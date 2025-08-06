@@ -92,6 +92,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
 
 import java.io.IOException;
@@ -578,7 +579,7 @@ public class Lucene {
             sortField = newSortField;
         }
 
-        if (sortField.getClass() != SortField.class) {
+        if (sortField.getClass() != SortField.class && sortField.getClass() != NonPruningSortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
         if (sortField.getField() == null) {
