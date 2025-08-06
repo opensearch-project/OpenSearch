@@ -16,12 +16,18 @@ import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
+import org.opensearch.plugin.wlm.spi.AttributeExtension;
 import org.opensearch.rule.InMemoryRuleProcessingService;
+import org.opensearch.rule.SecurityAttribute;
+import org.opensearch.rule.attribute_extractor.AttributeExtractor;
+import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WorkloadGroupTask;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -29,16 +35,23 @@ import java.util.Optional;
  */
 public class AutoTaggingActionFilter implements ActionFilter {
     private final InMemoryRuleProcessingService ruleProcessingService;
-    ThreadPool threadPool;
+    private final ThreadPool threadPool;
+    private final Map<Attribute, AttributeExtension> attributeExtensions;
 
     /**
      * Main constructor
      * @param ruleProcessingService provides access to in memory view of rules
      * @param threadPool to access assign the label
+     * @param attributeExtensions
      */
-    public AutoTaggingActionFilter(InMemoryRuleProcessingService ruleProcessingService, ThreadPool threadPool) {
+    public AutoTaggingActionFilter(
+        InMemoryRuleProcessingService ruleProcessingService,
+        ThreadPool threadPool,
+        Map<Attribute, AttributeExtension> attributeExtensions
+    ) {
         this.ruleProcessingService = ruleProcessingService;
         this.threadPool = threadPool;
+        this.attributeExtensions = attributeExtensions;
     }
 
     @Override
@@ -60,8 +73,13 @@ public class AutoTaggingActionFilter implements ActionFilter {
             chain.proceed(task, action, request, listener);
             return;
         }
-        Optional<String> label = ruleProcessingService.evaluateLabel(List.of(new IndicesExtractor((IndicesRequest) request)));
-
+        List<AttributeExtractor<String>> attributeExtractors = new ArrayList<>();
+        attributeExtractors.add(new IndicesExtractor((IndicesRequest) request));
+        var principalExtension = attributeExtensions.get(SecurityAttribute.PRINCIPAL);
+        if (principalExtension != null) {
+            attributeExtractors.add(principalExtension.getAttributeExtractor());
+        }
+        Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
         label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
         chain.proceed(task, action, request, listener);
     }

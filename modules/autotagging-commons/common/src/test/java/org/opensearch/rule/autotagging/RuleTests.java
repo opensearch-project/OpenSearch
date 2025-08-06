@@ -18,6 +18,7 @@ import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -108,6 +109,11 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         @Override
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return ALLOWED_ATTRIBUTES;
+        }
+
+        @Override
+        public List<Attribute> getPrioritizedAttributesList() {
+            return List.of(TEST_ATTRIBUTE_1, TEST_ATTRIBUTE_2);
         }
     }
 

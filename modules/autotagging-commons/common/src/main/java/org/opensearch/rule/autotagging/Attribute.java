@@ -11,8 +11,15 @@ package org.opensearch.rule.autotagging;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Represents an attribute within the auto-tagging feature. Attributes define characteristics that can
@@ -30,6 +37,13 @@ public interface Attribute extends Writeable {
     String getName();
 
     /**
+     * Returns the allowed subfields ordered from highest to lowest priority
+     */
+    default List<String> getPrioritizedSubfields() {
+        return new ArrayList<>();
+    }
+
+    /**
      * Ensure that `validateAttribute` is called in the constructor of attribute implementations
      * to prevent potential serialization issues.
      */
@@ -43,6 +57,37 @@ public interface Attribute extends Writeable {
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         out.writeString(getName());
+    }
+
+    /**
+     * Parses attribute values for specific attributes
+     * @param parser the XContent parser
+     */
+    default Set<String> fromXContentParseAttributeValues(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throw new XContentParseException(
+                parser.getTokenLocation(),
+                "Expected START_ARRAY token for " + getName() + " attribute but got " + parser.currentToken()
+            );
+        }
+        Set<String> attributeValueSet = new HashSet<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                attributeValueSet.add(parser.text());
+            } else {
+                throw new XContentParseException("Unexpected token in array: " + parser.currentToken());
+            }
+        }
+        return attributeValueSet;
+    }
+
+    /**
+     * Writes a set of attribute values for a specific attribute
+     * @param builder the XContent builder
+     * @param values the set of string values to write
+     */
+    default void toXContentWriteAttributeValues(XContentBuilder builder, Set<String> values) throws IOException {
+        builder.array(getName(), values.toArray(new String[0]));
     }
 
     /**

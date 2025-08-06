@@ -28,6 +28,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -51,8 +52,8 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
             WLMFeatureType.WLM,
             DefaultAttributeValueStore::new
         );
-        ruleProcessingService = spy(new InMemoryRuleProcessingService(attributeValueStoreFactory));
-        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
+        ruleProcessingService = spy(new InMemoryRuleProcessingService(attributeValueStoreFactory, null));
+        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool, null);
     }
 
     public void tearDown() throws Exception {
@@ -96,6 +97,11 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         @Override
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
+        }
+
+        @Override
+        public List<Attribute> getPrioritizedAttributesList() {
+            return List.of(TestAttribute.TEST_ATTRIBUTE);
         }
     }
 

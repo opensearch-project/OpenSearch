@@ -15,6 +15,22 @@ import org.opensearch.rule.autotagging.Attribute;
  * @param <V>
  */
 public interface AttributeExtractor<V> {
+
+    /**
+     * Defines the combination style used when a request contains multiple values
+     * for an attribute.
+     */
+    enum CombinationStyle {
+        /**
+         * Logical AND
+         */
+        AND,
+        /**
+         * Logical OR
+         */
+        OR
+    }
+
     /**
      * This method returns the Attribute which it is responsible for extracting
      * @return attribute
@@ -26,4 +42,13 @@ public interface AttributeExtractor<V> {
      * @return attribute value
      */
     Iterable<V> extract();
+
+    /**
+     * Returns the combination style used when a request contains multiple values
+     * for an attribute.
+     * For example, if the request targets both index A and B, then a rule must
+     * have both index A and B as attributes, requiring an AND combination.
+     * @return the combination style (e.g., AND, OR)
+     */
+    CombinationStyle getCombinationStyle();
 }

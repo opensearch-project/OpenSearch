@@ -13,6 +13,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,6 +47,12 @@ public interface FeatureType extends Writeable {
      * Implementations must ensure that access to this registry is thread-safe.
      */
     Map<String, Attribute> getAllowedAttributesRegistry();
+
+    /**
+     * Returns the list of attributes ordered by their processing priority.
+     * @return List of prioritized attributes.
+     */
+    List<Attribute> getPrioritizedAttributesList();
 
     /**
      * returns the validator for feature value

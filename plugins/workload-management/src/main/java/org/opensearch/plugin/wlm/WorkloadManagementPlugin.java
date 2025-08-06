@@ -45,8 +45,10 @@ import org.opensearch.plugin.wlm.rule.WorkloadGroupRuleRoutingService;
 import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.plugin.wlm.spi.AttributeExtension;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -56,6 +58,7 @@ import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleRoutingService;
+import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
@@ -71,6 +74,7 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -80,7 +84,13 @@ import static org.opensearch.rule.service.IndexStoredRulePersistenceService.MAX_
 /**
  * Plugin class for WorkloadManagement
  */
-public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin, DiscoveryPlugin, RuleFrameworkExtension {
+public class WorkloadManagementPlugin extends Plugin
+    implements
+        ActionPlugin,
+        SystemIndexPlugin,
+        DiscoveryPlugin,
+        ExtensiblePlugin,
+        RuleFrameworkExtension {
 
     /**
      * The name of the index where rules are stored.
@@ -95,6 +105,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     private static RuleRoutingService ruleRoutingService;
     private WlmClusterSettingValuesProvider wlmClusterSettingValuesProvider;
     private AutoTaggingActionFilter autoTaggingActionFilter;
+    private final Map<Attribute, AttributeExtension> attributeExtensions = new HashMap<>();
 
     /**
      * Default constructor
@@ -125,7 +136,10 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             featureType,
             DefaultAttributeValueStore::new
         );
-        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(attributeValueStoreFactory);
+        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
+            attributeValueStoreFactory,
+            featureType.getPrioritizedAttributesList()
+        );
         rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
@@ -145,7 +159,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             wlmClusterSettingValuesProvider
         );
 
-        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
+        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool, attributeExtensions);
         return List.of(refreshMechanism);
     }
 
@@ -220,5 +234,11 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     @Override
     public Supplier<FeatureType> getFeatureTypeSupplier() {
         return () -> featureType;
+    }
+
+    public void loadExtensions(ExtensionLoader loader) {
+        for (AttributeExtension ext : loader.loadExtensions(AttributeExtension.class)) {
+            attributeExtensions.put(ext.getAttributeExtractor().getAttribute(), ext);
+        }
     }
 }
