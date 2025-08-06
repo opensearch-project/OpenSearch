@@ -47,7 +47,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Prevent shard initialization failure due to streaming consumer errors ([#18877](https://github.com/opensearch-project/OpenSearch/pull/18877))
 - APIs for stream transport and new stream-based search api action ([#18722](https://github.com/opensearch-project/OpenSearch/pull/18722))
 - Added the core process for warming merged segments in remote-store enabled domains ([#18683](https://github.com/opensearch-project/OpenSearch/pull/18683))
+- Streaming aggregation ([#18874](https://github.com/opensearch-project/OpenSearch/pull/18874))
 - Optimize Composite Aggregations by removing unnecessary object allocations ([#18531](https://github.com/opensearch-project/OpenSearch/pull/18531))
+- [Star-Tree] Add search support for ip field type ([#18671](https://github.com/opensearch-project/OpenSearch/pull/18671))
+- [Derived Source] Add integration of derived source feature across various paths like get/search/recovery ([#18565](https://github.com/opensearch-project/OpenSearch/pull/18565))
+- Supporting Scripted Metric Aggregation when reducing aggregations in InternalValueCount and InternalAvg ([18411](https://github.com/opensearch-project/OpenSearch/pull18411)))
 - Add skip_list parameter to Numeric Field Mappers (default false) ([#18889](https://github.com/opensearch-project/OpenSearch/pull/18889))
 
 ### Changed
@@ -84,6 +88,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.2 to 10.4 ([#18759](https://github.com/opensearch-project/OpenSearch/pull/18759), [#18804](https://github.com/opensearch-project/OpenSearch/pull/18804))
 - Bump `commons-beanutils:commons-beanutils` from 1.9.4 to 1.11.0 ([#18401](https://github.com/opensearch-project/OpenSearch/issues/18401))
 - Bump `org.xerial.snappy:snappy-java` from 1.1.10.7 to 1.1.10.8 ([#18803](https://github.com/opensearch-project/OpenSearch/pull/18803))
+- Bump `org.ajoberstar.grgit:grgit-core` from 5.2.1 to 5.3.2 ([#18935](https://github.com/opensearch-project/OpenSearch/pull/18935))
+- Bump `org.apache.kafka:kafka-clients` from 3.8.1 to 3.9.1 ([#18935](https://github.com/opensearch-project/OpenSearch/pull/18935))
 
 ### Deprecated
 
