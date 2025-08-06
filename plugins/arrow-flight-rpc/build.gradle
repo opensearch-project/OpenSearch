@@ -14,7 +14,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description = 'Arrow flight based transport and stream implementation. It also provides Arrow vector and memory dependencies as' +
     'an extended-plugin at runtime; consumers should take a compile time dependency and not runtime on this project.\'\n'
-  classname = 'org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin'
+  classname = 'org.opensearch.arrow.flight.transport.FlightStreamPlugin'
 }
 
 dependencies {
@@ -70,6 +70,9 @@ dependencies {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
     }
   }
+
+  // Javassist for bytecode injection chaos testing
+  internalClusterTestImplementation 'org.javassist:javassist:3.29.2-GA'
 }
 
 tasks.named('test').configure {
@@ -83,6 +86,7 @@ test {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }
 
 internalClusterTest {

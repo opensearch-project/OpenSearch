@@ -65,12 +65,15 @@ public class FlightServiceTests extends OpenSearchTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
         when(threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
+        when(threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
+
         networkService = new NetworkService(Collections.emptyList());
     }
 
     public void testInitializeWithSslDisabled() throws Exception {
 
         Settings noSslSettings = Settings.builder().put("arrow.ssl.enable", false).build();
+        ServerConfig.init(noSslSettings);
 
         try (FlightService noSslService = new FlightService(noSslSettings)) {
             noSslService.setClusterService(clusterService);
@@ -86,6 +89,8 @@ public class FlightServiceTests extends OpenSearchTestCase {
     }
 
     public void testStartAndStop() throws Exception {
+        ServerConfig.init(settings);
+
         try (FlightService testService = new FlightService(Settings.EMPTY)) {
             testService.setClusterService(clusterService);
             testService.setThreadPool(threadPool);
@@ -99,8 +104,8 @@ public class FlightServiceTests extends OpenSearchTestCase {
     }
 
     public void testInitializeWithoutSecureTransportSettingsProvider() {
-        Settings sslSettings = Settings.builder().put(settings).put("arrow.ssl.enable", true).build();
-
+        Settings sslSettings = Settings.builder().put(settings).put("flight.ssl.enable", true).build();
+        ServerConfig.init(sslSettings);
         try (FlightService sslService = new FlightService(sslSettings)) {
             // Should throw exception when initializing without provider
             expectThrows(RuntimeException.class, () -> {
@@ -117,6 +122,8 @@ public class FlightServiceTests extends OpenSearchTestCase {
         Settings invalidSettings = Settings.builder()
             .put(ServerComponents.SETTING_FLIGHT_PUBLISH_PORT.getKey(), "-100") // Invalid port
             .build();
+        ServerConfig.init(invalidSettings);
+
         try (FlightService invalidService = new FlightService(invalidSettings)) {
             invalidService.setClusterService(clusterService);
             invalidService.setThreadPool(threadPool);
@@ -127,6 +134,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
     }
 
     public void testLifecycleStateTransitions() throws Exception {
+        ServerConfig.init(Settings.EMPTY);
         // Find new port for this test
         try (FlightService testService = new FlightService(Settings.EMPTY)) {
             testService.setClusterService(clusterService);
