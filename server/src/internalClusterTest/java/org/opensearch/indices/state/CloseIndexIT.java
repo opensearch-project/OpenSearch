@@ -49,6 +49,7 @@ import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -62,7 +63,6 @@ import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
-import org.opensearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -141,7 +141,11 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
     public void testCloseOneMissingIndexIgnoreMissing() throws Exception {
         createIndex("test1");
         ensureGreen("test1");
-        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("test1", "test2").setIndicesOptions(lenientExpandOpen())), STANDARD_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertAcked(client().admin().indices().prepareClose("test1", "test2").setIndicesOptions(lenientExpandOpen())),
+            STANDARD_TIMEOUT.getSeconds(),
+            TimeUnit.SECONDS
+        );
         assertIndexIsClosed("test1");
     }
 
@@ -225,7 +229,11 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
         assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
 
-        assertBusy(() -> closeIndices(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)), STANDARD_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        assertBusy(
+            () -> closeIndices(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)),
+            STANDARD_TIMEOUT.getSeconds(),
+            TimeUnit.SECONDS
+        );
         assertIndexIsClosed(indexName);
     }
 
@@ -344,9 +352,7 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                     throw new AssertionError(e);
                 }
                 try {
-                    client().admin().indices().prepareClose(indexToClose)
-                        .setTimeout(STANDARD_TIMEOUT)
-                        .get();
+                    client().admin().indices().prepareClose(indexToClose).setTimeout(STANDARD_TIMEOUT).get();
                 } catch (final Exception e) {
                     assertException(e, indexToClose);
                 }
@@ -357,7 +363,7 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             thread.start();
         }
         latch.countDown();
-        
+
         // Wait for all threads with timeout to prevent hanging
         boolean allCompleted = true;
         for (Thread thread : threads) {
@@ -368,12 +374,12 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 allCompleted = false;
             }
         }
-        
+
         if (!allCompleted) {
             // Give interrupted threads a moment to clean up
             Thread.sleep(1000);
         }
-        
+
         // Wait for cluster state to stabilize after concurrent operations
         waitForClusterStateConvergence();
     }
@@ -526,10 +532,10 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         final String indexName = "test-recover-existing-replica";
         final int minDataNodes = 2;
         internalCluster().ensureAtLeastNumDataNodes(minDataNodes);
-        
+
         // Wait for initial cluster stability
         ensureStableCluster(internalCluster().size());
-        
+
         List<String> dataNodes = randomSubsetOf(
             2,
             Sets.newHashSet(clusterService().state().nodes().getDataNodes().values().iterator())
@@ -559,16 +565,16 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         ensureStableCluster(internalCluster().size());
         waitForClusterStateConvergence();
         client().admin().indices().prepareFlush(indexName).get();
-        
+
         // Store the original cluster size before restarting node
         final int originalClusterSize = internalCluster().size();
-        
+
         // index more documents while one shard copy is offline
         internalCluster().restartNode(dataNodes.get(1), new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 Thread.sleep(1000);
-                
+
                 Client client = client(dataNodes.get(0));
                 try {
                     assertBusy(() -> {
@@ -579,31 +585,29 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 } catch (Exception e) {
                     logger.warn("Failed to verify cluster state after node stop", e);
                 }
-                
+
                 int moreDocs = randomIntBetween(1, 50);
                 for (int i = 0; i < moreDocs; i++) {
                     client.prepareIndex(indexName).setSource("num", i).get();
                 }
-                
+
                 // Wait for cluster to stabilize with the remaining nodes
                 try {
                     ensureStableCluster(originalClusterSize - 1);
                 } catch (Exception e) {
                     logger.warn("Cluster not stable after node stop, continuing anyway", e);
                 }
-                
+
                 assertAcked(client.admin().indices().prepareClose(indexName).setTimeout(STANDARD_TIMEOUT));
                 return super.onNodeStopped(nodeName);
             }
         });
-        
+
         // Wait for node to fully rejoin and cluster to stabilize
-        assertBusy(() -> {
-            ensureStableCluster(originalClusterSize);
-        }, EXTENDED_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
-        
+        assertBusy(() -> { ensureStableCluster(originalClusterSize); }, EXTENDED_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         waitForClusterStateConvergence();
-        
+
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
         internalCluster().assertSameDocIdsOnShards();
@@ -671,21 +675,19 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         ensureGreen(indexName);
         refresh(indexName);
         waitForClusterStateConvergence();
-        
+
         assertAcked(client().admin().indices().prepareClose(indexName).setTimeout(STANDARD_TIMEOUT));
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
-        
+
         String nodeWithPrimary = clusterService().state()
             .nodes()
             .get(clusterService().state().routingTable().index(indexName).shard(0).primaryShard().currentNodeId())
             .getName();
-        
+
         internalCluster().restartNode(nodeWithPrimary, new InternalTestCluster.RestartCallback());
-        assertBusy(() -> {
-            ensureStableCluster(internalCluster().size());
-        }, EXTENDED_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
-        
+        assertBusy(() -> { ensureStableCluster(internalCluster().size()); }, EXTENDED_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         ensureGreen(indexName);
         long primaryTerm = clusterService().state().metadata().index(indexName).primaryTerm(0);
         for (String nodeName : internalCluster().nodesInclude(indexName)) {
@@ -746,13 +748,16 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                     Thread.sleep(500);
                     continue;
                 }
-                
+
                 for (String index : indices) {
                     final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
                     assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
                     final Settings indexSettings = indexMetadata.getSettings();
                     assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));
-                    assertThat(indexSettings.getAsBoolean(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false), is(true));
+                    assertThat(
+                        indexSettings.getAsBoolean(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false),
+                        is(true)
+                    );
                     assertThat(clusterState.routingTable().index(index), notNullValue());
                     assertThat(clusterState.blocks().hasIndexBlock(index, MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
                     assertThat(
@@ -811,15 +816,18 @@ public class CloseIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             }
         }
     }
-    
+
     private void waitForClusterStateConvergence() {
         try {
             final long stateVersion = client().admin().cluster().prepareState().get().getState().version();
             assertBusy(() -> {
                 for (String nodeName : internalCluster().getNodeNames()) {
                     ClusterState nodeState = client(nodeName).admin().cluster().prepareState().setLocal(true).get().getState();
-                    assertThat("Node " + nodeName + " has not caught up to cluster state version " + stateVersion,
-                        nodeState.version(), greaterThanOrEqualTo(stateVersion));
+                    assertThat(
+                        "Node " + nodeName + " has not caught up to cluster state version " + stateVersion,
+                        nodeState.version(),
+                        greaterThanOrEqualTo(stateVersion)
+                    );
                 }
             }, STANDARD_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             Thread.sleep(100);
