@@ -412,7 +412,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         leafCollector.finish();
     }
 
-    public void sendBatch(List<InternalAggregation> batch) {
+    void sendBatch(List<InternalAggregation> batch) {
         InternalAggregations batchAggResult = new InternalAggregations(batch);
 
         final QuerySearchResult queryResult = searchContext.queryResult();
