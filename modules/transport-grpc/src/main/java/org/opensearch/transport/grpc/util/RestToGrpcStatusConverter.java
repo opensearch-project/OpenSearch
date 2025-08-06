@@ -15,9 +15,9 @@ import io.grpc.Status;
 /**
  * Converts OpenSearch REST status codes to appropriate GRPC status codes.
  */
-public class HttpToGrpcStatusConverter {
+public class RestToGrpcStatusConverter {
 
-    private HttpToGrpcStatusConverter() {
+    private RestToGrpcStatusConverter() {
         // Utility class, no instances
     }
 
@@ -25,14 +25,14 @@ public class HttpToGrpcStatusConverter {
      * Get the GRPC status code as an integer (e.g. 0 for OK, 3 for INVALID_ARGUMENT, 13 for INTERNAL)
      * for an OpenSearch {@code RestStatus.java}.
      *
-     * This is a wrapper method around {@link #convertHttpToGrpcStatus(RestStatus)} which extracts the numeric status code value.
+     * This is a wrapper method around {@link #convertRestToGrpcStatus(RestStatus)} which extracts the numeric status code value.
      * It is used in protobuf responses, for example {@code BulkItemResponseProtoUtils}, for setting response status fields.
      *
-     * @param httpStatus The OpenSearch REST status
+     * @param restStatus The OpenSearch REST status
      * @return GRPC status code as integer
      */
-    public static int getGrpcStatusCode(RestStatus httpStatus) {
-        return convertHttpToGrpcStatus(httpStatus).getCode().value();
+    public static int getGrpcStatusCode(RestStatus restStatus) {
+        return convertRestToGrpcStatus(restStatus).getCode().value();
     }
 
     /**
@@ -46,11 +46,11 @@ public class HttpToGrpcStatusConverter {
      * - 5xx Server Errors: Mapped to appropriate server error statuses
      * - Unknown Codes: Mapped to {@code Status.UNKNOWN}
      *
-     * @param httpStatus The OpenSearch REST status to convert
+     * @param restStatus The OpenSearch REST status to convert
      * @return Corresponding GRPC Status
      */
-    protected static Status convertHttpToGrpcStatus(RestStatus httpStatus) {
-        switch (httpStatus) {
+    protected static Status convertRestToGrpcStatus(RestStatus restStatus) {
+        switch (restStatus) {
             // 1xx Informational codes
             case CONTINUE:
             case SWITCHING_PROTOCOLS:
@@ -67,7 +67,7 @@ public class HttpToGrpcStatusConverter {
             case MULTI_STATUS:
                 return Status.OK;
 
-            // 3xx Redirection codes - treat as client request issue
+            // 3xx Redirection codes - Client needs to handle redirect
             case MULTIPLE_CHOICES:
             case MOVED_PERMANENTLY:
             case FOUND:
@@ -75,7 +75,7 @@ public class HttpToGrpcStatusConverter {
             case NOT_MODIFIED:
             case USE_PROXY:
             case TEMPORARY_REDIRECT:
-                return Status.FAILED_PRECONDITION; // Client needs to handle redirect
+                return Status.FAILED_PRECONDITION;
 
             // 4xx Client errors - Invalid requests
             case BAD_REQUEST:
@@ -84,11 +84,7 @@ public class HttpToGrpcStatusConverter {
                 return Status.INVALID_ARGUMENT;
 
             case UNAUTHORIZED:
-                return Status.UNAUTHENTICATED;
-
             case PAYMENT_REQUIRED:
-                return Status.PERMISSION_DENIED; // Payment required is access issue
-
             case FORBIDDEN:
                 return Status.PERMISSION_DENIED;
 
@@ -119,8 +115,6 @@ public class HttpToGrpcStatusConverter {
                 return Status.FAILED_PRECONDITION;
 
             case REQUEST_ENTITY_TOO_LARGE:
-                return Status.OUT_OF_RANGE; // More appropriate than INVALID_ARGUMENT for size limits
-
             case REQUESTED_RANGE_NOT_SATISFIED:
                 return Status.OUT_OF_RANGE;
 

@@ -46,7 +46,7 @@ public class GrpcErrorHandler {
     public static StatusRuntimeException convertToGrpcError(Exception e) {
         // ========== OpenSearch Business Logic Exceptions ==========
         // Custom OpenSearch exceptions which extend {@link OpenSearchException}.
-        // Uses {@link HttpToGrpcStatusConverter} for HTTP -> gRPC status mapping and
+        // Uses {@link RestToGrpcStatusConverter} for REST -> gRPC status mapping and
         // follows {@link OpenSearchException#generateFailureXContent} unwrapping logic
         if (e instanceof OpenSearchException) {
             return handleOpenSearchException((OpenSearchException) e);
@@ -105,7 +105,7 @@ public class GrpcErrorHandler {
      * @return StatusRuntimeException with mapped GRPC status and HTTP-identical error message
      */
     private static StatusRuntimeException handleOpenSearchException(OpenSearchException e) {
-        Status grpcStatus = HttpToGrpcStatusConverter.convertHttpToGrpcStatus(e.status());
+        Status grpcStatus = RestToGrpcStatusConverter.convertRestToGrpcStatus(e.status());
 
         Throwable unwrapped = ExceptionsHelper.unwrapToOpenSearchException(e);
 
