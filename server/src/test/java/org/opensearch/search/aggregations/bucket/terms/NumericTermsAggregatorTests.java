@@ -202,7 +202,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             dataSet.add(i);
         }
 
-        // HeapSort
+        // HeapSort when buckets > size && buckets <= 5*size
         testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(2), agg -> {
             assertEquals(2, agg.getBuckets().size());
             for (int i = 0; i < 2; i++) {
@@ -212,9 +212,19 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             }
         }, ValueType.NUMERIC);
 
-        // QuickSelect
+        // QuickSelect when buckets > size && buckets > 5*size
         testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(20), agg -> {
             assertEquals(20, agg.getBuckets().size());
+            for (int i = 0; i < agg.getBuckets().size(); i++) {
+                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
+                assertThat(bucket.getKey(), equalTo((long) i));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }
+        }, ValueType.NUMERIC);
+
+        // Get All buckets when buckets <= size
+        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(110), agg -> {
+            assertEquals(100, agg.getBuckets().size());
             for (int i = 0; i < agg.getBuckets().size(); i++) {
                 LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
                 assertThat(bucket.getKey(), equalTo((long) i));

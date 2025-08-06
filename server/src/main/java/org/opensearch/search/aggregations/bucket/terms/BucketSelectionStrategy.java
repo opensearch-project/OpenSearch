@@ -27,7 +27,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
  * Strategy for selecting top buckets from aggregation results.
  *
  */
-public enum BucketSelectionStrategy {
+enum BucketSelectionStrategy {
     PRIORITY_QUEUE("priority_queue") {
         @Override
         public <B extends InternalMultiBucketAggregation.InternalBucket> SelectionResult<B> selectTopBuckets(SelectionInput<B> input)
@@ -128,15 +128,15 @@ public enum BucketSelectionStrategy {
     ) {
         /*
         We select the strategy based on the following condition
-            case 1: size < 0.2 * bucketsInOrd: PRIORITY_QUEUE
-            case 2: size > 0.2 * bucketsInOrd: QUICK_SELECT
-            case 3: size = bucketsInOrd : return all buckets
+            case 1: size is less than 20% of bucketsInOrd: PRIORITY_QUEUE
+            case 2: size is greater than 20% of bucketsInOrd: QUICK_SELECT
+            case 3: size == bucketsInOrd : return all buckets
         case 2 and 3 are encapsulated in QUICK_SELECT method.
 
         Along with the above conditions, we also go with the original PRIORITY_QUEUE based approach
         if isKeyOrder or its significant term aggregation
         */
-        if ((size < 0.2 * bucketsInOrd) || isKeyOrder(order) || partiallyBuiltBucketComparator == null) {
+        if ((size * 5L < bucketsInOrd) || isKeyOrder(order) || partiallyBuiltBucketComparator == null) {
             return PRIORITY_QUEUE;
         } else {
             return QUICK_SELECT;
