@@ -8,18 +8,23 @@
 
 package org.opensearch.bootstrap;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.Permissions;
+import java.security.PrivilegedAction;
 import java.security.Provider;
 import java.security.Security;
 import java.security.cert.Certificate;
@@ -31,8 +36,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -47,7 +50,7 @@ import java.util.stream.Collectors;
  */
 public class MultiProviderTrustStoreHandler {
 
-    private static final Logger logger = Logger.getLogger(MultiProviderTrustStoreHandler.class.getName());
+    private static final Logger logger = LogManager.getLogger(MultiProviderTrustStoreHandler.class);
     private static final String TEMP_TRUSTSTORE_PREFIX = "converted-truststore-";
     private static final String TEMP_TRUSTSTORE_SUFFIX = ".bcfks";
     private static final String TRUST_STORE_PASSWORD = Security.getProperty("javax.net.ssl.trustStorePassword");
@@ -62,7 +65,7 @@ public class MultiProviderTrustStoreHandler {
      * Encapsulates properties related to a TrustStore configuration. Is primarily used to manage and
      * log details of TrustStore configurations within the system.
      */
-    private record TrustStoreProperties(String trustStorePath, String trustStoreType, String trustStorePassword,
+    protected record TrustStoreProperties(String trustStorePath, String trustStoreType, String trustStorePassword,
         String trustStoreProvider) {
         void logout() {
             var detailLog = new StringWriter();
@@ -75,7 +78,7 @@ public class MultiProviderTrustStoreHandler {
             writer.printf(Locale.ROOT, "\njavax.net.ssl.trustStorePassword: " + passwordSetStatus);
             writer.flush();
 
-            logger.info("\nChanged TrustStore configuration:" + detailLog);
+            logger.info("\nChanged TrustStore configuration: {}", detailLog);
         }
     }
 
@@ -90,7 +93,7 @@ public class MultiProviderTrustStoreHandler {
     public static void configureTrustStore(Path tmpDir, Path javaHome) {
         var existingTrustStorePath = existingTrustStorePath();
         if (existingTrustStorePath != null) {
-            logger.info("Custom truststore already specified: " + existingTrustStorePath);
+            logger.info("Custom truststore already specified: {}", existingTrustStorePath);
             return;
         }
 
@@ -100,9 +103,9 @@ public class MultiProviderTrustStoreHandler {
             .orElseGet(() -> MultiProviderTrustStoreHandler.configureBCFKSTrustStore(javaHome, tmpDir));
 
         setProperties(properties);
-        logger.info("Converted system truststore to %s format".formatted(properties.trustStoreProvider));
+        logger.info("Converted system truststore to {} format", properties.trustStoreProvider);
         properties.logout();
-        printCurrentConfiguration(Level.FINEST);
+        printCurrentConfiguration(Level.TRACE);
     }
 
     @SuppressForbidden(reason = "check system properties for TrustStore configuration")
@@ -143,32 +146,26 @@ public class MultiProviderTrustStoreHandler {
     }
 
     private static KeyStore loadSystemDefaultTrustStore(Path javaHome) {
-        try {
-            FilePermissionUtils.addSingleFilePath(new Permissions(), javaHome, "read,readlink");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
         var cacertsPath = javaHome.resolve("lib").resolve("security").resolve("cacerts");
         if (!Files.exists(cacertsPath) && Files.isReadable(cacertsPath)) {
             throw new IllegalStateException("System cacerts not found at: " + cacertsPath);
         }
 
-        logger.info("Loading system truststore from: " + cacertsPath);
+        logger.info("Loading system truststore from: {}", cacertsPath);
 
         KeyStore systemKs = null;
         for (var type : KNOWN_JDK_TRUSTSTORE_TYPES) {
             try {
                 systemKs = KeyStore.getInstance(type);
-                FilePermissionUtils.addSingleFilePath(new Permissions(), javaHome, "read,readlink");
-                try (var is = Files.newInputStream(cacertsPath)) {
+                try (var is = readFileWithPriviledges(cacertsPath)) {
                     systemKs.load(is, JVM_DEFAULT_PASSWORD.toCharArray());
                 }
                 int certCount = systemKs.size();
-                logger.info("Loaded " + certCount + " certificates from system truststore");
-                logger.info("Successfully loaded cacerts as " + type + " format");
+                logger.info("Loaded {} certificates from system truststore", certCount);
+                logger.info("Successfully loaded cacerts as {} format", type);
                 break;
             } catch (Exception e) {
-                logger.info("Failed to load cacerts as " + type + ": " + e.getMessage());
+                logger.info("Failed to load cacerts as {}: {}", type, e.getMessage());
                 // continue
             }
         }
@@ -181,6 +178,17 @@ public class MultiProviderTrustStoreHandler {
         }
 
         return systemKs;
+    }
+
+    @SuppressWarnings("removal")
+    private static InputStream readFileWithPriviledges(Path path) {
+        return AccessController.doPrivileged((PrivilegedAction<InputStream>) () -> {
+            try {
+                return Files.newInputStream(path);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     /**
@@ -199,11 +207,11 @@ public class MultiProviderTrustStoreHandler {
             try {
                 Files.deleteIfExists(tempBcfksFile);
             } catch (IOException e) {
-                logger.warning("Failed to delete temporary file: " + e.getMessage());
+                logger.warn("Failed to delete temporary file: {}", e.getMessage());
             }
         }));
 
-        logger.info("Converting to BCFKS format: " + tempBcfksFile.toAbsolutePath());
+        logger.info("Converting to BCFKS format: {}", tempBcfksFile.toAbsolutePath());
 
         // Create new BCFKS keystore
         int copiedCount = 0;
@@ -225,7 +233,7 @@ public class MultiProviderTrustStoreHandler {
                             bcfksKeyStore.setCertificateEntry(alias, cert);
                             copiedCount++;
                         } catch (Exception e) {
-                            logger.warning("Failed to copy certificate '" + alias + "': " + e.getMessage());
+                            logger.warn("Failed to copy certificate '{}': {}", alias, e.getMessage());
                             // Continue with other certificates
                         }
                     }
@@ -238,7 +246,7 @@ public class MultiProviderTrustStoreHandler {
         // Save BCFKS keystore to file using NIO.2
         try (var file = Files.newOutputStream(tempBcfksFile)) {
             bcfksKeyStore.store(file, JVM_DEFAULT_PASSWORD.toCharArray());
-            logger.info("Successfully converted " + copiedCount + " certificates to BCFKS format");
+            logger.info("Successfully converted {} certificates to BCFKS format", copiedCount);
         } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
             throw new IllegalStateException("Failed to write BCFKS keystore", e);
         }
@@ -250,7 +258,7 @@ public class MultiProviderTrustStoreHandler {
      * Utility method to check the current configuration.
      */
     public static void printCurrentConfiguration(Level logLevel) {
-        if (logger.isLoggable(logLevel)) {
+        if (logger.isEnabled(logLevel)) {
             var detailLog = new StringWriter();
             var writer = new PrintWriter(detailLog);
             var counter = new AtomicInteger();
@@ -265,7 +273,7 @@ public class MultiProviderTrustStoreHandler {
                 .forEach(service -> writer.printf(Locale.ROOT, "\t\tKeyStore.%s\n".formatted(service.getAlgorithm())));
 
             writer.flush();
-            logger.log(logLevel, "\nAvailable Security Providers:\n" + detailLog);
+            logger.log(logLevel, "\nAvailable Security Providers: \n{}", detailLog);
         }
     }
 }
