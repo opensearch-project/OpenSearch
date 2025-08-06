@@ -146,6 +146,9 @@ public enum BucketSelectionStrategy {
     public abstract <B extends InternalMultiBucketAggregation.InternalBucket> SelectionResult<B> selectTopBuckets(SelectionInput<B> input)
         throws IOException;
 
+    /**
+     * Represents the inputs for strategy execution to select buckets
+     */
     public static class SelectionInput<B extends InternalMultiBucketAggregation.InternalBucket> {
         public final int size;
         public final long bucketsInOrd;
@@ -189,6 +192,9 @@ public enum BucketSelectionStrategy {
         }
     }
 
+    /**
+     * Represents the results strategy execution to select buckets
+     */
     public static class SelectionResult<B extends InternalMultiBucketAggregation.InternalBucket> {
         public final B[] topBuckets;
         public final long otherDocCount;
@@ -199,21 +205,33 @@ public enum BucketSelectionStrategy {
         }
     }
 
+    /**
+     * Interface for bucketDocCount method
+     */
     @FunctionalInterface
     public interface BucketDocCountFunction {
         long bucketDocCount(long ord) throws IOException;
     }
 
+    /**
+     * Interface for updateBucket method
+     */
     @FunctionalInterface
     public interface BucketUpdateFunction<B> {
         void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
     }
 
+    /**
+     * Interface for buildBuckets method
+     */
     @FunctionalInterface
     public interface BucketArrayBuilder<B> {
         B[] buildBuckets(int size);
     }
 
+    /**
+     * Interface for buildPriorityQueue method
+     */
     @FunctionalInterface
     public interface PriorityQueueBuilder<B> {
         PriorityQueue<B> buildPriorityQueue(int size);
