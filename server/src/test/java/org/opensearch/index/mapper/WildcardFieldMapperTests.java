@@ -14,9 +14,9 @@ import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -126,7 +126,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.BINARY, fields[1].fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard")));
         doc = mapper.parse(source(b -> b.field("field", "1234")));
@@ -214,7 +214,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef("abc"), fields[1].binaryValue());
         fieldType = fields[1].fieldType();
         assertEquals(IndexOptions.NONE, fieldType.indexOptions());
-        assertEquals(DocValuesType.BINARY, fieldType.docValuesType());
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
 
     public void testNullValue() throws IOException {
@@ -386,7 +386,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         NamedAnalyzer normalizer = mapper.fieldType().normalizer();
         value = normalizeValue(normalizer, FIELD_NAME, value);
         final BytesRef binaryValue = new BytesRef(value);
-        doc.add(new BinaryDocValuesField(FIELD_NAME, binaryValue));
+        doc.add(new SortedSetDocValuesField(FIELD_NAME, binaryValue));
         return doc;
     }
 }

@@ -26,6 +26,7 @@ import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nest
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.opensearch.index.mapper.WildcardFieldMapper;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 
@@ -33,6 +34,12 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.function.Function;
 
+/**
+ * Wrapper for {@link SortedSetOrdinalsIndexFieldData} which disables pruning optimization for
+ * sorting. Used in {@link WildcardFieldMapper}.
+ *
+ * @opensearch.internal
+ */
 public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinalsIndexFieldData {
 
     /**
@@ -96,6 +103,11 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
         return sortField;
     }
 
+    /**
+     * {@link SortField} extension which disables pruning in the comparator.
+     *
+     * @opensearch.internal
+     */
     public static class NonPruningSortField extends SortField {
         private final SortField delegate;
 
