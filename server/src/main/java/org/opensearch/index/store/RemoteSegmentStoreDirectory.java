@@ -740,7 +740,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         Directory storeDirectory,
         long translogGeneration,
         ReplicationCheckpoint replicationCheckpoint,
-        String nodeId
+        String nodeId,
+        boolean isRefreshSegmentUploadDecouplingEnabled
     ) throws IOException {
         synchronized (this) {
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
@@ -756,7 +757,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     Map<String, Integer> segmentToLuceneVersion = getSegmentToLuceneVersion(segmentFiles, segmentInfosSnapshot);
                     Map<String, String> uploadedSegments = new HashMap<>();
                     for (String file : segmentFiles) {
-                        if (isFileExcluded(file)) {
+                        if (isRefreshSegmentUploadDecouplingEnabled && isFileExcluded(file, isRefreshSegmentUploadDecouplingEnabled)) {
                             continue;
                         } else if (segmentsUploadedToRemoteStore.containsKey(file)) {
                             UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);

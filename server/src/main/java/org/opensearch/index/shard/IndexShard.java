@@ -50,6 +50,8 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -2401,7 +2403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
                     Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
                     // verifying that all files except excluded files are uploaded to the remote
-                    localFiles.removeIf(RemoteStoreRefreshListener::isFileExcluded);
+                    localFiles.removeIf(file -> RemoteStoreRefreshListener.isFileExcluded(file, true));
                     if (uploadFiles.containsAll(localFiles)) {
                         return true;
                     }
@@ -4415,12 +4417,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean hasOneRemoteSegmentSyncHappened() {
         assert indexSettings.isAssignedOnRemoteNode();
-        try {
-            RemoteSegmentStoreDirectory rd = getRemoteDirectory();
-            return rd.readLatestMetadataFile() != null;
-        } catch (IOException e) {
-            return false;
+        if (isRefreshSegmentUploadDecouplingEnabled()) {
+            try {
+                RemoteSegmentStoreDirectory rd = getRemoteDirectory();
+                return rd.readLatestMetadataFile() != null;
+            } catch (IOException e) {
+                return false;
+            }
         }
+
+        // We upload remote translog only after one remote segment upload in case of migration
+        RemoteSegmentStoreDirectory rd = getRemoteDirectory();
+        AtomicBoolean segment_n_uploaded = new AtomicBoolean(false);
+        rd.getSegmentsUploadedToRemoteStore().forEach((key, value) -> {
+            if (key.startsWith("segments")) {
+                segment_n_uploaded.set(true);
+            }
+        });
+        return segment_n_uploaded.get();
+    }
+
+    /**
+     * Checks if refresh segment upload decoupling is enabled.
+     * When enabled, refresh operations can proceed independently from segment upload completion.
+     *
+     * @return true if decoupling is enabled, false otherwise
+     */
+    public boolean isRefreshSegmentUploadDecouplingEnabled() {
+        return remoteStoreSettings.isRefreshSegmentUploadDecoupleEnabled();
     }
 
     /**
@@ -5520,24 +5544,48 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            copySegmentFiles(storeDirectory, sourceRemoteDirectory, remoteDirectory, uploadedSegments, overrideLocal, () -> {});
-
-            if (remoteSegmentMetadata != null) {
-                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
-                    remoteSegmentMetadata.getSegmentInfosBytes(),
-                    remoteSegmentMetadata.getGeneration()
-                );
-                long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
-                // Extra segments will be wiped on engine open.
-                for (String file : List.of(store.directory().listAll())) {
-                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                        store.deleteQuiet(file);
+            String segmentsNFile = copySegmentFiles(
+                storeDirectory,
+                sourceRemoteDirectory,
+                remoteDirectory,
+                uploadedSegments,
+                overrideLocal,
+                () -> {}
+            );
+            if (pinnedTimestamp || isRefreshSegmentUploadDecouplingEnabled()) {
+                if (remoteSegmentMetadata != null) {
+                    final SegmentInfos infosSnapshot = store.buildSegmentInfos(
+                        remoteSegmentMetadata.getSegmentInfosBytes(),
+                        remoteSegmentMetadata.getGeneration()
+                    );
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
+                    // Extra segments will be wiped on engine open.
+                    for (String file : List.of(store.directory().listAll())) {
+                        if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                            store.deleteQuiet(file);
+                        }
+                    }
+                    assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
+                        || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
+                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                }
+            } else if (segmentsNFile != null) {
+                try (
+                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
+                        storeDirectory.openInput(segmentsNFile, IOContext.READONCE)
+                    )
+                ) {
+                    long commitGeneration = SegmentInfos.generationFromSegmentsFileName(segmentsNFile);
+                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    if (remoteStore != null) {
+                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    } else {
+                        store.directory().sync(infosSnapshot.files(true));
+                        store.directory().syncMetaData();
                     }
                 }
-                assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
-                store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             }
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);

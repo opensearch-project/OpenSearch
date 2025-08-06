@@ -446,7 +446,9 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             );
             latch.await();
             Set<String> onDiskFiles = new HashSet<>(Arrays.asList(replica.store().directory().listAll()));
-            onDiskFiles.removeIf(name -> isFileExcluded(name) || name.startsWith(IndexFileNames.SEGMENTS));
+            onDiskFiles.removeIf(
+                name -> isFileExcluded(name, primary.isRefreshSegmentUploadDecouplingEnabled()) || name.startsWith(IndexFileNames.SEGMENTS)
+            );
             List<String> activeFiles = replica.getSegmentMetadataMap()
                 .values()
                 .stream()

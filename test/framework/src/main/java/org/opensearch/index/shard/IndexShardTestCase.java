@@ -1012,7 +1012,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {
         for (IndexShard shard : shards) {
             if (shard != null) {
-                shard.drainRefreshListeners();
                 closeShard(shard, true);
             }
         }

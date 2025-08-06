@@ -570,7 +570,9 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RemoteStoreRefreshListener listener = tuple.v1();
         RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
         RemoteSegmentTransferTracker tracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
-        assertBusy(() -> assertNoLag(tracker, false));
+
+        // If refresh segment Upload decouple is enabled then segmentN file will not be uploaded to remote.
+        assertBusy(() -> assertNoLag(tracker, !(listener.isRefreshSegmentUploadDecouplingEnabled())));
         indexDocs(100, randomIntBetween(100, 200));
         indexShard.refresh("test");
         indexShard.awaitRemoteStoreSync();
@@ -888,7 +890,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
             for (String file : segmentInfos.files(true)) {
-                if (!RemoteStoreRefreshListener.isFileExcluded(file)) {
+                if (!RemoteStoreRefreshListener.isFileExcluded(
+                    file,
+                    remoteStoreRefreshListener.isRefreshSegmentUploadDecouplingEnabled()
+                )) {
                     assertTrue(uploadedSegments.containsKey(file));
                 }
                 if (file.startsWith(IndexFileNames.SEGMENTS)) {
@@ -913,7 +918,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                 SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
                 for (String file : segmentInfos.files(true)) {
-                    if (oneFileDeleted == false && RemoteStoreRefreshListener.isFileExcluded(file) == false) {
+                    if (oneFileDeleted == false
+                        && RemoteStoreRefreshListener.isFileExcluded(
+                            file,
+                            remoteStoreRefreshListener.isRefreshSegmentUploadDecouplingEnabled()
+                        ) == false) {
                         remoteSegmentStoreDirectory.deleteFile(file);
                         oneFileDeleted = true;
                         break;

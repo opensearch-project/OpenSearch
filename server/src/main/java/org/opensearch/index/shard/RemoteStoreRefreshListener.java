@@ -86,11 +86,19 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * Checks if a file should be excluded from upload based on exclusion rules.
      *
      * @param file the filename to check
+     * @param isRefreshSegmentUploadDecoupleEnabled whether refresh segment upload decoupling is enabled
      * @return true if the file should be excluded from upload
      */
-    public static boolean isFileExcluded(String file) {
-        // Check segments_* pattern as these segment files are not used in Remote Store.
-        return "write.lock".equals(file) || file.startsWith(IndexFileNames.SEGMENTS);
+    public static boolean isFileExcluded(String file, boolean isRefreshSegmentUploadDecoupleEnabled) {
+        if ("write.lock".equals(file)) {
+            return true;
+        }
+
+        if (isRefreshSegmentUploadDecoupleEnabled) {
+            return file.startsWith(IndexFileNames.SEGMENTS);
+        }
+
+        return false;
     }
 
     private final IndexShard indexShard;
@@ -286,7 +294,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
 
-                                if (segmentInfos.getGeneration() > lastRemoteCommitGeneration) {
+                                if (isRefreshSegmentUploadDecouplingEnabled()
+                                    && segmentInfos.getGeneration() > lastRemoteCommitGeneration) {
                                     setLastRemoteCommitGeneration(segmentInfos.getLastGeneration());
                                 }
 
@@ -443,12 +452,17 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      */
     @Override
     protected boolean shouldRunAsync() {
-        return !isCloneOrCreateOperation();
+        return isRefreshSegmentUploadDecouplingEnabled() && !isCloneOrCreateOperation();
     }
 
     private boolean isRefreshAfterCommit() throws IOException {
-        long localCommitGeneration = SegmentInfos.readLatestCommit(storeDirectory).getGeneration();
-        return localCommitGeneration > getLastRemoteCommitGeneration();
+        if (isRefreshSegmentUploadDecouplingEnabled()) {
+            long localCommitGeneration = SegmentInfos.readLatestCommit(storeDirectory).getGeneration();
+            return localCommitGeneration > getLastRemoteCommitGeneration();
+        }
+        String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
+        return (lastCommittedLocalSegmentFileName != null
+            && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
     }
 
     /**
@@ -487,7 +501,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 storeDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,
-                indexShard.getNodeId()
+                indexShard.getNodeId(),
+                isRefreshSegmentUploadDecouplingEnabled()
             );
         }
     }
@@ -505,7 +520,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private boolean skipUpload(String file) {
         try {
             // Exclude files that are already uploaded and the exclude files to come up with the list of files to be uploaded.
-            return isFileExcluded(file) || remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
+            return isFileExcluded(file, isRefreshSegmentUploadDecouplingEnabled())
+                || remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
         } catch (IOException e) {
             logger.error(
                 "Exception while reading checksum of local segment file: {}, ignoring the exception and re-uploading the file",
@@ -542,7 +558,11 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return updated map of local segment files and filesize
      */
     private Map<String, Long> updateLocalSizeMapAndTracker(Collection<String> segmentFiles) {
-        return segmentTracker.updateLatestLocalFileNameLengthMap(segmentFiles, storeDirectory::fileLength);
+        return segmentTracker.updateLatestLocalFileNameLengthMap(
+            segmentFiles,
+            storeDirectory::fileLength,
+            isRefreshSegmentUploadDecouplingEnabled()
+        );
     }
 
     private void updateFinalStatusInSegmentTracker(boolean uploadStatus, long bytesBeforeUpload, long startTimeInNS) {
@@ -693,5 +713,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     private void setLastRemoteCommitGeneration(long lastRemoteCommitGeneration) {
         this.lastRemoteCommitGeneration = lastRemoteCommitGeneration;
+    }
+
+    /**
+     * Checks if refresh segment upload decoupling is enabled.
+     * When enabled, refresh operations can proceed independently from segment upload completion.
+     *
+     * @return true if decoupling is enabled, false otherwise
+     */
+    boolean isRefreshSegmentUploadDecouplingEnabled() {
+        return remoteStoreSettings.isRefreshSegmentUploadDecoupleEnabled();
     }
 }

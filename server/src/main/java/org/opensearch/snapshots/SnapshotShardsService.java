@@ -417,7 +417,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             commitGeneration = lastRemoteUploadedIndexCommit.getGeneration();
                         } else {
                             wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
-                            indexShard.waitForLocalCommitToBeUploadedToRemote(TimeValue.timeValueMinutes(10));
+                            if (indexShard.isRefreshSegmentUploadDecouplingEnabled()) {
+                                indexShard.waitForLocalCommitToBeUploadedToRemote(TimeValue.timeValueMinutes(10));
+                            }
                             snapshotIndexCommit = wrappedSnapshot.get();
                             commitGeneration = snapshotIndexCommit.getGeneration();
                         }
