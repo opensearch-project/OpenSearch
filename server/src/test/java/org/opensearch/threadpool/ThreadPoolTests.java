@@ -38,9 +38,10 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.node.Node;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.opensearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
@@ -204,4 +205,144 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         assertThat(ThreadPool.oneEighthAllocatedProcessors(32), equalTo(4));
         assertThat(ThreadPool.oneEighthAllocatedProcessors(128), equalTo(16));
     }
+
+    public void testForkJoinPoolRegistrationAndTaskExecution() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int parallelism = 4;
+        ThreadPool threadPool = new ThreadPool(
+            settings,
+            new ForkJoinPoolExecutorBuilder("test_fork_join", parallelism)
+        );
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("test_fork_join");
+        AtomicInteger result = new AtomicInteger(0);
+        pool.submit(() -> result.set(42)).join();
+        assertEquals(42, result.get());
+        threadPool.shutdown();
+        assertTrue(pool.isShutdown());
+    }
+
+    public void testForkJoinPoolRegistration() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int parallelism = 4;
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", parallelism));
+        ExecutorService pool = threadPool.executor("my_fork_join");
+        assertNotNull(pool);
+        assertTrue(pool instanceof ForkJoinPool);
+        assertEquals(parallelism, ((ForkJoinPool) pool).getParallelism());
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolTaskExecution() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", 2));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+        AtomicInteger result = new AtomicInteger(0);
+        pool.submit(() -> result.set(42)).join();
+        assertEquals(42, result.get());
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolParallelism() throws Exception {
+        int parallelism = 8;
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", parallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+
+        CountDownLatch latch = new CountDownLatch(parallelism);
+        AtomicInteger counter = new AtomicInteger(0);
+
+        for (int i = 0; i < parallelism; i++) {
+            pool.submit(() -> {
+                counter.incrementAndGet();
+                latch.countDown();
+            });
+        }
+        latch.await(5, TimeUnit.SECONDS);
+        assertEquals(parallelism, counter.get());
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolShutdown() throws Exception {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", 2));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+        threadPool.shutdown();
+        assertTrue(pool.isShutdown());
+    }
+
+    public void testSubmitAfterShutdownThrows() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", 2));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+        threadPool.shutdown();
+        assertThrows(RejectedExecutionException.class, () -> pool.submit(() -> {}));
+    }
+
+    public void testForkJoinPoolParallelismOne() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", 1));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+        assertEquals(1, pool.getParallelism());
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolHighParallelism() {
+        int parallelism = 64;
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", parallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+        assertEquals(parallelism, pool.getParallelism());
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolNullTask() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", 1));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+        assertThrows(NullPointerException.class, () -> pool.submit((Runnable) null));
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolTaskThrowsException() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", 1));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+        Future<?> future = pool.submit(() -> { throw new RuntimeException("fail!"); });
+        assertThrows(ExecutionException.class, () -> future.get());
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolRecursiveTask() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("my_fork_join", 2));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
+        RecursiveTask<Integer> task = new RecursiveTask<>() {
+            @Override
+            protected Integer compute() { return 123; }
+        };
+        int result = pool.invoke(task);
+        assertEquals(123, result);
+        threadPool.shutdown();
+    }
+
+//    public void testForkJoinPoolTypeNotSupportedYet() {
+//        Settings settings = Settings.builder()
+//            .put("node.name", "test-node")
+//            .build();
+//
+//        Throwable exception = null;
+//        ThreadPool threadPool = null;
+//        try {
+//            threadPool = new ThreadPool(settings);
+//            threadPool.registerForkJoinPool("myForkJoinPool", 4);
+//        } catch (Exception e) {
+//            exception = e;
+//        } finally {
+//            // Always shutdown to avoid thread leak
+//            if (threadPool != null) {
+//                threadPool.shutdown();
+//            }
+//        }
+//        assertNotNull("ForkJoinPoolType should not be supported yet", exception);
+//    }
 }
