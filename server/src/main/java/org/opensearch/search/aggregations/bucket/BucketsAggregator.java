@@ -72,7 +72,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     private final BigArrays bigArrays;
     private final IntConsumer multiBucketConsumer;
-    private LongArray docCounts;
+    protected LongArray docCounts;
     protected final DocCountProvider docCountProvider;
 
     public BucketsAggregator(
@@ -521,4 +521,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         return false;
     }
 
+    public void doReset() {
+        docCounts.fill(0, docCounts.size(), 0);
+    }
 }

@@ -796,6 +796,20 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_DERIVED_SOURCE_SETTING = Setting.boolSetting(
+        "index.derived_source.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING = Setting.boolSetting(
+        "index.derived_source.translog.enabled",
+        INDEX_DERIVED_SOURCE_SETTING,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -846,6 +860,8 @@ public final class IndexSettings {
     private final RemoteStorePathStrategy remoteStorePathStrategy;
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
+    private final boolean derivedSourceEnabled;
+    private volatile boolean derivedSourceEnabledForTranslog;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1080,6 +1096,9 @@ public final class IndexSettings {
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
+        derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
+        derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -2113,5 +2132,26 @@ public final class IndexSettings {
 
     public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
         this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
+    }
+
+    private void setDerivedSourceEnabledForTranslog(boolean isDerivedSourceEnabledForTranslog) {
+        if (isDerivedSourceEnabledForTranslog && !isDerivedSourceEnabled()) {
+            throw new IllegalArgumentException(
+                "The "
+                    + IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey()
+                    + " can't be set when "
+                    + IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey()
+                    + " setting is disabled"
+            );
+        }
+        this.derivedSourceEnabledForTranslog = isDerivedSourceEnabledForTranslog;
+    }
+
+    public boolean isDerivedSourceEnabledForTranslog() {
+        return this.derivedSourceEnabledForTranslog;
+    }
+
+    public boolean isDerivedSourceEnabled() {
+        return derivedSourceEnabled;
     }
 }
