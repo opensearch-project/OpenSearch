@@ -163,7 +163,7 @@ public class InternalEngine extends Engine {
     protected volatile long lastDeleteVersionPruneTimeMSec;
 
     protected final TranslogManager translogManager;
-    protected final IndexWriter indexWriter;
+    public final IndexWriter indexWriter;
     protected final LocalCheckpointTracker localCheckpointTracker;
     protected final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     protected final SoftDeletesPolicy softDeletesPolicy;
