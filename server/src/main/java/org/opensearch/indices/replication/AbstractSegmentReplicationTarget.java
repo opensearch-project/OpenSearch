@@ -162,6 +162,20 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
         getCheckpointMetadata(checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
+            ReplicationCheckpoint getMetadataCheckpoint = checkpointInfo.getCheckpoint();
+            if (checkpoint.isAheadOf(getMetadataCheckpoint)) {
+                // Fixes https://github.com/opensearch-project/OpenSearch/issues/18490
+                listener.onFailure(
+                    new ReplicationFailedException(
+                        "Rejecting stale metadata checkpoint ["
+                            + getMetadataCheckpoint
+                            + "] since initial checkpoint ["
+                            + checkpoint
+                            + "] is ahead of it"
+                    )
+                );
+                return;
+            }
             updateCheckpoint(checkpointInfo.getCheckpoint(), checkpointUpdater);
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
