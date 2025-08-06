@@ -126,6 +126,16 @@ public enum BucketSelectionStrategy {
         BucketOrder order,
         Comparator<InternalTerms.Bucket<?>> partiallyBuiltBucketComparator
     ) {
+        /*
+        We select the strategy based on the following condition
+            case 1: size < 0.2 * bucketsInOrd: PRIORITY_QUEUE
+            case 2: size > 0.2 * bucketsInOrd: QUICK_SELECT
+            case 3: size = bucketsInOrd : return all buckets
+        case 2 and 3 are encapsulated in QUICK_SELECT method.
+
+        Along with the above conditions, we also go with the original PRIORITY_QUEUE based approach
+        if isKeyOrder or its significant term aggregation
+        */
         if ((size < 0.2 * bucketsInOrd) || isKeyOrder(order) || partiallyBuiltBucketComparator == null) {
             return PRIORITY_QUEUE;
         } else {
