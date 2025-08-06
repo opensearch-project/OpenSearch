@@ -52,6 +52,7 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.2.0
 * [Derived Source] Add integration of derived source feature across various paths like get/search/recovery ([#18565](https://github.com/opensearch-project/OpenSearch/pull/18565))
 * Supporting Scripted Metric Aggregation when reducing aggregations in InternalValueCount and InternalAvg ([18411](https://github.com/opensearch-project/OpenSearch/pull18411)))
 * Support `search_after` numeric queries with Approximation Framework ([#18896](https://github.com/opensearch-project/OpenSearch/pull/18896))
+* Add skip_list parameter to Numeric Field Mappers (default false) ([#18889](https://github.com/opensearch-project/OpenSearch/pull/18889))
 
 ### Changed
 * Update Subject interface to use CheckedRunnable ([#18570](https://github.com/opensearch-project/OpenSearch/issues/18570))
