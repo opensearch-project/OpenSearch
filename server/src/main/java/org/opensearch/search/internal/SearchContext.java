@@ -37,6 +37,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
@@ -54,6 +55,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchExtBuilder;
+import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
@@ -537,6 +539,21 @@ public abstract class SearchContext implements Releasable {
     }
 
     public boolean keywordIndexOrDocValuesEnabled() {
+        return false;
+    }
+
+    @ExperimentalApi
+    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {
+        throw new IllegalStateException("Set search channel listener should be implemented for stream search");
+    }
+
+    @ExperimentalApi
+    public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() {
+        throw new IllegalStateException("Get search channel listener should be implemented for stream search");
+    }
+
+    @ExperimentalApi
+    public boolean isStreamSearch() {
         return false;
     }
 }

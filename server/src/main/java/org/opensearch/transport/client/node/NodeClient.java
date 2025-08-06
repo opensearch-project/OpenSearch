@@ -161,6 +161,6 @@ public class NodeClient extends AbstractClient {
 
     @Override
     public SearchRequestBuilder prepareStreamSearch(String... indices) {
-        throw new UnsupportedOperationException("Stream search is not supported in NodeClient");
+        return super.prepareStreamSearch(indices);
     }
 }

@@ -45,6 +45,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -216,6 +217,9 @@ final class DefaultSearchContext extends SearchContext {
     private final int cardinalityAggregationPruningThreshold;
     private final boolean keywordIndexOrDocValuesEnabled;
 
+    private final boolean isStreamSearch;
+    private StreamSearchChannelListener listener;
+
     DefaultSearchContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
@@ -230,7 +234,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean validate,
         Executor executor,
         Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        boolean isStreamSearch
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -277,6 +282,42 @@ final class DefaultSearchContext extends SearchContext {
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
+        this.isStreamSearch = isStreamSearch;
+    }
+
+    DefaultSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTarget shardTarget,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        LongSupplier relativeTimeSupplier,
+        TimeValue timeout,
+        FetchPhase fetchPhase,
+        boolean lowLevelCancellation,
+        Version minNodeVersion,
+        boolean validate,
+        Executor executor,
+        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+    ) throws IOException {
+        this(
+            readerContext,
+            request,
+            shardTarget,
+            clusterService,
+            bigArrays,
+            relativeTimeSupplier,
+            timeout,
+            fetchPhase,
+            lowLevelCancellation,
+            minNodeVersion,
+            validate,
+            executor,
+            requestToAggReduceContextBuilder,
+            concurrentSearchDeciderFactories,
+            false
+        );
     }
 
     @Override
@@ -1206,5 +1247,19 @@ final class DefaultSearchContext extends SearchContext {
             return clusterService.getClusterSettings().get(KEYWORD_INDEX_OR_DOC_VALUES_ENABLED);
         }
         return false;
+    }
+
+    public void setStreamChannelListener(StreamSearchChannelListener listener) {
+        assert isStreamSearch() : "Stream search not enabled";
+        this.listener = listener;
+    }
+
+    public StreamSearchChannelListener getStreamChannelListener() {
+        assert isStreamSearch() : "Stream search not enabled";
+        return listener;
+    }
+
+    public boolean isStreamSearch() {
+        return isStreamSearch;
     }
 }
