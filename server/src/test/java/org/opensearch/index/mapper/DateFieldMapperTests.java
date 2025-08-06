@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -617,5 +618,29 @@ public class DateFieldMapperTests extends MapperTestCase {
         builder.endObject();
         String source = builder.toString();
         assertEquals("{}", source);
+    }
+
+    public void testDateEncodePoint() {
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("test_field");
+        // Test basic roundUp
+        long baseTime = fieldType.parse("2024-01-15T10:30:00Z");
+        byte[] encoded = fieldType.encodePoint("2024-01-15T10:30:00Z", true);
+        long decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(baseTime + 1, decoded);
+        // Test basic roundDown
+        encoded = fieldType.encodePoint("2024-01-15T10:30:00Z", false);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(baseTime - 1, decoded);
+        // Test with extreme long values,
+        long largeEpoch = 253402300799999L;
+        String largeEpochStr = String.valueOf(largeEpoch);
+        encoded = fieldType.encodePoint(largeEpochStr, true);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals("Should increment epoch millis", largeEpoch + 1, decoded);
+        long negativeEpoch = -377705116800000L;
+        String negativeEpochStr = String.valueOf(negativeEpoch);
+        encoded = fieldType.encodePoint(negativeEpochStr, false);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals("Should decrement epoch millis", negativeEpoch - 1, decoded);
     }
 }

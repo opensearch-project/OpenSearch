@@ -625,11 +625,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             // In this method the parseToLong is only used for date math rounding operations
             long timestamp = parseToLong(value, false, null, null, null);
             if (roundUp) {
-                timestamp = timestamp + 1;
+                if (timestamp < Long.MAX_VALUE) {
+                    timestamp = timestamp + 1;
+                }
             } else {
-                timestamp = timestamp - 1;
+                if (timestamp > Long.MIN_VALUE) {
+                    timestamp = timestamp - 1;
+                }
             }
-
             return encodePoint(timestamp);
         }
 
