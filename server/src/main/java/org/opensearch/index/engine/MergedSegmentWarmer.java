@@ -51,6 +51,9 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     @Override
     public void warm(LeafReader leafReader) throws IOException {
+        if (shouldWarm() == false) {
+            return;
+        }
         // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
         assert leafReader instanceof SegmentReader;
         assert indexShard.indexSettings().isSegRepLocalEnabled() || indexShard.indexSettings().isRemoteStoreEnabled();
@@ -71,5 +74,9 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
                 (System.currentTimeMillis() - startTime)
             );
         });
+    }
+
+    private boolean shouldWarm() {
+        return indexShard.getRecoverySettings().getMergedSegmentReplicationWarmerEnabled() == true;
     }
 }
