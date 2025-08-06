@@ -245,6 +245,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             try {
                 initializeRemoteDirectoryOnTermUpdate();
 
+                // if a new local commit Generation is greater than remote commit generation., it
+                // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
+                // This is done to avoid delete post each refresh.
+                if (isRefreshAfterCommit()) {
+                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
+                }
+
                 final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                 final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
 
@@ -279,13 +286,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
 
-                                // if a new local commit Generation is greater than remote commit generation., it
-                                // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
-                                // This is done to avoid delete post each refresh.
                                 if (segmentInfos.getGeneration() > lastRemoteCommitGeneration) {
-                                    remoteDirectory.deleteStaleSegmentsAsync(
-                                        indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles()
-                                    );
                                     setLastRemoteCommitGeneration(segmentInfos.getLastGeneration());
                                 }
 

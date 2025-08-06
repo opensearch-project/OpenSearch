@@ -702,7 +702,7 @@ final class StoreRecovery {
             try {
                 store.failIfCorrupted();
                 try {
-                    si = store.readLastCommittedSegmentsInfo();
+                    si = readSegmentInfosFromStore(store, indexShard);
                 } catch (Exception e) {
                     String files = "_unknown_";
                     try {
@@ -814,19 +814,69 @@ final class StoreRecovery {
     }
 
     private SegmentInfos readSegmentInfosFromStore(Store store) throws IndexShardRecoveryException {
+        return readSegmentInfosFromStore(store, null);
+    }
+
+    private SegmentInfos readSegmentInfosFromStore(Store store, IndexShard indexShard) throws IndexShardRecoveryException {
         SegmentInfos segmentInfos = null;
         try {
             store.failIfCorrupted();
             try {
                 segmentInfos = store.readLastCommittedSegmentsInfo();
-            } catch (Exception ignored) {
-                // Ignore the exception
-                logger.error("Failed to readLastCommittedSegmentsInfo");
+            } catch (Exception e) {
+                String[] files = store.directory().listAll();
+                if (files.length == 0) {
+                    logger.debug("Store is completely empty, returning null for empty store");
+                    return null;
+                }
+                // segmentN files might be missing due to remote store exclusion
+                logger.debug("Failed to readLastCommittedSegmentsInfo from local store, attempting fallback to remote store metadata", e);
+                segmentInfos = readSegmentInfosFromRemoteStore(store, indexShard);
+                if (segmentInfos == null) {
+                    logger.debug("No segment info available from local or remote store, rethrowing original exception");
+                    throw e;
+                }
             }
         } catch (Exception e) {
             throw new IndexShardRecoveryException(shardId, "failed to fetch index version", e);
         }
         return segmentInfos;
+    }
+
+    /**
+     * Attempts to read SegmentInfos from remote store metadata when local segmentN files are missing.
+     * This provides a fallback mechanism for recovery when segmentN files are excluded from remote store uploads.
+     *
+     * @param store the local store
+     * @param indexShard the index shard (can be null, in which case fallback is skipped)
+     * @return SegmentInfos from remote store metadata, or null if not available
+     */
+    private SegmentInfos readSegmentInfosFromRemoteStore(Store store, IndexShard indexShard) {
+        if (indexShard == null || !indexShard.indexSettings().isAssignedOnRemoteNode()) {
+            logger.debug("Remote store not available for segment info fallback");
+            return null;
+        }
+
+        try {
+            RemoteSegmentStoreDirectory remoteDirectory = indexShard.getRemoteDirectory();
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
+
+            if (remoteSegmentMetadata != null) {
+                logger.debug("Found remote segment metadata, attempting to build SegmentInfos from remote store");
+                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
+                    remoteSegmentMetadata.getSegmentInfosBytes(),
+                    remoteSegmentMetadata.getGeneration()
+                );
+                logger.info("Successfully reconstructed SegmentInfos from remote store metadata for recovery");
+                return infosSnapshot;
+            } else {
+                logger.debug("No remote segment metadata found");
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to read SegmentInfos from remote store metadata", e);
+        }
+
+        return null;
     }
 
     private void completeRecovery(IndexShard indexShard, Store store) throws IOException {
@@ -956,9 +1006,9 @@ final class StoreRecovery {
 
     private void bootstrapForSnapshot(final IndexShard indexShard, final Store store) throws IOException {
         store.bootstrapNewHistory();
-        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        final SegmentInfos segmentInfos = readSegmentInfosFromStore(store);
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        String translogUUID = segmentInfos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
         Translog.createEmptyTranslog(
             indexShard.shardPath().resolveTranslog(),
             shardId,
@@ -971,7 +1021,7 @@ final class StoreRecovery {
 
     private void bootstrap(final IndexShard indexShard, final Store store) throws IOException {
         store.bootstrapNewHistory();
-        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        final SegmentInfos segmentInfos = readSegmentInfosFromStore(store);
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
 
         final String translogUUID = Translog.createEmptyTranslog(
