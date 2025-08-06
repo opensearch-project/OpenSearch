@@ -49,9 +49,18 @@ public class LocalTranslog extends Translog {
         TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer
+        final LongConsumer persistedSequenceNumberConsumer,
+        final TranslogOperationHelper translogOperationHelper
     ) throws IOException {
-        super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
+        super(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            translogOperationHelper
+        );
         try {
             final Checkpoint checkpoint = readCheckpoint(location);
             final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));

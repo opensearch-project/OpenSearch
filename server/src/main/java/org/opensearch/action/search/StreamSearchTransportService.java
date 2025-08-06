@@ -8,8 +8,10 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.action.support.StreamChannelActionListener;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -40,6 +42,8 @@ import java.util.function.BiFunction;
  * @opensearch.internal
  */
 public class StreamSearchTransportService extends SearchTransportService {
+    private final Logger logger = LogManager.getLogger(StreamSearchTransportService.class);
+
     private final StreamTransportService transportService;
 
     public StreamSearchTransportService(
@@ -63,8 +67,9 @@ public class StreamSearchTransportService extends SearchTransportService {
                     request,
                     false,
                     (SearchShardTask) task,
-                    new StreamChannelActionListener<>(channel, QUERY_ACTION_NAME, request),
-                    ThreadPool.Names.STREAM_SEARCH
+                    new StreamSearchChannelListener<>(channel, QUERY_ACTION_NAME, request),
+                    ThreadPool.Names.STREAM_SEARCH,
+                    true
                 );
             }
         );
@@ -79,7 +84,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 searchService.executeFetchPhase(
                     request,
                     (SearchShardTask) task,
-                    new StreamChannelActionListener<>(channel, FETCH_ID_ACTION_NAME, request),
+                    new StreamSearchChannelListener<>(channel, FETCH_ID_ACTION_NAME, request),
                     ThreadPool.Names.STREAM_SEARCH
                 );
             }
@@ -89,7 +94,7 @@ public class StreamSearchTransportService extends SearchTransportService {
             ThreadPool.Names.SAME,
             ShardSearchRequest::new,
             (request, channel, task) -> {
-                searchService.canMatch(request, new StreamChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
+                searchService.canMatch(request, new StreamSearchChannelListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             }
         );
         transportService.registerRequestHandler(
@@ -114,7 +119,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 request,
                 false,
                 (SearchShardTask) task,
-                new StreamChannelActionListener<>(channel, DFS_ACTION_NAME, request),
+                new StreamSearchChannelListener<>(channel, DFS_ACTION_NAME, request),
                 ThreadPool.Names.STREAM_SEARCH
             )
         );
@@ -125,21 +130,41 @@ public class StreamSearchTransportService extends SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
-        final SearchActionListener<SearchPhaseResult> listener
+        SearchActionListener<SearchPhaseResult> listener
     ) {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
+        final StreamSearchActionListener streamListener = (StreamSearchActionListener) listener;
         StreamTransportResponseHandler<SearchPhaseResult> transportHandler = new StreamTransportResponseHandler<SearchPhaseResult>() {
             @Override
             public void handleStreamResponse(StreamTransportResponse<SearchPhaseResult> response) {
                 try {
-                    SearchPhaseResult result = response.nextResponse();
-                    listener.onResponse(result);
+                    // only send previous result if we have a current result
+                    // if current result is null, that means the previous result is the last result
+                    SearchPhaseResult currentResult;
+                    SearchPhaseResult lastResult = null;
+
+                    // Keep reading results until we reach the end
+                    while ((currentResult = response.nextResponse()) != null) {
+                        if (lastResult != null) {
+                            streamListener.onStreamResponse(lastResult, false);
+                        }
+                        lastResult = currentResult;
+                    }
+
+                    // Send the final result as complete response, or null if no results
+                    if (lastResult != null) {
+                        streamListener.onStreamResponse(lastResult, true);
+                        logger.debug("Processed final stream response");
+                    } else {
+                        // Empty stream case
+                        logger.error("Empty stream");
+                    }
                     response.close();
                 } catch (Exception e) {
                     response.cancel("Client error during search phase", e);
-                    listener.onFailure(e);
+                    streamListener.onFailure(e);
                 }
             }
 
