@@ -286,6 +286,8 @@ import org.opensearch.action.search.PutSearchPipelineAction;
 import org.opensearch.action.search.PutSearchPipelineTransportAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchScrollAction;
+import org.opensearch.action.search.StreamSearchAction;
+import org.opensearch.action.search.StreamTransportSearchAction;
 import org.opensearch.action.search.TransportClearScrollAction;
 import org.opensearch.action.search.TransportCreatePitAction;
 import org.opensearch.action.search.TransportDeletePitAction;
@@ -734,6 +736,9 @@ public class ActionModule extends AbstractModule {
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class, TransportShardMultiGetAction.class);
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
+        if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
+            actions.register(StreamSearchAction.INSTANCE, StreamTransportSearchAction.class);
+        }
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);

@@ -37,6 +37,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
 import org.opensearch.search.profile.aggregation.ConcurrentAggregationProfiler;
+import org.opensearch.search.profile.fetch.FetchProfiler;
 import org.opensearch.search.profile.query.ConcurrentQueryProfileTree;
 import org.opensearch.search.profile.query.ConcurrentQueryProfiler;
 import org.opensearch.search.profile.query.InternalQueryProfileTree;
@@ -60,6 +61,7 @@ public final class Profilers {
     private final ContextIndexSearcher searcher;
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
+    private final FetchProfiler fetchProfiler;
     private final boolean isConcurrentSegmentSearchEnabled;
     private final Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics;
 
@@ -78,6 +80,7 @@ public final class Profilers {
         this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
         this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
+        this.fetchProfiler = new FetchProfiler();
         this.customPluginMetrics = customPluginMetrics;
         addQueryProfiler();
     }
@@ -105,6 +108,10 @@ public final class Profilers {
     /** Return the {@link AggregationProfiler}. */
     public AggregationProfiler getAggregationProfiler() {
         return aggProfiler;
+    }
+
+    public FetchProfiler getFetchProfiler() {
+        return fetchProfiler;
     }
 
 }
