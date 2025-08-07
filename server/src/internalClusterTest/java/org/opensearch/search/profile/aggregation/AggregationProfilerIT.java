@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.Assume.assumeTrue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
@@ -1055,20 +1054,14 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
                 assertTrue("Should have at least 3 total fetch operations", fetchProfileResults.size() >= 3);
 
                 assertNotNull("Should have top_hits_agg1 fetch operation", topHitsFetch1);
-                assertTrue(
-                    "Should be top_hits aggregation fetch",
-                    topHitsFetch1.getQueryName().startsWith("fetch_top_hits_aggregation")
-                );
+                assertTrue("Should be top_hits aggregation fetch", topHitsFetch1.getQueryName().startsWith("fetch_top_hits_aggregation"));
                 assertTrue("Should contain aggregation name", topHitsFetch1.getQueryName().contains("top_hits_agg1"));
                 assertNotNull(topHitsFetch1.getTimeBreakdown());
                 assertEquals("Top hits fetch should have 1 child (FetchSourcePhase)", 1, topHitsFetch1.getProfiledChildren().size());
                 assertEquals("FetchSourcePhase", topHitsFetch1.getProfiledChildren().get(0).getQueryName());
 
                 assertNotNull("Should have top_hits_agg2 fetch operation", topHitsFetch2);
-                assertTrue(
-                    "Should be top_hits aggregation fetch",
-                    topHitsFetch2.getQueryName().startsWith("fetch_top_hits_aggregation")
-                );
+                assertTrue("Should be top_hits aggregation fetch", topHitsFetch2.getQueryName().startsWith("fetch_top_hits_aggregation"));
                 assertTrue("Should contain aggregation name", topHitsFetch2.getQueryName().contains("top_hits_agg2"));
                 assertNotNull(topHitsFetch2.getTimeBreakdown());
                 assertEquals("Top hits fetch should have 1 child (FetchSourcePhase)", 1, topHitsFetch2.getProfiledChildren().size());
@@ -1080,10 +1073,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
                         "CREATE_STORED_FIELDS_VISITOR timing should be present",
                         breakdown.containsKey("create_stored_fields_visitor")
                     );
-                    assertTrue(
-                        "BUILD_SUB_PHASE_PROCESSORS timing should be present",
-                        breakdown.containsKey("build_sub_phase_processors")
-                    );
+                    assertTrue("BUILD_SUB_PHASE_PROCESSORS timing should be present", breakdown.containsKey("build_sub_phase_processors"));
                     assertTrue("GET_NEXT_READER timing should be present", breakdown.containsKey("get_next_reader"));
                     assertTrue("LOAD_STORED_FIELDS timing should be present", breakdown.containsKey("load_stored_fields"));
                     assertTrue("LOAD_SOURCE timing should be present", breakdown.containsKey("load_source"));

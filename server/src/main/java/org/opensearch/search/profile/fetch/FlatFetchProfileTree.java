@@ -66,7 +66,7 @@ class FlatFetchProfileTree {
     FetchProfileBreakdown startFetchPhase(String element) {
         // Make phase name unique for concurrent slices by including thread info
         String uniqueElement = element + "_" + Thread.currentThread().getId();
-        
+
         Node node = rootsMap.get(uniqueElement);
         if (node == null) {
             node = new Node(element); // Keep original element name for display
@@ -83,7 +83,7 @@ class FlatFetchProfileTree {
         // Make phase names unique for concurrent slices
         String uniqueParentElement = parentElement + "_" + Thread.currentThread().getId();
         String uniqueElement = element + "_" + Thread.currentThread().getId();
-        
+
         Node parent = phaseMap.get(uniqueParentElement);
         if (parent == null) {
             throw new IllegalStateException("Parent phase '" + parentElement + "' does not exist for sub-phase '" + element + "'");
@@ -108,7 +108,7 @@ class FlatFetchProfileTree {
     void endFetchPhase(String element) {
         // Make phase name unique for concurrent slices
         String uniqueElement = element + "_" + Thread.currentThread().getId();
-        
+
         Node node = phaseMap.get(uniqueElement);
         if (node == null) {
             throw new IllegalStateException("Fetch phase '" + element + "' does not exist");
