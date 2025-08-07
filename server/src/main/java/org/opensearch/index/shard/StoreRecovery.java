@@ -820,28 +820,14 @@ final class StoreRecovery {
     }
 
     private SegmentInfos readSegmentInfosFromStore(Store store) throws IndexShardRecoveryException {
-        return readSegmentInfosFromStore(store, null);
-    }
-
-    private SegmentInfos readSegmentInfosFromStore(Store store, IndexShard indexShard) throws IndexShardRecoveryException {
         SegmentInfos segmentInfos = null;
         try {
             store.failIfCorrupted();
             try {
                 segmentInfos = store.readLastCommittedSegmentsInfo();
-            } catch (Exception e) {
-                String[] files = store.directory().listAll();
-                if (files.length == 0) {
-                    logger.debug("Store is completely empty, returning null for empty store");
-                    return null;
-                }
-                // segmentN files might be missing due to remote store exclusion
-                logger.debug("Failed to readLastCommittedSegmentsInfo from local store, attempting fallback to remote store metadata", e);
-                segmentInfos = readSegmentInfosFromRemoteStore(store, indexShard);
-                if (segmentInfos == null) {
-                    logger.debug("No segment info available from local or remote store, rethrowing original exception");
-                    throw e;
-                }
+            } catch (Exception ignored) {
+                // Ignore the exception
+                logger.error("Failed to readLastCommittedSegmentsInfo");
             }
         } catch (Exception e) {
             throw new IndexShardRecoveryException(shardId, "failed to fetch index version", e);
@@ -1014,7 +1000,7 @@ final class StoreRecovery {
         store.bootstrapNewHistory();
         final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        String translogUUID = segmentInfos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         Translog.createEmptyTranslog(
             indexShard.shardPath().resolveTranslog(),
             shardId,
