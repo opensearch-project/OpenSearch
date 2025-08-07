@@ -227,7 +227,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         completion = indexShard.completionStats(flags.completionDataFields());
                         break;
                     case Segments:
-                        segments = indexShard.segmentStats(flags.includeSegmentFileSizes(), flags.includeUnloadedSegments());
+                        segments = indexShard.segmentStats(
+                            flags.includeSegmentFileSizes(),
+                            flags.includeFieldLevelSegmentFileSizes(),
+                            flags.includeUnloadedSegments()
+                        );
                         break;
                     case Translog:
                         translog = indexShard.translogStats();

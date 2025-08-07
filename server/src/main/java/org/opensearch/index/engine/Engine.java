@@ -923,14 +923,18 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Global stats on segments.
      */
-    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+    public SegmentsStats segmentsStats(
+        boolean includeSegmentFileSizes,
+        boolean includeFieldLevelSegmentFileSizes,
+        boolean includeUnloadedSegments
+    ) {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
         try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
-                fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
+                fillSegmentStats(segmentReader, includeSegmentFileSizes, includeFieldLevelSegmentFileSizes, stats);
                 segmentName.add(segmentReader.getSegmentName());
             }
         }
@@ -939,12 +943,20 @@ public abstract class Engine implements LifecycleAware, Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segmentName.contains(segmentReader.getSegmentName()) == false) {
-                    fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
+                    fillSegmentStats(segmentReader, includeSegmentFileSizes, includeFieldLevelSegmentFileSizes, stats);
                 }
             }
         }
         writerSegmentStats(stats);
         return stats;
+    }
+
+    /**
+     * Backwards-compatible overload retained for binary compatibility.
+     * Delegates to the new method with field-level stats disabled by default.
+     */
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        return segmentsStats(includeSegmentFileSizes, false, includeUnloadedSegments);
     }
 
     /**
@@ -970,11 +982,31 @@ public abstract class Engine implements LifecycleAware, Closeable {
         );
     }
 
-    protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
+    protected void fillSegmentStats(
+        SegmentReader segmentReader,
+        boolean includeSegmentFileSizes,
+        boolean includeFieldLevelSegmentFileSizes,
+        SegmentsStats stats
+    ) {
         stats.add(1);
         if (includeSegmentFileSizes) {
             // TODO: consider moving this to StoreStats
             stats.addFileSizes(getSegmentFileSizes(segmentReader));
+        }
+        if (includeFieldLevelSegmentFileSizes) {
+            try {
+                FieldLevelSegmentStatsCalculator calculator = new FieldLevelSegmentStatsCalculator();
+                Map<String, Map<String, Long>> fieldLevelStats = calculator.calculateFieldLevelStats(segmentReader);
+                stats.addFieldLevelFileSizes(fieldLevelStats);
+            } catch (Exception e) {
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Failed to calculate field-level segment statistics for segment [{}]",
+                        segmentReader.getSegmentName()
+                    ),
+                    e
+                );
+            }
         }
     }
 
@@ -1162,7 +1194,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                     return searcher.getDirectoryReader().isCurrent() == false;
                 }
             } catch (IOException e) {
-                logger.error("failed to access searcher manager", e);
+                logger.error(() -> new ParameterizedMessage("failed to access searcher manager"), e);
                 failEngine("failed to access searcher manager", e);
                 throw new EngineException(shardId, "failed to access searcher manager", e);
             } finally {

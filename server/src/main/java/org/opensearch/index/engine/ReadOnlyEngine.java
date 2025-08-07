@@ -197,6 +197,20 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        return super.segmentsStats(includeSegmentFileSizes, false, includeUnloadedSegments);
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(
+        boolean includeSegmentFileSizes,
+        boolean includeFieldLevelSegmentFileSizes,
+        boolean includeUnloadedSegments
+    ) {
+        return super.segmentsStats(includeSegmentFileSizes, includeFieldLevelSegmentFileSizes, includeUnloadedSegments);
+    }
+
+    @Override
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         // the value of the global checkpoint is verified when the read-only engine is opened,
         // and it is not expected to change during the lifecycle of the engine. We could also

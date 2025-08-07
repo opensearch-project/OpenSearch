@@ -108,6 +108,7 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -1725,6 +1726,47 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(xContent.contains(expectedSubSequence));
         }
         closeShards(shard);
+    }
+
+    public void testSegmentStatsWithFieldLevelFileSizes() throws Exception {
+        // Test the new segmentStats overload with field-level statistics
+        IndexShard shard = newStartedShard(true);
+        try {
+            // Index some documents with various fields
+            for (int i = 0; i < 10; i++) {
+                indexDoc(shard, "_doc", String.valueOf(i), "{\"field1\":\"value" + i + "\",\"field2\":" + i + "}");
+            }
+            shard.refresh("test");
+
+            // Test new method with field-level stats enabled
+            SegmentsStats fieldLevelStats = shard.segmentStats(false, true, false);
+            assertNotNull("Segment stats should not be null", fieldLevelStats);
+            Map<String, Map<String, Long>> fieldStats = fieldLevelStats.getFieldLevelFileSizes();
+            assertNotNull("Field-level stats should not be null", fieldStats);
+            assertFalse("Field-level stats should not be empty after indexing", fieldStats.isEmpty());
+
+            // Verify we have stats for the indexed fields
+            assertTrue("Should have stats for field1 or field2", fieldStats.containsKey("field1") || fieldStats.containsKey("field2"));
+
+            // Test backward compatibility with old method signature
+            SegmentsStats oldMethodStats = shard.segmentStats(true, false);
+            assertNotNull("Old method should still work", oldMethodStats);
+            assertTrue("Old method should not include field-level stats", oldMethodStats.getFieldLevelFileSizes().isEmpty());
+
+            // Test with both flags enabled
+            SegmentsStats combinedStats = shard.segmentStats(true, true, false);
+            assertNotNull("Combined stats should not be null", combinedStats);
+            assertFalse("Should have file sizes", combinedStats.getFileSizes().isEmpty());
+            assertFalse("Should have field-level file sizes", combinedStats.getFieldLevelFileSizes().isEmpty());
+
+            // Force merge to create a single segment and test again
+            shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
+            SegmentsStats afterMergeStats = shard.segmentStats(false, true, false);
+            assertNotNull("Stats after merge should not be null", afterMergeStats);
+            assertFalse("Field stats should exist after merge", afterMergeStats.getFieldLevelFileSizes().isEmpty());
+        } finally {
+            closeShards(shard);
+        }
     }
 
     public void testShardStatsWithFailures() throws IOException {

@@ -390,7 +390,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 // refresh to create a lot of segments.
                 engine.refresh("test");
             }
-            assertEquals(2, engine.segmentsStats(false, false).getCount());
+            assertEquals(2, engine.segmentsStats(false, false, false).getCount());
             // wipe the nrt directory initially so we can sync with primary.
             Lucene.cleanLuceneIndex(nrtEngineStore.directory());
             assertFalse(
@@ -409,7 +409,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // merge primary down to 1 segment
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             // we expect a 3rd segment to be created after merge.
-            assertEquals(3, engine.segmentsStats(false, false).getCount());
+            assertEquals(3, engine.segmentsStats(false, false, false).getCount());
             final Collection<String> latestPrimaryFiles = engine.getLatestSegmentInfos().files(false);
 
             // copy new segments in and load reader.

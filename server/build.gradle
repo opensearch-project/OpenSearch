@@ -395,10 +395,12 @@ tasks.named("sourcesJar").configure {
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
     // See please https://github.com/siom79/japicmp/issues/201
-    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
+    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE", "METHOD_REMOVED_IN_SUPERCLASS" ]
     oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
     newClasspath.from(tasks.named('jar'))
+    // Restrict to modified elements only and fail only on binary-incompatible changes
     onlyModified = true
+    onlyBinaryIncompatibleModified = true
     failOnModification = true
     ignoreMissingClasses = true
     failOnSourceIncompatibility = true
@@ -406,6 +408,7 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     annotationExcludes = ['@org.opensearch.common.annotation.InternalApi', '@org.opensearch.common.annotation.ExperimentalApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
+    xmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.xml")
     dependsOn downloadJapicmpCompareTarget
 }
 

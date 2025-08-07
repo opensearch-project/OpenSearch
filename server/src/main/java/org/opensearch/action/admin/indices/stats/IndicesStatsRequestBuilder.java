@@ -181,4 +181,9 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         request.includeSegmentFileSizes(includeSegmentFileSizes);
         return this;
     }
+
+    public IndicesStatsRequestBuilder setIncludeFieldLevelSegmentFileSizes(boolean includeFieldLevelSegmentFileSizes) {
+        request.includeFieldLevelSegmentFileSizes(includeFieldLevelSegmentFileSizes);
+        return this;
+    }
 }
