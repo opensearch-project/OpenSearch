@@ -114,102 +114,6 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             }
         };
     }
-
-    /**
-     * Get a scorer that is optimized for bulk-scoring.
-     */
-    @Override
-    public BulkScorer bulkScorer() throws IOException {
-        if (clauseWeights.isEmpty()) {
-            return null;
-        }
-
-        // Create appropriate iterators for each clause - ResumableDISI only for approximatable queries
-        List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
-        for (Weight weight : clauseWeights) {
-            Query query = weight.getQuery();
-            ScorerSupplier supplier = weight.scorerSupplier(context);
-
-            if (query instanceof ApproximateQuery) {
-                // Use ResumableDISI for approximatable queries
-                ResumableDISI disi = new ResumableDISI(supplier);
-                clauseIterators.add(disi);
-            } else {
-                // Use regular DocIdSetIterator for non-approximatable queries
-                Scorer scorer = supplier.get(supplier.cost());
-                clauseIterators.add(scorer.iterator());
-            }
-        }
-
-        // Use Lucene's ConjunctionUtils to create the conjunction
-        DocIdSetIterator conjunctionDISI = ConjunctionUtils.intersectIterators(clauseIterators);
-
-        // Create a simple bulk scorer that wraps the conjunction
-        return new BulkScorer() {
-            @Override
-            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
-                // Create a simple scorer for the collector
-                Scorer scorer = new Scorer() {
-                    @Override
-                    public DocIdSetIterator iterator() {
-                        return conjunctionDISI;
-                    }
-
-                    @Override
-                    public float score() throws IOException {
-                        return boost;
-                    }
-
-                    @Override
-                    public float getMaxScore(int upTo) throws IOException {
-                        return boost;
-                    }
-
-                    @Override
-                    public int docID() {
-                        return conjunctionDISI.docID();
-                    }
-                };
-
-                collector.setScorer(scorer);
-
-                // Track how many documents we've collected
-                int collected = 0;
-                int docID;
-
-                // Continue collecting until we reach the threshold
-                while (collected < threshold) {
-                    // Get the next document from the conjunction
-                    docID = conjunctionDISI.nextDoc();
-
-                    if (docID == DocIdSetIterator.NO_MORE_DOCS) {
-                        // No more documents - ResumableDISIs will expand internally if possible
-                        break;
-                    }
-
-                    if (docID >= max) {
-                        // We've reached the end of the range
-                        return docID;
-                    }
-
-                    if (docID >= min && (acceptDocs == null || acceptDocs.get(docID))) {
-                        // Collect the document
-                        collector.collect(docID);
-                        collected++;
-                    }
-                }
-
-                // We've either collected enough documents or exhausted all possibilities
-                return DocIdSetIterator.NO_MORE_DOCS;
-            }
-
-            @Override
-            public long cost() {
-                return ApproximateBooleanScorerSupplier.this.cost();
-            }
-        };
-    }
-
     /**
      * Get an estimate of the {@link Scorer} that would be returned by {@link #get}.
      */
@@ -236,4 +140,108 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
         }
         return cost;
     }
+
+    /**
+     * Get a scorer that is optimized for bulk-scoring.
+     */
+    @Override
+    public BulkScorer bulkScorer() throws IOException {
+        if (clauseWeights.isEmpty()) {
+            return null;
+        }
+
+        // Create appropriate iterators for each clause - ResumableDISI only for approximatable queries
+        List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
+        System.out.println("DEBUG: Creating iterators for " + clauseWeights.size() + " clauses");
+
+        for (Weight weight : clauseWeights) {
+            Query query = weight.getQuery();
+            ScorerSupplier supplier = weight.scorerSupplier(context);
+            System.out.println("DEBUG: Processing query: " + query.getClass().getSimpleName() + " - " + query);
+
+            if (query instanceof ApproximateQuery) {
+                // Use ResumableDISI for approximatable queries
+                System.out.println("DEBUG: Using ResumableDISI for ApproximateQuery");
+                ResumableDISI disi = new ResumableDISI(supplier);
+                clauseIterators.add(disi);
+            } else {
+                // Use regular DocIdSetIterator for non-approximatable queries
+                System.out.println("DEBUG: Using regular DISI for non-approximatable query");
+                Scorer scorer = supplier.get(supplier.cost());
+                DocIdSetIterator iterator = scorer.iterator();
+                System.out.println("DEBUG: Regular iterator cost: " + iterator.cost());
+                clauseIterators.add(iterator);
+            }
+        }
+
+        // Use Lucene's ConjunctionUtils to create the conjunction ONCE (outside the BulkScorer)
+        final DocIdSetIterator conjunctionDISI = ConjunctionUtils.intersectIterators(clauseIterators);
+        // Create a simple scorer for the collector
+        Scorer scorer = new Scorer() {
+            @Override
+            public DocIdSetIterator iterator() {
+                return conjunctionDISI;
+            }
+
+            @Override
+            public float score() throws IOException {
+                return 0.0f;
+            }
+
+            @Override
+            public float getMaxScore(int upTo) throws IOException {
+                return 0.0f;
+            }
+
+            @Override
+            public int docID() {
+                return conjunctionDISI.docID();
+            }
+        };
+
+        // Create a simple bulk scorer that wraps the conjunction
+        return new BulkScorer() {
+            @Override
+            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+
+                collector.setScorer(scorer);
+
+                // Position the iterator correctly (following Lucene's DefaultBulkScorer pattern)
+                if (conjunctionDISI.docID() < min) {
+                    if (conjunctionDISI.docID() == min - 1) {
+                        conjunctionDISI.nextDoc();
+                    }
+                    else {
+                        conjunctionDISI.advance(min);
+                    }
+                }
+                int collected = 0;
+                int doc = -1;
+
+                // Score documents in the range [min, max) following Lucene's pattern
+                // Note: No threshold limit here - that's handled by individual ResumableDISI clauses
+                for (doc = conjunctionDISI.docID(); doc < max; doc = conjunctionDISI.nextDoc()) {
+                    if (acceptDocs == null || acceptDocs.get(doc)) {
+                        System.out.println("Conjunction Hit: "+doc);
+                        collector.collect(doc);
+                        collected++;
+                    }
+                }
+
+                // Return the current iterator position (standard Lucene pattern)
+                return conjunctionDISI.docID();
+            }
+
+
+            @Override
+            public long cost() {
+                return ApproximateBooleanScorerSupplier.this.cost();
+            }
+        };
+
+    }
 }
+
+
+
+
