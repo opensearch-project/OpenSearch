@@ -50,7 +50,8 @@ public class LocalTranslog extends Translog {
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer,
-        final TranslogOperationHelper translogOperationHelper
+        final TranslogOperationHelper translogOperationHelper,
+        final ChannelFactory channelFactory
     ) throws IOException {
         super(
             config,
@@ -59,7 +60,8 @@ public class LocalTranslog extends Translog {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            translogOperationHelper
+            translogOperationHelper,
+            channelFactory
         );
         try {
             final Checkpoint checkpoint = readCheckpoint(location);
