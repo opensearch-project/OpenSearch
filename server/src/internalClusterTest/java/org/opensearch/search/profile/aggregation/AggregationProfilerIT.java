@@ -1039,17 +1039,21 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
                     if ("fetch".equals(result.getQueryName())) {
                         mainFetchCount++;
                     } else if (result.getQueryName().contains("top_hits_agg1")) {
-                        topHitsFetch1 = result;
+                        if (topHitsFetch1 == null) {
+                            topHitsFetch1 = result; // Keep first instance for validation
+                        }
                         topHitsAgg1Count++;
                     } else if (result.getQueryName().contains("top_hits_agg2")) {
-                        topHitsFetch2 = result;
+                        if (topHitsFetch2 == null) {
+                            topHitsFetch2 = result; // Keep first instance for validation
+                        }
                         topHitsAgg2Count++;
                     }
                 }
 
-                // Verify we have the expected top_hits aggregations (the main requirement)
-                assertEquals("Should have exactly 1 top_hits_agg1 fetch operation", 1, topHitsAgg1Count);
-                assertEquals("Should have exactly 1 top_hits_agg2 fetch operation", 1, topHitsAgg2Count);
+                // Verify we have the expected aggregations (concurrent search may create multiple instances)
+                assertTrue("Should have at least 1 top_hits_agg1 fetch operation", topHitsAgg1Count >= 1);
+                assertTrue("Should have at least 1 top_hits_agg2 fetch operation", topHitsAgg2Count >= 1);
                 assertTrue("Should have at least one main fetch operation", mainFetchCount >= 1);
                 assertTrue("Should have at least 3 total fetch operations", fetchProfileResults.size() >= 3);
 
