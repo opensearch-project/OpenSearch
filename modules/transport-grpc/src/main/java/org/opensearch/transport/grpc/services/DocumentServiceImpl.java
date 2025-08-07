@@ -14,7 +14,9 @@ import org.opensearch.protobufs.services.DocumentServiceGrpc;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.listeners.BulkRequestActionListener;
 import org.opensearch.transport.grpc.proto.request.document.bulk.BulkRequestProtoUtils;
+import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 /**
@@ -47,7 +49,8 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
             client.bulk(bulkRequest, listener);
         } catch (RuntimeException e) {
             logger.error("DocumentServiceImpl failed to process bulk request, request=" + request + ", error=" + e.getMessage());
-            responseObserver.onError(e);
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            responseObserver.onError(grpcError);
         }
     }
 }

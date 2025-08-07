@@ -20,6 +20,7 @@ import org.opensearch.protobufs.ResponseItem;
 import org.opensearch.transport.grpc.proto.response.document.common.DocWriteResponseProtoUtils;
 import org.opensearch.transport.grpc.proto.response.document.get.GetResultProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
+import org.opensearch.transport.grpc.util.RestToGrpcStatusConverter;
 
 import java.io.IOException;
 
@@ -52,8 +53,8 @@ public class BulkItemResponseProtoUtils {
             DocWriteResponse docResponse = response.getResponse();
             responseItemBuilder = DocWriteResponseProtoUtils.toProto(docResponse);
 
-            // TODO set the GRPC status instead of HTTP Status
-            responseItemBuilder.setStatus(docResponse.status().getStatus());
+            int grpcStatusCode = RestToGrpcStatusConverter.getGrpcStatusCode(docResponse.status());
+            responseItemBuilder.setStatus(grpcStatusCode);
         } else {
             BulkItemResponse.Failure failure = response.getFailure();
             responseItemBuilder = ResponseItem.newBuilder();
@@ -64,8 +65,8 @@ public class BulkItemResponseProtoUtils {
             } else {
                 responseItemBuilder.setId(ResponseItem.Id.newBuilder().setString(response.getId()).build());
             }
-            // TODO set the GRPC status instead of HTTP Status
-            responseItemBuilder.setStatus(failure.getStatus().getStatus());
+            int grpcStatusCode = RestToGrpcStatusConverter.getGrpcStatusCode(failure.getStatus());
+            responseItemBuilder.setStatus(grpcStatusCode);
 
             ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(failure.getCause());
 
