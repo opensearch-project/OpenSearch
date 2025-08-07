@@ -22,6 +22,8 @@ import static org.opensearch.cluster.routing.allocation.ConstraintTypes.isPrimar
 /**
  * Constraints applied during rebalancing round; specify conditions which, if breached, reduce the
  * priority of a node for receiving shard relocations.
+ *
+ * @opensearch.internal
  */
 public class RebalanceConstraints {
 
