@@ -231,11 +231,20 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
                 (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) primary.remoteStore().directory()).getDelegate())
                     .getDelegate();
-            assertEquals(
-                "Latest remote commit contains expected segment files",
-                Set.of("_0.cfe", "_0.si", "_0.cfs"),
-                remoteSegmentStoreDirectory.readLatestMetadataFile().getMetadata().keySet()
-            );
+
+            if (primary.isRefreshSegmentUploadDecouplingEnabled()) {
+                assertEquals(
+                    "Latest remote commit contains expected segment files",
+                    Set.of("_0.cfe", "_0.si", "_0.cfs"),
+                    remoteSegmentStoreDirectory.readLatestMetadataFile().getMetadata().keySet()
+                );
+            } else {
+                assertEquals(
+                    "Latest remote commit contains expected segment files",
+                    Set.of("_0.cfe", "_0.si", "_0.cfs", "segments_3"),
+                    remoteSegmentStoreDirectory.readLatestMetadataFile().getMetadata().keySet()
+                );
+            }
 
             try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryEngine.getSegmentInfosSnapshot()) {
                 MatcherAssert.assertThat(

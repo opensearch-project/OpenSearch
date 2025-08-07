@@ -126,7 +126,12 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             primary.awaitRemoteStoreSync();
             List<DocIdSeqNoAndSource> docIdAndSeqNosAfterFlush = getDocIdAndSeqNos(primary);
             int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
-            assertEquals(moreDocs, getTranslog(primary).totalOperations());
+
+            if (primary.isRefreshSegmentUploadDecouplingEnabled()) {
+                assertEquals(moreDocs, getTranslog(primary).totalOperations());
+            } else {
+                assertEquals(moreDocs + numDocs, getTranslog(primary).totalOperations());
+            }
 
             // Step 2 - Start replica, recovery happens, check docs recovered till last flush
             final IndexShard replica = shards.addReplica(remoteDir);

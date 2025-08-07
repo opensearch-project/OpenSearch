@@ -101,7 +101,7 @@ public class RemoteStoreSettings {
     @ExperimentalApi
     public static final Setting<Boolean> CLUSTER_REMOTE_STORE_REFRESH_SEGMENT_UPLOAD_DECOUPLE = Setting.boolSetting(
         "cluster.remote_store.index.refresh.segment_upload_decouple",
-        true,
+        false,
         Property.NodeScope,
         Property.Dynamic
     );
