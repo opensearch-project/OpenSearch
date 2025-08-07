@@ -273,7 +273,10 @@ public class RecoverySettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
-        clusterSettings.addSettingsUpdateConsumer(INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING, this::setIndicesMergedSegmentReplicationWarmerEnabled);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
+            this::setIndicesMergedSegmentReplicationWarmerEnabled
+        );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
             this::setMergedSegmentReplicationMaxBytesPerSec

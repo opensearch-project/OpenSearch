@@ -8,8 +8,6 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -37,8 +35,8 @@ public class MergedSegmentWarmerFactory {
     }
 
     public IndexWriter.IndexReaderWarmer get(IndexShard shard) {
-        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false ||
-            shard.indexSettings().isDocumentReplication()) {
+        if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false
+            || shard.indexSettings().isDocumentReplication()) {
             // MergedSegmentWarmerFactory#get is called by IndexShard#newEngineConfig on the initialization of a new indexShard and
             // in cases of updates to shard state.
             // 1. IndexWriter.IndexReaderWarmer should be null when IndexMetadata.INDEX_REPLICATION_TYPE_SETTING == ReplicationType.DOCUMENT
