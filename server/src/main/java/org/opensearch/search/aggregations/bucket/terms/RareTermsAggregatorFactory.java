@@ -97,7 +97,8 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SearchContext context,
                 Aggregator parent,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
 
                 ExecutionMode execution = ExecutionMode.MAP; // TODO global ords not implemented yet, only supports "map"
@@ -123,7 +124,8 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     metadata,
                     maxDocCount,
                     precision,
-                    cardinality
+                    cardinality,
+                    config
                 );
 
             }
@@ -148,7 +150,8 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SearchContext context,
                 Aggregator parent,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -233,7 +236,8 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 searchContext,
                 parent,
                 cardinality,
-                metadata
+                metadata,
+                config
             );
     }
 
@@ -263,7 +267,8 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 Map<String, Object> metadata,
                 long maxDocCount,
                 double precision,
-                CardinalityUpperBound cardinality
+                CardinalityUpperBound cardinality,
+                ValuesSourceConfig config
             ) throws IOException {
                 int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.StringFilter filter = includeExclude == null
@@ -280,7 +285,8 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     metadata,
                     maxDocCount,
                     precision,
-                    cardinality
+                    cardinality,
+                    config
                 );
             }
 
@@ -317,7 +323,8 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Map<String, Object> metadata,
             long maxDocCount,
             double precision,
-            CardinalityUpperBound cardinality
+            CardinalityUpperBound cardinality,
+            ValuesSourceConfig config
         ) throws IOException;
 
         abstract boolean needsGlobalOrdinals();
