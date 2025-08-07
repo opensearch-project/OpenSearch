@@ -288,11 +288,15 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                     if (threshold < lastRecordedUsage) {
                         reject = true;
                         reason.append(resourceType)
-                            .append(" limit is breaching for ENFORCED type WorkloadGroup: (")
+                            .append(" limit is breaching for workload group ")
+                            .append(workloadGroup.get_id())
+                            .append(", ")
                             .append(threshold)
                             .append(" < ")
                             .append(lastRecordedUsage)
-                            .append("). ");
+                            .append(", wlm mode is ")
+                            .append(workloadGroup.getResiliencyMode())
+                            .append(". ");
                         workloadGroupState.getResourceState().get(resourceType).rejections.inc();
                         // should not double count even if both the resource limits are breaching
                         break;

@@ -58,8 +58,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -996,47 +994,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    @LockFeatureFlag(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
-    @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
-    public void testExtendedCompatibilityVersionForRemoteSnapshot() throws Exception {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertTrue(settings.isRemoteSnapshot());
-        assertEquals(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION, settings.getExtendedCompatibilitySnapshotVersion());
-    }
-
-    public void testExtendedCompatibilityVersionForNonRemoteSnapshot() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertFalse(settings.isRemoteSnapshot());
-        assertEquals(Version.CURRENT.minimumIndexCompatibilityVersion(), settings.getExtendedCompatibilitySnapshotVersion());
-    }
-
-    public void testExtendedCompatibilityVersionWithoutFeatureFlag() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertTrue(settings.isRemoteSnapshot());
-        assertEquals(Version.CURRENT.minimumIndexCompatibilityVersion(), settings.getExtendedCompatibilitySnapshotVersion());
-    }
-
     @SuppressForbidden(reason = "sets the SEARCH_PIPELINE feature flag")
     public void testDefaultSearchPipeline() throws Exception {
         IndexMetadata metadata = newIndexMeta(
@@ -1065,5 +1022,79 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings);
         assertTrue("Index should be on remote node", settings.isAssignedOnRemoteNode());
+    }
+
+    public void testUpdateDerivedSourceFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        SettingsException error = expectThrows(
+            SettingsException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put("index.derived_source.enabled", randomBoolean()).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.derived_source.enabled], not updateable"));
+    }
+
+    public void testDerivedSourceTranslogReadPreferenceValidation() {
+        // Test 1: Valid case - when derived source is enabled
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 2: Invalid case - setting read preference when derived source is disabled
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 3: Default(Derived) behavior - no read preference set
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 4: Dynamic update - valid case
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(metadata.getSettings())
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
+                    .build()
+            )
+        );
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 5: If derived source is disabled then translog setting value should also be disabled
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
     }
 }

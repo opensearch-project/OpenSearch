@@ -63,6 +63,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -100,6 +101,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
@@ -115,6 +117,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -123,12 +126,16 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine.IndexResult;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -152,6 +159,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogException;
+import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
@@ -474,6 +482,71 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
             assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
             assertThat(segments.get(2).getSegmentSort(), equalTo(indexSort));
+        }
+    }
+
+    public void testSegmentsWithNestedFieldIndexSort() throws Exception {
+        Sort indexSort = new Sort(new SortedSetSortField("foo1", false));
+        try (
+            Store store = createStore();
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, null, indexSort, null)
+        ) {
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            List<ParsedDocument> docs = List.of(
+                createDocumentWithNestedField("1", "Alice", 30),
+                createDocumentWithNestedField("2", "Bob", 25),
+                createDocumentWithNestedField("3", "Charlie", 35)
+            );
+            for (ParsedDocument doc : docs) {
+                engine.index(indexForDoc(doc));
+            }
+            engine.refresh("test");
+            segments = engine.segments(true);
+
+            assertThat(segments.size(), equalTo(1));
+            assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
+
+        }
+    }
+
+    public void testSegmentsWithNestedFieldIndexSortWithMerge() throws Exception {
+        Sort indexSort = new Sort(new SortedSetSortField("foo1", false));
+        try (
+            Store store = createStore();
+            Engine engine = createEngine(
+                defaultSettings,
+                store,
+                createTempDir(),
+                new TieredMergePolicy(),
+                null,
+                null,
+                null,
+                indexSort,
+                null
+            )
+        ) {
+            List<ParsedDocument> docs = List.of(
+                createDocumentWithNestedField("1", "Alice", 30),
+                createDocumentWithNestedField("2", "Bob", 25),
+                createDocumentWithNestedField("3", "Charlie", 35)
+            );
+            for (ParsedDocument doc : docs) {
+                engine.index(indexForDoc(doc));
+                engine.refresh("test");
+            }
+            List<Segment> preMergeSegments = engine.segments(true);
+            assertThat(preMergeSegments.size(), equalTo(3));
+            for (Segment segment : preMergeSegments) {
+                assertThat(segment.getSegmentSort(), equalTo(indexSort));
+            }
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
+            engine.refresh("test");
+            List<Segment> mergedSegments = engine.segments(true);
+
+            assertThat(mergedSegments.size(), equalTo(1));
+            assertThat(mergedSegments.get(0).getSegmentSort(), equalTo(indexSort));
         }
     }
 
@@ -4108,7 +4181,8 @@ public class InternalEngineTests extends EngineTestCase {
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationHelper.DEFAULT
         );
         translog.add(new Translog.Index("SomeBogusId", 0, primaryTerm.get(), "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
@@ -8224,4 +8298,315 @@ public class InternalEngineTests extends EngineTestCase {
         store.close();
         engine.close();
     }
+
+    public void testNewChangesSnapshotWithDerivedSource() throws IOException {
+        IOUtils.close(engine, store);
+        // Create test documents
+        List<Engine.Operation> operations = new ArrayList<>();
+        final int numDocs = randomIntBetween(1, 100);
+
+        try (Store store = createStore()) {
+            EngineConfig engineConfig = createEngineConfigWithMapperSupplierForDerivedSource(store);
+            InternalEngine engine = null;
+            try {
+                engine = createEngine(engineConfig);
+                // Index documents
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(
+                        Integer.toString(i),
+                        null,
+                        testDocumentWithTextField(),
+                        null, // No source, it should be derived
+                        null
+                    );
+                    Engine.Index index = new Engine.Index(
+                        newUid(doc),
+                        doc,
+                        UNASSIGNED_SEQ_NO,
+                        primaryTerm.get(),
+                        i,
+                        VersionType.EXTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        System.nanoTime(),
+                        -1,
+                        false,
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    );
+                    operations.add(index);
+                    engine.index(index);
+                }
+
+                engine.refresh("test");
+
+                // Test newChangesSnapshot with derived source
+                try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, numDocs - 1, true, false)) {
+                    int count = 0;
+                    Translog.Operation operation;
+                    while ((operation = snapshot.next()) != null) {
+                        // Verify operation type
+                        assertThat(operation, instanceOf(Translog.Index.class));
+
+                        // Verify sequence numbers are in order
+                        assertThat(operation.seqNo(), equalTo((long) count));
+
+                        // Verify source is derived correctly
+                        Translog.Index indexOp = (Translog.Index) operation;
+                        assertEquals(
+                            "Document " + indexOp.id() + " should have updated value",
+                            "{\"value\":\"test\"}",
+                            indexOp.source().utf8ToString()
+                        );
+                        count++;
+                    }
+
+                    // Verify we got all documents
+                    assertThat(count, equalTo(numDocs));
+                }
+            } finally {
+                IOUtils.close(engine, store);
+            }
+        }
+    }
+
+    public void testNewChangesSnapshotWithDeleteAndUpdateWithDerivedSource() throws IOException {
+        IOUtils.close(engine, store);
+        final List<Engine.Operation> operations = new ArrayList<>();
+        int numDocs = randomIntBetween(10, 100);
+        int numDocsToDelete = randomIntBetween(1, numDocs / 2);
+        Set<String> deletedDocs = new HashSet<>();
+
+        try (Store store = createStore()) {
+            EngineConfig engineConfig = createEngineConfigWithMapperSupplierForDerivedSource(store);
+            InternalEngine engine = null;
+            try {
+                engine = createEngine(engineConfig);
+                // First index documents
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(
+                        Integer.toString(i),
+                        null,
+                        testDocumentWithTextField(),
+                        null, // No source, it should be derived
+                        null
+                    );
+                    Engine.Index index = new Engine.Index(
+                        newUid(doc),
+                        doc,
+                        UNASSIGNED_SEQ_NO,
+                        primaryTerm.get(),
+                        i,
+                        VersionType.EXTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        System.nanoTime(),
+                        -1,
+                        false,
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    );
+                    operations.add(index);
+                    engine.index(index);
+                }
+
+                // Delete some documents
+                for (int i = 0; i < numDocsToDelete; i++) {
+                    String idToDelete = Integer.toString(randomInt(numDocs - 1));
+                    if (!deletedDocs.contains(idToDelete)) {
+                        final Engine.Delete delete = new Engine.Delete(
+                            idToDelete,
+                            newUid(idToDelete),
+                            UNASSIGNED_SEQ_NO,
+                            primaryTerm.get(),
+                            i + numDocs,
+                            VersionType.EXTERNAL,
+                            Engine.Operation.Origin.PRIMARY,
+                            System.nanoTime(),
+                            UNASSIGNED_SEQ_NO,
+                            0
+                        );
+                        operations.add(delete);
+                        engine.delete(delete);
+                        deletedDocs.add(idToDelete);
+                    }
+                }
+
+                // Update some remaining documents
+                int numDocsToUpdate = randomIntBetween(1, numDocs - deletedDocs.size());
+                Set<String> updatedDocs = new HashSet<>();
+                for (int i = 0; i < numDocsToUpdate; i++) {
+                    String idToUpdate;
+                    do {
+                        idToUpdate = Integer.toString(randomInt(numDocs - 1));
+                    } while (deletedDocs.contains(idToUpdate) || updatedDocs.contains(idToUpdate));
+
+                    Document document = testDocument();
+                    document.add(new TextField("value", "updated", Field.Store.YES));
+                    ParsedDocument doc = testParsedDocument(idToUpdate, null, document, null, null);
+                    Engine.Index update = new Engine.Index(
+                        newUid(doc),
+                        doc,
+                        UNASSIGNED_SEQ_NO,
+                        primaryTerm.get(),
+                        numDocs + numDocsToDelete + i,
+                        VersionType.EXTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        System.nanoTime(),
+                        -1,
+                        false,
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    );
+                    operations.add(update);
+                    engine.index(update);
+                    updatedDocs.add(idToUpdate);
+                }
+
+                engine.refresh("test");
+
+                // Test snapshot with all operations
+                try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, operations.size() - 1, true, true)) {
+                    int count = 0;
+                    Translog.Operation operation;
+                    while ((operation = snapshot.next()) != null) {
+                        if (operation instanceof Translog.Index) {
+                            Translog.Index indexOp = (Translog.Index) operation;
+                            String docId = indexOp.id();
+                            if (updatedDocs.contains(docId)) {
+                                // Verify updated content using get
+                                try (
+                                    Engine.GetResult get = engine.get(
+                                        new Engine.Get(true, true, docId, newUid(docId)),
+                                        engine::acquireSearcher
+                                    )
+                                ) {
+                                    assertTrue("Document " + docId + " should exist", get.exists());
+                                    StoredFields storedFields = get.docIdAndVersion().reader.storedFields();
+                                    org.apache.lucene.document.Document document = storedFields.document(get.docIdAndVersion().docId);
+                                    assertEquals(
+                                        "Document " + docId + " should have updated value",
+                                        "updated",
+                                        document.getField("value").stringValue()
+                                    );
+                                }
+                            }
+                        } else if (operation instanceof Translog.Delete) {
+                            String docId = ((Translog.Delete) operation).id();
+                            assertTrue("Document " + docId + " should be in deleted set", deletedDocs.contains(docId));
+
+                            // Verify document is actually deleted
+                            try (
+                                Engine.GetResult get = engine.get(
+                                    new Engine.Get(true, false, docId, newUid(docId)),
+                                    engine::acquireSearcher
+                                )
+                            ) {
+                                assertFalse("Document " + docId + " should not exist", get.exists());
+                            }
+                        }
+                        count++;
+                    }
+
+                    // Verify we got all operations
+                    assertEquals("Expected number of operations", operations.size(), count);
+                }
+
+                // Test snapshot with accurate count
+                try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, operations.size() - 1, true, true)) {
+                    assertEquals("Total number of operations", operations.size(), snapshot.totalOperations());
+                }
+
+                // Test snapshot with specific range
+                int from = randomIntBetween(0, operations.size() / 2);
+                int to = randomIntBetween(from, operations.size() - 1);
+                try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", from, to, false, true)) {
+                    int count = 0;
+                    while (snapshot.next() != null) {
+                        count++;
+                    }
+                    assertEquals("Expected number of operations in range", to - from + 1, count);
+                }
+            } finally {
+                IOUtils.close(engine, store);
+            }
+        }
+    }
+
+    private EngineConfig createEngineConfigWithMapperSupplierForDerivedSource(Store store) throws IOException {
+        // Setup with derived source enabled
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            .put("index.refresh_interval", -1)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        // Create mapping with required fields
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("value")
+            .field("type", "text")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        final MapperService mapperService = createMapperService();
+        mapperService.merge("_doc", new CompressedXContent(mapping.toString()), MapperService.MergeReason.MAPPING_UPDATE);
+        final DocumentMapper documentMapper = mapperService.documentMapper();
+        DocumentMapperForType documentMapperForType = new DocumentMapperForType(documentMapper, null);
+
+        // Create engine config with document mapper supplier
+        EngineConfig config = engine.config();
+        EngineConfig engineConfig = new EngineConfig.Builder().shardId(config.getShardId())
+            .threadPool(config.getThreadPool())
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(config.getMergePolicy())
+            .analyzer(config.getAnalyzer())
+            .similarity(config.getSimilarity())
+            .eventListener(config.getEventListener())
+            .queryCache(config.getQueryCache())
+            .queryCachingPolicy(config.getQueryCachingPolicy())
+            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .translogConfig(config.getTranslogConfig())
+            .flushMergesAfter(config.getFlushMergesAfter())
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(config.getInternalRefreshListener())
+            .indexSort(config.getIndexSort())
+            .circuitBreakerService(config.getCircuitBreakerService())
+            .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .retentionLeasesSupplier(config.retentionLeasesSupplier())
+            .primaryTermSupplier(config.getPrimaryTermSupplier())
+            .documentMapperForTypeSupplier(() -> documentMapperForType)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .build();
+        return engineConfig;
+    }
+
+    private ParsedDocument createDocumentWithNestedField(String id, String contactName, int contactAge) {
+        BytesReference source = null;
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("foo", 123)
+                .field("foo1", contactAge)
+                .startArray("contacts")
+                .startObject()
+                .field("name", contactName)
+                .field("age", contactAge)
+                .endObject()
+                .endArray()
+                .endObject();
+            source = BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return testParsedDocument(id, null, testDocumentWithTextField(), source, null);
+    }
+
 }

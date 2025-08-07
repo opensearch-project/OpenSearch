@@ -1,0 +1,212 @@
+---
+"Terms Query - Lookup by Query":
+  # --- SKIP IF VERSION IS LESS THAN 3.2.0 --- #
+  - skip:
+      version: " - 3.1.99"
+      reason: All tests in this file require features added in 3.2.0 or later (terms query lookup by query).
+
+  # --- SETUP: CREATE INDICES AND POPULATE DATA --- #
+  - do:
+      indices.create:
+        index: lookup_index
+        body:
+          settings:
+            number_of_replicas: 0
+  # Wait for index to be fully ready (avoids race in multi-node clusters)
+  - do:
+      cluster.health:
+        index: lookup_index
+        wait_for_status: green
+        timeout: 30s
+  - do:
+      indices.create:
+        index: main_index
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      cluster.health:
+        index: main_index
+        wait_for_status: green
+        timeout: 30s
+
+  # Populate lookup_index
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "index": { "_index": "lookup_index", "_id": "1" } }
+          { "group": "g1", "followers": ["foo", "bar"], "tag": "a" }
+          { "index": { "_index": "lookup_index", "_id": "2" } }
+          { "group": "g1", "followers": ["baz"], "tag": "b" }
+          { "index": { "_index": "lookup_index", "_id": "3" } }
+          { "group": "g2", "followers": null, "tag": "c" }
+          { "index": { "_index": "lookup_index", "_id": "4" } }
+          { "group": "g1", "tag": "d" }
+          { "index": { "_index": "lookup_index", "_id": "5" } }
+          { "group": "g1", "followers": ["baz"], "tag": "e" }
+          { "index": { "_index": "lookup_index", "_id": "6" } }
+          { "group": "g3", "followers": [], "tag": "f" }
+  - match: { errors: false }
+
+  # Populate main_index
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "index": { "_index": "main_index", "_id": "u1" } }
+          { "user": "foo" }
+          { "index": { "_index": "main_index", "_id": "u2" } }
+          { "user": "bar" }
+          { "index": { "_index": "main_index", "_id": "u3" } }
+          { "user": "baz" }
+          { "index": { "_index": "main_index", "_id": "u4" } }
+          { "user": "qux" }
+          { "index": { "_index": "main_index", "_id": "u5" } }
+          { "user": "foo" }
+  - match: { errors: false }
+
+  - do:
+      cluster.health:
+        index: lookup_index,main_index
+        wait_for_status: green
+        timeout: 30s
+
+  # --- TEST CASES --- #
+
+  # Match all docs in lookup_index with group=g1, use their 'followers' as terms
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    group: "g1"
+  - match: { hits.total: 4 } # foo (u1), bar (u2), baz (u3), foo (u5)
+
+  # Query returns docs, but some have missing/null/empty field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  terms:
+                    tag: ["a", "c", "f"]
+  - match: { hits.total: 3 } # foo (u1), bar (u2), foo (u5)
+
+  # Query returns docs but field is always empty list
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    tag: "d"
+  - match: { hits.total: 0 } # No terms found
+
+  # Query returns docs but field is scalar, not array (now array, see above)
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    tag: "e"
+  - match: { hits.total: 1 } # Only user baz (from doc 5: followers=["baz"])
+
+  # Query returns no docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    tag: "zzz"
+  - match: { hits.total: 0 }
+
+  # Query returns docs, some with missing field, some with lists, some with nulls
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  terms:
+                    tag: ["a", "b", "c", "d", "e", "f"]
+  - match: { hits.total: 4 } # foo (u1), bar (u2), baz (u3), foo (u5)
+
+  # Duplicates across docs should be deduplicated (foo appears in 2 docs)
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  terms:
+                    tag: ["a", "b"]
+  - match: { hits.total: 4 } # foo (u1), bar (u2), baz (u3), foo (u5)
+
+  # Query returns docs but none have the field specified.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: not_a_field
+                query:
+                  match_all: {}
+  - match: { hits.total: 0 }
+
+  # Optional: sanity check for main_index docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total: 5 } # Should always be 5

@@ -8,9 +8,11 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.DimensionFactory;
@@ -22,6 +24,7 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettin
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -444,21 +447,38 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             if (currentBuilder.isEmpty() || parts.length == 1) {
                 return currentBuilder;
             }
-
             // Navigate through the nested structure
             try {
                 Mapper.Builder builder = currentBuilder.get();
                 for (int i = 1; i < parts.length; i++) {
                     List<Mapper.Builder> childBuilders = getChildBuilders(builder);
                     int finalI = i;
-                    builder = childBuilders.stream()
-                        .filter(b -> b.name().equals(parts[finalI]))
-                        .findFirst()
-                        .orElseThrow(
-                            () -> new IllegalArgumentException(
-                                String.format(Locale.ROOT, "Could not find nested field [%s] in path [%s]", parts[finalI], name)
-                            )
+
+                    // First try to find in regular child builders
+                    Optional<Mapper.Builder> nextBuilder = childBuilders.stream().filter(b -> b.name().equals(parts[finalI])).findFirst();
+
+                    if (nextBuilder.isPresent()) {
+                        builder = nextBuilder.get();
+                    } else {
+                        MultiFields.Builder multiFieldsBuilder = null;
+                        // If not found in regular children, check for multi-fields
+                        if (builder instanceof FieldMapper.Builder<?> fieldBuilder) {
+                            multiFieldsBuilder = fieldBuilder.multiFieldsBuilder;
+                        } else if (builder instanceof ParametrizedFieldMapper.Builder parameterizedFieldBuilder) {
+                            multiFieldsBuilder = parameterizedFieldBuilder.multiFieldsBuilder;
+                        }
+                        if (multiFieldsBuilder != null) {
+                            Map<String, Mapper.Builder> multiFields = multiFieldsBuilder.getMapperBuilders();
+                            Mapper.Builder multiFieldBuilder = multiFields.get(parts[finalI]);
+                            if (multiFieldBuilder != null) {
+                                builder = multiFieldBuilder;
+                                continue;
+                            }
+                        }
+                        throw new IllegalArgumentException(
+                            String.format(Locale.ROOT, "Could not find nested field [%s] in path [%s]", parts[finalI], name)
                         );
+                    }
                 }
                 return Optional.of(builder);
             } catch (Exception e) {
@@ -586,4 +606,15 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * StarTree field is not a part of an ingested document, so omitting it from derived source validation
+     */
+    @Override
+    public void canDeriveSource() {}
+
+    /**
+     * StarTree field is not a part of an ingested document, so omitting it from derived source generation
+     */
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {}
 }

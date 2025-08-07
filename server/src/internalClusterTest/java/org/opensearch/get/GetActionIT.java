@@ -42,6 +42,7 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetRequestBuilder;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
@@ -51,6 +52,9 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.geometry.utils.Geohash;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -60,11 +64,14 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -782,6 +789,305 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         // after flush - document is in not anymore translog - only indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList);
         assertGetFieldsNull(indexOrAlias(), "_doc", "1", alwaysNotStoredFieldsList);
+    }
+
+    public void testDerivedSourceSimple() throws IOException {
+        // Create index with derived source index setting enabled
+        String createIndexSource = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 2,
+                        "number_of_replicas": 0,
+                        "derived_source": {
+                            "enabled": true
+                        },
+                        "refresh_interval": -1
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "properties": {
+                            "geopoint_field": {
+                                "type": "geo_point"
+                            },
+                            "keyword_field": {
+                                "type": "keyword"
+                            },
+                            "numeric_field": {
+                                "type": "long"
+                            },
+                            "date_field": {
+                                "type": "date"
+                            },
+                            "bool_field": {
+                                "type": "boolean"
+                            },
+                            "text_field": {
+                                "type": "text"
+                            },
+                            "ip_field": {
+                                "type": "ip"
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        assertAcked(prepareCreate("test_derive").setSource(createIndexSource, MediaTypeRegistry.JSON));
+        ensureGreen();
+
+        // Index a document with various field types
+        client().prepareIndex("test_derive")
+            .setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("geopoint_field", Geohash.stringEncode(40.33, 75.98))
+                    .field("keyword_field", "test_keyword")
+                    .field("numeric_field", 123)
+                    .field("date_field", "2023-01-01")
+                    .field("bool_field", true)
+                    .field("text_field", "test text")
+                    .field("ip_field", "1.2.3.4")
+                    .endObject()
+            )
+            .get();
+
+        // before refresh - document is only in translog
+        GetResponse getResponse = client().prepareGet("test_derive", "1").get();
+        assertTrue(getResponse.isExists());
+        Map<String, Object> source = getResponse.getSourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        validateDeriveSource(source);
+
+        refresh();
+        // after refresh - document is in translog and also indexed
+        getResponse = client().prepareGet("test_derive", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        validateDeriveSource(source);
+
+        flush();
+        // after flush - document is in not anymore translog - only indexed
+        getResponse = client().prepareGet("test_derive", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        validateDeriveSource(source);
+
+        // Test get with selective field inclusion
+        getResponse = client().prepareGet("test_derive", "1").setFetchSource(new String[] { "keyword_field", "numeric_field" }, null).get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertEquals(2, source.size());
+        assertEquals("test_keyword", source.get("keyword_field"));
+        assertEquals(123, source.get("numeric_field"));
+
+        // Test get with field exclusion
+        getResponse = client().prepareGet("test_derive", "1").setFetchSource(null, new String[] { "text_field", "date_field" }).get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertEquals(5, source.size());
+        assertFalse(source.containsKey("text_field"));
+        assertFalse(source.containsKey("date_field"));
+    }
+
+    public void testDerivedSource_MultiValuesAndComplexField() throws Exception {
+        // Create mapping with properly closed objects
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("level1")
+            .startObject("properties")
+            .startObject("level2")
+            .startObject("properties")
+            .startObject("level3")
+            .startObject("properties")
+            .startObject("num_field")
+            .field("type", "integer")
+            .endObject()
+            .startObject("ip_field")
+            .field("type", "ip")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        // Create index with settings and mapping
+        assertAcked(
+            prepareCreate("test_derive").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
+        );
+        ensureGreen();
+
+        // Create source document
+        XContentBuilder sourceBuilder = jsonBuilder().startObject()
+            .startArray("level1")
+            .startObject()
+            .startObject("level2")
+            .startArray("level3")
+            .startObject()
+            .startArray("num_field")
+            .value(2)
+            .value(1)
+            .value(1)
+            .endArray()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("level2")
+            .startArray("level3")
+            .startObject()
+            .startArray("ip_field")
+            .value("1.2.3.4")
+            .value("2.3.4.5")
+            .value("1.2.3.4")
+            .endArray()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject();
+
+        // Index the document
+        IndexResponse indexResponse = client().prepareIndex("test_derive").setId("1").setSource(sourceBuilder).get();
+        assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
+
+        refresh();
+
+        // Test numeric field retrieval
+        GetResponse getResponse = client().prepareGet("test_derive", "1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        Map<String, Object> source = getResponse.getSourceAsMap();
+        Map<String, Object> level1 = (Map<String, Object>) source.get("level1");
+        Map<String, Object> level2 = (Map<String, Object>) level1.get("level2");
+        Map<String, Object> level3 = (Map<String, Object>) level2.get("level3");
+        List<Object> numValues = (List<Object>) level3.get("num_field");
+        assertThat(numValues.size(), equalTo(3));
+        // Number field is stored as Sorted Numeric, so result should be in sorted order
+        assertThat(numValues, containsInRelativeOrder(1, 1, 2));
+
+        List<Object> ipValues = (List<Object>) level3.get("ip_field");
+        assertThat(ipValues.size(), equalTo(2));
+        // Ip field is stored as Sorted Set, so duplicates should be removed and result should be in sorted order
+        assertThat(ipValues, containsInRelativeOrder("1.2.3.4", "2.3.4.5"));
+    }
+
+    public void testDerivedSourceTranslogReadPreference() throws Exception {
+        // Create index with derived source enabled and translog read preference set
+        Settings.Builder settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.refresh_interval", -1)
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), true);
+
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("geopoint_field")
+            .field("type", "geo_point")
+            .endObject()
+            .startObject("date_field")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(mapping));
+        ensureGreen();
+
+        // Index a document
+        IndexResponse indexResponse = client().prepareIndex("test")
+            .setId("1")
+            .setSource(
+                jsonBuilder().startObject().field("geopoint_field", "40.7128,-74.0060").field("date_field", "2025-07-29").endObject()
+            )
+            .get();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        // Get document prior to update, which would be derived source
+        GetResponse getResponse = client().prepareGet("test", "1").get();
+        assertTrue(getResponse.isExists());
+        Map<String, Object> source = getResponse.getSourceAsMap();
+        assertNotNull(source);
+        Map<String, Object> geopoint = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(40.7128, (double) geopoint.get("lat"), 0.0001);
+        assertEquals(-74.0060, (double) geopoint.get("lon"), 0.0001);
+        assertEquals("2025-07-29T00:00:00.000Z", source.get("date_field"));
+
+        // Update document, so that version map gets created and get will be served from translog
+        UpdateResponse updateResponse = client().prepareUpdate("test", "1")
+            .setDoc(jsonBuilder().startObject().field("geopoint_field", "51.5074,-0.1278").field("date_field", "2025-07-30").endObject())
+            .get();
+        assertEquals(RestStatus.OK, updateResponse.status());
+
+        // Get updated document, this will be derived source as per translog read preference setting
+        getResponse = client().prepareGet("test", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull(source);
+        geopoint = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(51.5074, (double) geopoint.get("lat"), 0.0001);
+        assertEquals(-0.1278, (double) geopoint.get("lon"), 0.0001);
+        assertEquals("2025-07-30T00:00:00.000Z", source.get("date_field"));
+
+        // Update translog read preference to source
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false))
+                .get()
+        );
+
+        // Get document after setting update for fetching original source
+        getResponse = client().prepareGet("test", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull(source);
+        assertEquals("51.5074,-0.1278", source.get("geopoint_field"));
+        assertEquals("2025-07-30", source.get("date_field"));
+
+        // Flush the index
+        flushAndRefresh("test");
+
+        // Get document after flush, it should be a derived source
+        getResponse = client().prepareGet("test", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull(source);
+        geopoint = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(51.5074, (double) geopoint.get("lat"), 0.0001);
+        assertEquals(-0.1278, (double) geopoint.get("lon"), 0.0001);
+        assertEquals("2025-07-30T00:00:00.000Z", source.get("date_field"));
+    }
+
+    void validateDeriveSource(Map<String, Object> source) {
+        Map<String, Object> latLon = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(75.98, (Double) latLon.get("lat"), 0.001);
+        assertEquals(40.33, (Double) latLon.get("lon"), 0.001);
+        assertEquals("test_keyword", source.get("keyword_field"));
+        assertEquals(123, source.get("numeric_field"));
+        assertEquals("2023-01-01T00:00:00.000Z", source.get("date_field"));
+        assertEquals(true, source.get("bool_field"));
+        assertEquals("test text", source.get("text_field"));
+        assertEquals("1.2.3.4", source.get("ip_field"));
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {

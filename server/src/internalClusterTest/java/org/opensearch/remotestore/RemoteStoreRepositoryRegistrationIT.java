@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalTestCluster.RestartCallback;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
@@ -178,4 +179,105 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         repositoriesResponse = GetRepositoriesResponse.fromXContent(createParser(xContentBuilder));
         assertEquals(false, SYSTEM_REPOSITORY_SETTING.get(repositoriesResponse.repositories().get(0).settings()));
     }
+
+    /**
+     * Test node join failure when trying to join a cluster with different remote store repository attributes.
+     * This negative test case verifies that nodes with incompatible remote store configurations are rejected.
+     */
+    public void testNodeJoinFailureWithDifferentRemoteStoreRepositoryAttributes() throws Exception {
+        // Start initial cluster with specific remote store repository configuration
+        internalCluster().startNode();
+        ensureStableCluster(1);
+
+        // Attempt to start a second node with different remote store attributes
+        // This should fail because the remote store repository attributes don't match
+        expectThrows(IllegalStateException.class, () -> {
+            internalCluster().startNode(
+                Settings.builder()
+                    .put("node.attr.remote_store.segment.repository", "different-repo")
+                    .put("node.attr.remote_store.translog.repository", "different-translog-repo")
+                    .build()
+            );
+            ensureStableCluster(2);
+        });
+
+        ensureStableCluster(1);
+    }
+
+    /**
+     * Test node rejoin failure when node attributes are changed after initial join.
+     * This test verifies that a node cannot rejoin the cluster with different remote store attributes.
+     */
+    public void testNodeRejoinFailureWithChangedRemoteStoreAttributes() throws Exception {
+        // Start cluster with 2 nodes
+        internalCluster().startNodes(2);
+        ensureStableCluster(2);
+
+        String nodeToRestart = internalCluster().getNodeNames()[1];
+
+        // Attempt to restart node with different remote store attributes should fail
+        // The validation happens during node startup and throws IllegalStateException
+        expectThrows(IllegalStateException.class, () -> {
+            internalCluster().restartNode(nodeToRestart, new RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) {
+                    // Return different remote store attributes when restarting
+                    // This will fail because it's missing the required repository type attributes
+                    return Settings.builder()
+                        .put("node.attr.remote_store.segment.repository", "changed-segment-repo")
+                        .put("node.attr.remote_store.translog.repository", "changed-translog-repo")
+                        .build();
+                }
+            });
+        });
+
+        ensureStableCluster(1);
+    }
+
+    /**
+     * Test node join failure when missing required remote store attributes.
+     * This test verifies that nodes without proper remote store configuration are rejected.
+     */
+    public void testNodeJoinFailureWithMissingRemoteStoreAttributes() throws Exception {
+        internalCluster().startNode();
+        ensureStableCluster(1);
+
+        // Attempt to add a node without remote store attributes
+        // This should fail because remote store attributes are required
+        expectThrows(IllegalStateException.class, () -> {
+            internalCluster().startNode(
+                Settings.builder()
+                    .putNull("node.attr.remote_store.segment.repository")
+                    .putNull("node.attr.remote_store.translog.repository")
+                    .build()
+            );
+        });
+
+        ensureStableCluster(1);
+    }
+
+    /**
+     * Test repository verification failure during node join.
+     * This test verifies that nodes fail to join when remote store repositories cannot be verified
+     * due to invalid repository settings or missing repository type information.
+     */
+    public void testRepositoryVerificationFailureDuringNodeJoin() throws Exception {
+        internalCluster().startNode();
+        ensureStableCluster(1);
+
+        // Attempt to start a node with invalid repository type - this should fail during repository validation
+        // We use an invalid repository type that doesn't exist to trigger repository verification failure
+        expectThrows(Exception.class, () -> {
+            internalCluster().startNode(
+                Settings.builder()
+                    .put("node.attr.remote_store.segment.repository", REPOSITORY_NAME)
+                    .put("node.attr.remote_store.translog.repository", REPOSITORY_NAME)
+                    .put("node.attr.remote_store.repository." + REPOSITORY_NAME + ".type", "invalid_repo_type")
+                    .build()
+            );
+        });
+
+        ensureStableCluster(1);
+    }
+
 }

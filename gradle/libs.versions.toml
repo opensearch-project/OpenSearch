@@ -3,7 +3,7 @@ opensearch        = "3.2.0"
 lucene            = "10.2.2"
 
 bundled_jdk_vendor = "adoptium"
-bundled_jdk = "24.0.1+9"
+bundled_jdk = "24.0.2+12"
 
 # optional dependencies
 spatial4j         = "0.7"
@@ -49,7 +49,7 @@ httpcore          = "4.4.16"
 httpasyncclient   = "4.1.5"
 commonslogging    = "1.2"
 commonscodec      = "1.16.1"
-commonslang       = "3.14.0"
+commonslang       = "3.18.0"
 commonscompress   = "1.26.1"
 commonsio         = "2.16.0"
 # plugin dependencies

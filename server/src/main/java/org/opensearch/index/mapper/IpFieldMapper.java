@@ -51,6 +51,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -103,7 +104,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
-        private final Parameter<Boolean> ignoreMalformed;
+        private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
             .acceptsNull();
 
@@ -116,7 +117,12 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             super(name);
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
             this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.ignoreMalformed = Parameter.explicitBoolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                ignoreMalformedByDefault
+            );
         }
 
         Builder nullValue(String nullValue) {
@@ -231,7 +237,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             return CONTENT_TYPE;
         }
 
-        private static InetAddress parse(Object value) {
+        public static InetAddress parse(Object value) {
             if (value instanceof InetAddress) {
                 return (InetAddress) value;
             } else {
@@ -585,7 +591,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
-    private final boolean ignoreMalformed;
+    private final Explicit<Boolean> ignoreMalformed;
 
     private final InetAddress nullValue;
     private final String nullValueAsString;
@@ -605,7 +611,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
-    boolean ignoreMalformed() {
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
         return ignoreMalformed;
     }
 
@@ -649,7 +656,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             try {
                 address = InetAddresses.forString(addressAsString);
             } catch (IllegalArgumentException e) {
-                if (ignoreMalformed) {
+                if (ignoreMalformed().value()) {
                     context.addIgnoredField(fieldType().name());
                     return;
                 } else {

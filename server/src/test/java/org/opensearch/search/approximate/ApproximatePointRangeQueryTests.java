@@ -21,8 +21,10 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
@@ -30,12 +32,21 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.Function;
@@ -90,6 +101,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             SortField.Type getSortFieldType() {
                 return SortField.Type.INT;
             }
+
+            @Override
+            NumberFieldMapper.NumberType getNumberType() {
+                return NumberFieldMapper.NumberType.INTEGER;
+            }
         },
         LONG("long_field", ApproximatePointRangeQuery.LONG_FORMAT) {
             @Override
@@ -117,6 +133,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             @Override
             SortField.Type getSortFieldType() {
                 return SortField.Type.LONG;
+            }
+
+            @Override
+            NumberFieldMapper.NumberType getNumberType() {
+                return NumberFieldMapper.NumberType.LONG;
             }
         },
         HALF_FLOAT("half_float_field", ApproximatePointRangeQuery.HALF_FLOAT_FORMAT) {
@@ -151,6 +172,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             SortField.Type getSortFieldType() {
                 return SortField.Type.LONG;
             }
+
+            @Override
+            NumberFieldMapper.NumberType getNumberType() {
+                return NumberFieldMapper.NumberType.HALF_FLOAT;
+            }
         },
         FLOAT("float_field", ApproximatePointRangeQuery.FLOAT_FORMAT) {
             @Override
@@ -177,6 +203,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             SortField.Type getSortFieldType() {
                 return SortField.Type.FLOAT;
             }
+
+            @Override
+            NumberFieldMapper.NumberType getNumberType() {
+                return NumberFieldMapper.NumberType.FLOAT;
+            }
         },
         DOUBLE("double_field", ApproximatePointRangeQuery.DOUBLE_FORMAT) {
             @Override
@@ -202,6 +233,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             @Override
             SortField.Type getSortFieldType() {
                 return SortField.Type.DOUBLE;
+            }
+
+            @Override
+            NumberFieldMapper.NumberType getNumberType() {
+                return NumberFieldMapper.NumberType.DOUBLE;
             }
         },
         UNSIGNED_LONG("unsigned_long_field", ApproximatePointRangeQuery.UNSIGNED_LONG_FORMAT) {
@@ -240,6 +276,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             String getSortFieldName() {
                 return fieldName + "_sort";
             }
+
+            @Override
+            NumberFieldMapper.NumberType getNumberType() {
+                return NumberFieldMapper.NumberType.UNSIGNED_LONG;
+            }
         };
 
         final String fieldName;
@@ -259,6 +300,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         abstract Query rangeQuery(String fieldName, Number lower, Number upper);
 
         abstract SortField.Type getSortFieldType();
+
+        abstract NumberFieldMapper.NumberType getNumberType();
 
         String getSortFieldName() {
             return fieldName;
@@ -962,22 +1005,118 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
-    private void testApproximateVsExactQuery(IndexSearcher searcher, String field, long lower, long upper, int size, int dims)
+    public void testDateRangeIncludingNowQueryApproximation() throws IOException {
+        if (numericType != NumericType.LONG) {
+            return;
+        }
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                DateFieldType dateFieldType = new DateFieldType("@timestamp");
+                long minute = 60 * 1000L;
+
+                long currentTime = System.currentTimeMillis();
+                long startTimestamp = currentTime - (48 * 60 * minute); // Start 48 hours ago
+
+                // Create 10000 documents with 1 minute intervals
+                for (int i = 0; i < 10000; i++) {
+                    long timestamp = startTimestamp + (i * minute);
+
+                    long convertedTimestamp = dateFieldType.resolution().convert(Instant.ofEpochMilli(timestamp));
+
+                    Document doc = new Document();
+                    doc.add(new LongPoint(dateFieldType.name(), convertedTimestamp));
+                    doc.add(new NumericDocValuesField(dateFieldType.name(), convertedTimestamp));
+                    iw.addDocument(doc);
+                }
+
+                iw.flush();
+                iw.forceMerge(1);
+                try (IndexReader reader = iw.getReader()) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+
+                    testApproximateVsExactQueryWithDateField(searcher, dateFieldType, "now-1h", "now", 50, dims);
+                    testApproximateVsExactQueryWithDateField(searcher, dateFieldType, "now-1d", "now", 50, dims);
+                    testApproximateVsExactQueryWithDateField(searcher, dateFieldType, "now-30m", "now+30m", 50, dims);
+                }
+            }
+        }
+    }
+
+    public void testApproximateVsExactQueryWithDateField(
+        IndexSearcher searcher,
+        DateFieldType dateFieldType,
+        String lowerBound,
+        String upperBound,
+        int size,
+        int dims
+    ) throws IOException {
+        DateFormatter formatter = dateFieldType.dateTimeFormatter();
+        DateMathParser parser = formatter.toDateMathParser();
+        long nowInMillis = System.currentTimeMillis();
+
+        // Parse the date expressions using the DateFieldType's resolution
+        long lowerMillis = dateFieldType.resolution().convert(parser.parse(lowerBound, () -> nowInMillis));
+
+        long upperMillis = dateFieldType.resolution().convert(parser.parse(upperBound, () -> nowInMillis));
+
+        testApproximateVsExactQuery(searcher, dateFieldType.name(), lowerMillis, upperMillis, size, dims);
+    }
+
+    private void testApproximateVsExactQuery(IndexSearcher searcher, String field, Number lower, Number upper, int size, int dims)
         throws IOException {
         // Test with approximate query
-        ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(
-            field,
-            numericType.encode(lower),
-            numericType.encode(upper),
-            dims,
-            size,
-            null,
-            numericType.format
-        );
-        // Test with exact query
+        byte[] lowerBytes = numericType.encode(lower);
+        byte[] upperBytes = numericType.encode(upper);
+        Function<byte[], String> format = numericType.format;
+
         Query exactQuery = numericType.rangeQuery(field, lower, upper);
+
+        if (field.equals("@timestamp")) {
+
+            // Use NumericType.LONG for date fields
+            lowerBytes = LongPoint.pack((long) lower).bytes;
+            upperBytes = LongPoint.pack((long) upper).bytes;
+            format = ApproximatePointRangeQuery.LONG_FORMAT;
+            exactQuery = LongPoint.newRangeQuery(field, (long) lower, (long) upper);
+        }
+
+        ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(field, upperBytes, lowerBytes, dims, size, null, format);
+        // Test with exact query
         TopDocs approxDocs = searcher.search(approxQuery, size);
         TopDocs exactDocs = searcher.search(exactQuery, size);
+
+        verifyRangeQueries(searcher, exactQuery, approxDocs, exactDocs, field, lower, upper, size, dims);
+    }
+
+    private void verifyRangeQueries(
+        IndexSearcher searcher,
+        Query exactQuery,
+        TopDocs approxDocs,
+        TopDocs exactDocs,
+        String field,
+        Number lower,
+        Number upper,
+        int size,
+        int dims
+    ) throws IOException {
+
+        byte[] lowerBytes = numericType.encode(lower);
+        byte[] upperBytes = numericType.encode(upper);
+        Function<byte[], String> format = numericType.format;
+        ;
+
+        // Test with sorting (ASC and DESC)
+        Sort ascSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType()));
+        Sort descSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
+
+        if (field.equals("@timestamp")) {
+            // Use NumericType.LONG for date fields
+            ascSort = new Sort(new SortField(field, SortField.Type.LONG));
+            descSort = new Sort(new SortField(field, SortField.Type.LONG, true));
+        }
+
         // Verify approximate query returns correct number of results
         assertTrue("Approximate query should return at most " + size + " docs", approxDocs.scoreDocs.length <= size);
         // If exact query returns fewer docs than size, approximate should match
@@ -988,18 +1127,16 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 approxDocs.totalHits.value()
             );
         }
-        // Test with sorting (ASC and DESC)
-        Sort ascSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType()));
-        Sort descSort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), true));
+
         // Test ASC sort
         ApproximatePointRangeQuery approxQueryAsc = new ApproximatePointRangeQuery(
             field,
-            numericType.encode(lower),
-            numericType.encode(upper),
+            lowerBytes,
+            upperBytes,
             dims,
             size,
             SortOrder.ASC,
-            numericType.format
+            format
         );
         TopDocs approxDocsAsc = searcher.search(approxQueryAsc, size, ascSort);
         TopDocs exactDocsAsc = searcher.search(exactQuery, size, ascSort);
@@ -1018,12 +1155,12 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         // Test DESC sort
         ApproximatePointRangeQuery approxQueryDesc = new ApproximatePointRangeQuery(
             field,
-            numericType.encode(lower),
-            numericType.encode(upper),
+            lowerBytes,
+            upperBytes,
             dims,
             size,
             SortOrder.DESC,
-            numericType.format
+            format
         );
         TopDocs approxDocsDesc = searcher.search(approxQueryDesc, size, descSort);
         TopDocs exactDocsDesc = searcher.search(exactQuery, size, descSort);
@@ -1043,5 +1180,164 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             exactDocsAsc.scoreDocs.length,
             approxDocsAsc.scoreDocs.length
         );
+    }
+
+    public void testApproximateWithSort() {
+        long lower = RandomNumbers.randomLongBetween(random(), 0, 100);
+        long upper = RandomNumbers.randomLongBetween(random(), lower + 10, lower + 1000);
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+            numericType.fieldName,
+            numericType.encode(lower),
+            numericType.encode(upper),
+            1,
+            numericType.format
+        );
+        // Test 1: Multiple sorts should prevent approximation
+        {
+            SearchContext mockContext = mock(SearchContext.class);
+            ShardSearchRequest mockRequest = mock(ShardSearchRequest.class);
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.sort(new FieldSortBuilder(numericType.fieldName).order(SortOrder.ASC));
+            source.sort(new FieldSortBuilder("another_field").order(SortOrder.ASC));
+            source.terminateAfter(SearchContext.DEFAULT_TERMINATE_AFTER);
+            when(mockContext.aggregations()).thenReturn(null);
+            when(mockContext.trackTotalHitsUpTo()).thenReturn(10000);
+            when(mockContext.from()).thenReturn(0);
+            when(mockContext.size()).thenReturn(10);
+            when(mockContext.request()).thenReturn(mockRequest);
+            when(mockRequest.source()).thenReturn(source);
+            assertFalse("Should not approximate with multiple sorts", query.canApproximate(mockContext));
+        }
+        // Test 2: Single sort on the same field should allow approximation
+        {
+            SearchContext mockContext = mock(SearchContext.class);
+            ShardSearchRequest mockRequest = mock(ShardSearchRequest.class);
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.sort(new FieldSortBuilder(numericType.fieldName).order(SortOrder.ASC));
+            source.terminateAfter(SearchContext.DEFAULT_TERMINATE_AFTER);
+            when(mockContext.aggregations()).thenReturn(null);
+            when(mockContext.trackTotalHitsUpTo()).thenReturn(10000);
+            when(mockContext.from()).thenReturn(0);
+            when(mockContext.size()).thenReturn(10);
+            when(mockContext.request()).thenReturn(mockRequest);
+            when(mockRequest.source()).thenReturn(source);
+            assertTrue("Should approximate with single sort on same field", query.canApproximate(mockContext));
+        }
+    }
+
+    public void testApproximateRangeWithSearchAfterAsc() throws IOException {
+        testApproximateRangeWithSearchAfter(SortOrder.ASC);
+    }
+
+    public void testApproximateRangeWithSearchAfterDesc() throws IOException {
+        testApproximateRangeWithSearchAfter(SortOrder.DESC);
+    }
+
+    private void testApproximateRangeWithSearchAfter(SortOrder sortOrder) throws IOException {
+        if (numericType == NumericType.HALF_FLOAT) {
+            // Skip - HALF_FLOAT uses different fields for storage vs sorting which causes issues with search_after boundary checking during
+            // tests
+            return;
+        }
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                int numPoints = RandomNumbers.randomIntBetween(random(), 2000, 5000);
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    numericType.addField(doc, numericType.fieldName, i);
+                    numericType.addDocValuesField(doc, numericType.fieldName, i);
+                    iw.addDocument(doc);
+                    if (random().nextInt(20) == 0) {
+                        iw.flush();
+                    }
+                }
+                iw.flush();
+                if (random().nextBoolean()) {
+                    iw.forceMerge(1);
+                }
+                try (IndexReader reader = iw.getReader()) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    long lower = RandomNumbers.randomLongBetween(random(), 0, numPoints / 4);
+                    long upper = RandomNumbers.randomLongBetween(random(), 3 * numPoints / 4, numPoints - 1);
+                    int size = RandomNumbers.randomIntBetween(random(), 10, 50);
+                    long searchAfterValue = RandomNumbers.randomLongBetween(random(), lower, upper - size);
+                    // First, get a document at searchAfterValue to use as the searchAfter point
+                    Query exactValueQuery = numericType.rangeQuery(numericType.fieldName, searchAfterValue, searchAfterValue);
+                    boolean reverseSort = sortOrder == SortOrder.DESC;
+                    Sort sort = new Sort(new SortField(numericType.getSortFieldName(), numericType.getSortFieldType(), reverseSort));
+                    TopDocs searchAfterDocs = searcher.search(exactValueQuery, 1, sort);
+                    FieldDoc searchAfterDoc = (FieldDoc) searchAfterDocs.scoreDocs[0];
+                    // Create mock context for approximate query
+                    SearchContext mockContext = mock(SearchContext.class);
+                    ShardSearchRequest mockRequest = mock(ShardSearchRequest.class);
+                    SearchSourceBuilder source = new SearchSourceBuilder();
+                    source.sort(new FieldSortBuilder(numericType.fieldName).order(sortOrder));
+                    source.searchAfter(searchAfterDoc.fields);
+                    when(mockContext.aggregations()).thenReturn(null);
+                    when(mockContext.trackTotalHitsUpTo()).thenReturn(10000);
+                    when(mockContext.from()).thenReturn(0);
+                    when(mockContext.size()).thenReturn(size);
+                    when(mockContext.request()).thenReturn(mockRequest);
+                    when(mockRequest.source()).thenReturn(source);
+                    NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+                        numericType.fieldName,
+                        numericType.getNumberType()
+                    );
+                    QueryShardContext queryShardContext = mock(QueryShardContext.class);
+                    when(queryShardContext.fieldMapper(numericType.fieldName)).thenReturn(fieldType);
+                    when(mockContext.getQueryShardContext()).thenReturn(queryShardContext);
+                    // Test approximate query with searchAfter
+                    ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(
+                        numericType.fieldName,
+                        numericType.encode(lower),
+                        numericType.encode(upper),
+                        dims,
+                        size,
+                        sortOrder,
+                        numericType.format
+                    );
+                    assertTrue("Should be able to approximate", approxQuery.canApproximate(mockContext));
+                    TopDocs approxDocs = searcher.search(approxQuery, size, sort);
+                    // Compare with exact query using Lucene's searchAfter
+                    Query exactQuery = numericType.rangeQuery(numericType.fieldName, lower, upper);
+                    TopDocs exactDocs = searcher.searchAfter(searchAfterDoc, exactQuery, size, sort);
+                    // Verify results match
+                    assertEquals(
+                        "Approximate and exact queries should return same number of docs",
+                        exactDocs.scoreDocs.length,
+                        approxDocs.scoreDocs.length
+                    );
+                    for (int i = 0; i < Math.min(approxDocs.scoreDocs.length, exactDocs.scoreDocs.length); i++) {
+                        FieldDoc approxFieldDoc = (FieldDoc) approxDocs.scoreDocs[i];
+                        FieldDoc exactFieldDoc = (FieldDoc) exactDocs.scoreDocs[i];
+                        assertEquals("Doc at position " + i + " should match", exactFieldDoc.doc, approxFieldDoc.doc);
+                        assertEquals(
+                            "Sort value at position " + i + " should match",
+                            (exactFieldDoc.fields[0]),
+                            (approxFieldDoc.fields[0])
+                        );
+                    }
+                    // Verify all returned docs are correctly ordered relative to searchAfterValue
+                    for (ScoreDoc scoreDoc : approxDocs.scoreDocs) {
+                        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                        Number value = (Number) fieldDoc.fields[0];
+                        long searchAfterLong = ((Number) searchAfterDoc.fields[0]).longValue();
+
+                        if (sortOrder == SortOrder.ASC) {
+                            assertTrue(
+                                "Doc value " + value + " should be > searchAfterValue " + searchAfterLong,
+                                value.longValue() > searchAfterLong
+                            );
+                        } else {
+                            assertTrue(
+                                "Doc value " + value + " should be < searchAfterValue " + searchAfterLong,
+                                value.longValue() < searchAfterLong
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }

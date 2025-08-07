@@ -107,7 +107,9 @@ import reactor.util.annotation.NonNull;
 import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_PIPELINE;
 import static org.opensearch.cluster.service.ClusterManagerTask.PUT_PIPELINE;
 import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_MAPPINGS;
+import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_SETTINGS;
 import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_TEMPLATE_MAPPINGS;
+import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_TEMPLATE_SETTINGS;
 
 /**
  * Holder class for several ingest related services.
@@ -272,7 +274,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 // precedence), or if a V2 template does not match, any V1 templates
                 String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
                 if (v2Template != null) {
-                    systemIngestPipelineId = getSystemIngestPipelineForTemplateV2(v2Template, indexRequest);
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
+                    systemIngestPipelineId = getSystemIngestPipelineForTemplateV2(v2Template, indexRequest, settings);
                 } else {
                     List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(
                         metadata,
@@ -344,7 +347,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
 
                     if (this.isSystemIngestPipelineEnabled) {
-                        systemIngestPipelineId = getSystemIngestPipelineForTemplateV2(v2Template, indexRequest);
+                        systemIngestPipelineId = getSystemIngestPipelineForTemplateV2(v2Template, indexRequest, settings);
                     }
                 } else {
                     List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(
@@ -433,9 +436,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final String indexId = createIndexIdWithTemplateSuffix(indexRequest.index());
         Pipeline ingestPipeline = systemIngestPipelineCache.getSystemIngestPipeline(indexId);
         if (ingestPipeline == null) {
+            final List<Settings> settingsList = new ArrayList<>();
             final List<Map<String, Object>> mappingsMap = new ArrayList<>();
             final Map<String, Object> pipelineConfig = new HashMap<>();
             for (final IndexTemplateMetadata template : templates) {
+                if (template.settings() != null) {
+                    settingsList.add(template.settings());
+                }
                 if (template.mappings() != null) {
                     try {
                         mappingsMap.add(MapperService.parseMapping(xContentRegistry, template.mappings().string()));
@@ -453,6 +460,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             pipelineConfig.put(INDEX_TEMPLATE_MAPPINGS, mappingsMap);
+            pipelineConfig.put(INDEX_TEMPLATE_SETTINGS, settingsList);
             ingestPipeline = createSystemIngestPipeline(indexId, pipelineConfig);
         }
 
@@ -461,7 +469,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return ingestPipeline.getProcessors().isEmpty() ? null : indexId;
     }
 
-    private String getSystemIngestPipelineForTemplateV2(@NonNull final String templateName, @NonNull final IndexRequest indexRequest) {
+    private String getSystemIngestPipelineForTemplateV2(
+        @NonNull final String templateName,
+        @NonNull final IndexRequest indexRequest,
+        final Settings settings
+    ) {
         // Here we cache it with index name + template as the suffix since currently we don't have the uuid.
         // We need to cache it so that later during execution we can find it by indexId to reuse it.
         final String indexId = createIndexIdWithTemplateSuffix(indexRequest.index());
@@ -491,6 +503,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             pipelineConfig.put(INDEX_TEMPLATE_MAPPINGS, mappingsMap);
+            pipelineConfig.put(INDEX_TEMPLATE_SETTINGS, settings == null ? Collections.emptyList() : List.of(settings));
             ingestPipeline = createSystemIngestPipeline(indexId, pipelineConfig);
         }
 
@@ -515,9 +528,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (ingestPipeline == null) {
             // no cache we will try to resolve the ingest pipeline based on the index configuration
             final MappingMetadata mappingMetadata = indexMetadata.mapping();
+            final Settings settings = indexMetadata.getSettings();
             final Map<String, Object> pipelineConfig = new HashMap<>();
             if (mappingMetadata != null) {
                 pipelineConfig.put(INDEX_MAPPINGS, mappingMetadata.getSourceAsMap());
+            }
+            if (settings != null) {
+                pipelineConfig.put(INDEX_SETTINGS, settings);
             }
             ingestPipeline = createSystemIngestPipeline(indexId, pipelineConfig);
         }
@@ -1249,9 +1266,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final PipelineHolder holder = pipelines.get(pipelineId);
         if (IngestPipelineType.SYSTEM_FINAL.equals(pipelineType)) {
             Pipeline indexPipeline = systemIngestPipelineCache.getSystemIngestPipeline(pipelineId);
-            // In very edge case it is possible the cache is invalidated after we resolve the
-            // pipeline. So try to resolve the system ingest pipeline again here.
+            // In some edge cases it is possible the cache is invalidated after we resolve the
+            // pipeline or the request is forwarded from a non-ingest node. In that case we should try to resolve the
+            // system ingest pipeline on this node one more time.
             if (indexPipeline == null) {
+                // reset isPipelineResolved as false so that we can resolve it again
+                indexRequest.isPipelineResolved(false);
                 resolveSystemIngestPipeline(actionRequest, indexRequest, state.metadata());
                 final String newPipelineId = indexRequest.getSystemIngestPipeline();
                 // set it as NOOP to avoid duplicated execution after we switch back to the write thread

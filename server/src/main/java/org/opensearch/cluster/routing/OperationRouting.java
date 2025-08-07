@@ -446,10 +446,8 @@ public class OperationRouting {
                 isFailOpenEnabled,
                 routingHash
             );
-        } else if (ignoreAwarenessAttributes()) {
-            return indexShard.activeInitializingShardsIt(routingHash);
         } else {
-            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);
+            return indexShard.activeInitializingShardsIt(routingHash);
         }
     }
 
