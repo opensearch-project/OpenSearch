@@ -56,6 +56,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
@@ -536,6 +537,10 @@ public abstract class SearchContext implements Releasable {
 
     public int cardinalityAggregationPruningThreshold() {
         return 0;
+    }
+
+    public int bucketSelectionStrategyFactor() {
+        return SearchService.DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR;
     }
 
     public boolean keywordIndexOrDocValuesEnabled() {
