@@ -61,9 +61,13 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
      * Supported temporal granularities
      */
     public enum Granularity {
+        /** Hour granularity for hourly bucketing */
         HOUR(ChronoUnit.HOURS),
+        /** Day granularity for daily bucketing */
         DAY(ChronoUnit.DAYS),
+        /** Week granularity for weekly bucketing (ISO week) */
         WEEK(ChronoUnit.WEEKS),
+        /** Month granularity for monthly bucketing */
         MONTH(ChronoUnit.MONTHS);
 
         private final ChronoUnit chronoUnit;
@@ -72,10 +76,20 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
             this.chronoUnit = chronoUnit;
         }
 
+        /**
+         * Gets the ChronoUnit associated with this granularity
+         * @return the ChronoUnit
+         */
         public ChronoUnit getChronoUnit() {
             return chronoUnit;
         }
 
+        /**
+         * Parses a string value to a Granularity enum
+         * @param value the string representation of the granularity
+         * @return the corresponding Granularity enum value
+         * @throws IllegalArgumentException if the value is not valid
+         */
         public static Granularity fromString(String value) {
             try {
                 return valueOf(value.toUpperCase(Locale.ROOT));
