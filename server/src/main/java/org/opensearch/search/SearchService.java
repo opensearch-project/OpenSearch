@@ -50,6 +50,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.UpdatePitContextRequest;
 import org.opensearch.action.search.UpdatePitContextResponse;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
@@ -708,6 +709,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<SearchPhaseResult> listener,
         String executorName
     ) {
+        executeQueryPhase(request, keepStatesInContext, task, listener, executorName, false);
+    }
+
+    public void executeQueryPhase(
+        ShardSearchRequest request,
+        boolean keepStatesInContext,
+        SearchShardTask task,
+        ActionListener<SearchPhaseResult> listener,
+        String executorName,
+        boolean isStreamSearch
+    ) {
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
@@ -731,7 +743,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 }
                 // fork the execution in the search thread pool
-                runAsync(getExecutor(executorName, shard), () -> executeQueryPhase(orig, task, keepStatesInContext), listener);
+                runAsync(
+                    getExecutor(executorName, shard),
+                    () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener),
+                    listener
+                );
             }
 
             @Override
@@ -753,13 +769,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         executor.execute(ActionRunnable.supply(listener, executable::get));
     }
 
-    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task, boolean keepStatesInContext)
-        throws Exception {
+    private SearchPhaseResult executeQueryPhase(
+        ShardSearchRequest request,
+        SearchShardTask task,
+        boolean keepStatesInContext,
+        boolean isStreamSearch,
+        ActionListener<SearchPhaseResult> listener
+    ) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true)
+            SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
         ) {
+            if (isStreamSearch) {
+                assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
+                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
+            }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 loadOrExecuteQueryPhase(request, context);
@@ -1174,7 +1199,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         boolean includeAggregations
     ) throws IOException {
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, false);
+        return createContext(readerContext, request, task, includeAggregations, false);
+    }
+
+    private SearchContext createContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTask task,
+        boolean includeAggregations,
+        boolean isStreamSearch
+    ) throws IOException {
+        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, false, isStreamSearch);
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -1222,6 +1257,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private DefaultSearchContext createSearchContext(ReaderContext reader, ShardSearchRequest request, TimeValue timeout, boolean validate)
         throws IOException {
+        return createSearchContext(reader, request, timeout, validate, false);
+    }
+
+    private DefaultSearchContext createSearchContext(
+        ReaderContext reader,
+        ShardSearchRequest request,
+        TimeValue timeout,
+        boolean validate,
+        boolean isStreamSearch
+    ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
         try {
@@ -1245,7 +1290,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 validate,
                 indexSearcherExecutor,
                 this::aggReduceContextBuilder,
-                concurrentSearchDeciderFactories
+                concurrentSearchDeciderFactories,
+                isStreamSearch
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
