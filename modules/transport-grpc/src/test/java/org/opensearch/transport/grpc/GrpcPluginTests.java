@@ -41,6 +41,7 @@ import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GR
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONNECTION_AGE;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONNECTION_IDLE;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_MSG_SIZE;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PORT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT;
@@ -115,12 +116,13 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             "SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS should be included",
             settings.contains(SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS)
         );
+        assertTrue("SETTING_GRPC_MAX_MSG_SIZE should be included", settings.contains(SETTING_GRPC_MAX_MSG_SIZE));
         assertTrue("SETTING_GRPC_MAX_CONNECTION_AGE should be included", settings.contains(SETTING_GRPC_MAX_CONNECTION_AGE));
         assertTrue("SETTING_GRPC_MAX_CONNECTION_IDLE should be included", settings.contains(SETTING_GRPC_MAX_CONNECTION_IDLE));
         assertTrue("SETTING_GRPC_KEEPALIVE_TIMEOUT should be included", settings.contains(SETTING_GRPC_KEEPALIVE_TIMEOUT));
 
         // Verify the number of settings
-        assertEquals("Should return 11 settings", 11, settings.size());
+        assertEquals("Should return 12 settings", 12, settings.size());
     }
 
     public void testGetQueryUtilsBeforeCreateComponents() {
