@@ -272,7 +272,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                     order,
                     partiallyBuiltBucketComparator
                 );
-                resultSelectionStrategy = strategy.getStrategyName();
 
                 BucketSelectionStrategy.SelectionInput<B> selectionInput = new BucketSelectionStrategy.SelectionInput<>(
                     size,
@@ -298,6 +297,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 BucketSelectionStrategy.SelectionResult<B> result = strategy.selectTopBuckets(selectionInput);
                 topBucketsPerOrd[ordIdx] = result.topBuckets;
                 otherDocCounts[ordIdx] = result.otherDocCount;
+                resultSelectionStrategy = result.actualStrategyUsed;
             }
 
             buildSubAggs(topBucketsPerOrd);

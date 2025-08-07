@@ -182,7 +182,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                // Test case 1: HeapSort when buckets > size && buckets <= 5*size (size=2, buckets=100)
+                // Case 1: PriorityQueue selection, when buckets > size && buckets <= 5*size (size=2, buckets=100)
                 TermsAggregationBuilder aggregationBuilder1 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(2);
                 aggregationBuilder1.userValueTypeHint(ValueType.NUMERIC);
                 aggregationBuilder1.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
@@ -191,7 +191,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 aggregator1.buildAggregations(new long[] { 0 });
                 assertEquals("priority_queue", aggregator1.getResultSelectionStrategy());
 
-                // Test case 2: QuickSelect when buckets > size && buckets > 5*size (size=20, buckets=100)
+                // Case 2: QuickSelect selection, when buckets > size && buckets > 5*size (size=20, buckets=100)
                 TermsAggregationBuilder aggregationBuilder2 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(20);
                 aggregationBuilder2.userValueTypeHint(ValueType.NUMERIC);
                 aggregationBuilder2.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
@@ -200,14 +200,14 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 aggregator2.buildAggregations(new long[] { 0 });
                 assertEquals("quick_select", aggregator2.getResultSelectionStrategy());
 
-                // Test case 3: Get All buckets when buckets <= size (size=110, buckets=100)
+                // Case 3: Get All buckets when buckets <= size (size=110, buckets=100)
                 TermsAggregationBuilder aggregationBuilder3 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(110);
                 aggregationBuilder3.userValueTypeHint(ValueType.NUMERIC);
                 aggregationBuilder3.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
                 NumericTermsAggregator aggregator3 = createAggregator(aggregationBuilder3, indexSearcher, longFieldType);
                 collectDocuments(indexSearcher, aggregator3);
                 aggregator3.buildAggregations(new long[] { 0 });
-                assertEquals("quick_select", aggregator3.getResultSelectionStrategy());
+                assertEquals("select_all", aggregator3.getResultSelectionStrategy());
             }
         }
     }

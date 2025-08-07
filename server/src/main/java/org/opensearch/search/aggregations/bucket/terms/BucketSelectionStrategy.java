@@ -28,7 +28,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
  *
  */
 enum BucketSelectionStrategy {
-    PRIORITY_QUEUE("priority_queue") {
+    PRIORITY_QUEUE {
         @Override
         public <B extends InternalMultiBucketAggregation.InternalBucket> SelectionResult<B> selectTopBuckets(SelectionInput<B> input)
             throws IOException {
@@ -63,11 +63,11 @@ enum BucketSelectionStrategy {
                 }
             }
 
-            return new SelectionResult<>(topBuckets, otherDocCount);
+            return new SelectionResult<>(topBuckets, otherDocCount, "priority_queue");
         }
     },
 
-    QUICK_SELECT("quick_select") {
+    QUICK_SELECT_OR_SELECT_ALL {
         @Override
         public <B extends InternalMultiBucketAggregation.InternalBucket> SelectionResult<B> selectTopBuckets(SelectionInput<B> input)
             throws IOException {
@@ -89,6 +89,7 @@ enum BucketSelectionStrategy {
             }
 
             B[] topBuckets;
+            String actualStrategy;
             if (validBucketCount > input.size) {
                 ArrayUtil.select(
                     bucketsForOrd,
@@ -101,24 +102,17 @@ enum BucketSelectionStrategy {
                 for (int b = 0; b < input.size; b++) {
                     otherDocCount -= topBuckets[b].getDocCount();
                 }
+                actualStrategy = "quick_select";
             } else {
+                // Return all buckets (no selection needed)
                 topBuckets = Arrays.copyOf(bucketsForOrd, validBucketCount);
                 otherDocCount = 0L;
+                actualStrategy = "select_all";
             }
 
-            return new SelectionResult<>(topBuckets, otherDocCount);
+            return new SelectionResult<>(topBuckets, otherDocCount, actualStrategy);
         }
     };
-
-    private final String strategyName;
-
-    BucketSelectionStrategy(String strategyName) {
-        this.strategyName = strategyName;
-    }
-
-    public String getStrategyName() {
-        return strategyName;
-    }
 
     public static BucketSelectionStrategy determine(
         int size,
@@ -139,7 +133,7 @@ enum BucketSelectionStrategy {
         if ((size * 5L < bucketsInOrd) || isKeyOrder(order) || partiallyBuiltBucketComparator == null) {
             return PRIORITY_QUEUE;
         } else {
-            return QUICK_SELECT;
+            return QUICK_SELECT_OR_SELECT_ALL;
         }
     }
 
@@ -198,10 +192,12 @@ enum BucketSelectionStrategy {
     public static class SelectionResult<B extends InternalMultiBucketAggregation.InternalBucket> {
         public final B[] topBuckets;
         public final long otherDocCount;
+        public final String actualStrategyUsed;
 
-        public SelectionResult(B[] topBuckets, long otherDocCount) {
+        public SelectionResult(B[] topBuckets, long otherDocCount, String actualStrategyUsed) {
             this.topBuckets = topBuckets;
             this.otherDocCount = otherDocCount;
+            this.actualStrategyUsed = actualStrategyUsed;
         }
     }
 
