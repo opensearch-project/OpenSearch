@@ -49,7 +49,7 @@ httpcore          = "4.4.16"
 httpasyncclient   = "4.1.5"
 commonslogging    = "1.2"
 commonscodec      = "1.16.1"
-commonslang       = "3.14.0"
+commonslang       = "3.18.0"
 commonscompress   = "1.26.1"
 commonsio         = "2.16.0"
 # plugin dependencies
