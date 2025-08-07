@@ -477,8 +477,10 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     public void testScaledFloatEncodePoint() {
         double scalingFactor = 100.0;
-        ScaledFloatFieldMapper.ScaledFloatFieldType fieldType =
-            new ScaledFloatFieldMapper.ScaledFloatFieldType("test_field", scalingFactor);
+        ScaledFloatFieldMapper.ScaledFloatFieldType fieldType = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+            "test_field",
+            scalingFactor
+        );
         double originalValue = 10.5;
         byte[] encodedRoundUp = fieldType.encodePoint(originalValue, true);
         byte[] encodedRoundDown = fieldType.encodePoint(originalValue, false);
