@@ -620,6 +620,23 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public byte[] encodePoint(Object value, boolean roundUp) {
+            // Always parse with roundUp=false to get consistent date math
+            // In this method the parseToLong is only used for date math rounding operations
+            long timestamp = parseToLong(value, false, null, null, null);
+            if (roundUp) {
+                if (timestamp < Long.MAX_VALUE) {
+                    timestamp = timestamp + 1;
+                }
+            } else {
+                if (timestamp > Long.MIN_VALUE) {
+                    timestamp = timestamp - 1;
+                }
+            }
+            return encodePoint(timestamp);
+        }
+
+        @Override
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
