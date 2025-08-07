@@ -64,20 +64,27 @@ class FlatFetchProfileTree {
 
     /** Start profiling a new fetch phase and return its breakdown. */
     FetchProfileBreakdown startFetchPhase(String element) {
-        Node node = rootsMap.get(element);
+        // Make phase name unique for concurrent slices by including thread info
+        String uniqueElement = element + "_" + Thread.currentThread().getId();
+        
+        Node node = rootsMap.get(uniqueElement);
         if (node == null) {
-            node = new Node(element);
+            node = new Node(element); // Keep original element name for display
             roots.add(node);
-            rootsMap.put(element, node);
+            rootsMap.put(uniqueElement, node);
         }
         node.references++;
-        phaseMap.put(element, node);
+        phaseMap.put(uniqueElement, node);
         return node.breakdown;
     }
 
     /** Start profiling a fetch sub-phase under the specified parent phase. */
     FetchProfileBreakdown startSubPhase(String element, String parentElement) {
-        Node parent = phaseMap.get(parentElement);
+        // Make phase names unique for concurrent slices
+        String uniqueParentElement = parentElement + "_" + Thread.currentThread().getId();
+        String uniqueElement = element + "_" + Thread.currentThread().getId();
+        
+        Node parent = phaseMap.get(uniqueParentElement);
         if (parent == null) {
             throw new IllegalStateException("Parent phase '" + parentElement + "' does not exist for sub-phase '" + element + "'");
         }
@@ -99,13 +106,16 @@ class FlatFetchProfileTree {
      * Finish profiling of the specified fetch phase.
      */
     void endFetchPhase(String element) {
-        Node node = phaseMap.get(element);
+        // Make phase name unique for concurrent slices
+        String uniqueElement = element + "_" + Thread.currentThread().getId();
+        
+        Node node = phaseMap.get(uniqueElement);
         if (node == null) {
             throw new IllegalStateException("Fetch phase '" + element + "' does not exist");
         }
         node.references--;
         if (node.references == 0) {
-            phaseMap.remove(element);
+            phaseMap.remove(uniqueElement);
         }
     }
 
