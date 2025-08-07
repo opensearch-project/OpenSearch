@@ -108,7 +108,8 @@ public class RemoteFsTranslog extends Translog {
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
         RemoteStoreSettings remoteStoreSettings,
-        TranslogOperationHelper translogOperationHelper
+        TranslogOperationHelper translogOperationHelper,
+        ChannelFactory channelFactory
     ) throws IOException {
         super(
             config,
@@ -118,7 +119,7 @@ public class RemoteFsTranslog extends Translog {
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
             translogOperationHelper,
-            null
+            channelFactory
         );
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;

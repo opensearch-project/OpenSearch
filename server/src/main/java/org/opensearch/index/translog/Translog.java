@@ -183,7 +183,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer,
-        final TranslogOperationHelper translogOperationHelper
+        final TranslogOperationHelper translogOperationHelper,
+        final ChannelFactory channelFactory
     ) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
@@ -221,7 +222,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
             TranslogOperationHelper.DEFAULT,
-            null
+            FileChannel::open
         );
         assert config.getIndexSettings().isDerivedSourceEnabled() == false; // For derived source supported index, it is incorrect to use
                                                                             // this constructor

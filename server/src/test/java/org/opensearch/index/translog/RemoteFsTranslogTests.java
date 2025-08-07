@@ -201,7 +201,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10),
             DefaultRemoteStoreSettings.INSTANCE,
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -476,7 +477,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
                 TranslogOperationHelper.DEFAULT,
-                channelFactory
+                null
             )
         ) {
             addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
