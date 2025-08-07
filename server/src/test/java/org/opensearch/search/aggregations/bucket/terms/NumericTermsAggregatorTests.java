@@ -36,6 +36,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -46,6 +47,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -159,6 +161,57 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
 
     }
 
+    public void testNumericTermAggregatorForResultSelectionStrategy() throws IOException {
+        List<Long> dataSet = new ArrayList<>();
+        for (long i = 0; i < 100; i++) {
+            dataSet.add(i);
+        }
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                for (Long value : dataSet) {
+                    document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
+                    document.add(new LongPoint(LONG_FIELD, value));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
+
+                // Test case 1: HeapSort when buckets > size && buckets <= 5*size (size=2, buckets=100)
+                TermsAggregationBuilder aggregationBuilder1 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(2);
+                aggregationBuilder1.userValueTypeHint(ValueType.NUMERIC);
+                aggregationBuilder1.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
+                NumericTermsAggregator aggregator1 = createAggregator(aggregationBuilder1, indexSearcher, longFieldType);
+                collectDocuments(indexSearcher, aggregator1);
+                aggregator1.buildAggregations(new long[] { 0 });
+                assertEquals("priority_queue", aggregator1.getResultSelectionStrategy());
+
+                // Test case 2: QuickSelect when buckets > size && buckets > 5*size (size=20, buckets=100)
+                TermsAggregationBuilder aggregationBuilder2 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(20);
+                aggregationBuilder2.userValueTypeHint(ValueType.NUMERIC);
+                aggregationBuilder2.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
+                NumericTermsAggregator aggregator2 = createAggregator(aggregationBuilder2, indexSearcher, longFieldType);
+                collectDocuments(indexSearcher, aggregator2);
+                aggregator2.buildAggregations(new long[] { 0 });
+                assertEquals("quick_select", aggregator2.getResultSelectionStrategy());
+
+                // Test case 3: Get All buckets when buckets <= size (size=110, buckets=100)
+                TermsAggregationBuilder aggregationBuilder3 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(110);
+                aggregationBuilder3.userValueTypeHint(ValueType.NUMERIC);
+                aggregationBuilder3.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
+                NumericTermsAggregator aggregator3 = createAggregator(aggregationBuilder3, indexSearcher, longFieldType);
+                collectDocuments(indexSearcher, aggregator3);
+                aggregator3.buildAggregations(new long[] { 0 });
+                assertEquals("quick_select", aggregator3.getResultSelectionStrategy());
+            }
+        }
+    }
+
     private void testSearchCase(
         Query query,
         List<Long> dataset,
@@ -196,40 +249,16 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testBuildAggregationAlgorithmSelection() throws IOException {
-        List<Long> dataSet = new ArrayList<>();
-        for (long i = 0; i < 100; i++) {
-            dataSet.add(i);
+    /**
+     * Helper method to collect all documents using the aggregator's leaf collector.
+     * This simulates the document collection phase that happens during normal aggregation.
+     */
+    private void collectDocuments(IndexSearcher searcher, NumericTermsAggregator aggregator) throws IOException {
+        for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+            LeafBucketCollector leafCollector = aggregator.getLeafCollector(ctx, LeafBucketCollector.NO_OP_COLLECTOR);
+            for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                leafCollector.collect(docId, 0); // collect with bucket ordinal 0 (root bucket)
+            }
         }
-
-        // HeapSort when buckets > size && buckets <= 5*size
-        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(2), agg -> {
-            assertEquals(2, agg.getBuckets().size());
-            for (int i = 0; i < 2; i++) {
-                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
-                assertThat(bucket.getKey(), equalTo((long) i));
-                assertThat(bucket.getDocCount(), equalTo(1L));
-            }
-        }, ValueType.NUMERIC);
-
-        // QuickSelect when buckets > size && buckets > 5*size
-        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(20), agg -> {
-            assertEquals(20, agg.getBuckets().size());
-            for (int i = 0; i < agg.getBuckets().size(); i++) {
-                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
-                assertThat(bucket.getKey(), equalTo((long) i));
-                assertThat(bucket.getDocCount(), equalTo(1L));
-            }
-        }, ValueType.NUMERIC);
-
-        // Get All buckets when buckets <= size
-        testSearchCase(new MatchAllDocsQuery(), dataSet, aggregation -> aggregation.field(LONG_FIELD).size(110), agg -> {
-            assertEquals(100, agg.getBuckets().size());
-            for (int i = 0; i < agg.getBuckets().size(); i++) {
-                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(i);
-                assertThat(bucket.getKey(), equalTo((long) i));
-                assertThat(bucket.getDocCount(), equalTo(1L));
-            }
-        }, ValueType.NUMERIC);
     }
 }

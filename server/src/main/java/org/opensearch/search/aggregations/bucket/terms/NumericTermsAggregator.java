@@ -244,6 +244,10 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         add.accept("result_selection_strategy", resultSelectionStrategy);
     }
 
+    public String getResultSelectionStrategy() {
+        return resultSelectionStrategy;
+    }
+
     /**
      * Strategy for building results.
      */
