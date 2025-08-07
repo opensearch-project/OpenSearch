@@ -702,7 +702,13 @@ final class StoreRecovery {
             try {
                 store.failIfCorrupted();
                 try {
-                    si = readSegmentInfosFromStore(store, indexShard);
+                    // As a part of refresh segment upload decoupling now segmentN file is not uploaded to remote so we are now creating it
+                    // using remote segment metadata.
+                    if (indexShard.isRefreshSegmentUploadDecouplingEnabled() && indexShard.indexSettings.isWarmIndex() == true) {
+                        si = readSegmentInfosFromRemoteStore(store, indexShard);
+                    } else {
+                        si = store.readLastCommittedSegmentsInfo();
+                    }
                 } catch (Exception e) {
                     String files = "_unknown_";
                     try {
@@ -1006,7 +1012,7 @@ final class StoreRecovery {
 
     private void bootstrapForSnapshot(final IndexShard indexShard, final Store store) throws IOException {
         store.bootstrapNewHistory();
-        final SegmentInfos segmentInfos = readSegmentInfosFromStore(store);
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         String translogUUID = segmentInfos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
         Translog.createEmptyTranslog(
@@ -1021,7 +1027,7 @@ final class StoreRecovery {
 
     private void bootstrap(final IndexShard indexShard, final Store store) throws IOException {
         store.bootstrapNewHistory();
-        final SegmentInfos segmentInfos = readSegmentInfosFromStore(store);
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
 
         final String translogUUID = Translog.createEmptyTranslog(

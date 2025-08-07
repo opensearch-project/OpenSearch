@@ -2403,7 +2403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
                     Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
                     // verifying that all files except excluded files are uploaded to the remote
-                    localFiles.removeIf(file -> RemoteStoreRefreshListener.isFileExcluded(file, true));
+                    localFiles.removeIf(file -> RemoteStoreRefreshListener.isFileExcluded(file, isRefreshSegmentUploadDecouplingEnabled()));
                     if (uploadFiles.containsAll(localFiles)) {
                         return true;
                     }
