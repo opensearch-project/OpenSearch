@@ -51,6 +51,9 @@ dependencies {
     testImplementation "junit:junit:${versions.junit}"
     testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
     testImplementation "org.mockito:mockito-core:${versions.mockito}"
+
+    // Add CSV codec for testing
+    testImplementation project(':libs:opensearch-dataformat-csv') // TODO : adding implementation results in cycle dependency
 }
 
 // Task to build the Rust JNI library

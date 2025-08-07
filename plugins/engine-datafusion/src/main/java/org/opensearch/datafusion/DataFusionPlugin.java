@@ -44,6 +44,7 @@ import java.util.function.Supplier;
 
 /**
  * Main plugin class for OpenSearch DataFusion integration.
+ *
  */
 public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEnginePlugin {
 
