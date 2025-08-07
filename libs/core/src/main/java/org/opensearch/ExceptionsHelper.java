@@ -81,7 +81,7 @@ public final class ExceptionsHelper {
      * These constants ensure that both REST API and gRPC API return identical error messages
      * for the same types of exceptions.
      */
-    public static class ErrorMessages {
+    public static final class ErrorMessages {
         /** Error message for invalid argument exceptions */
         public static final String INVALID_ARGUMENT = "Invalid argument";
 
