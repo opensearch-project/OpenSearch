@@ -118,19 +118,22 @@ enum BucketSelectionStrategy {
         int size,
         long bucketsInOrd,
         BucketOrder order,
-        Comparator<InternalTerms.Bucket<?>> partiallyBuiltBucketComparator
+        Comparator<InternalTerms.Bucket<?>> partiallyBuiltBucketComparator,
+        int factor
     ) {
         /*
-        We select the strategy based on the following condition
+        We select the strategy based on the following condition with configurable threshold factor:
             case 1: size is less than 20% of bucketsInOrd: PRIORITY_QUEUE
             case 2: size is greater than 20% of bucketsInOrd: QUICK_SELECT
             case 3: size == bucketsInOrd : return all buckets
-        case 2 and 3 are encapsulated in QUICK_SELECT method.
+        case 2 and 3 are encapsulated in QUICK_SELECT_OR_SELECT_ALL method.
 
         Along with the above conditions, we also go with the original PRIORITY_QUEUE based approach
-        if isKeyOrder or its significant term aggregation
+        if isKeyOrder or its significant term aggregation.
+
+        if factor is 0, always use PRIORITY_QUEUE strategy (since 0 < bucketsInOrd is always true).
         */
-        if ((size * 5L < bucketsInOrd) || isKeyOrder(order) || partiallyBuiltBucketComparator == null) {
+        if (((long) size * factor < bucketsInOrd) || isKeyOrder(order) || partiallyBuiltBucketComparator == null) {
             return PRIORITY_QUEUE;
         } else {
             return QUICK_SELECT_OR_SELECT_ALL;

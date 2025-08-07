@@ -368,6 +368,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final int DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR = 5;
+    public static final Setting<Integer> BUCKET_SELECTION_STRATEGY_FACTOR_SETTING = Setting.intSetting(
+        "search.aggregation.bucket_selection_strategy_factor",
+        DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR,
+        0,
+        10,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 

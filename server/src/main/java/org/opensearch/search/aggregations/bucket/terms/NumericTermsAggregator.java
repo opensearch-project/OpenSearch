@@ -270,7 +270,8 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                     size,
                     bucketsInOrd,
                     order,
-                    partiallyBuiltBucketComparator
+                    partiallyBuiltBucketComparator,
+                    context.bucketSelectionStrategyFactor()
                 );
 
                 BucketSelectionStrategy.SelectionInput<B> selectionInput = new BucketSelectionStrategy.SelectionInput<>(

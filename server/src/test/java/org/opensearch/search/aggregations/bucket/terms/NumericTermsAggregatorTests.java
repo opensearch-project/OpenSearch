@@ -43,11 +43,15 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -55,7 +59,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.when;
 
 public class NumericTermsAggregatorTests extends AggregatorTestCase {
     private static final String LONG_FIELD = "long";
@@ -186,7 +192,18 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 TermsAggregationBuilder aggregationBuilder1 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(2);
                 aggregationBuilder1.userValueTypeHint(ValueType.NUMERIC);
                 aggregationBuilder1.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
-                NumericTermsAggregator aggregator1 = createAggregator(aggregationBuilder1, indexSearcher, longFieldType);
+                NumericTermsAggregator aggregator1 = createAggregatorWithCustomizableSearchContext(
+                    new MatchAllDocsQuery(),
+                    aggregationBuilder1,
+                    indexSearcher,
+                    createIndexSettings(),
+                    new MultiBucketConsumerService.MultiBucketConsumer(
+                        DEFAULT_MAX_BUCKETS,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    ),
+                    searchContext -> when(searchContext.bucketSelectionStrategyFactor()).thenReturn(5),
+                    longFieldType
+                );
                 collectDocuments(indexSearcher, aggregator1);
                 aggregator1.buildAggregations(new long[] { 0 });
                 assertEquals("priority_queue", aggregator1.getResultSelectionStrategy());
@@ -195,7 +212,18 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 TermsAggregationBuilder aggregationBuilder2 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(20);
                 aggregationBuilder2.userValueTypeHint(ValueType.NUMERIC);
                 aggregationBuilder2.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
-                NumericTermsAggregator aggregator2 = createAggregator(aggregationBuilder2, indexSearcher, longFieldType);
+                NumericTermsAggregator aggregator2 = createAggregatorWithCustomizableSearchContext(
+                    new MatchAllDocsQuery(),
+                    aggregationBuilder2,
+                    indexSearcher,
+                    createIndexSettings(),
+                    new MultiBucketConsumerService.MultiBucketConsumer(
+                        DEFAULT_MAX_BUCKETS,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    ),
+                    searchContext -> when(searchContext.bucketSelectionStrategyFactor()).thenReturn(5),
+                    longFieldType
+                );
                 collectDocuments(indexSearcher, aggregator2);
                 aggregator2.buildAggregations(new long[] { 0 });
                 assertEquals("quick_select", aggregator2.getResultSelectionStrategy());
@@ -204,12 +232,38 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 TermsAggregationBuilder aggregationBuilder3 = new TermsAggregationBuilder("_name").field(LONG_FIELD).size(110);
                 aggregationBuilder3.userValueTypeHint(ValueType.NUMERIC);
                 aggregationBuilder3.order(org.opensearch.search.aggregations.BucketOrder.count(false)); // count desc
-                NumericTermsAggregator aggregator3 = createAggregator(aggregationBuilder3, indexSearcher, longFieldType);
+                NumericTermsAggregator aggregator3 = createAggregatorWithCustomizableSearchContext(
+                    new MatchAllDocsQuery(),
+                    aggregationBuilder3,
+                    indexSearcher,
+                    createIndexSettings(),
+                    new MultiBucketConsumerService.MultiBucketConsumer(
+                        DEFAULT_MAX_BUCKETS,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    ),
+                    searchContext -> when(searchContext.bucketSelectionStrategyFactor()).thenReturn(5),
+                    longFieldType
+                );
                 collectDocuments(indexSearcher, aggregator3);
                 aggregator3.buildAggregations(new long[] { 0 });
                 assertEquals("select_all", aggregator3.getResultSelectionStrategy());
             }
         }
+    }
+
+    public void testBucketSelectionStrategyFactorSetting() {
+        java.util.Comparator<InternalTerms.Bucket<?>> mockComparator = (b1, b2) -> Long.compare(b2.getDocCount(), b1.getDocCount());
+
+        // Test with factor = 0 (should always use priority_queue)
+        BucketSelectionStrategy strategy0 = BucketSelectionStrategy.determine(20, 100L, BucketOrder.count(false), mockComparator, 0);
+        assertEquals(BucketSelectionStrategy.PRIORITY_QUEUE, strategy0);
+
+        // default behavior
+        BucketSelectionStrategy strategy1 = BucketSelectionStrategy.determine(20, 100L, BucketOrder.count(false), mockComparator, 5);
+        assertEquals(BucketSelectionStrategy.QUICK_SELECT_OR_SELECT_ALL, strategy1);
+
+        BucketSelectionStrategy strategy2 = BucketSelectionStrategy.determine(2, 100L, BucketOrder.count(false), mockComparator, 1);
+        assertEquals(BucketSelectionStrategy.PRIORITY_QUEUE, strategy2);
     }
 
     private void testSearchCase(
