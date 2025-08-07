@@ -23,7 +23,6 @@ import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -81,8 +80,7 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
             try {
                 return valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid granularity: " + value + 
-                    ". Supported values are: hour, day, week, month");
+                throw new IllegalArgumentException("Invalid granularity: " + value + ". Supported values are: hour, day, week, month");
             }
         }
     }
@@ -190,7 +188,7 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
                 if (from != null && to != null) {
                     ZonedDateTime fromDate = parseTimestamp(from.toString());
                     ZonedDateTime toDate = parseTimestamp(to.toString());
-                    
+
                     // Generate all temporal buckets in the range
                     generateTemporalBucketsInRange(fromDate, toDate);
                 } else if (from != null) {
@@ -216,15 +214,15 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
         private void generateTemporalBucketsInRange(ZonedDateTime from, ZonedDateTime to) {
             ZonedDateTime current = truncateToGranularity(from);
             ZonedDateTime end = truncateToGranularity(to);
-            
+
             // Add buckets up to a reasonable limit to avoid too many routing values
             int maxBuckets = 100; // Configurable limit
             int bucketCount = 0;
-            
+
             while (!current.isAfter(end) && bucketCount < maxBuckets) {
                 String bucket = createTemporalBucket(current);
                 temporalBuckets.add(bucket);
-                
+
                 current = incrementByGranularity(current);
                 bucketCount++;
             }
@@ -282,25 +280,29 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
      */
     private String createTemporalBucket(ZonedDateTime dateTime) {
         ZonedDateTime truncated = truncateToGranularity(dateTime);
-        
+
         switch (granularity) {
             case HOUR:
-                return truncated.getYear() + "-" + 
-                       String.format(Locale.ROOT, "%02d", truncated.getMonthValue()) + "-" +
-                       String.format(Locale.ROOT, "%02d", truncated.getDayOfMonth()) + "T" +
-                       String.format(Locale.ROOT, "%02d", truncated.getHour());
+                return truncated.getYear()
+                    + "-"
+                    + String.format(Locale.ROOT, "%02d", truncated.getMonthValue())
+                    + "-"
+                    + String.format(Locale.ROOT, "%02d", truncated.getDayOfMonth())
+                    + "T"
+                    + String.format(Locale.ROOT, "%02d", truncated.getHour());
             case DAY:
-                return truncated.getYear() + "-" + 
-                       String.format(Locale.ROOT, "%02d", truncated.getMonthValue()) + "-" +
-                       String.format(Locale.ROOT, "%02d", truncated.getDayOfMonth());
+                return truncated.getYear()
+                    + "-"
+                    + String.format(Locale.ROOT, "%02d", truncated.getMonthValue())
+                    + "-"
+                    + String.format(Locale.ROOT, "%02d", truncated.getDayOfMonth());
             case WEEK:
                 // Use ISO week format: YYYY-WNN
                 int weekOfYear = truncated.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear());
                 int weekYear = truncated.get(java.time.temporal.WeekFields.ISO.weekBasedYear());
                 return weekYear + "-W" + String.format(Locale.ROOT, "%02d", weekOfYear);
             case MONTH:
-                return truncated.getYear() + "-" + 
-                       String.format(Locale.ROOT, "%02d", truncated.getMonthValue());
+                return truncated.getYear() + "-" + String.format(Locale.ROOT, "%02d", truncated.getMonthValue());
             default:
                 throw new IllegalArgumentException("Unsupported granularity: " + granularity);
         }

@@ -19,7 +19,6 @@ import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -56,7 +55,7 @@ public final class TemporalRoutingProcessor extends AbstractProcessor {
      */
     public enum Granularity {
         HOUR(ChronoUnit.HOURS),
-        DAY(ChronoUnit.DAYS), 
+        DAY(ChronoUnit.DAYS),
         WEEK(ChronoUnit.WEEKS),
         MONTH(ChronoUnit.MONTHS);
 
@@ -74,8 +73,7 @@ public final class TemporalRoutingProcessor extends AbstractProcessor {
             try {
                 return valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid granularity: " + value + 
-                    ". Supported values are: hour, day, week, month");
+                throw new IllegalArgumentException("Invalid granularity: " + value + ". Supported values are: hour, day, week, month");
             }
         }
     }
@@ -137,20 +135,20 @@ public final class TemporalRoutingProcessor extends AbstractProcessor {
         // Parse timestamp using DateFormatter and convert to ZonedDateTime
         TemporalAccessor accessor = dateFormatter.parse(timestamp);
         ZonedDateTime dateTime = DateFormatters.from(accessor, Locale.ROOT, ZoneOffset.UTC);
-        
+
         // Truncate to granularity
         ZonedDateTime truncated = truncateToGranularity(dateTime);
-        
+
         // Create temporal bucket key
         String temporalBucket = createTemporalBucketKey(truncated);
-        
+
         // Optionally hash for distribution
         if (hashBucket) {
             byte[] bucketBytes = temporalBucket.getBytes(StandardCharsets.UTF_8);
             long hash = MurmurHash3.hash128(bucketBytes, 0, bucketBytes.length, 0, new MurmurHash3.Hash128()).h1;
             return String.valueOf(hash == Long.MIN_VALUE ? 0L : (hash < 0 ? -hash : hash));
         }
-        
+
         return temporalBucket;
     }
 
@@ -180,22 +178,26 @@ public final class TemporalRoutingProcessor extends AbstractProcessor {
     private String createTemporalBucketKey(ZonedDateTime truncated) {
         switch (granularity) {
             case HOUR:
-                return truncated.getYear() + "-" + 
-                       String.format(Locale.ROOT, "%02d", truncated.getMonthValue()) + "-" +
-                       String.format(Locale.ROOT, "%02d", truncated.getDayOfMonth()) + "T" +
-                       String.format(Locale.ROOT, "%02d", truncated.getHour());
+                return truncated.getYear()
+                    + "-"
+                    + String.format(Locale.ROOT, "%02d", truncated.getMonthValue())
+                    + "-"
+                    + String.format(Locale.ROOT, "%02d", truncated.getDayOfMonth())
+                    + "T"
+                    + String.format(Locale.ROOT, "%02d", truncated.getHour());
             case DAY:
-                return truncated.getYear() + "-" + 
-                       String.format(Locale.ROOT, "%02d", truncated.getMonthValue()) + "-" +
-                       String.format(Locale.ROOT, "%02d", truncated.getDayOfMonth());
+                return truncated.getYear()
+                    + "-"
+                    + String.format(Locale.ROOT, "%02d", truncated.getMonthValue())
+                    + "-"
+                    + String.format(Locale.ROOT, "%02d", truncated.getDayOfMonth());
             case WEEK:
                 // Use ISO week format: YYYY-WNN
                 int weekOfYear = truncated.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear());
                 int weekYear = truncated.get(java.time.temporal.WeekFields.ISO.weekBasedYear());
                 return weekYear + "-W" + String.format(Locale.ROOT, "%02d", weekOfYear);
             case MONTH:
-                return truncated.getYear() + "-" + 
-                       String.format(Locale.ROOT, "%02d", truncated.getMonthValue());
+                return truncated.getYear() + "-" + String.format(Locale.ROOT, "%02d", truncated.getMonthValue());
             default:
                 throw new IllegalArgumentException("Unsupported granularity: " + granularity);
         }

@@ -31,9 +31,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testRangeQueryRouting() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("@timestamp", "day", "strict_date_optional_time", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("@timestamp")
-            .from("2023-12-15T00:00:00Z")
-            .to("2023-12-15T23:59:59Z");
+        QueryBuilder query = new RangeQueryBuilder("@timestamp").from("2023-12-15T00:00:00Z").to("2023-12-15T23:59:59Z");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
 
@@ -46,9 +44,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testMultiDayRangeQueryRouting() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "strict_date_optional_time", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15T00:00:00Z")
-            .to("2023-12-17T23:59:59Z");
+        QueryBuilder query = new RangeQueryBuilder("timestamp").from("2023-12-15T00:00:00Z").to("2023-12-17T23:59:59Z");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
 
@@ -65,9 +61,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testHourlyGranularityRouting() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "hour", "strict_date_optional_time", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15T14:30:00Z")
-            .to("2023-12-15T16:45:00Z");
+        QueryBuilder query = new RangeQueryBuilder("timestamp").from("2023-12-15T14:30:00Z").to("2023-12-15T16:45:00Z");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
 
@@ -83,8 +77,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testWeeklyGranularityRouting() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "week", "strict_date_optional_time", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15T00:00:00Z")  // Week 50
+        QueryBuilder query = new RangeQueryBuilder("timestamp").from("2023-12-15T00:00:00Z")  // Week 50
             .to("2023-12-22T23:59:59Z");   // Week 51
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
@@ -100,9 +93,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testMonthlyGranularityRouting() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "month", "strict_date_optional_time", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("timestamp")
-            .from("2023-11-15T00:00:00Z")
-            .to("2024-01-15T23:59:59Z");
+        QueryBuilder query = new RangeQueryBuilder("timestamp").from("2023-11-15T00:00:00Z").to("2024-01-15T23:59:59Z");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
 
@@ -118,9 +109,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testHashBucketRouting() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "strict_date_optional_time", true, true);
 
-        QueryBuilder query = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15T00:00:00Z")
-            .to("2023-12-15T23:59:59Z");
+        QueryBuilder query = new RangeQueryBuilder("timestamp").from("2023-12-15T00:00:00Z").to("2023-12-15T23:59:59Z");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
 
@@ -135,9 +124,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testBoolQueryWithRangeFilter() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "strict_date_optional_time", true, false);
 
-        QueryBuilder rangeFilter = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15T00:00:00Z")
-            .to("2023-12-15T23:59:59Z");
+        QueryBuilder rangeFilter = new RangeQueryBuilder("timestamp").from("2023-12-15T00:00:00Z").to("2023-12-15T23:59:59Z");
         QueryBuilder textQuery = new TermQueryBuilder("content", "log message");
         QueryBuilder boolQuery = new BoolQueryBuilder().must(textQuery).filter(rangeFilter);
 
@@ -154,8 +141,9 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "strict_date_optional_time", true, false);
 
         // Query with range only in should clause
-        QueryBuilder query = new BoolQueryBuilder()
-            .should(new RangeQueryBuilder("timestamp").from("2023-12-15T00:00:00Z").to("2023-12-15T23:59:59Z"));
+        QueryBuilder query = new BoolQueryBuilder().should(
+            new RangeQueryBuilder("timestamp").from("2023-12-15T00:00:00Z").to("2023-12-15T23:59:59Z")
+        );
 
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
@@ -169,9 +157,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testNonTimestampFieldIgnored() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "strict_date_optional_time", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("other_field")
-            .from("2023-12-15T00:00:00Z")
-            .to("2023-12-15T23:59:59Z");
+        QueryBuilder query = new RangeQueryBuilder("other_field").from("2023-12-15T00:00:00Z").to("2023-12-15T23:59:59Z");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
 
@@ -184,9 +170,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testExistingRoutingPreserved() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "strict_date_optional_time", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15T00:00:00Z")
-            .to("2023-12-15T23:59:59Z");
+        QueryBuilder query = new RangeQueryBuilder("timestamp").from("2023-12-15T00:00:00Z").to("2023-12-15T23:59:59Z");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source).routing("existing_routing");
 
@@ -209,9 +193,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testInvalidDateFormatIgnored() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "strict_date_optional_time", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("timestamp")
-            .from("invalid-date")
-            .to("another-invalid-date");
+        QueryBuilder query = new RangeQueryBuilder("timestamp").from("invalid-date").to("another-invalid-date");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
 
@@ -223,9 +205,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
     public void testCustomDateFormat() throws Exception {
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "yyyy-MM-dd HH:mm:ss", true, false);
 
-        QueryBuilder query = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15 00:00:00")
-            .to("2023-12-15 23:59:59");
+        QueryBuilder query = new RangeQueryBuilder("timestamp").from("2023-12-15 00:00:00").to("2023-12-15 23:59:59");
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest().source(source);
 
@@ -259,13 +239,9 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
         TemporalRoutingSearchProcessor processor = createProcessor("timestamp", "day", "strict_date_optional_time", true, true);
 
         // Different ranges within same day should produce same routing
-        QueryBuilder query1 = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15T08:00:00Z")
-            .to("2023-12-15T12:00:00Z");
-        
-        QueryBuilder query2 = new RangeQueryBuilder("timestamp")
-            .from("2023-12-15T14:00:00Z")
-            .to("2023-12-15T18:00:00Z");
+        QueryBuilder query1 = new RangeQueryBuilder("timestamp").from("2023-12-15T08:00:00Z").to("2023-12-15T12:00:00Z");
+
+        QueryBuilder query2 = new RangeQueryBuilder("timestamp").from("2023-12-15T14:00:00Z").to("2023-12-15T18:00:00Z");
 
         SearchSourceBuilder source1 = new SearchSourceBuilder().query(query1);
         SearchSourceBuilder source2 = new SearchSourceBuilder().query(query2);
@@ -289,14 +265,7 @@ public class TemporalRoutingSearchProcessorTests extends AbstractBuilderTestCase
         config.put("enable_auto_detection", true);
         config.put("hash_bucket", false);
 
-        TemporalRoutingSearchProcessor processor = factory.create(
-            Collections.emptyMap(),
-            "test",
-            "test processor",
-            false,
-            config,
-            null
-        );
+        TemporalRoutingSearchProcessor processor = factory.create(Collections.emptyMap(), "test", "test processor", false, config, null);
 
         assertThat(processor.getType(), equalTo(TemporalRoutingSearchProcessor.TYPE));
     }
