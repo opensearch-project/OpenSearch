@@ -216,7 +216,7 @@ final class DefaultSearchContext extends SearchContext {
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
-    private final int bucketSelectionStrategyMultiplier;
+    private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
 
     private final boolean isStreamSearch;
@@ -282,7 +282,7 @@ final class DefaultSearchContext extends SearchContext {
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.filterRewriteSegmentThreshold = evaluateAggRewriteFilterSegThreshold();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
-        this.bucketSelectionStrategyMultiplier = evaluateBucketSelectionStrategyMultiplier();
+        this.bucketSelectionStrategyFactor = evaluateBucketSelectionStrategyFactor();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
@@ -1235,7 +1235,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public int bucketSelectionStrategyFactor() {
-        return bucketSelectionStrategyMultiplier;
+        return bucketSelectionStrategyFactor;
     }
 
     @Override
@@ -1250,7 +1250,7 @@ final class DefaultSearchContext extends SearchContext {
         return 0;
     }
 
-    private int evaluateBucketSelectionStrategyMultiplier() {
+    private int evaluateBucketSelectionStrategyFactor() {
         if (clusterService != null) {
             return clusterService.getClusterSettings().get(BUCKET_SELECTION_STRATEGY_FACTOR_SETTING);
         }
