@@ -19,8 +19,6 @@ import static org.opensearch.cluster.routing.allocation.ConstraintTypes.predicat
 /**
  * Defines a constraint useful to de-prioritize certain nodes as target of unassigned shards used in {@link AllocationConstraints} or
  * re-balancing target used in {@link RebalanceConstraints}
- *
- * @opensearch.internal
  */
 public class Constraint implements Predicate<Constraint.ConstraintParams> {
 
