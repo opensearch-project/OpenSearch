@@ -796,6 +796,20 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_DERIVED_SOURCE_SETTING = Setting.boolSetting(
+        "index.derived_source.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING = Setting.boolSetting(
+        "index.derived_source.translog.enabled",
+        INDEX_DERIVED_SOURCE_SETTING,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -809,6 +823,7 @@ public final class IndexSettings {
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
+    private volatile String remoteStoreSegmentPathPrefix;
     private int remoteTranslogKeepExtraGen;
     private boolean autoForcemergeEnabled;
 
@@ -846,6 +861,8 @@ public final class IndexSettings {
     private final RemoteStorePathStrategy remoteStorePathStrategy;
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
+    private final boolean derivedSourceEnabled;
+    private volatile boolean derivedSourceEnabledForTranslog;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1025,6 +1042,9 @@ public final class IndexSettings {
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
         this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
+        String rawPrefix = IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(settings);
+        // Only set the prefix if it's explicitly set and not empty
+        this.remoteStoreSegmentPathPrefix = (rawPrefix != null && !rawPrefix.trim().isEmpty()) ? rawPrefix : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.shouldCleanupUnreferencedFiles = INDEX_UNREFERENCED_FILE_CLEANUP.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -1080,6 +1100,9 @@ public final class IndexSettings {
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
+        derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
+        derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -1424,6 +1447,13 @@ public final class IndexSettings {
 
     public String getRemoteStoreTranslogRepository() {
         return remoteStoreTranslogRepository;
+    }
+
+    /**
+     * Returns the custom path prefix for remote store segments, if set.
+     */
+    public String getRemoteStoreSegmentPathPrefix() {
+        return remoteStoreSegmentPathPrefix;
     }
 
     /**
@@ -2113,5 +2143,26 @@ public final class IndexSettings {
 
     public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
         this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
+    }
+
+    private void setDerivedSourceEnabledForTranslog(boolean isDerivedSourceEnabledForTranslog) {
+        if (isDerivedSourceEnabledForTranslog && !isDerivedSourceEnabled()) {
+            throw new IllegalArgumentException(
+                "The "
+                    + IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey()
+                    + " can't be set when "
+                    + IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey()
+                    + " setting is disabled"
+            );
+        }
+        this.derivedSourceEnabledForTranslog = isDerivedSourceEnabledForTranslog;
+    }
+
+    public boolean isDerivedSourceEnabledForTranslog() {
+        return this.derivedSourceEnabledForTranslog;
+    }
+
+    public boolean isDerivedSourceEnabled() {
+        return derivedSourceEnabled;
     }
 }
