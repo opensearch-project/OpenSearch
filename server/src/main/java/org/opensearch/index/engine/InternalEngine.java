@@ -563,6 +563,20 @@ public class InternalEngine extends Engine {
         return historyUUID;
     }
 
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        return super.segmentsStats(includeSegmentFileSizes, false, includeUnloadedSegments);
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(
+        boolean includeSegmentFileSizes,
+        boolean includeFieldLevelSegmentFileSizes,
+        boolean includeUnloadedSegments
+    ) {
+        return super.segmentsStats(includeSegmentFileSizes, includeFieldLevelSegmentFileSizes, includeUnloadedSegments);
+    }
+
     /** returns the force merge uuid for the engine */
     @Nullable
     public String getForceMergeUUID() {
