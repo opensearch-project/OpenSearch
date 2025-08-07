@@ -221,9 +221,13 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         public byte[] encodePoint(Object value, boolean roundUp) {
             long scaledValue = Math.round(scale(value));
             if (roundUp) {
-                scaledValue = scaledValue + 1;
+                if (scaledValue < Long.MAX_VALUE) {
+                    scaledValue = scaledValue + 1;
+                }
             } else {
-                scaledValue = scaledValue - 1;
+                if (scaledValue > Long.MIN_VALUE) {
+                    scaledValue = scaledValue - 1;
+                }
             }
             byte[] point = new byte[Long.BYTES];
             LongPoint.encodeDimension(scaledValue, point, 0);
