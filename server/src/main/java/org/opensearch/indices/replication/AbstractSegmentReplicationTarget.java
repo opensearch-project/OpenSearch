@@ -163,7 +163,7 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
             ReplicationCheckpoint getMetadataCheckpoint = checkpointInfo.getCheckpoint();
-            if (checkpoint.isAheadOf(getMetadataCheckpoint)) {
+            if (indexShard.indexSettings().isSegRepLocalEnabled() && checkpoint.isAheadOf(getMetadataCheckpoint)) {
                 // Fixes https://github.com/opensearch-project/OpenSearch/issues/18490
                 listener.onFailure(
                     new ReplicationFailedException(
