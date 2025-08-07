@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -472,5 +473,20 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         );
         assertThat(e.getMessage(), containsString("Failed to parse mapping [_doc]: Field [scaling_factor] is required"));
         assertWarnings("Parameter [index_options] has no effect on type [scaled_float] and will be removed in future");
+    }
+
+    public void testScaledFloatEncodePoint() {
+        double scalingFactor = 100.0;
+        ScaledFloatFieldMapper.ScaledFloatFieldType fieldType = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+            "test_field",
+            scalingFactor
+        );
+        double originalValue = 10.5;
+        byte[] encodedRoundUp = fieldType.encodePoint(originalValue, true);
+        byte[] encodedRoundDown = fieldType.encodePoint(originalValue, false);
+        long decodedUp = LongPoint.decodeDimension(encodedRoundUp, 0);
+        long decodedDown = LongPoint.decodeDimension(encodedRoundDown, 0);
+        assertEquals(1051, decodedUp); // 10.5 scaled = 1050, then +1 = 1051 (represents 10.51)
+        assertEquals(1049, decodedDown); // 10.5 scaled = 1050, then -1 = 1049 (represents 10.49)
     }
 }
