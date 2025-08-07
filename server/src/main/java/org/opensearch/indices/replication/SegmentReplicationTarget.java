@@ -177,6 +177,20 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
+            ReplicationCheckpoint getMetadataCheckpoint = checkpointInfo.getCheckpoint();
+            if (indexShard.indexSettings().isSegRepLocalEnabled() && checkpoint.isAheadOf(getMetadataCheckpoint)) {
+                // Fixes https://github.com/opensearch-project/OpenSearch/issues/18490
+                listener.onFailure(
+                    new ReplicationFailedException(
+                        "Rejecting stale metadata checkpoint ["
+                            + getMetadataCheckpoint
+                            + "] since initial checkpoint ["
+                            + checkpoint
+                            + "] is ahead of it"
+                    )
+                );
+                return;
+            }
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
