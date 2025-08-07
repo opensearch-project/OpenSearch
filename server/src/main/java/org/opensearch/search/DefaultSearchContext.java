@@ -121,6 +121,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.search.SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD;
+import static org.opensearch.search.SearchService.BUCKET_SELECTION_STRATEGY_FACTOR_SETTING;
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -215,6 +216,7 @@ final class DefaultSearchContext extends SearchContext {
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
+    private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
 
     private final boolean isStreamSearch;
@@ -280,6 +282,7 @@ final class DefaultSearchContext extends SearchContext {
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.filterRewriteSegmentThreshold = evaluateAggRewriteFilterSegThreshold();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
+        this.bucketSelectionStrategyFactor = evaluateBucketSelectionStrategyFactor();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
@@ -1231,6 +1234,11 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public int bucketSelectionStrategyFactor() {
+        return bucketSelectionStrategyFactor;
+    }
+
+    @Override
     public boolean keywordIndexOrDocValuesEnabled() {
         return keywordIndexOrDocValuesEnabled;
     }
@@ -1240,6 +1248,13 @@ final class DefaultSearchContext extends SearchContext {
             return clusterService.getClusterSettings().get(CARDINALITY_AGGREGATION_PRUNING_THRESHOLD);
         }
         return 0;
+    }
+
+    private int evaluateBucketSelectionStrategyFactor() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(BUCKET_SELECTION_STRATEGY_FACTOR_SETTING);
+        }
+        return SearchService.DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR;
     }
 
     public boolean evaluateKeywordIndexOrDocValuesEnabled() {
