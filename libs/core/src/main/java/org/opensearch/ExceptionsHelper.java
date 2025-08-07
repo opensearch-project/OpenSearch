@@ -131,7 +131,7 @@ public final class ExceptionsHelper {
             case IllegalArgumentException ignored -> RestStatus.BAD_REQUEST;
             case InputCoercionException ignored -> RestStatus.BAD_REQUEST;
             case JsonParseException ignored -> RestStatus.BAD_REQUEST;
-            case NotXContentException ignored-> RestStatus.BAD_REQUEST;
+            case NotXContentException ignored -> RestStatus.BAD_REQUEST;
             case OpenSearchRejectedExecutionException ignored -> RestStatus.TOO_MANY_REQUESTS;
             case null, default -> RestStatus.INTERNAL_SERVER_ERROR;
         };
