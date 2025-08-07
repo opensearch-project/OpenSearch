@@ -68,6 +68,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove `experimental` designation from transport-grpc settings ([#18915](https://github.com/opensearch-project/OpenSearch/pull/18915))
 - Rename package org.opensearch.plugin,transport.grpc to org.opensearch.transport.grpc ([#18923](https://github.com/opensearch-project/OpenSearch/pull/18923))
 
+### Fixed
+- Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
+
 ### Dependencies
 - Bump `stefanzweifel/git-auto-commit-action` from 5 to 6 ([#18524](https://github.com/opensearch-project/OpenSearch/pull/18524))
 - Bump Apache Lucene to 10.2.2 ([#18573](https://github.com/opensearch-project/OpenSearch/pull/18573))
