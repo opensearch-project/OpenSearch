@@ -69,7 +69,6 @@ public class DataFusionJNI {
                 System.load(tempLib.toAbsolutePath().toString());
                 libStream.close();
             } else {
-                // Fallback to system library path
                 System.loadLibrary("opensearch_datafusion_jni");
             }
 
@@ -78,6 +77,18 @@ public class DataFusionJNI {
             throw new RuntimeException("Failed to load DataFusion JNI library", e);
         }
     }
+
+    /**
+     * Create a new global runtime environment
+     * @return runtime env pointer for subsequent operations
+     */
+    public static native long createGlobalRuntime();
+
+    /**
+     * Closes global runtime environment
+     * @return runtime env pointer for subsequent operations
+     */
+    public static native long closeGlobalRuntime(long pointer);
 
     /**
      * Get version information
