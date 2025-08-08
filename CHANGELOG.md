@@ -126,6 +126,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix gRPC transport SETTING_GRPC_MAX_MSG_SIZE setting not exposed to users ([#18910](https://github.com/opensearch-project/OpenSearch/pull/18910))
 - Reset isPipelineResolved to false to resolve the system ingest pipeline again. ([#18911](https://github.com/opensearch-project/OpenSearch/pull/18911))
 - Bug fix for `scaled_float` in `encodePoint` method ([#18952](https://github.com/opensearch-project/OpenSearch/pull/18952))
+- Refactor TransportUpdateAction to use TransportShardBulkAction directly for improved performance and elimination of unnecessary network hops ([#15264](https://github.com/opensearch-project/OpenSearch/issues/15264))
 
 ### Security
 
