@@ -18,11 +18,12 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
-import org.opensearch.protobufs.CreateOperation;
 import org.opensearch.protobufs.DeleteOperation;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.protobufs.OpType;
+import org.opensearch.protobufs.OperationContainer;
 import org.opensearch.protobufs.UpdateOperation;
+import org.opensearch.protobufs.WriteOperation;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -32,25 +33,17 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM
 public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
     public void testBuildCreateRequest() {
-        // Create a CreateOperation
-        CreateOperation createOperation = CreateOperation.newBuilder()
-            .setIndex("test-index")
-            .setId("test-id")
+        WriteOperation writeOperation = WriteOperation.newBuilder()
+            .setUnderscoreIndex("test-index")
+            .setUnderscoreId("test-id")
             .setRouting("test-routing")
-            .setVersion(2)
-            .setVersionTypeValue(1) // VERSION_TYPE_EXTERNAL = 1
-            .setPipeline("test-pipeline")
-            .setIfSeqNo(3)
-            .setIfPrimaryTerm(4)
             .setRequireAlias(true)
             .build();
 
-        // Create document content
         byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
 
-        // Call buildCreateRequest
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildCreateRequest(
-            createOperation,
+            writeOperation,
             document,
             "default-index",
             "default-id",
@@ -63,38 +56,34 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             false
         );
 
-        // Verify the result
         assertNotNull("IndexRequest should not be null", indexRequest);
         assertEquals("Index should match", "test-index", indexRequest.index());
         assertEquals("Id should match", "test-id", indexRequest.id());
         assertEquals("Routing should match", "test-routing", indexRequest.routing());
-        assertEquals("Version should match", 2L, indexRequest.version());
-        assertEquals("VersionType should match", VersionType.EXTERNAL, indexRequest.versionType());
-        assertEquals("Pipeline should match", "test-pipeline", indexRequest.getPipeline());
-        assertEquals("IfSeqNo should match", 3L, indexRequest.ifSeqNo());
-        assertEquals("IfPrimaryTerm should match", 4L, indexRequest.ifPrimaryTerm());
+        assertEquals("Version should match", 1L, indexRequest.version());
+        assertEquals("VersionType should match", VersionType.INTERNAL, indexRequest.versionType());
+        assertEquals("Pipeline should match", "default-pipeline", indexRequest.getPipeline());
+        assertEquals("IfSeqNo should match", 1L, indexRequest.ifSeqNo());
+        assertEquals("IfPrimaryTerm should match", 2L, indexRequest.ifPrimaryTerm());
         assertTrue("RequireAlias should match", indexRequest.isRequireAlias());
         assertEquals("Create flag should be true", DocWriteRequest.OpType.CREATE, indexRequest.opType());
     }
 
     public void testBuildIndexRequest() {
-        // Create an IndexOperation
         IndexOperation indexOperation = IndexOperation.newBuilder()
-            .setIndex("test-index")
-            .setId("test-id")
+            .setUnderscoreIndex("test-index")
+            .setUnderscoreId("test-id")
             .setRouting("test-routing")
             .setVersion(2)
-            .setVersionTypeValue(2) // VERSION_TYPE_EXTERNAL_GTE = 2
+            .setVersionType(org.opensearch.protobufs.VersionType.newBuilder().setVersionTypeExternalGte(true).build())
             .setPipeline("test-pipeline")
             .setIfSeqNo(3)
             .setIfPrimaryTerm(4)
             .setRequireAlias(true)
             .build();
 
-        // Create document content
         byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
 
-        // Call buildIndexRequest
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             document,
@@ -110,7 +99,6 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             false
         );
 
-        // Verify the result
         assertNotNull("IndexRequest should not be null", indexRequest);
         assertEquals("Index should match", "test-index", indexRequest.index());
         assertEquals("Id should match", "test-id", indexRequest.id());
@@ -125,21 +113,16 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildIndexRequestWithOpType() {
-        // Create an IndexOperation with OpType
-        IndexOperation indexOperation = IndexOperation.newBuilder()
-            .setIndex("test-index")
-            .setId("test-id")
-            .setOpType(OpType.OP_TYPE_CREATE)
-            .build();
+        IndexOperation indexOperation = IndexOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
 
-        // Create document content
         byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
 
-        // Call buildIndexRequest
+        OpType opType = OpType.newBuilder().setOpTypeCreate(true).build();
+
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             document,
-            OpType.OP_TYPE_CREATE,
+            opType,
             "default-index",
             "default-id",
             "default-routing",
@@ -151,7 +134,6 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             false
         );
 
-        // Verify the result
         assertNotNull("IndexRequest should not be null", indexRequest);
         assertEquals("Index should match", "test-index", indexRequest.index());
         assertEquals("Id should match", "test-id", indexRequest.id());
@@ -159,18 +141,16 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildDeleteRequest() {
-        // Create a DeleteOperation
         DeleteOperation deleteOperation = DeleteOperation.newBuilder()
-            .setIndex("test-index")
-            .setId("test-id")
+            .setUnderscoreIndex("test-index")
+            .setUnderscoreId("test-id")
             .setRouting("test-routing")
             .setVersion(2)
-            .setVersionTypeValue(1) // VERSION_TYPE_EXTERNAL = 1
+            .setVersionType(org.opensearch.protobufs.VersionType.newBuilder().setVersionTypeExternal(true).build())
             .setIfSeqNo(3)
             .setIfPrimaryTerm(4)
             .build();
 
-        // Call buildDeleteRequest
         DeleteRequest deleteRequest = BulkRequestParserProtoUtils.buildDeleteRequest(
             deleteOperation,
             "default-index",
@@ -182,7 +162,6 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             2L
         );
 
-        // Verify the result
         assertNotNull("DeleteRequest should not be null", deleteRequest);
         assertEquals("Index should match", "test-index", deleteRequest.index());
         assertEquals("Id should match", "test-id", deleteRequest.id());
@@ -194,10 +173,9 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildUpdateRequest() {
-        // Create an UpdateOperation
         UpdateOperation updateOperation = UpdateOperation.newBuilder()
-            .setIndex("test-index")
-            .setId("test-id")
+            .setUnderscoreIndex("test-index")
+            .setUnderscoreId("test-id")
             .setRouting("test-routing")
             .setRetryOnConflict(3)
             .setIfSeqNo(4)
@@ -205,18 +183,14 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             .setRequireAlias(true)
             .build();
 
-        // Create document content
         byte[] document = "{\"doc\":{\"field\":\"value\"}}".getBytes(StandardCharsets.UTF_8);
 
-        // Create BulkRequestBody
         BulkRequestBody bulkRequestBody = BulkRequestBody.newBuilder()
-            .setUpdate(updateOperation)
-            .setDoc(ByteString.copyFrom(document))
-            .setDocAsUpsert(true)
-            .setDetectNoop(true)
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOperation).build())
+            .setObject(ByteString.copyFrom(document))
+            .setUpdateAction(org.opensearch.protobufs.UpdateAction.newBuilder().setDocAsUpsert(true).setDetectNoop(true).build())
             .build();
 
-        // Call buildUpdateRequest
         UpdateRequest updateRequest = BulkRequestParserProtoUtils.buildUpdateRequest(
             updateOperation,
             document,
@@ -232,7 +206,6 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             false
         );
 
-        // Verify the result
         assertNotNull("UpdateRequest should not be null", updateRequest);
         assertEquals("Index should match", "test-index", updateRequest.index());
         assertEquals("Id should match", "test-id", updateRequest.id());
@@ -246,28 +219,29 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testGetDocWriteRequests() {
-        // Create a BulkRequest with multiple operations
-        IndexOperation indexOp = IndexOperation.newBuilder().setIndex("test-index").setId("test-id-1").build();
-        CreateOperation createOp = CreateOperation.newBuilder().setIndex("test-index").setId("test-id-2").build();
-        UpdateOperation updateOp = UpdateOperation.newBuilder().setIndex("test-index").setId("test-id-3").build();
-        DeleteOperation deleteOp = DeleteOperation.newBuilder().setIndex("test-index").setId("test-id-4").build();
+        IndexOperation indexOp = IndexOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id-1").build();
+        WriteOperation writeOp = WriteOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id-2").build();
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id-3").build();
+        DeleteOperation deleteOp = DeleteOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id-4").build();
 
         BulkRequestBody indexBody = BulkRequestBody.newBuilder()
-            .setIndex(indexOp)
-            .setDoc(ByteString.copyFromUtf8("{\"field\":\"value1\"}"))
+            .setOperationContainer(OperationContainer.newBuilder().setIndex(indexOp).build())
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value1\"}"))
             .build();
 
         BulkRequestBody createBody = BulkRequestBody.newBuilder()
-            .setCreate(createOp)
-            .setDoc(ByteString.copyFromUtf8("{\"field\":\"value2\"}"))
+            .setOperationContainer(OperationContainer.newBuilder().setCreate(writeOp).build())
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value2\"}"))
             .build();
 
         BulkRequestBody updateBody = BulkRequestBody.newBuilder()
-            .setUpdate(updateOp)
-            .setDoc(ByteString.copyFromUtf8("{\"field\":\"value3\"}"))
+            .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
+            .setObject(ByteString.copyFromUtf8("{\"field\":\"value3\"}"))
             .build();
 
-        BulkRequestBody deleteBody = BulkRequestBody.newBuilder().setDelete(deleteOp).build();
+        BulkRequestBody deleteBody = BulkRequestBody.newBuilder()
+            .setOperationContainer(OperationContainer.newBuilder().setDelete(deleteOp).build())
+            .build();
 
         BulkRequest request = BulkRequest.newBuilder()
             .addRequestBody(indexBody)
@@ -276,7 +250,6 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             .addRequestBody(deleteBody)
             .build();
 
-        // Call getDocWriteRequests
         DocWriteRequest<?>[] requests = BulkRequestParserProtoUtils.getDocWriteRequests(
             request,
             "default-index",
@@ -286,7 +259,6 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             false
         );
 
-        // Verify the result
         assertNotNull("Requests should not be null", requests);
         assertEquals("Should have 4 requests", 4, requests.length);
         assertTrue("First request should be an IndexRequest", requests[0] instanceof IndexRequest);
@@ -297,35 +269,29 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Third request should be an UpdateRequest", requests[2] instanceof UpdateRequest);
         assertTrue("Fourth request should be a DeleteRequest", requests[3] instanceof DeleteRequest);
 
-        // Verify the index request
         IndexRequest indexRequest = (IndexRequest) requests[0];
         assertEquals("Index should match", "test-index", indexRequest.index());
         assertEquals("Id should match", "test-id-1", indexRequest.id());
 
-        // Verify the create request
         IndexRequest createRequest = (IndexRequest) requests[1];
         assertEquals("Index should match", "test-index", createRequest.index());
         assertEquals("Id should match", "test-id-2", createRequest.id());
         assertEquals("Create flag should be true", DocWriteRequest.OpType.CREATE, createRequest.opType());
 
-        // Verify the update request
         UpdateRequest updateRequest = (UpdateRequest) requests[2];
         assertEquals("Index should match", "test-index", updateRequest.index());
         assertEquals("Id should match", "test-id-3", updateRequest.id());
 
-        // Verify the delete request
         DeleteRequest deleteRequest = (DeleteRequest) requests[3];
         assertEquals("Index should match", "test-index", deleteRequest.index());
         assertEquals("Id should match", "test-id-4", deleteRequest.id());
     }
 
     public void testGetDocWriteRequestsWithInvalidOperation() {
-        // Create a BulkRequest with an invalid operation (no operation container)
         BulkRequestBody invalidBody = BulkRequestBody.newBuilder().build();
 
         BulkRequest request = BulkRequest.newBuilder().addRequestBody(invalidBody).build();
 
-        // Call getDocWriteRequests, should throw IllegalArgumentException
         expectThrows(
             IllegalArgumentException.class,
             () -> BulkRequestParserProtoUtils.getDocWriteRequests(

@@ -14,6 +14,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.protobufs.Id;
 import org.opensearch.protobufs.InlineGetDictUserDefined;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.ResponseItem;
@@ -40,11 +41,11 @@ public class GetResultProtoUtils {
      */
     public static ResponseItem.Builder toProto(GetResult getResult, ResponseItem.Builder responseItemBuilder) {
         // Reuse the builder passed in by reference
-        responseItemBuilder.setIndex(getResult.getIndex());
+        responseItemBuilder.setUnderscoreIndex(getResult.getIndex());
 
         // Avoid creating a new Id builder for each call
-        ResponseItem.Id id = ResponseItem.Id.newBuilder().setString(getResult.getId()).build();
-        responseItemBuilder.setId(id);
+        Id id = Id.newBuilder().setString(getResult.getId()).build();
+        responseItemBuilder.setUnderscoreId(id);
 
         // Create the inline get dict builder only once
         InlineGetDictUserDefined.Builder inlineGetDictUserDefinedBuilder = InlineGetDictUserDefined.newBuilder();
@@ -52,7 +53,7 @@ public class GetResultProtoUtils {
         if (getResult.isExists()) {
             // Set document version if available
             if (getResult.getVersion() != -1) {
-                responseItemBuilder.setVersion(getResult.getVersion());
+                responseItemBuilder.setUnderscoreVersion(getResult.getVersion());
             }
             toProtoEmbedded(getResult, inlineGetDictUserDefinedBuilder);
         } else {
@@ -74,7 +75,7 @@ public class GetResultProtoUtils {
         // Set sequence number and primary term if available
         if (getResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             builder.setSeqNo(getResult.getSeqNo());
-            builder.setPrimaryTerm(getResult.getPrimaryTerm());
+            builder.setUnderscorePrimaryTerm(getResult.getPrimaryTerm());
         }
 
         // Set existence status
@@ -82,7 +83,7 @@ public class GetResultProtoUtils {
 
         // Set source if available - avoid unnecessary copying if possible
         if (getResult.source() != null) {
-            builder.setSource(ByteString.copyFrom(getResult.source()));
+            builder.setUnderscoreSource(ByteString.copyFrom(getResult.source()));
         }
 
         // Process metadata fields

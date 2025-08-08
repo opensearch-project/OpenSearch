@@ -30,13 +30,13 @@ public class RefreshProtoUtils {
      * @return The corresponding OpenSearch refresh policy string value
      */
     public static String getRefreshPolicy(org.opensearch.protobufs.Refresh refresh) {
-        switch (refresh) {
+        switch (refresh.getRefreshCase()) {
             case REFRESH_TRUE:
                 return WriteRequest.RefreshPolicy.IMMEDIATE.getValue();
             case REFRESH_WAIT_FOR:
                 return WriteRequest.RefreshPolicy.WAIT_UNTIL.getValue();
             case REFRESH_FALSE:
-            case REFRESH_UNSPECIFIED:
+            case REFRESH_NOT_SET:
             default:
                 return WriteRequest.RefreshPolicy.NONE.getValue();
         }

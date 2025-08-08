@@ -24,7 +24,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
         BulkRequest request = BulkRequest.newBuilder()
             .setIndex("test-index")
             .setRouting("test-routing")
-            .setRefresh(Refresh.REFRESH_TRUE)
+            .setRefresh(Refresh.newBuilder().setRefreshTrue(true).build())
             .setTimeout("30s")
             .build();
 
@@ -105,7 +105,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
 
     public void testPrepareRequestWithRefreshWait() {
         // Create a protobuf BulkRequest with refresh set to WAIT_FOR
-        BulkRequest request = BulkRequest.newBuilder().setRefresh(Refresh.REFRESH_WAIT_FOR).build();
+        BulkRequest request = BulkRequest.newBuilder().setRefresh(Refresh.newBuilder().setRefreshWaitFor(true).build()).build();
 
         // Call prepareRequest
         org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
@@ -117,7 +117,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
 
     public void testPrepareRequestWithRefreshFalse() {
         // Create a protobuf BulkRequest with refresh set to FALSE
-        BulkRequest request = BulkRequest.newBuilder().setRefresh(Refresh.REFRESH_FALSE).build();
+        BulkRequest request = BulkRequest.newBuilder().setRefresh(Refresh.newBuilder().setRefreshFalse(true).build()).build();
 
         // Call prepareRequest
         org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);

@@ -14,9 +14,10 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.protobufs.ErrorCause;
-import org.opensearch.protobufs.Item;
+import org.opensearch.protobufs.Id;
 import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ResponseItem;
+import org.opensearch.protobufs.ResponseOpType;
 import org.opensearch.transport.grpc.proto.response.document.common.DocWriteResponseProtoUtils;
 import org.opensearch.transport.grpc.proto.response.document.get.GetResultProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
@@ -41,14 +42,13 @@ public class BulkItemResponseProtoUtils {
      *
      *
      * @param response The BulkItemResponse to convert
-     * @return A Protocol Buffer Item representation
+     * @return A Protocol Buffer ResponseItem representation
      * @throws IOException if there's an error during conversion
      *
      */
-    public static Item toProto(BulkItemResponse response) throws IOException {
-        Item.Builder itemBuilder = Item.newBuilder();
-
+    public static ResponseItem toProto(BulkItemResponse response) throws IOException {
         ResponseItem.Builder responseItemBuilder;
+
         if (response.isFailed() == false) {
             DocWriteResponse docResponse = response.getResponse();
             responseItemBuilder = DocWriteResponseProtoUtils.toProto(docResponse);
@@ -59,31 +59,29 @@ public class BulkItemResponseProtoUtils {
             BulkItemResponse.Failure failure = response.getFailure();
             responseItemBuilder = ResponseItem.newBuilder();
 
-            responseItemBuilder.setIndex(failure.getIndex());
+            responseItemBuilder.setUnderscoreIndex(failure.getIndex());
             if (response.getId().isEmpty()) {
-                responseItemBuilder.setId(ResponseItem.Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
+                responseItemBuilder.setUnderscoreId(Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
             } else {
-                responseItemBuilder.setId(ResponseItem.Id.newBuilder().setString(response.getId()).build());
+                responseItemBuilder.setUnderscoreId(Id.newBuilder().setString(response.getId()).build());
             }
             int grpcStatusCode = RestToGrpcStatusConverter.getGrpcStatusCode(failure.getStatus());
             responseItemBuilder.setStatus(grpcStatusCode);
 
             ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(failure.getCause());
-
             responseItemBuilder.setError(errorCause);
         }
 
-        ResponseItem responseItem;
+        // Set the operation type in ResponseItem
         switch (response.getOpType()) {
             case CREATE:
-                responseItem = responseItemBuilder.build();
-                itemBuilder.setCreate(responseItem);
+                responseItemBuilder.setResponseOpType(ResponseOpType.RESPONSE_OP_TYPE_CREATE);
                 break;
             case INDEX:
-                responseItem = responseItemBuilder.build();
-                itemBuilder.setIndex(responseItem);
+                responseItemBuilder.setResponseOpType(ResponseOpType.RESPONSE_OP_TYPE_INDEX);
                 break;
             case UPDATE:
+                responseItemBuilder.setResponseOpType(ResponseOpType.RESPONSE_OP_TYPE_UPDATE);
                 UpdateResponse updateResponse = response.getResponse();
                 if (updateResponse != null) {
                     GetResult getResult = updateResponse.getGetResult();
@@ -91,17 +89,14 @@ public class BulkItemResponseProtoUtils {
                         responseItemBuilder = GetResultProtoUtils.toProto(getResult, responseItemBuilder);
                     }
                 }
-                responseItem = responseItemBuilder.build();
-                itemBuilder.setUpdate(responseItem);
                 break;
             case DELETE:
-                responseItem = responseItemBuilder.build();
-                itemBuilder.setDelete(responseItem);
+                responseItemBuilder.setResponseOpType(ResponseOpType.RESPONSE_OP_TYPE_DELETE);
                 break;
             default:
                 throw new UnsupportedOperationException("Invalid op type: " + response.getOpType());
         }
 
-        return itemBuilder.build();
+        return responseItemBuilder.build();
     }
 }

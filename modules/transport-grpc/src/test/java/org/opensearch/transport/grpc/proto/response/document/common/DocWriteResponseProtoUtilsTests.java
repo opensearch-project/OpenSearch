@@ -41,21 +41,25 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         ResponseItem responseItem = responseItemBuilder.build();
 
         // Verify basic fields
-        assertEquals("Index should match", "test-index", responseItem.getIndex());
-        assertEquals("Id should match", "test-id", responseItem.getId().getString());
-        assertEquals("Version should match", indexResponse.getVersion(), responseItem.getVersion());
+        assertEquals("Index should match", "test-index", responseItem.getUnderscoreIndex());
+        assertEquals("Id should match", "test-id", responseItem.getUnderscoreId().getString());
+        assertEquals("Version should match", indexResponse.getVersion(), responseItem.getUnderscoreVersion());
         assertEquals("Result should match", DocWriteResponse.Result.CREATED.getLowercase(), responseItem.getResult());
         assertTrue("ForcedRefresh should be true", responseItem.getForcedRefresh());
 
         // Verify sequence number and primary term
-        assertEquals("SeqNo should match", indexResponse.getSeqNo(), responseItem.getSeqNo());
-        assertEquals("PrimaryTerm should match", indexResponse.getPrimaryTerm(), responseItem.getPrimaryTerm());
+        assertEquals("SeqNo should match", indexResponse.getSeqNo(), responseItem.getUnderscoreSeqNo());
+        assertEquals("PrimaryTerm should match", indexResponse.getPrimaryTerm(), responseItem.getUnderscorePrimaryTerm());
 
         // Verify ShardInfo
-        assertNotNull("ShardInfo should not be null", responseItem.getShards());
-        assertEquals("Total shards should match", 5, responseItem.getShards().getTotal());
-        assertEquals("Successful shards should match", 3, responseItem.getShards().getSuccessful());
-        assertEquals("Failed shards should match", indexResponse.getShardInfo().getFailed(), responseItem.getShards().getFailed());
+        assertNotNull("ShardInfo should not be null", responseItem.getUnderscoreShards());
+        assertEquals("Total shards should match", 5, responseItem.getUnderscoreShards().getTotal());
+        assertEquals("Successful shards should match", 3, responseItem.getUnderscoreShards().getSuccessful());
+        assertEquals(
+            "Failed shards should match",
+            indexResponse.getShardInfo().getFailed(),
+            responseItem.getUnderscoreShards().getFailed()
+        );
     }
 
     public void testToProtoWithEmptyId() throws IOException {
@@ -79,7 +83,7 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         ResponseItem responseItem = responseItemBuilder.build();
 
         // Verify ID is set to null value
-        assertTrue("Id should be null value", responseItem.getId().hasNullValue());
+        assertTrue("Id should be null value", responseItem.getUnderscoreId().hasNullValue());
     }
 
     public void testToProtoWithNoSeqNo() throws IOException {
@@ -103,8 +107,8 @@ public class DocWriteResponseProtoUtilsTests extends OpenSearchTestCase {
         ResponseItem responseItem = responseItemBuilder.build();
 
         // Verify sequence number and primary term are not set
-        assertFalse("SeqNo should not be set", responseItem.hasSeqNo());
-        assertFalse("PrimaryTerm should not be set", responseItem.hasPrimaryTerm());
+        assertFalse("SeqNo should not be set", responseItem.hasUnderscoreSeqNo());
+        assertFalse("PrimaryTerm should not be set", responseItem.hasUnderscorePrimaryTerm());
     }
 
     public void testToProtoWithNullResponse() throws IOException {

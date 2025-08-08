@@ -45,10 +45,9 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Should have 1 item", 1, protoResponse.getBulkResponseBody().getItemsCount());
 
         // Verify the item response
-        org.opensearch.protobufs.Item item = protoResponse.getBulkResponseBody().getItems(0);
-        org.opensearch.protobufs.ResponseItem responseItem = item.getIndex();
-        assertEquals("Should have the correct index", "test-index", responseItem.getIndex());
-        assertEquals("Should have the correct id", "test-id", responseItem.getId().getString());
+        org.opensearch.protobufs.ResponseItem responseItem = protoResponse.getBulkResponseBody().getItems(0);
+        assertEquals("Should have the correct index", "test-index", responseItem.getUnderscoreIndex());
+        assertEquals("Should have the correct id", "test-id", responseItem.getUnderscoreId().getString());
         assertEquals("Should have the correct status", Status.OK.getCode().value(), responseItem.getStatus());
     }
 
@@ -73,10 +72,9 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Should have 1 item", 1, protoResponse.getBulkResponseBody().getItemsCount());
 
         // Verify the item response
-        org.opensearch.protobufs.Item item = protoResponse.getBulkResponseBody().getItems(0);
-        org.opensearch.protobufs.ResponseItem responseItem = item.getIndex();
-        assertEquals("Should have the correct index", "test-index", responseItem.getIndex());
-        assertEquals("Should have the correct id", "test-id", responseItem.getId().getString());
+        org.opensearch.protobufs.ResponseItem responseItem = protoResponse.getBulkResponseBody().getItems(0);
+        assertEquals("Should have the correct index", "test-index", responseItem.getUnderscoreIndex());
+        assertEquals("Should have the correct id", "test-id", responseItem.getUnderscoreId().getString());
         assertTrue("Should have error", responseItem.getError().getReason().length() > 0);
     }
 
