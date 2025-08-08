@@ -222,11 +222,12 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                 // Note: No threshold limit here - that's handled by individual ResumableDISI clauses
                 for (doc = conjunctionDISI.docID(); doc < max; doc = conjunctionDISI.nextDoc()) {
                     if (acceptDocs == null || acceptDocs.get(doc)) {
-                        System.out.println("Conjunction Hit: "+doc);
                         collector.collect(doc);
                         collected++;
                     }
                 }
+
+                System.out.println("Num conjunction hits "+collected);
 
                 // Return the current iterator position (standard Lucene pattern)
                 return conjunctionDISI.docID();
