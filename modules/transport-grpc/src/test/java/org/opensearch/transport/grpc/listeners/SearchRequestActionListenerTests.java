@@ -13,6 +13,7 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -72,7 +73,7 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
         // Call the method under test
         listener.onFailure(exception);
 
-        // Verify that onError was called with the exception
-        verify(mockResponseObserver, times(1)).onError(exception);
+        // Verify that onError was called with a StatusRuntimeException
+        verify(mockResponseObserver, times(1)).onError(any(StatusRuntimeException.class));
     }
 }
