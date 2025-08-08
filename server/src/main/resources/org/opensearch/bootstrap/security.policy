@@ -231,6 +231,8 @@ grant {
   permission java.io.FilePermission "/proc/diskstats", "read";
 
   // control group stats on Linux
+  // TODO: update later when wildcard is supported in policy
+  // https://github.com/opensearch-project/OpenSearch/pull/18987
   permission java.io.FilePermission "/proc/self/cgroup", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpu", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpu/-", "read";
