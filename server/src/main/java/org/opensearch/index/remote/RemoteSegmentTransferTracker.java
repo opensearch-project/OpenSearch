@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.isFileExcluded;
 
 /**
  * Keeps track of remote refresh which happens in {@link org.opensearch.index.shard.RemoteStoreRefreshListener}. This consist of multiple critical metrics.
@@ -300,6 +300,13 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         return Collections.unmodifiableMap(latestLocalFileNameLengthMap);
     }
 
+    public Map<String, Long> updateLatestLocalFileNameLengthMap(
+        Collection<String> segmentFiles,
+        CheckedFunction<String, Long, IOException> fileSizeFunction
+    ) {
+        return updateLatestLocalFileNameLengthMap(segmentFiles, fileSizeFunction, false);
+    }
+
     /**
      * Updates the latestLocalFileNameLengthMap by adding file name and it's size to the map.
      * The method is given a function as an argument which is used for determining the file size (length in bytes).
@@ -313,7 +320,8 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
      */
     public Map<String, Long> updateLatestLocalFileNameLengthMap(
         Collection<String> segmentFiles,
-        CheckedFunction<String, Long, IOException> fileSizeFunction
+        CheckedFunction<String, Long, IOException> fileSizeFunction,
+        boolean isRefreshSegmentUploadDecouplingEnabled
     ) {
         logger.debug(
             "segmentFilesPostRefresh={} latestLocalFileNamesBeforeMapUpdate={}",
@@ -322,7 +330,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         );
         // Update the map
         segmentFiles.stream()
-            .filter(file -> EXCLUDE_FILES.contains(file) == false)
+            .filter(file -> isFileExcluded(file, isRefreshSegmentUploadDecouplingEnabled) == false)
             .filter(file -> latestLocalFileNameLengthMap.containsKey(file) == false || latestLocalFileNameLengthMap.get(file) == 0)
             .forEach(file -> {
                 long fileSize = 0;
