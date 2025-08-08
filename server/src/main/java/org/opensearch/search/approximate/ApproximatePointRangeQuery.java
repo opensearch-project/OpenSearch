@@ -370,6 +370,69 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     pointTree.moveToParent();
             }
 
+            public void intersectLeftIterative(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount, ResumableDISI.BKDState state) throws IOException {
+
+                while (true) {
+                    System.out.println("Doc count: "+docCount[0]);
+                    if (docCount[0] >= size) {
+                        state.setPointTree(pointTree);
+                        state.setInProgress(true);
+                        return;
+                    }
+
+                    PointValues.Relation compare =
+                        visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+                    if (compare == PointValues.Relation.CELL_INSIDE_QUERY) {
+                        // This cell is fully inside the query shape: recursively add all points in this cell
+                        // without filtering
+                        pointTree.visitDocIDs(visitor);
+                        if (docCount[0] >= size) {
+                            state.setPointTree(pointTree);
+                            state.setInProgress(true);
+                            return;
+                        }
+                    } else if (compare == PointValues.Relation.CELL_CROSSES_QUERY) {
+                        // The cell crosses the shape boundary, or the cell fully contains the query, so we fall
+                        // through and do full filtering:
+                        if (pointTree.moveToChild()) {
+                            if (docCount[0] >= size) {
+                                state.setPointTree(pointTree);
+                                state.setInProgress(true);
+                                return;
+                            }
+                            continue;
+                        }
+                        if (docCount[0] >= size) {
+                            state.setPointTree(pointTree);
+                            state.setInProgress(true);
+                            return;
+                        }
+                        // TODO: we can assert that the first value here in fact matches what the pointTree
+                        // claimed?
+                        // Leaf node; scan and filter all points in this block:
+                        pointTree.visitDocValues(visitor);
+                    }
+                    // position ourself to next place
+                    while (pointTree.moveToSibling() == false) {
+                        if (docCount[0] >= size) {
+                            state.setPointTree(pointTree);
+                            state.setInProgress(true);
+                            return;
+                        }
+                        if (pointTree.moveToParent() == false) {
+                            if (docCount[0] >= size) {
+                                state.setPointTree(pointTree);
+                                state.setInProgress(true);
+                                return;
+                            }
+                            return;
+                        }
+                    }
+
+
+
+                }
+            }
 
             // custom intersect visitor to walk the right of tree (from rightmost leaf going left)
             public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
@@ -471,48 +534,20 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                                     // Reset the in-progress flag before processing
                                     state.setInProgress(false);
 
-                                    // Call intersect with the current tree, passing the shard state
-                                    System.out.println(context.isTopLevel);
-                                    intersectLeft(visitor, state.getPointTree(), docCount, state, context.isTopLevel); // Resumable call
-                                    System.out.println("DEBUG: After intersectLeft, docCount: " + docCount[0] + ", inProgress: " + state.isInProgress());
-                                    if (docCount[0] == 0 && !state.isInProgress()) {
-                                        System.out.println("DEBUG: Setting BKD state to exhausted because no documents found and not inProgress");
+                                    // Use intersectLeftIterative for resumable traversal
+                                    System.out.println("DEBUG: Starting intersectLeftIterative, current docCount: " + docCount[0]);
+                                    intersectLeftIterative(visitor, state.getPointTree(), docCount, state);
+                                    System.out.println("DEBUG: After intersectLeftIterative, docCount: " + docCount[0] + ", size: " + size);
+
+                                    // Check if we collected enough documents
+                                    if (docCount[0] >= size) {
+                                        state.setInProgress(true);
+                                        state.needMore = true;
+                                    } else {
+                                        // If we didn't reach the size limit, we've exhausted the tree
                                         state.setExhausted(true);
                                     }
 
-                                    System.out.println("After intersect left, can tree move to parent?"+ state.getPointTree().moveToParent());
-
-                                    if (!context.isTopLevel) {
-                                        if (!state.getPointTree().moveToSibling()) {
-                                            // No more siblings - try to move up and find next unvisited subtree
-                                            state.getPointTree().moveToParent();
-                                            state.getPointTree().moveToSibling();
-                                        }
-                                    }
-
-                                    state.needMore = false;
-                                    while (docCount[0] < size && !state.needMore) {
-                                        // Reset needMore for this iteration
-                                        state.needMore = false;
-
-
-                                        if (!state.getPointTree().moveToSibling()) {
-                                            // No more siblings - try to move up and find next unvisited subtree
-                                            if (!state.getPointTree().moveToParent()) {
-                                                // Reached root, no more nodes to process
-                                                break;
-                                            }
-                                            //
-                                            if (!state.getPointTree().moveToSibling()) {
-                                                // No sibling at parent level either, we're done
-                                                break;
-                                            }
-                                            //
-                                            intersectLeft(visitor, state.getPointTree(), docCount, state, true); // Resumable call
-                                        }
-                                        //
-                                        intersectLeft(visitor, state.getPointTree(), docCount, state, false); // Resumable call
-                                    }
                                     System.out.println("DEBUG: BKD traversal completed, found " + docCount[0] + " documents");
 
                                     docCount[0] = 0;
