@@ -36,9 +36,15 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.bulk.BulkItemRequest;
+import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.bulk.BulkShardResponse;
+import org.opensearch.action.bulk.TransportShardBulkAction;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -46,6 +52,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.single.instance.TransportInstanceSingleOperationAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -84,8 +91,6 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.opensearch.ExceptionsHelper.unwrapCause;
-import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
-import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
 
 /**
  * Transport action for updating an index
@@ -99,6 +104,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final IndicesService indicesService;
     private final NodeClient client;
     private final ClusterService clusterService;
+    private final TransportShardBulkAction shardBulkAction;
 
     @Inject
     public TransportUpdateAction(
@@ -110,7 +116,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndicesService indicesService,
         AutoCreateIndex autoCreateIndex,
-        NodeClient client
+        NodeClient client,
+        TransportShardBulkAction shardBulkAction
     ) {
         super(
             UpdateAction.NAME,
@@ -126,6 +133,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
         this.clusterService = clusterService;
+        this.shardBulkAction = shardBulkAction;
     }
 
     @Override
@@ -229,53 +237,88 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         shardOperation(request, listener, 0);
     }
 
+    private void executeBulkItemOnShard(
+        DocWriteRequest<?> docWriteRequest,
+        UpdateRequest request,
+        ShardId shardId,
+        ActionListener<BulkShardResponse> listener
+    ) {
+        BulkItemRequest bulkItemRequest = new BulkItemRequest(0, docWriteRequest);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shardId,
+            request.getRefreshPolicy(),
+            new BulkItemRequest[] { bulkItemRequest }
+        );
+        bulkShardRequest.timeout(request.timeout());
+        bulkShardRequest.setParentTask(request.getParentTask());
+        shardBulkAction.execute(bulkShardRequest, listener);
+    }
+
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
         switch (result.getResponseResult()) {
-            case CREATED:
+            case CREATED: {
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
-                client.bulk(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
-                    UpdateResponse update = new UpdateResponse(
-                        response.getShardInfo(),
-                        response.getShardId(),
-                        response.getId(),
-                        response.getSeqNo(),
-                        response.getPrimaryTerm(),
-                        response.getVersion(),
-                        response.getResult()
-                    );
-                    if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
-                        Tuple<? extends MediaType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
-                            upsertSourceBytes,
-                            true,
-                            upsertRequest.getContentType()
+                
+                executeBulkItemOnShard(upsertRequest, request, shardId, new ActionListener<BulkShardResponse>() {
+                    @Override
+                    public void onResponse(BulkShardResponse bulkResponse) {
+                        BulkItemResponse itemResponse = bulkResponse.getResponses()[0];
+                        if (itemResponse.isFailed()) {
+                            handleUpdateFailureWithRetry(listener, request, itemResponse.getFailure().getCause(), retryCount);
+                            return;
+                        }
+                        
+                        IndexResponse response = (IndexResponse) itemResponse.getResponse();
+                        UpdateResponse update = new UpdateResponse(
+                            response.getShardInfo(),
+                            response.getShardId(),
+                            response.getId(),
+                            response.getSeqNo(),
+                            response.getPrimaryTerm(),
+                            response.getVersion(),
+                            response.getResult()
                         );
-                        update.setGetResult(
-                            UpdateHelper.extractGetResult(
-                                request,
-                                request.concreteIndex(),
-                                response.getSeqNo(),
-                                response.getPrimaryTerm(),
-                                response.getVersion(),
-                                sourceAndContent.v2(),
-                                sourceAndContent.v1(),
-                                upsertSourceBytes
-                            )
-                        );
-                    } else {
-                        update.setGetResult(null);
+                        
+                        if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
+                            Tuple<? extends MediaType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                                upsertSourceBytes,
+                                true,
+                                upsertRequest.getContentType()
+                            );
+                            update.setGetResult(
+                                UpdateHelper.extractGetResult(
+                                    request,
+                                    request.concreteIndex(),
+                                    response.getSeqNo(),
+                                    response.getPrimaryTerm(),
+                                    response.getVersion(),
+                                    sourceAndContent.v2(),
+                                    sourceAndContent.v1(),
+                                    upsertSourceBytes
+                                )
+                            );
+                        } else {
+                            update.setGetResult(null);
+                        }
+                        update.setForcedRefresh(response.forcedRefresh());
+                        listener.onResponse(update);
                     }
-                    update.setForcedRefresh(response.forcedRefresh());
-                    listener.onResponse(update);
-                }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))));
+                    
+                    @Override
+                    public void onFailure(Exception e) {
+                        handleUpdateFailureWithRetry(listener, request, e, retryCount);
+                    }
+                });
 
                 break;
-            case UPDATED:
+            }
+            case UPDATED: {
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
@@ -288,60 +331,94 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             + "] has a default ingest pipeline or a final ingest pipeline, the support of the ingest pipelines for update operation causes unexpected result and will be removed in 3.0.0"
                     );
                 }
-                client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
-                    UpdateResponse update = new UpdateResponse(
-                        response.getShardInfo(),
-                        response.getShardId(),
-                        response.getId(),
-                        response.getSeqNo(),
-                        response.getPrimaryTerm(),
-                        response.getVersion(),
-                        response.getResult()
-                    );
-                    update.setGetResult(
-                        UpdateHelper.extractGetResult(
-                            request,
-                            request.concreteIndex(),
+                
+                executeBulkItemOnShard(indexRequest, request, shardId, new ActionListener<BulkShardResponse>() {
+                    @Override
+                    public void onResponse(BulkShardResponse bulkResponse) {
+                        BulkItemResponse itemResponse = bulkResponse.getResponses()[0];
+                        if (itemResponse.isFailed()) {
+                            handleUpdateFailureWithRetry(listener, request, itemResponse.getFailure().getCause(), retryCount);
+                            return;
+                        }
+                        
+                        IndexResponse response = (IndexResponse) itemResponse.getResponse();
+                        UpdateResponse update = new UpdateResponse(
+                            response.getShardInfo(),
+                            response.getShardId(),
+                            response.getId(),
                             response.getSeqNo(),
                             response.getPrimaryTerm(),
                             response.getVersion(),
-                            result.updatedSourceAsMap(),
-                            result.updateSourceContentType(),
-                            indexSourceBytes
-                        )
-                    );
-                    update.setForcedRefresh(response.forcedRefresh());
-                    listener.onResponse(update);
-                }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))));
+                            response.getResult()
+                        );
+                        update.setGetResult(
+                            UpdateHelper.extractGetResult(
+                                request,
+                                request.concreteIndex(),
+                                response.getSeqNo(),
+                                response.getPrimaryTerm(),
+                                response.getVersion(),
+                                result.updatedSourceAsMap(),
+                                result.updateSourceContentType(),
+                                indexSourceBytes
+                            )
+                        );
+                        update.setForcedRefresh(response.forcedRefresh());
+                        listener.onResponse(update);
+                    }
+                    
+                    @Override
+                    public void onFailure(Exception e) {
+                        handleUpdateFailureWithRetry(listener, request, e, retryCount);
+                    }
+                });
                 break;
-            case DELETED:
+            }
+            case DELETED: {
                 DeleteRequest deleteRequest = result.action();
-                client.bulk(toSingleItemBulkRequest(deleteRequest), wrapBulkResponse(ActionListener.<DeleteResponse>wrap(response -> {
-                    UpdateResponse update = new UpdateResponse(
-                        response.getShardInfo(),
-                        response.getShardId(),
-                        response.getId(),
-                        response.getSeqNo(),
-                        response.getPrimaryTerm(),
-                        response.getVersion(),
-                        response.getResult()
-                    );
-                    update.setGetResult(
-                        UpdateHelper.extractGetResult(
-                            request,
-                            request.concreteIndex(),
+                
+                executeBulkItemOnShard(deleteRequest, request, shardId, new ActionListener<BulkShardResponse>() {
+                    @Override
+                    public void onResponse(BulkShardResponse bulkResponse) {
+                        BulkItemResponse itemResponse = bulkResponse.getResponses()[0];
+                        if (itemResponse.isFailed()) {
+                            handleUpdateFailureWithRetry(listener, request, itemResponse.getFailure().getCause(), retryCount);
+                            return;
+                        }
+                        
+                        DeleteResponse response = (DeleteResponse) itemResponse.getResponse();
+                        UpdateResponse update = new UpdateResponse(
+                            response.getShardInfo(),
+                            response.getShardId(),
+                            response.getId(),
                             response.getSeqNo(),
                             response.getPrimaryTerm(),
                             response.getVersion(),
-                            result.updatedSourceAsMap(),
-                            result.updateSourceContentType(),
-                            null
-                        )
-                    );
-                    update.setForcedRefresh(response.forcedRefresh());
-                    listener.onResponse(update);
-                }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))));
+                            response.getResult()
+                        );
+                        update.setGetResult(
+                            UpdateHelper.extractGetResult(
+                                request,
+                                request.concreteIndex(),
+                                response.getSeqNo(),
+                                response.getPrimaryTerm(),
+                                response.getVersion(),
+                                result.updatedSourceAsMap(),
+                                result.updateSourceContentType(),
+                                null
+                            )
+                        );
+                        update.setForcedRefresh(response.forcedRefresh());
+                        listener.onResponse(update);
+                    }
+                    
+                    @Override
+                    public void onFailure(Exception e) {
+                        handleUpdateFailureWithRetry(listener, request, e, retryCount);
+                    }
+                });
                 break;
+            }
             case NOOP:
                 UpdateResponse update = result.action();
                 IndexService indexServiceOrNull = indicesService.indexService(shardId.getIndex());
