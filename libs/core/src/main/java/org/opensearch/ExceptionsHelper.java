@@ -169,6 +169,25 @@ public final class ExceptionsHelper {
     }
 
     /**
+     * Unwraps exception causes up to 10 levels looking for the first OpenSearchException.
+     * This method is used by both HTTP and gRPC error handling to ensure consistent exception
+     * unwrapping behavior across protocols.
+     *
+     * @param e The exception to unwrap
+     * @return The first OpenSearchException found in the cause chain, or the original exception if none found
+     */
+    public static Throwable unwrapToOpenSearchException(Throwable e) {
+        Throwable t = e;
+        for (int counter = 0; counter < 10 && t != null; counter++) {
+            if (t instanceof OpenSearchException) {
+                break;
+            }
+            t = t.getCause();
+        }
+        return t != null ? t : e;
+    }
+
+    /**
      * @deprecated Don't swallow exceptions, allow them to propagate.
      */
     @Deprecated
