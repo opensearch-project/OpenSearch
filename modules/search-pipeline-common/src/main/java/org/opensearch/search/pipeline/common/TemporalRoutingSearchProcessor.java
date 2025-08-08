@@ -230,7 +230,8 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
             ZonedDateTime end = truncateToGranularity(to);
 
             // Add buckets up to a reasonable limit to avoid too many routing values
-            int maxBuckets = 100; // Configurable limit
+            // TODO: Make maxBuckets configurable via processor configuration
+            int maxBuckets = 100; // Hard-coded limit for now
             int bucketCount = 0;
 
             while (!current.isAfter(end) && bucketCount < maxBuckets) {
@@ -253,6 +254,9 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
 
     /**
      * Truncates datetime to the specified granularity
+     *
+     * IMPORTANT: This logic MUST be kept in sync with TemporalRoutingProcessor.truncateToGranularity()
+     * in the ingest-common module to ensure consistent temporal bucketing.
      */
     private ZonedDateTime truncateToGranularity(ZonedDateTime dateTime) {
         switch (granularity) {
@@ -291,6 +295,13 @@ public class TemporalRoutingSearchProcessor extends AbstractProcessor implements
 
     /**
      * Creates a temporal bucket key from a datetime
+     *
+     * IMPORTANT: This logic MUST be kept in sync with TemporalRoutingProcessor.createTemporalBucketKey()
+     * in the ingest-common module. Both processors must generate identical bucket keys for the same
+     * input to ensure documents are routed to the same shards during ingest and search.
+     *
+     * TODO: Consider moving this shared logic to a common module when search and ingest pipelines
+     * can share code more easily.
      */
     private String createTemporalBucket(ZonedDateTime dateTime) {
         ZonedDateTime truncated = truncateToGranularity(dateTime);

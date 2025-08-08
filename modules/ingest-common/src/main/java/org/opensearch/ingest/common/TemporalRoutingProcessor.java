@@ -168,6 +168,9 @@ public final class TemporalRoutingProcessor extends AbstractProcessor {
 
     /**
      * Truncates datetime to the specified granularity
+     *
+     * IMPORTANT: This logic MUST be kept in sync with TemporalRoutingSearchProcessor.truncateToGranularity()
+     * in the search-pipeline-common module to ensure consistent temporal bucketing.
      */
     private ZonedDateTime truncateToGranularity(ZonedDateTime dateTime) {
         switch (granularity) {
@@ -188,6 +191,13 @@ public final class TemporalRoutingProcessor extends AbstractProcessor {
 
     /**
      * Creates a string key for the temporal bucket
+     *
+     * IMPORTANT: This logic MUST be kept in sync with TemporalRoutingSearchProcessor.createTemporalBucket()
+     * in the search-pipeline-common module. Both processors must generate identical bucket keys for the
+     * same input to ensure documents are routed to the same shards during ingest and search.
+     *
+     * TODO: Consider moving this shared logic to a common module when search and ingest pipelines
+     * can share code more easily.
      */
     private String createTemporalBucketKey(ZonedDateTime truncated) {
         switch (granularity) {
