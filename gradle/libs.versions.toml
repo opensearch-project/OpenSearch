@@ -29,6 +29,7 @@ tdigest           = "3.3"
 hdrhistogram      = "2.2.2"
 grpc              = "1.68.2"
 json_smart        = "2.5.2"
+commons_beanutils  = "1.11.0"
 
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.16.0"
