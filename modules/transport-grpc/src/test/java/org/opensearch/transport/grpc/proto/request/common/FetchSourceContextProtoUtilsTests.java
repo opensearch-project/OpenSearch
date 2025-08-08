@@ -22,7 +22,9 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithBoolValue() {
         // Create a BulkRequest with source as boolean
-        BulkRequest request = BulkRequest.newBuilder().setSource(SourceConfigParam.newBuilder().setBoolValue(true).build()).build();
+        BulkRequest request = BulkRequest.newBuilder()
+            .setUnderscoreSource(SourceConfigParam.newBuilder().setBoolValue(true).build())
+            .build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -37,7 +39,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
     public void testParseFromProtoRequestWithStringArray() {
         // Create a BulkRequest with source as string array
         BulkRequest request = BulkRequest.newBuilder()
-            .setSource(
+            .setUnderscoreSource(
                 SourceConfigParam.newBuilder()
                     .setStringArray(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
                     .build()
@@ -56,7 +58,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithSourceIncludes() {
         // Create a BulkRequest with source includes
-        BulkRequest request = BulkRequest.newBuilder().addSourceIncludes("field1").addSourceIncludes("field2").build();
+        BulkRequest request = BulkRequest.newBuilder().addUnderscoreSourceIncludes("field1").addUnderscoreSourceIncludes("field2").build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -70,7 +72,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithSourceExcludes() {
         // Create a BulkRequest with source excludes
-        BulkRequest request = BulkRequest.newBuilder().addSourceExcludes("field1").addSourceExcludes("field2").build();
+        BulkRequest request = BulkRequest.newBuilder().addUnderscoreSourceExcludes("field1").addUnderscoreSourceExcludes("field2").build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -85,10 +87,10 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
     public void testParseFromProtoRequestWithBothIncludesAndExcludes() {
         // Create a BulkRequest with both source includes and excludes
         BulkRequest request = BulkRequest.newBuilder()
-            .addSourceIncludes("include1")
-            .addSourceIncludes("include2")
-            .addSourceExcludes("exclude1")
-            .addSourceExcludes("exclude2")
+            .addUnderscoreSourceIncludes("include1")
+            .addUnderscoreSourceIncludes("include2")
+            .addUnderscoreSourceExcludes("exclude1")
+            .addUnderscoreSourceExcludes("exclude2")
             .build();
 
         // Parse the request
@@ -134,7 +136,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithIncludes() {
         // Create a SourceConfig with includes
         SourceConfig sourceConfig = SourceConfig.newBuilder()
-            .setIncludes(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
+            .setFilter(SourceFilter.newBuilder().addIncludes("field1").addIncludes("field2").build())
             .build();
 
         // Convert to FetchSourceContext
@@ -288,7 +290,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithSourceConfigIncludes() {
         // Create a SourceConfig with includes
         SourceConfig sourceConfig = SourceConfig.newBuilder()
-            .setIncludes(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
+            .setFilter(SourceFilter.newBuilder().addIncludes("field1").addIncludes("field2").build())
             .build();
 
         // Convert to FetchSourceContext

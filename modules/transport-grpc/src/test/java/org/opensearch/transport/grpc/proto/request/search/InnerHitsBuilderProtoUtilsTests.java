@@ -14,7 +14,6 @@ import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.InnerHits;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.ScriptLanguage;
-import org.opensearch.protobufs.ScriptLanguage.BuiltinScriptLanguage;
 import org.opensearch.protobufs.SourceConfig;
 import org.opensearch.protobufs.SourceFilter;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -148,18 +147,26 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create script field 1
         InlineScript inlineScript1 = InlineScript.newBuilder()
             .setSource("doc['field1'].value * 2")
-            .setLang(ScriptLanguage.newBuilder().setBuiltinScriptLanguage(BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS).build())
+            .setLang(
+                ScriptLanguage.newBuilder()
+                    .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                    .build()
+            )
             .build();
-        org.opensearch.protobufs.Script script1 = org.opensearch.protobufs.Script.newBuilder().setInlineScript(inlineScript1).build();
+        org.opensearch.protobufs.Script script1 = org.opensearch.protobufs.Script.newBuilder().setInline(inlineScript1).build();
         ScriptField scriptField1 = ScriptField.newBuilder().setScript(script1).setIgnoreFailure(true).build();
         innerHitsBuilder.putScriptFields("script_field1", scriptField1);
 
         // Create script field 2
         InlineScript inlineScript2 = InlineScript.newBuilder()
             .setSource("doc['field2'].value + '_suffix'")
-            .setLang(ScriptLanguage.newBuilder().setBuiltinScriptLanguage(BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS).build())
+            .setLang(
+                ScriptLanguage.newBuilder()
+                    .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                    .build()
+            )
             .build();
-        org.opensearch.protobufs.Script script2 = org.opensearch.protobufs.Script.newBuilder().setInlineScript(inlineScript2).build();
+        org.opensearch.protobufs.Script script2 = org.opensearch.protobufs.Script.newBuilder().setInline(inlineScript2).build();
         ScriptField scriptField2 = ScriptField.newBuilder().setScript(script2).build();
         innerHitsBuilder.putScriptFields("script_field2", scriptField2);
 
@@ -196,7 +203,7 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setFilter(SourceFilter.newBuilder().addIncludes("include1").addIncludes("include2").addExcludes("exclude1").build())
             .build();
 
-        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setSource(sourceContext).build();
+        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setUnderscoreSource(sourceContext).build();
 
         // Call the method under test
         InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));

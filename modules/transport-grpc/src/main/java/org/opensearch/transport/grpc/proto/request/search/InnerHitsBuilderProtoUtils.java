@@ -100,8 +100,8 @@ public class InnerHitsBuilderProtoUtils {
             if (innerHit.getSortCount() > 0) {
                 innerHitBuilder.setSorts(SortBuilderProtoUtils.fromProto(innerHit.getSortList()));
             }
-            if (innerHit.hasSource()) {
-                innerHitBuilder.setFetchSourceContext(FetchSourceContextProtoUtils.fromProto(innerHit.getSource()));
+            if (innerHit.hasUnderscoreSource()) {
+                innerHitBuilder.setFetchSourceContext(FetchSourceContextProtoUtils.fromProto(innerHit.getUnderscoreSource()));
             }
             if (innerHit.hasHighlight()) {
                 innerHitBuilder.setHighlightBuilder(HighlightBuilderProtoUtils.fromProto(innerHit.getHighlight()));
