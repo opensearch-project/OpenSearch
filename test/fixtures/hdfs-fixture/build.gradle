@@ -36,6 +36,12 @@ versions << [
   'jetty': '9.4.57.v20241219'
 ]
 
+configurations.all {
+  resolutionStrategy {
+    force "commons-beanutils:commons-beanutils:${versions.commons_beanutils}"
+  }
+}
+
 dependencies {
   api("org.apache.hadoop:hadoop-minicluster:3.4.1") {
     exclude module: 'websocket-client'
