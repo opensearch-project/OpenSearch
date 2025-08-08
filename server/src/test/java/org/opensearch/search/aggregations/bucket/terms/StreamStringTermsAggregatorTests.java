@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,9 +53,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
+    Random random = new Random(123456L);
     public void testBuildAggregationsBatchDirectBucketCreation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("field", new BytesRef("apple")));
                 document.add(new SortedSetDocValuesField("field", new BytesRef("banana")));
@@ -151,7 +153,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithSingleValuedOrds() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 for (int i = 0; i < 10; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("term_" + (i % 3))));
@@ -222,7 +224,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithSize() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 // Create fewer unique terms to test size parameter more meaningfully
                 for (int i = 0; i < 20; i++) {
                     Document document = new Document();
@@ -271,7 +273,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithCountOrder() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 for (int i = 0; i < 3; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("common")));
@@ -376,7 +378,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMultipleBatches() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("field", new BytesRef("batch1")));
                 indexWriter.addDocument(document);
@@ -413,7 +415,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithMax() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 document.add(new NumericDocValuesField("price", 100));
@@ -485,7 +487,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithSum() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 document.add(new NumericDocValuesField("sales", 1000));
@@ -555,7 +557,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithAvg() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("product", new BytesRef("laptop")));
                 document.add(new NumericDocValuesField("rating", 4));
@@ -625,7 +627,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithMinAndCount() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("store", new BytesRef("store_a")));
                 document.add(new NumericDocValuesField("inventory", 100));
@@ -709,7 +711,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMultipleSubAggregations() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("region", new BytesRef("north")));
                 document.add(new NumericDocValuesField("temperature", 25));
@@ -815,7 +817,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             // Create first aggregation with some data
             List<InternalAggregation> aggs = new ArrayList<>();
 
-            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random(), directory1)) {
+            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random, directory1)) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 indexWriter1.addDocument(doc);
@@ -834,7 +836,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Create second aggregation with overlapping data
-            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random(), directory2)) {
+            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random, directory2)) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 indexWriter2.addDocument(doc);
@@ -899,7 +901,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             List<InternalAggregation> aggs = new ArrayList<>();
 
             // First aggregation
-            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random(), directory1)) {
+            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random, directory1)) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 doc.add(new NumericDocValuesField("price", 100));
@@ -923,7 +925,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Second aggregation
-            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random(), directory2)) {
+            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random, directory2)) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 doc.add(new NumericDocValuesField("price", 150));
@@ -970,7 +972,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             List<InternalAggregation> aggs = new ArrayList<>();
 
             // First aggregation with multiple terms
-            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random(), directory1)) {
+            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random, directory1)) {
                 for (int i = 0; i < 5; i++) {
                     Document doc = new Document();
                     doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
@@ -988,7 +990,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Second aggregation with different terms
-            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random(), directory2)) {
+            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random, directory2)) {
                 for (int i = 3; i < 8; i++) {
                     Document doc = new Document();
                     doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
@@ -1034,7 +1036,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testReduceSingleAggregation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random, directory)) {
                 // Add multiple documents with different categories to test reduce logic properly
                 Document doc1 = new Document();
                 doc1.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
