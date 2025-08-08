@@ -414,18 +414,14 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         scriptFieldsMap.put(
             "script_field_1",
             ScriptField.newBuilder()
-                .setScript(
-                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
                 .setIgnoreFailure(true)
                 .build()
         );
         scriptFieldsMap.put(
             "script_field_2",
             ScriptField.newBuilder()
-                .setScript(
-                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
                 .build()
         );
 
@@ -482,18 +478,14 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
             "derived_field_1",
             DerivedField.newBuilder()
                 .setType("number")
-                .setScript(
-                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
                 .build()
         );
         derivedFieldsMap.put(
             "derived_field_2",
             DerivedField.newBuilder()
                 .setType("string")
-                .setScript(
-                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
                 .build()
         );
 
@@ -571,7 +563,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testScriptFieldProtoUtilsFromProto() throws IOException {
         // Create a protobuf ScriptField
         ScriptField scriptFieldProto = ScriptField.newBuilder()
-            .setScript(Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
+            .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
             .setIgnoreFailure(true)
             .build();
 
@@ -592,7 +584,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testScriptFieldProtoUtilsFromProtoWithDefaultIgnoreFailure() throws IOException {
         // Create a protobuf ScriptField without ignoreFailure
         ScriptField scriptFieldProto = ScriptField.newBuilder()
-            .setScript(Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
+            .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
             .build();
 
         // Call the method under test

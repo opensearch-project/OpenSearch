@@ -37,11 +37,11 @@ public class DocumentServiceIT extends GrpcTransportBaseIT {
             DocumentServiceGrpc.DocumentServiceBlockingStub documentStub = DocumentServiceGrpc.newBlockingStub(channel);
 
             // Create a bulk request with an index operation
-            IndexOperation indexOp = IndexOperation.newBuilder().setIndex(indexName).setId("1").build();
+            IndexOperation indexOp = IndexOperation.newBuilder().setUnderscoreIndex(indexName).setUnderscoreId("1").build();
 
             BulkRequestBody requestBody = BulkRequestBody.newBuilder()
-                .setIndex(indexOp)
-                .setDoc(com.google.protobuf.ByteString.copyFromUtf8(DEFAULT_DOCUMENT_SOURCE))
+                .setOperationContainer(org.opensearch.protobufs.OperationContainer.newBuilder().setIndex(indexOp).build())
+                .setObject(com.google.protobuf.ByteString.copyFromUtf8(DEFAULT_DOCUMENT_SOURCE))
                 .build();
 
             BulkRequest bulkRequest = BulkRequest.newBuilder().addRequestBody(requestBody).build();

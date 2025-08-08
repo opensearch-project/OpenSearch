@@ -43,25 +43,25 @@ public class FetchSourceContextProtoUtils {
         String[] sourceIncludes = null;
 
         // Set up source context if source parameters are provided
-        if (request.hasSource()) {
-            switch (request.getSource().getSourceConfigParamCase()) {
-                case SourceConfigParam.SourceConfigParamCase.BOOL_VALUE:
-                    fetchSource = request.getSource().getBoolValue();
+        if (request.hasUnderscoreSource()) {
+            switch (request.getUnderscoreSource().getSourceConfigParamCase()) {
+                case BOOL_VALUE:
+                    fetchSource = request.getUnderscoreSource().getBoolValue();
                     break;
-                case SourceConfigParam.SourceConfigParamCase.STRING_ARRAY:
-                    sourceIncludes = request.getSource().getStringArray().getStringArrayList().toArray(new String[0]);
+                case STRING_ARRAY:
+                    sourceIncludes = request.getUnderscoreSource().getStringArray().getStringArrayList().toArray(new String[0]);
                     break;
                 default:
                     throw new UnsupportedOperationException("Invalid sourceConfig provided.");
             }
         }
 
-        if (request.getSourceIncludesList().size() > 0) {
-            sourceIncludes = request.getSourceIncludesList().toArray(new String[0]);
+        if (request.getUnderscoreSourceIncludesCount() > 0) {
+            sourceIncludes = request.getUnderscoreSourceIncludesList().toArray(new String[0]);
         }
 
-        if (request.getSourceExcludesList().size() > 0) {
-            sourceExcludes = request.getSourceExcludesList().toArray(new String[0]);
+        if (request.getUnderscoreSourceExcludesCount() > 0) {
+            sourceExcludes = request.getUnderscoreSourceExcludesList().toArray(new String[0]);
         }
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
             return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
@@ -118,22 +118,16 @@ public class FetchSourceContextProtoUtils {
         String[] excludes = Strings.EMPTY_ARRAY;
         if (sourceConfig.getSourceConfigCase() == SourceConfig.SourceConfigCase.FETCH) {
             fetchSource = sourceConfig.getFetch();
-        } else if (sourceConfig.hasIncludes()) {
-            ArrayList<String> list = new ArrayList<>();
-            for (String string : sourceConfig.getIncludes().getStringArrayList()) {
-                list.add(string);
-            }
-            includes = list.toArray(new String[0]);
         } else if (sourceConfig.hasFilter()) {
             SourceFilter sourceFilter = sourceConfig.getFilter();
-            if (!sourceFilter.getIncludesList().isEmpty()) {
+            if (sourceFilter.getIncludesCount() > 0) {
                 List<String> includesList = new ArrayList<>();
                 for (String s : sourceFilter.getIncludesList()) {
                     includesList.add(s);
                 }
                 includes = includesList.toArray(new String[0]);
             }
-            if (!sourceFilter.getExcludesList().isEmpty()) {
+            if (sourceFilter.getExcludesCount() > 0) {
                 List<String> excludesList = new ArrayList<>();
                 for (String s : sourceFilter.getExcludesList()) {
                     excludesList.add(s);
