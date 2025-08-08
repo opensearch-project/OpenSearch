@@ -17,7 +17,9 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.List;
 
 /**
  * The extension point which allows to plug in custom search implementation to be
@@ -52,5 +54,23 @@ public interface QueryPhaseSearcher {
      */
     default AggregationProcessor aggregationProcessor(SearchContext searchContext) {
         return new DefaultAggregationProcessor();
+    }
+
+    /**
+     * Get the list of query phase listeners that should be executed before and after score collection.
+     * @return list of query phase listeners, empty list if none
+     */
+    default List<QueryPhaseListener> queryPhaseListeners() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Check if this searcher has any query phase listeners registered.
+     * This method allows for fast-path optimization to skip listener logic entirely.
+     * @return true if there are listeners, false otherwise
+     */
+    default boolean hasQueryPhaseListeners() {
+        // Returning false by default allows JVM to optimize for common case
+        return false;
     }
 }

@@ -411,7 +411,7 @@ public class QueryPhase {
      *
      * @opensearch.internal
      */
-    public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+    public static class DefaultQueryPhaseSearcher extends AbstractQueryPhaseSearcher {
         private final AggregationProcessor aggregationProcessor;
 
         /**
@@ -423,6 +423,22 @@ public class QueryPhase {
 
         @Override
         public boolean searchWith(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            if (!hasQueryPhaseListeners()) {
+                // Fast path when no listeners
+                return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+            }
+            return super.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+
+        @Override
+        protected boolean doSearchWith(
             SearchContext searchContext,
             ContextIndexSearcher searcher,
             Query query,
@@ -450,7 +466,8 @@ public class QueryPhase {
             return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
         }
 
-        private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector) throws IOException {
+        protected QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
+            throws IOException {
             // create the top docs collector last when the other collectors are known
             final Optional<QueryCollectorContext> queryCollectorContextOpt = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
                 searchContext,
