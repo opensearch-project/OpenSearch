@@ -22,11 +22,11 @@ public class TransportUpdateActionTests extends OpenSearchTestCase {
     public void testTransportUpdateActionHasShardBulkActionField() throws NoSuchFieldException {
         // Verify that TransportUpdateAction has a private field for TransportShardBulkAction
         Field shardBulkActionField = TransportUpdateAction.class.getDeclaredField("shardBulkAction");
-        
+
         // Verify the field exists and has the correct type
         assertNotNull(shardBulkActionField);
         assertEquals(TransportShardBulkAction.class, shardBulkActionField.getType());
-        
+
         // Verify it's private (implementation detail check)
         assertTrue(java.lang.reflect.Modifier.isPrivate(shardBulkActionField.getModifiers()));
     }

@@ -36,7 +36,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
-import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
@@ -52,7 +51,6 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.TransportActions;
-import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.single.instance.TransportInstanceSingleOperationAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -264,7 +262,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
-                
+
                 executeBulkItemOnShard(upsertRequest, request, shardId, new ActionListener<BulkShardResponse>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkResponse) {
@@ -273,7 +271,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             handleUpdateFailureWithRetry(listener, request, itemResponse.getFailure().getCause(), retryCount);
                             return;
                         }
-                        
+
                         IndexResponse response = (IndexResponse) itemResponse.getResponse();
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
@@ -284,7 +282,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             response.getVersion(),
                             response.getResult()
                         );
-                        
+
                         if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
                             Tuple<? extends MediaType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
                                 upsertSourceBytes,
@@ -309,7 +307,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
-                    
+
                     @Override
                     public void onFailure(Exception e) {
                         handleUpdateFailureWithRetry(listener, request, e, retryCount);
@@ -331,7 +329,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             + "] has a default ingest pipeline or a final ingest pipeline, the support of the ingest pipelines for update operation causes unexpected result and will be removed in 3.0.0"
                     );
                 }
-                
+
                 executeBulkItemOnShard(indexRequest, request, shardId, new ActionListener<BulkShardResponse>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkResponse) {
@@ -340,7 +338,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             handleUpdateFailureWithRetry(listener, request, itemResponse.getFailure().getCause(), retryCount);
                             return;
                         }
-                        
+
                         IndexResponse response = (IndexResponse) itemResponse.getResponse();
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
@@ -366,7 +364,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
-                    
+
                     @Override
                     public void onFailure(Exception e) {
                         handleUpdateFailureWithRetry(listener, request, e, retryCount);
@@ -376,7 +374,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             }
             case DELETED: {
                 DeleteRequest deleteRequest = result.action();
-                
+
                 executeBulkItemOnShard(deleteRequest, request, shardId, new ActionListener<BulkShardResponse>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkResponse) {
@@ -385,7 +383,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             handleUpdateFailureWithRetry(listener, request, itemResponse.getFailure().getCause(), retryCount);
                             return;
                         }
-                        
+
                         DeleteResponse response = (DeleteResponse) itemResponse.getResponse();
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
@@ -411,7 +409,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
-                    
+
                     @Override
                     public void onFailure(Exception e) {
                         handleUpdateFailureWithRetry(listener, request, e, retryCount);
