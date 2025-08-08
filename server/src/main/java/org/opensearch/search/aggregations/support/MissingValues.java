@@ -71,11 +71,6 @@ public enum MissingValues {
             public String toString() {
                 return "anon ValuesSource.Bytes of [" + super.toString() + "]";
             }
-
-            @Override
-            public String getIndexFieldName() {
-                return valuesSource.getIndexFieldName();
-            }
         };
     }
 
@@ -153,11 +148,6 @@ public enum MissingValues {
             @Override
             public String toString() {
                 return "anon ValuesSource.Numeric of [" + super.toString() + "]";
-            }
-
-            @Override
-            public String getIndexFieldName() {
-                return valuesSource.getIndexFieldName();
             }
         };
     }
@@ -277,11 +267,6 @@ public enum MissingValues {
             @Override
             public String toString() {
                 return "anon ValuesSource.Bytes.WithOrdinals of [" + super.toString() + "]";
-            }
-
-            @Override
-            public String getIndexFieldName() {
-                return valuesSource.getIndexFieldName();
             }
 
         };
@@ -475,11 +460,6 @@ public enum MissingValues {
             public String toString() {
                 return "anon ValuesSource.GeoPoint of [" + super.toString() + "]";
             }
-
-            @Override
-            public String getIndexFieldName() {
-                return valuesSource.getIndexFieldName();
-            }
         };
     }
 
@@ -539,11 +519,6 @@ public enum MissingValues {
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
-            }
-
-            @Override
-            public String getIndexFieldName() {
-                return valuesSource.getIndexFieldName();
             }
         };
     }
