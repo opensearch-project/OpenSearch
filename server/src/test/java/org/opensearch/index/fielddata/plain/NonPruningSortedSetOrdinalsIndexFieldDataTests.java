@@ -56,7 +56,6 @@ public class NonPruningSortedSetOrdinalsIndexFieldDataTests extends OpenSearchSi
         field.hashCode();
         field.equals(field);
         field.getBytesComparator();
-        field.setComparator(null);
         field.getComparator(0, Pruning.NONE);
         field.needsScores();
         field.getIndexSorter();
