@@ -48,11 +48,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -497,12 +497,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         int slices = 2000;
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            reindex()
-                .source("source")
-                .destination("dest")
-                .refresh(true)
-                .setSlices(slices)
-                .get();
+            reindex().source("source").destination("dest").refresh(true).setSlices(slices).get();
         });
         assertThat(e.getMessage(), containsString("is too large"));
     }
