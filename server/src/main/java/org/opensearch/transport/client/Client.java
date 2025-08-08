@@ -93,6 +93,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
@@ -504,5 +505,149 @@ public interface Client extends OpenSearchClient, Releasable {
      */
     default Client getRemoteClusterClient(String clusterAlias) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
+    }
+
+    /**
+     * Index a document - CompletableFuture version
+     */
+    default CompletableFuture<IndexResponse> indexAsync(IndexRequest request) {
+        CompletableFuture<IndexResponse> future = new CompletableFuture<>();
+        index(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Update a document - CompletableFuture version
+     */
+    default CompletableFuture<UpdateResponse> updateAsync(UpdateRequest request) {
+        CompletableFuture<UpdateResponse> future = new CompletableFuture<>();
+        update(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Delete a document - CompletableFuture version
+     */
+    default CompletableFuture<DeleteResponse> deleteAsync(DeleteRequest request) {
+        CompletableFuture<DeleteResponse> future = new CompletableFuture<>();
+        delete(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Bulk operations - CompletableFuture version
+     */
+    default CompletableFuture<BulkResponse> bulkAsync(BulkRequest request) {
+        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
+        bulk(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Get document - CompletableFuture version
+     */
+    default CompletableFuture<GetResponse> getAsync(GetRequest request) {
+        CompletableFuture<GetResponse> future = new CompletableFuture<>();
+        get(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Multi get - CompletableFuture version
+     */
+    default CompletableFuture<MultiGetResponse> multiGetAsync(MultiGetRequest request) {
+        CompletableFuture<MultiGetResponse> future = new CompletableFuture<>();
+        multiGet(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Search - CompletableFuture version
+     */
+    default CompletableFuture<SearchResponse> searchAsync(SearchRequest request) {
+        CompletableFuture<SearchResponse> future = new CompletableFuture<>();
+        search(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Search scroll - CompletableFuture version
+     */
+    default CompletableFuture<SearchResponse> searchScrollAsync(SearchScrollRequest request) {
+        CompletableFuture<SearchResponse> future = new CompletableFuture<>();
+        searchScroll(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Multi search - CompletableFuture version
+     */
+    default CompletableFuture<MultiSearchResponse> multiSearchAsync(MultiSearchRequest request) {
+        CompletableFuture<MultiSearchResponse> future = new CompletableFuture<>();
+        multiSearch(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Term vectors - CompletableFuture version
+     */
+    default CompletableFuture<TermVectorsResponse> termVectorsAsync(TermVectorsRequest request) {
+        CompletableFuture<TermVectorsResponse> future = new CompletableFuture<>();
+        termVectors(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Multi term vectors - CompletableFuture version
+     */
+    default CompletableFuture<MultiTermVectorsResponse> multiTermVectorsAsync(MultiTermVectorsRequest request) {
+        CompletableFuture<MultiTermVectorsResponse> future = new CompletableFuture<>();
+        multiTermVectors(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Explain - CompletableFuture version
+     */
+    default CompletableFuture<ExplainResponse> explainAsync(ExplainRequest request) {
+        CompletableFuture<ExplainResponse> future = new CompletableFuture<>();
+        explain(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Clear scroll - CompletableFuture version
+     */
+    default CompletableFuture<ClearScrollResponse> clearScrollAsync(ClearScrollRequest request) {
+        CompletableFuture<ClearScrollResponse> future = new CompletableFuture<>();
+        clearScroll(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Field capabilities - CompletableFuture version
+     */
+    default CompletableFuture<FieldCapabilitiesResponse> fieldCapsAsync(FieldCapabilitiesRequest request) {
+        CompletableFuture<FieldCapabilitiesResponse> future = new CompletableFuture<>();
+        fieldCaps(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Search view - CompletableFuture version
+     */
+    default CompletableFuture<SearchResponse> searchViewAsync(SearchViewAction.Request request) {
+        CompletableFuture<SearchResponse> future = new CompletableFuture<>();
+        searchView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * List view names - CompletableFuture version
+     */
+    default CompletableFuture<ListViewNamesAction.Response> listViewNamesAsync(ListViewNamesAction.Request request) {
+        CompletableFuture<ListViewNamesAction.Response> future = new CompletableFuture<>();
+        listViewNames(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
     }
 }
