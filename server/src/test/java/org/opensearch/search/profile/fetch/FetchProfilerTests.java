@@ -96,4 +96,32 @@ public class FetchProfilerTests extends OpenSearchTestCase {
         assertThat(map.get(FetchTimingType.PROCESS + TIMING_TYPE_COUNT_SUFFIX), equalTo(2L));
         assertThat(breakdown.toNodeTime(), equalTo(map.get(FetchTimingType.PROCESS.toString())));
     }
+
+    public void testSubPhaseConsolidation() {
+        FetchProfiler profiler = new FetchProfiler();
+
+        profiler.startFetchPhase("fetch");
+        FetchProfileBreakdown child1 = profiler.startSubPhase("phase", "fetch");
+        Timer timer1 = child1.getTimer(FetchTimingType.PROCESS);
+        timer1.start();
+        timer1.stop();
+        profiler.endFetchPhase("fetch");
+
+        profiler.startFetchPhase("fetch");
+        FetchProfileBreakdown child2 = profiler.startSubPhase("phase", "fetch");
+        Timer timer2 = child2.getTimer(FetchTimingType.PROCESS);
+        timer2.start();
+        timer2.stop();
+        profiler.endFetchPhase("fetch");
+
+        List<ProfileResult> results = profiler.getTree();
+        assertEquals(1, results.size());
+        ProfileResult profileResult = results.get(0);
+        assertEquals("fetch", profileResult.getQueryName());
+        assertEquals(1, profileResult.getProfiledChildren().size());
+        ProfileResult sub = profileResult.getProfiledChildren().get(0);
+        assertEquals("phase", sub.getQueryName());
+        Map<String, Long> breakdown = sub.getTimeBreakdown();
+        assertThat(breakdown.get(FetchTimingType.PROCESS.toString() + TIMING_TYPE_COUNT_SUFFIX), equalTo(2L));
+    }
 }

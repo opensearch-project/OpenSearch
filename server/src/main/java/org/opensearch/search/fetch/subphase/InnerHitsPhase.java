@@ -102,7 +102,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             innerHitsContext.setId(hit.getId());
             innerHitsContext.setRootLookup(rootLookup);
 
-            fetchPhase.execute(innerHitsContext, "fetch_inner_hits");
+            fetchPhase.execute(innerHitsContext, "fetch_inner_hits[" + entry.getKey() + "]");
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
             SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int j = 0; j < internalHits.length; j++) {

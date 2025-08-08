@@ -59,6 +59,7 @@ import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.SubSearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.search.profile.ProfileResult;
@@ -74,8 +75,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -815,9 +818,15 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
                     .withParsedQuery(pq)
                     .build();
 
-                InnerHitsContext.InnerHitSubContext innerContext = new DummyInnerHitSubContext("inner", context);
+                // Create multiple inner hit contexts
+                InnerHitsContext.InnerHitSubContext innerContext1 = new DummyInnerHitSubContext("inner1", context);
+                InnerHitsContext.InnerHitSubContext innerContext2 = new DummyInnerHitSubContext("inner2", context);
+                InnerHitsContext.InnerHitSubContext innerContext3 = new DummyInnerHitSubContext("inner3", context);
+
                 InnerHitsContext innerHits = new InnerHitsContext();
-                innerHits.addInnerHitDefinition(innerContext);
+                innerHits.addInnerHitDefinition(innerContext1);
+                innerHits.addInnerHitDefinition(innerContext2);
+                innerHits.addInnerHitDefinition(innerContext3);
                 when(context.innerHits()).thenReturn(innerHits);
 
                 List<FetchSubPhase> subPhases = Collections.singletonList(new FetchSourcePhase());
@@ -827,12 +836,15 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
                 FetchProfiler fetchProfiler = context.getProfilers().getFetchProfiler();
                 List<ProfileResult> profileResults = fetchProfiler.getTree();
-                assertThat(profileResults, hasSize(1));
 
-                ProfileResult profile = profileResults.get(0);
+                // Should have 1 standard fetch profile + 3 inner hits fetch profiles = 4 total
+                assertThat(profileResults, hasSize(4));
+
+                // Verify the standard fetch profile (first result)
+                ProfileResult standardFetchProfile = profileResults.get(0);
 
                 Map<String, ProfileResult> children = new HashMap<>();
-                for (ProfileResult child : profile.getProfiledChildren()) {
+                for (ProfileResult child : standardFetchProfile.getProfiledChildren()) {
                     children.put(child.getQueryName(), child);
                 }
 
@@ -842,6 +854,129 @@ public class FetchProfilePhaseTests extends IndexShardTestCase {
 
                 new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
                     .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
+
+                Set<String> expectedInnerHitNames = Set.of("inner1", "inner2", "inner3");
+                Set<String> actualInnerHitNames = new HashSet<>();
+                List<ProfileResult> innerHitsProfiles = new ArrayList<>();
+
+                for (int i = 1; i < profileResults.size(); i++) {
+                    ProfileResult profile = profileResults.get(i);
+                    String profileName = profile.getQueryName();
+
+                    assertTrue("Profile name should start with 'fetch_inner_hits['", profileName.startsWith("fetch_inner_hits["));
+                    assertTrue("Profile name should end with ']'", profileName.endsWith("]"));
+
+                    String innerHitName = profileName.substring("fetch_inner_hits[".length(), profileName.length() - 1);
+                    actualInnerHitNames.add(innerHitName);
+                    innerHitsProfiles.add(profile);
+                }
+
+                assertEquals("Should have all expected inner hit names", expectedInnerHitNames, actualInnerHitNames);
+                assertEquals("Should have 3 inner hits profiles", 3, innerHitsProfiles.size());
+
+                for (ProfileResult innerHitsFetchProfile : innerHitsProfiles) {
+                    new TimingAssertions(innerHitsFetchProfile.getTimeBreakdown()).assertBreakdownNotEmpty()
+                        .assertTimingPresent(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
+                        .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
+                        .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
+                        .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
+                        .assertTimingPresent(FetchTimingType.GET_NEXT_READER);
+
+                    children = new HashMap<>();
+                    for (ProfileResult child : innerHitsFetchProfile.getProfiledChildren()) {
+                        children.put(child.getQueryName(), child);
+                    }
+
+                    String innerHitName = innerHitsFetchProfile.getQueryName();
+                    assertEquals("Inner hit " + innerHitName + " should have 1 sub-phase", 1, children.size());
+                    assertTrue("Inner hit " + innerHitName + " should contain FetchSourcePhase", children.containsKey("FetchSourcePhase"));
+
+                    new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                        .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
+                }
+            }
+        }
+    }
+
+    public void testTopHitsAggregationFetchProfiling() throws Exception {
+        try (Directory dir = newDirectory()) {
+            List<Document> docs = new TestDocumentBuilder().addDocuments(3, true).build();
+            int[] docIds = indexDocumentsAndGetIds(dir, docs, 3);
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                QueryShardContext qsc = mock(QueryShardContext.class);
+                ParsedQuery pq = new ParsedQuery(new MatchAllDocsQuery());
+
+                // Create the main search context
+                SearchContext mainContext = new SearchContextBuilder(reader, docIds, indexShard).withSourceLoading()
+                    .withStoredFields("_source")
+                    .withQueryShardContext(qsc)
+                    .withParsedQuery(pq)
+                    .build();
+
+                // Create multiple SubSearchContext instances to simulate top hits aggregations
+                SubSearchContext topHitsContext1 = new SubSearchContext(mainContext);
+                topHitsContext1.docIdsToLoad(new int[] { docIds[0] }, 0, 1);
+                topHitsContext1.size(1);
+
+                SubSearchContext topHitsContext2 = new SubSearchContext(mainContext);
+                topHitsContext2.docIdsToLoad(new int[] { docIds[1] }, 0, 1);
+                topHitsContext2.size(1);
+
+                SubSearchContext topHitsContext3 = new SubSearchContext(mainContext);
+                topHitsContext3.docIdsToLoad(new int[] { docIds[2] }, 0, 1);
+                topHitsContext3.size(1);
+
+                List<FetchSubPhase> subPhases = Collections.singletonList(new FetchSourcePhase());
+                FetchPhase fetchPhase = new FetchPhase(subPhases);
+
+                fetchPhase.execute(topHitsContext1, "fetch_top_hits_aggregation[top_hits_agg1]");
+                fetchPhase.execute(topHitsContext2, "fetch_top_hits_aggregation[top_hits_agg2]");
+                fetchPhase.execute(topHitsContext3, "fetch_top_hits_aggregation[top_hits_agg3]");
+
+                FetchProfiler fetchProfiler = mainContext.getProfilers().getFetchProfiler();
+                List<ProfileResult> profileResults = fetchProfiler.getTree();
+
+                assertThat(profileResults, hasSize(3));
+
+                Set<String> expectedTopHitsNames = Set.of("top_hits_agg1", "top_hits_agg2", "top_hits_agg3");
+                Set<String> actualTopHitsNames = new HashSet<>();
+
+                for (ProfileResult profile : profileResults) {
+                    String profileName = profile.getQueryName();
+
+                    assertTrue(
+                        "Profile name should start with 'fetch_top_hits_aggregation['",
+                        profileName.startsWith("fetch_top_hits_aggregation[")
+                    );
+                    assertTrue("Profile name should end with ']'", profileName.endsWith("]"));
+
+                    String topHitsName = profileName.substring("fetch_top_hits_aggregation[".length(), profileName.length() - 1);
+                    actualTopHitsNames.add(topHitsName);
+                }
+
+                assertEquals("Should have all expected top hits names", expectedTopHitsNames, actualTopHitsNames);
+
+                for (ProfileResult topHitsFetchProfile : profileResults) {
+                    new TimingAssertions(topHitsFetchProfile.getTimeBreakdown()).assertBreakdownNotEmpty()
+                        .assertTimingPresent(FetchTimingType.CREATE_STORED_FIELDS_VISITOR)
+                        .assertTimingPresent(FetchTimingType.LOAD_SOURCE)
+                        .assertTimingPresent(FetchTimingType.LOAD_STORED_FIELDS)
+                        .assertTimingPresent(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS)
+                        .assertTimingPresent(FetchTimingType.GET_NEXT_READER);
+
+                    Map<String, ProfileResult> children = new HashMap<>();
+                    for (ProfileResult child : topHitsFetchProfile.getProfiledChildren()) {
+                        children.put(child.getQueryName(), child);
+                    }
+
+                    String topHitsName = topHitsFetchProfile.getQueryName();
+                    assertEquals("Top hits " + topHitsName + " should have 1 sub-phase", 1, children.size());
+                    assertTrue("Top hits " + topHitsName + " should contain FetchSourcePhase", children.containsKey("FetchSourcePhase"));
+
+                    new TimingAssertions(children.get("FetchSourcePhase").getTimeBreakdown()).assertTimingPresent(FetchTimingType.PROCESS)
+                        .assertTimingPresent(FetchTimingType.SET_NEXT_READER);
+                }
             }
         }
     }

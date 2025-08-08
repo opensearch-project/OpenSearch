@@ -215,7 +215,7 @@ class TopHitsAggregator extends MetricsAggregator {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
         subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
-        fetchPhase.execute(subSearchContext, "fetch_top_hits_aggregation");
+        fetchPhase.execute(subSearchContext, "fetch_top_hits_aggregation[" + name + "]");
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
         SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
         for (int i = 0; i < internalHits.length; i++) {
