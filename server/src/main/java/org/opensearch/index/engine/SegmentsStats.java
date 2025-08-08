@@ -64,6 +64,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
     private final Map<String, Long> fileSizes;
+    private final Map<String, Map<String, Long>> fieldLevelFileSizes;
     private final RemoteSegmentStats remoteSegmentStats;
     private static final ByteSizeValue ZERO_BYTE_SIZE_VALUE = new ByteSizeValue(0L);
 
@@ -107,6 +108,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public SegmentsStats() {
         fileSizes = new HashMap<>();
+        fieldLevelFileSizes = new HashMap<>();
         remoteSegmentStats = new RemoteSegmentStats();
         replicationStats = new ReplicationStats();
     }
@@ -129,6 +131,15 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
         fileSizes = in.readMap(StreamInput::readString, StreamInput::readLong);
+        // Field-level file sizes (added in 3.0.0)
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            fieldLevelFileSizes = in.readMap(
+                StreamInput::readString,
+                input -> input.readMap(StreamInput::readString, StreamInput::readLong)
+            );
+        } else {
+            fieldLevelFileSizes = new HashMap<>();
+        }
         if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             remoteSegmentStats = in.readOptionalWriteable(RemoteSegmentStats::new);
             replicationStats = in.readOptionalWriteable(ReplicationStats::new);
@@ -275,6 +286,23 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
             builder.endObject();
         }
         builder.endObject();
+
+        // Add field-level file sizes if available
+        if (!fieldLevelFileSizes.isEmpty()) {
+            builder.startObject(Fields.FIELD_LEVEL_FILE_SIZES);
+            for (Map.Entry<String, Map<String, Long>> fieldEntry : fieldLevelFileSizes.entrySet()) {
+                builder.startObject(fieldEntry.getKey());
+                for (Map.Entry<String, Long> fileEntry : fieldEntry.getValue().entrySet()) {
+                    builder.startObject(fileEntry.getKey());
+                    builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(fileEntry.getValue()));
+                    builder.field(Fields.DESCRIPTION, FILE_DESCRIPTIONS.getOrDefault(fileEntry.getKey(), "Others"));
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
         builder.endObject();
         return builder;
     }
@@ -309,6 +337,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         static final String FIXED_BIT_SET = "fixed_bit_set";
         static final String FIXED_BIT_SET_MEMORY_IN_BYTES = "fixed_bit_set_memory_in_bytes";
         static final String FILE_SIZES = "file_sizes";
+        static final String FIELD_LEVEL_FILE_SIZES = "field_level_file_sizes";
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
         static final String DESCRIPTION = "description";
@@ -333,6 +362,14 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(bitsetMemoryInBytes);
         out.writeLong(maxUnsafeAutoIdTimestamp);
         out.writeMap(this.fileSizes, StreamOutput::writeString, StreamOutput::writeLong);
+        // Field-level file sizes (added in 3.0.0)
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeMap(
+                this.fieldLevelFileSizes,
+                StreamOutput::writeString,
+                (output, map) -> output.writeMap(map, StreamOutput::writeString, StreamOutput::writeLong)
+            );
+        }
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalWriteable(remoteSegmentStats);
             out.writeOptionalWriteable(replicationStats);
@@ -341,6 +378,18 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public void clearFileSizes() {
         fileSizes.clear();
+    }
+
+    public Map<String, Map<String, Long>> getFieldLevelFileSizes() {
+        return fieldLevelFileSizes;
+    }
+
+    public void addFieldLevelFileSizes(Map<String, Map<String, Long>> fieldLevelStats) {
+        this.fieldLevelFileSizes.putAll(fieldLevelStats);
+    }
+
+    public void clearFieldLevelFileSizes() {
+        fieldLevelFileSizes.clear();
     }
 
     /**

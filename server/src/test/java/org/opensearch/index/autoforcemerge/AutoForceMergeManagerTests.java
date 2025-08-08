@@ -569,7 +569,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         ShardRouting shardRouting = mock(ShardRouting.class);
         when(shard.shardId()).thenReturn(shardId1);
         when(shard.translogStats()).thenReturn(translogStats);
-        when(shard.segmentStats(false, false)).thenReturn(segmentsStats);
+        when(shard.segmentStats(false, false, false)).thenReturn(segmentsStats);
         when(shard.routingEntry()).thenReturn(shardRouting);
         when(shardRouting.primary()).thenReturn(true);
         when(shard.state()).thenReturn(IndexShardState.STARTED);

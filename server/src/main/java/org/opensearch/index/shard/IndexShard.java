@@ -1564,8 +1564,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mergeStats;
     }
 
-    public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
-        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+    public SegmentsStats segmentStats(
+        boolean includeSegmentFileSizes,
+        boolean includeFieldLevelSegmentFileSizes,
+        boolean includeUnloadedSegments
+    ) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(
+            includeSegmentFileSizes,
+            includeFieldLevelSegmentFileSizes,
+            includeUnloadedSegments
+        );
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         // Populate remote_store stats only if the index is remote store backed
         if (indexSettings().isAssignedOnRemoteNode()) {
@@ -1577,6 +1585,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             segmentsStats.addReplicationStats(getReplicationStats());
         }
         return segmentsStats;
+    }
+
+    /**
+     * Backwards-compatible overload retained for binary compatibility.
+     * Delegates to the new method with field-level stats disabled by default.
+     */
+    public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        return segmentStats(includeSegmentFileSizes, false, includeUnloadedSegments);
     }
 
     public WarmerStats warmerStats() {
