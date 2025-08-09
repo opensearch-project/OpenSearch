@@ -73,6 +73,8 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     private TimeValue timeout;
 
+    protected boolean shouldCancelOnTimeout = false;
+
     protected BaseNodesRequest(StreamInput in) throws IOException {
         super(in);
         nodesIds = in.readStringArray();
@@ -135,4 +137,13 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         out.writeOptionalArray(concreteNodes);
         out.writeOptionalTimeValue(timeout);
     }
+
+    public void setShouldCancelOnTimeout(boolean shouldCancelOnTimeout) {
+        this.shouldCancelOnTimeout = shouldCancelOnTimeout;
+    }
+
+    public boolean getShouldCancelOnTimeout() {
+        return this.shouldCancelOnTimeout;
+    }
+
 }
