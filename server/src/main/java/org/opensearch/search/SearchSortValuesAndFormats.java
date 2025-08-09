@@ -68,10 +68,7 @@ public class SearchSortValuesAndFormats implements Writeable {
                 case Double doubleValue -> sortValueFormats[i].format(doubleValue);
                 case Float ignored -> sortValue;
                 case Integer ignored -> sortValue; // sort by _score or _doc
-                case null -> {
-                    assert true : "Null sort value is allowed";
-                    yield sortValue;
-                }
+                case null -> sortValue;
                 default -> {
                     assert false : "Sort values must be a BytesRef, Long, Integer, Double or Float, but got "
                         + sortValue.getClass()
