@@ -312,6 +312,7 @@ public class FollowersChecker {
         FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
         if (followerChecker != null) {
             logger.info(() -> new ParameterizedMessage("{} disconnected", followerChecker));
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerCheckAttemptFailureCounter, 1.0);
             followerChecker.failNode("disconnected");
         }
     }
@@ -398,6 +399,7 @@ public class FollowersChecker {
                         }
 
                         failureCountSinceLastSuccess++;
+                        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerCheckAttemptFailureCounter, 1.0);
 
                         final String reason;
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
