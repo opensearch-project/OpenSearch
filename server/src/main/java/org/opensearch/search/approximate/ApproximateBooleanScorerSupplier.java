@@ -201,7 +201,8 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
         // Create a simple bulk scorer that wraps the conjunction
         return new BulkScorer() {
-            private int totalCollected = 0; // Track total hits across all score() calls
+            private int totalCollected = 0;
+    private boolean expansionStopped = false; // Track total hits across all score() calls
 
             @Override
             public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
@@ -223,10 +224,19 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                 // Score documents in the range [min, max) with early termination
                 for (doc = conjunctionDISI.docID(); doc < max; doc = conjunctionDISI.nextDoc()) {
                     // Early termination when we reach the threshold
-//                    if (totalCollected >= threshold) {
-////                        System.out.println("DEBUG: Early termination at " + totalCollected + " hits (threshold: " + threshold + ")");
-//                        break;
-//                    }
+                    if (totalCollected >= 10000) {
+                        if (!expansionStopped) {
+                            // Stop all ResumableDISI instances from expanding further
+                            for (DocIdSetIterator iter : clauseIterators) {
+                                if (iter instanceof ResumableDISI disi) {
+                                    disi.stopExpansion();
+                                }
+                            }
+                            expansionStopped = true;
+                            System.out.println("DEBUG: Stopped expansion for all ResumableDISI at " + totalCollected + " hits");
+                        }
+                        return DocIdSetIterator.NO_MORE_DOCS; // Exit the entire score method
+                    }
 
                     if (acceptDocs == null || acceptDocs.get(doc)) {
                         collector.collect(doc);
@@ -234,7 +244,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                         totalCollected++;
                     }
                 }
-                
+
                 System.out.println("Total Collected: " + totalCollected + " Collected this window: " + collected);
 
 //                System.out.println("Num conjunction hits " + collected + " (total: " + totalCollected + ")");

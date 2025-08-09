@@ -33,6 +33,7 @@ public class ResumableDISI extends DocIdSetIterator {
     private DocIdSetIterator currentDisi;
     private int currentDocId = -1;
     private boolean fullyExhausted = false;
+    private volatile boolean stopExpansion = false;
 
     private int documentsScored = 0; // Total documents scored across all expansions
     private int documentsReturned = 0; // Count of documents returned by nextDoc()
@@ -206,7 +207,7 @@ public class ResumableDISI extends DocIdSetIterator {
      * @throws IOException If there's an error getting the scorer
      */
     private boolean expandInternally() throws IOException {
-        if (fullyExhausted) {
+        if (fullyExhausted || stopExpansion) {
             return false;
         }
 
@@ -245,6 +246,13 @@ public class ResumableDISI extends DocIdSetIterator {
     @Override
     public long cost() {
         return 10_000L;
+    }
+
+    /**
+     * Signal this iterator to stop expanding and return NO_MORE_DOCS
+     */
+    public void stopExpansion() {
+        stopExpansion = true;
     }
 
     /**
