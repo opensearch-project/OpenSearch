@@ -31,11 +31,17 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.io.SdkDigestInputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.internal.Base16;
 
 import org.apache.http.HttpStatus;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
@@ -93,6 +99,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -113,6 +120,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -290,6 +301,467 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 return new AssertingInputStream(super.readBlob(blobName, position, length), blobName, position, length);
             }
         };
+    }
+
+    public void testWriteBlobWithMetadataIfVerifiedAndETagRetries() throws Exception {
+        final Map<String, String> metadata = randomBoolean()
+            ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10))
+            : null;
+
+        final String expectedETag = "\"" + randomAlphaOfLength(32) + "\"";
+        final AtomicReference<String> returnedETag = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final ActionListener<String> eTagListener = ActionListener.wrap(eTag -> {
+            returnedETag.set(eTag);
+            latch.countDown();
+        }, e -> fail("Should not have failed: " + e));
+
+        writeBlobWithMetadataIfVerifiedAndETagRetriesHelper(metadata, expectedETag, eTagListener);
+
+        assertTrue("Listener was not called within timeout", latch.await(2, TimeUnit.SECONDS));
+        assertNotNull("ETag should not be null", returnedETag.get());
+        assertEquals("Returned ETag should match expected", expectedETag, returnedETag.get());
+    }
+
+    private void writeBlobWithMetadataIfVerifiedAndETagRetriesHelper(
+        Map<String, String> metadata,
+        String expectedETag,
+        ActionListener<String> eTagListener
+    ) throws Exception {
+        final int maxRetries = randomInt(5);
+        final CountDown countDown = new CountDown(maxRetries + 1);
+
+        final String blobName = "write_blob_etag_retries";
+        final String contextPath = "/bucket/" + blobName;
+
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext(contextPath, exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
+                List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
+                assertNotNull("If-Match header should be present", ifMatchHeaders);
+                assertEquals("If-Match header value", expectedETag, ifMatchHeaders.getFirst());
+
+                if (metadata != null) {
+                    for (Map.Entry<String, String> entry : metadata.entrySet()) {
+                        List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
+                        assertNotNull("Metadata header missing: " + entry.getKey(), values);
+                        assertEquals("Metadata value incorrect", entry.getValue(), values.getFirst());
+                    }
+                } else {
+                    for (String header : exchange.getRequestHeaders().keySet()) {
+                        assertFalse(
+                            "No metadata headers should be present when metadata is null",
+                            header.toLowerCase(Locale.ROOT).startsWith("x-amz-meta-")
+                        );
+                    }
+                }
+
+                if (countDown.countDown()) {
+                    final BytesReference body = Streams.readFully(exchange.getRequestBody());
+                    if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
+                        exchange.getResponseHeaders().set("ETag", expectedETag);
+                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    } else {
+                        exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
+                    }
+                    exchange.close();
+                    return;
+                }
+
+                if (randomBoolean()) {
+                    if (randomBoolean()) {
+                        Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
+                    } else {
+                        Streams.readFully(exchange.getRequestBody());
+                        exchange.sendResponseHeaders(
+                            randomFrom(
+                                HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                                HttpStatus.SC_BAD_GATEWAY,
+                                HttpStatus.SC_SERVICE_UNAVAILABLE,
+                                HttpStatus.SC_GATEWAY_TIMEOUT
+                            ),
+                            -1
+                        );
+                    }
+                }
+                exchange.close();
+            }
+        });
+
+        try {
+            final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
+            try (InputStream stream = new ByteArrayInputStream(bytes)) {
+                if (metadata != null) {
+                    blobContainer.writeBlobWithMetadataIfVerified(
+                        blobName,
+                        stream,
+                        bytes.length,
+                        false,
+                        metadata,
+                        expectedETag,
+                        eTagListener
+                    );
+                } else {
+                    blobContainer.writeBlobIfVerified(blobName, stream, bytes.length, false, expectedETag, eTagListener);
+                }
+            }
+            assertThat(countDown.isCountedDown(), is(true));
+        } finally {
+            httpServer.removeContext(contextPath);
+        }
+    }
+
+    public void testWriteBlobWithMetadataIfVerifiedAndETagReadTimeouts() {
+        final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
+
+        final String eTag = "\"" + randomAlphaOfLength(32) + "\"";
+        final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
+        final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null);
+
+        final CountDownLatch listenerLatch = new CountDownLatch(1);
+        final AtomicReference<Exception> listenerException = new AtomicReference<>();
+        final ActionListener<String> eTagListener = ActionListener.wrap(s -> fail("Should not succeed with timeout"), e -> {
+            listenerException.set(e);
+            listenerLatch.countDown();
+        });
+
+        final String blobName = "write_blob_etag_timeout";
+        final String contextPath = "/bucket/" + blobName;
+
+        httpServer.createContext(contextPath, exchange -> {
+            try {
+                List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
+                assertNotNull("If-Match header should be present", ifMatchHeaders);
+                assertEquals("If-Match header value", eTag, ifMatchHeaders.getFirst());
+
+                if (metadata != null) {
+                    for (Map.Entry<String, String> entry : metadata.entrySet()) {
+                        List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
+                        assertNotNull("Metadata header missing: " + entry.getKey(), values);
+                        assertEquals("Metadata value incorrect", entry.getValue(), values.getFirst());
+                    }
+                } else {
+                    for (String header : exchange.getRequestHeaders().keySet()) {
+                        assertFalse(
+                            "No metadata headers should be present when metadata is null",
+                            header.toLowerCase(Locale.ROOT).startsWith("x-amz-meta-")
+                        );
+                    }
+                }
+
+                Streams.readFully(exchange.getRequestBody());
+
+                try {
+                    Thread.sleep(readTimeout.millis() + 100);
+                } catch (InterruptedException e) {}
+
+                exchange.close();
+            } catch (Exception ex) {
+                exchange.close();
+            }
+        });
+
+        try {
+            Exception directException = expectThrows(IOException.class, () -> {
+                try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
+                    if (metadata != null) {
+                        blobContainer.writeBlobWithMetadataIfVerified(blobName, stream, bytes.length, false, metadata, eTag, eTagListener);
+                    } else {
+                        blobContainer.writeBlobIfVerified(blobName, stream, bytes.length, false, eTag, eTagListener);
+                    }
+                }
+            });
+
+            assertThat(directException.getMessage().toLowerCase(Locale.ROOT), containsString("s3 upload failed for [" + blobName + "]"));
+            assertThat(directException.getCause(), instanceOf(SdkClientException.class));
+            assertThat(directException.getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+            assertThat(directException.getCause().getCause(), instanceOf(SocketTimeoutException.class));
+            assertThat(directException.getCause().getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+
+            assertTrue("Listener was not called within timeout", listenerLatch.await(3, TimeUnit.SECONDS));
+
+            Exception asyncException = listenerException.get();
+            assertNotNull("Exception should not be null", asyncException);
+            assertTrue("Exception should be IOException", asyncException instanceof IOException);
+
+            assertThat(asyncException.getMessage().toLowerCase(Locale.ROOT), containsString("s3 upload failed for [" + blobName + "]"));
+            assertThat(asyncException.getCause(), instanceOf(SdkClientException.class));
+            assertThat(asyncException.getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+            assertThat(asyncException.getCause().getCause(), instanceOf(SocketTimeoutException.class));
+            assertThat(asyncException.getCause().getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+        } catch (InterruptedException e) {
+            fail("Test was interrupted: " + e);
+        } finally {
+            httpServer.removeContext(contextPath);
+        }
+    }
+
+    public void testWriteLargeBlobWithMetadataAndETag() throws Exception {
+        final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
+
+        final String expectedETag = "\"" + randomAlphaOfLength(32) + "\"";
+        final AtomicReference<String> returnedETag = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        final ActionListener<String> eTagListener = ActionListener.wrap(eTag -> {
+            returnedETag.set(eTag);
+            latch.countDown();
+        }, e -> { latch.countDown(); });
+
+        writeLargeBlobWithMetadataAndETagHelper(metadata, expectedETag, eTagListener);
+
+        assertTrue("Listener was not called within timeout", latch.await(5, TimeUnit.SECONDS));
+        if (returnedETag.get() != null) {
+            assertEquals("Final ETag should match expected", expectedETag, returnedETag.get());
+        }
+    }
+
+    private void writeLargeBlobWithMetadataAndETagHelper(
+        Map<String, String> metadata,
+        String verificationTag,
+        ActionListener<String> verificationTagListener
+    ) throws Exception {
+        final boolean useTimeout = rarely();
+        final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
+        final ByteSizeValue bufferSize = new ByteSizeValue(5, ByteSizeUnit.MB);
+        final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, bufferSize);
+
+        final int parts = randomIntBetween(1, 5);
+        final long lastPartSize = randomLongBetween(10, 512);
+        final long blobSize = (parts * bufferSize.getBytes()) + lastPartSize;
+
+        final int nbErrors = 2;
+        final CountDown countDownInitiate = new CountDown(nbErrors);
+        final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * (parts + 1));
+        final CountDown countDownComplete = new CountDown(nbErrors);
+
+        final String contextPath = "/bucket/write_large_blob_metadata_etag";
+
+        httpServer.createContext(contextPath, exchange -> {
+            try {
+                long contentLength = 0;
+                String contentLengthHeader = exchange.getRequestHeaders().getFirst("Content-Length");
+                if (contentLengthHeader != null) {
+                    try {
+                        contentLength = Long.parseLong(contentLengthHeader);
+                    } catch (NumberFormatException e) {}
+                }
+
+                if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploads")) {
+                    List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
+                    if (ifMatchHeaders == null || ifMatchHeaders.isEmpty()) {} else if (!verificationTag.equals(
+                        ifMatchHeaders.getFirst()
+                    )) {
+                    }
+
+                    if (metadata != null) {
+                        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+                            List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
+                            if (values == null || values.isEmpty()) {
+                            }
+                        }
+                    }
+
+                    if (countDownInitiate.countDown()) {
+                        byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            + "<InitiateMultipartUploadResult>\n"
+                            + "  <Bucket>bucket</Bucket>\n"
+                            + "  <Key>write_large_blob_metadata_etag</Key>\n"
+                            + "  <UploadId>TEST</UploadId>\n"
+                            + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                        exchange.getResponseBody().write(response);
+                        exchange.close();
+                        return;
+                    }
+                } else if ("PUT".equals(exchange.getRequestMethod())
+                    && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
+                    && exchange.getRequestURI().getQuery().contains("partNumber=")) {
+
+                        if (exchange.getRequestHeaders().get("If-Match") != null) {
+                        }
+
+                        SdkDigestInputStream digestInputStream = new SdkDigestInputStream(exchange.getRequestBody(), MessageDigests.md5());
+                        BytesReference bytes = Streams.readFully(digestInputStream);
+
+                        if ((long) bytes.length() != lastPartSize && (long) bytes.length() != bufferSize.getBytes()) {
+                        }
+
+                        if (countDownUploads.decrementAndGet() % 2 == 0) {
+                            exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(digestInputStream.getMessageDigest().digest()));
+                            exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                            exchange.close();
+                            return;
+                        }
+                    } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+
+                        List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
+                        if (ifMatchHeaders == null || ifMatchHeaders.isEmpty()) {} else if (!verificationTag.equals(
+                            ifMatchHeaders.getFirst()
+                        )) {
+                        }
+
+                        if (countDownComplete.countDown()) {
+                            Streams.readFully(exchange.getRequestBody());
+                            byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                + "<CompleteMultipartUploadResult>\n"
+                                + "  <Bucket>bucket</Bucket>\n"
+                                + "  <Key>write_large_blob_metadata_etag</Key>\n"
+                                + "  <ETag>"
+                                + verificationTag
+                                + "</ETag>\n"
+                                + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                            exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                            exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                            exchange.getResponseBody().write(response);
+                            exchange.close();
+                            return;
+                        }
+                    }
+
+                if (useTimeout == false) {
+                    if (randomBoolean() && contentLength > 0) {
+                        Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
+                    } else {
+                        Streams.readFully(exchange.getRequestBody());
+                        exchange.sendResponseHeaders(
+                            randomFrom(
+                                HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                                HttpStatus.SC_BAD_GATEWAY,
+                                HttpStatus.SC_SERVICE_UNAVAILABLE,
+                                HttpStatus.SC_GATEWAY_TIMEOUT
+                            ),
+                            -1
+                        );
+                    }
+                    exchange.close();
+                } else {}
+            } catch (Exception e) {
+                if (!useTimeout) {
+                    try {
+                        exchange.close();
+                    } catch (Exception ignored) {}
+                }
+            }
+        });
+
+        try {
+            if (metadata != null) {
+                blobContainer.writeBlobWithMetadataIfVerified(
+                    "write_large_blob_metadata_etag",
+                    new ZeroInputStream(blobSize),
+                    blobSize,
+                    false,
+                    metadata,
+                    verificationTag,
+                    verificationTagListener
+                );
+            } else {
+                blobContainer.writeBlobIfVerified(
+                    "write_large_blob_metadata_etag",
+                    new ZeroInputStream(blobSize),
+                    blobSize,
+                    false,
+                    verificationTag,
+                    verificationTagListener
+                );
+            }
+
+            assertThat(countDownInitiate.isCountedDown(), is(true));
+            assertThat(countDownUploads.get(), equalTo(0));
+            assertThat(countDownComplete.isCountedDown(), is(true));
+
+        } catch (IOException e) {
+            if (useTimeout
+                || e.getMessage().contains("Unable to execute HTTP request")
+                || e.getMessage().contains("failed to respond")
+                || e.getMessage().contains("service unavailable")
+                || e.getMessage().contains("timed out")
+                || e.getMessage().contains("timeout")
+                || (e.getCause() instanceof java.net.SocketTimeoutException)) {} else {
+                throw e;
+            }
+        } finally {
+            httpServer.removeContext(contextPath);
+        }
+    }
+
+    public void testWriteBlobWithMetadataIfVerifiedAndETagMismatch() throws Exception {
+        final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
+        final String eTag = "\"" + randomAlphaOfLength(32) + "\"";
+        final AtomicReference<Exception> listenerException = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        final ActionListener<String> eTagListener = ActionListener.wrap(s -> fail("Should not succeed with ETag mismatch"), e -> {
+            listenerException.set(e);
+            latch.countDown();
+        });
+
+        S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
+            .statusCode(412)
+            .message("The condition specified using HTTP conditional header(s) evaluated to false")
+            .awsErrorDetails(
+                AwsErrorDetails.builder()
+                    .errorCode("PreconditionFailed")
+                    .errorMessage("The condition specified in the request evaluated to false")
+                    .serviceName("S3")
+                    .build()
+            )
+            .build();
+
+        S3Client mockS3Client = mock(S3Client.class);
+        when(mockS3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(preconditionFailedException);
+
+        AmazonS3Reference mockRef = mock(AmazonS3Reference.class);
+        when(mockRef.get()).thenReturn(mockS3Client);
+
+        S3BlobStore mockBlobStore = mock(S3BlobStore.class);
+        when(mockBlobStore.bucket()).thenReturn("bucket");
+        when(mockBlobStore.clientReference()).thenReturn(mockRef);
+        when(mockBlobStore.bufferSizeInBytes()).thenReturn(104857600L);
+        when(mockBlobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        BlobPath blobPath = new BlobPath();
+        S3BlobContainer blobContainer = new S3BlobContainer(blobPath, mockBlobStore);
+
+        final String blobName = "write_blob_metadata_etag_mismatch";
+
+        final AtomicBoolean streamClosed = new AtomicBoolean(false);
+        InputStream trackingStream = new ByteArrayInputStream(new byte[1024]) {
+            @Override
+            public void close() throws IOException {
+                streamClosed.set(true);
+                super.close();
+            }
+        };
+
+        try {
+            try (InputStream ignored = trackingStream) {
+                if (metadata != null) {
+                    blobContainer.writeBlobWithMetadataIfVerified(blobName, trackingStream, 1024, false, metadata, eTag, eTagListener);
+                } else {
+                    blobContainer.writeBlobIfVerified(blobName, trackingStream, 1024, false, eTag, eTagListener);
+                }
+                fail("Expected exception was not thrown");
+            } catch (IOException expected) {
+                assertTrue(
+                    "Direct exception should indicate ETag mismatch",
+                    expected.getMessage().contains("Unable to upload object") && expected.getMessage().contains("due to ETag mismatch")
+                );
+                assertSame("Exception cause should be our mock S3Exception", preconditionFailedException, expected.getCause());
+            }
+
+            assertTrue("Listener was not called within timeout", latch.await(30, TimeUnit.SECONDS));
+            assertNotNull("Exception should not be null", listenerException.get());
+            assertTrue("Should receive OpenSearchException", listenerException.get() instanceof OpenSearchException);
+
+            verify(mockRef).close();
+            assertTrue("Input stream should be closed", streamClosed.get());
+        } catch (Exception e) {
+            throw e;
+        }
     }
 
     public void writeBlobWithRetriesHelper(Map<String, String> metadata) throws Exception {
