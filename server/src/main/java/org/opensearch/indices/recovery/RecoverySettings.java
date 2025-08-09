@@ -40,8 +40,10 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Setting.Validator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -81,6 +83,18 @@ public class RecoverySettings {
     public static final Setting<Boolean> INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING = Setting.boolSetting(
         "indices.replication.merged_segment_warmer_enabled",
         false,
+        new Validator<Boolean>() {
+            @Override
+            public void validate(Boolean value) {
+                if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false && value == true) {
+                    throw new IllegalArgumentException(
+                        "FeatureFlag "
+                            + INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey()
+                            + " must be enabled to set this property to true."
+                    );
+                }
+            }
+        },
         Property.Dynamic,
         Property.NodeScope
     );
@@ -458,7 +472,7 @@ public class RecoverySettings {
         this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
     }
 
-    public boolean getMergedSegmentReplicationWarmerEnabled() {
+    public boolean isMergedSegmentReplicationWarmerEnabled() {
         return mergedSegmentReplicationWarmerEnabled;
     }
 

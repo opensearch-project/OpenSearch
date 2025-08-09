@@ -76,7 +76,8 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         });
     }
 
-    private boolean shouldWarm() {
-        return indexShard.getRecoverySettings().getMergedSegmentReplicationWarmerEnabled() == true;
+    // package-private for tests
+    boolean shouldWarm() {
+        return indexShard.getRecoverySettings().isMergedSegmentReplicationWarmerEnabled() == true;
     }
 }
