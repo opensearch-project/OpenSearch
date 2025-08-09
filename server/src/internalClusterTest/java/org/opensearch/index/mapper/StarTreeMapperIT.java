@@ -19,6 +19,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -1387,6 +1388,81 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         );
 
         assertEquals("failed to parse value [55b] for setting [index.translog.flush_threshold_size], must be >= [56b]", ex.getMessage());
+    }
+
+    public void testStarTreeWithDerivedSource() {
+        String createIndexSource = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 2,
+                        "number_of_replicas": 0,
+                        "derived_source": {
+                            "enabled": true
+                        },
+                        "composite_index": true,
+                        "append_only": {
+                            "enabled": true
+                        }
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "composite": {
+                            "startree": {
+                                "type": "star_tree",
+                                "config": {
+                                    "ordered_dimensions": [
+                                        {
+                                          "name": "keyword_1"
+                                        },
+                                        {
+                                          "name": "keyword_2"
+                                        }
+                                    ],
+                                    "metrics": [
+                                        {
+                                            "name": "integer_1",
+                                            "stats": [
+                                              "sum",
+                                              "max"
+                                            ]
+                                        },
+                                        {
+                                            "name": "integer_2",
+                                            "stats": [
+                                              "sum",
+                                              "value_count",
+                                              "min",
+                                              "max"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "properties": {
+                            "geopoint_field": {
+                                "type": "geo_point"
+                            },
+                            "keyword_1": {
+                                "type": "keyword"
+                            },
+                            "keyword_2": {
+                                "type": "keyword"
+                            },
+                            "integer_1": {
+                                "type": "integer"
+                            },
+                            "integer_2": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        assertAcked(prepareCreate(TEST_INDEX).setSource(createIndexSource, MediaTypeRegistry.JSON));
     }
 
     @After

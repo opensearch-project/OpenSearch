@@ -518,6 +518,7 @@ public final class SearchPhaseController {
                 profileResults.put(key, result.consumeProfileResult());
             }
         }
+        // reduce suggest
         final Suggest reducedSuggest;
         final List<CompletionSuggestion> reducedCompletionSuggestions;
         if (groupedSuggestions.isEmpty()) {
@@ -779,6 +780,29 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure
     ) {
         return new QueryPhaseResultConsumer(
+            request,
+            executor,
+            circuitBreaker,
+            this,
+            listener,
+            namedWriteableRegistry,
+            numShards,
+            onPartialMergeFailure
+        );
+    }
+
+    /**
+     * Returns a new {@link StreamQueryPhaseResultConsumer} instance that reduces search responses incrementally.
+     */
+    StreamQueryPhaseResultConsumer newStreamSearchPhaseResults(
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchProgressListener listener,
+        SearchRequest request,
+        int numShards,
+        Consumer<Exception> onPartialMergeFailure
+    ) {
+        return new StreamQueryPhaseResultConsumer(
             request,
             executor,
             circuitBreaker,

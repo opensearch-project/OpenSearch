@@ -628,14 +628,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
 
         // Render the exception with a simple message
         if (detailed == false) {
-            Throwable t = e;
-            for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof OpenSearchException) {
-                    break;
-                }
-                t = t.getCause();
-            }
-            builder.field(ERROR, ExceptionsHelper.summaryMessage(t != null ? t : e));
+            Throwable unwrapped = ExceptionsHelper.unwrapToOpenSearchException(e);
+            builder.field(ERROR, ExceptionsHelper.summaryMessage(unwrapped));
             return;
         }
 
