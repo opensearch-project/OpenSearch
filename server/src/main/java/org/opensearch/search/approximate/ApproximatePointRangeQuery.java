@@ -180,13 +180,13 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     public void visit(int docID) {
                         // Log first docID
                         if (docCount[0] == 0) {
-                            System.out.println("First docID: " + docID);
+//                            System.out.println("First docID: " + docID);
                         }
                         adder.add(docID);
                         docCount[0]++;
                         // Log when we hit certain milestones
                         if (docCount[0] >= 10240) {
-                            System.out.println("Last docID at 10240: " + docID);
+//                            System.out.println("Last docID at 10240: " + docID);
                         }
                     }
 
@@ -199,13 +199,13 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     public void visit(IntsRef ref) {
                         // Log first docID from bulk visit
                         if (docCount[0] == 0){
-                            System.out.println("First docID (bulk): " + ref.ints[0]);
+//                            System.out.println("First docID (bulk): " + ref.ints[0]);
                         }
                         adder.add(ref);
                         docCount[0] += ref.length;
                         // Log last docID from bulk visit when we hit milestone
                         if (docCount[0] >= 10240) {
-                            System.out.println("Last docID (bulk) at " + docCount[0] + ": " + ref.ints[ref.length - 1]);
+//                            System.out.println("Last docID (bulk) at " + docCount[0] + ": " + ref.ints[ref.length - 1]);
                         }
                     }
 
@@ -378,13 +378,13 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                     if (compare == PointValues.Relation.CELL_INSIDE_QUERY) {
                         // Check if processing this entire subtree would exceed our limit
-                        long subtreeSize = pointTree.size();
-                        if (docCount[0] + subtreeSize > size) {
-                            // Too big - need to process children individually
-                            if (pointTree.moveToChild()) {
-                                continue; // Process children one by one
-                            }
-                        }
+//                        long subtreeSize = pointTree.size();
+//                        if (docCount[0] + subtreeSize > size) {
+//                            // Too big - need to process children individually
+//                            if (pointTree.moveToChild()) {
+//                                continue; // Process children one by one
+//                            }
+//                        }
                         // Safe to process entire subtree
                         pointTree.visitDocIDs(visitor);
 //                        if (docCount[0] >= size) {
