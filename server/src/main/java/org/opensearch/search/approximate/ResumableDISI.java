@@ -60,7 +60,7 @@ public class ResumableDISI extends DocIdSetIterator {
         this.scorerSupplier = scorerSupplier;
         this.expansionSize = expansionSize;
         this.instanceId = ++instanceCounter;
-        System.out.println("DEBUG: Created ResumableDISI instance " + instanceId);
+//        System.out.println("DEBUG: Created ResumableDISI instance " + instanceId);
     }
 
     @Override
@@ -79,9 +79,18 @@ public class ResumableDISI extends DocIdSetIterator {
             if (!expandInternally()) {
                 return NO_MORE_DOCS;
             }
-            // expandInternally() already positioned us on the first document
-            documentsReturned++;
-            return currentDocId;
+            // Position the new iterator on its first document
+            int doc = currentDisi.nextDoc();
+            if (doc != NO_MORE_DOCS) {
+                currentDocId = doc;
+                documentsReturned++;
+                return doc;
+            } else {
+                // Iterator was empty after all
+                fullyExhausted = true;
+                currentDocId = NO_MORE_DOCS;
+                return NO_MORE_DOCS;
+            }
         }
 
         // Try to get the next document from current iterator
@@ -95,14 +104,19 @@ public class ResumableDISI extends DocIdSetIterator {
 
         // Current iterator exhausted, try to expand internally
         if (expandInternally()) {
-            // expandInternally() already positioned us on the first document of the new batch
-            documentsReturned++;
-            return currentDocId;
+            // Position the new iterator on its first document
+            doc = currentDisi.nextDoc();
+            if (doc != NO_MORE_DOCS) {
+                currentDocId = doc;
+                documentsReturned++;
+                return doc;
+            }
         }
 
         // No more expansion possible
 //        System.out.println("DEBUG: ResumableDISI " + instanceId + " - EXHAUSTED after returning " + documentsReturned + " total documents");
         currentDocId = NO_MORE_DOCS;
+        fullyExhausted = true;
         return NO_MORE_DOCS;
     }
 
@@ -115,25 +129,33 @@ public class ResumableDISI extends DocIdSetIterator {
             return NO_MORE_DOCS;
         }
 
+        // If target is NO_MORE_DOCS, no point in expanding
+        if (target == NO_MORE_DOCS) {
+//            System.out.println("DEBUG: ResumableDISI " + instanceId + " - advance() target is NO_MORE_DOCS, marking as exhausted");
+            fullyExhausted = true;
+            currentDocId = NO_MORE_DOCS;
+            return NO_MORE_DOCS;
+        }
+
         // If we don't have a current iterator, get one
         if (currentDisi == null) {
             if (!expandInternally()) {
 //                System.out.println("DEBUG: ResumableDISI " + instanceId + " - advance() expandInternally failed");
                 return NO_MORE_DOCS;
             }
-            // If the first document is >= target, we're good
-            if (currentDocId >= target) {
-//                System.out.println("DEBUG: ResumableDISI " + instanceId + " - advance() first doc " + currentDocId + " >= target " + target);
-                // Don't increment documentsReturned - it was already counted in expandInternally()
-                return currentDocId;
-            }
-            // Otherwise, advance to target
-            int doc = currentDisi.advance(target);
+            // Position the new iterator and check if it meets target
+            int doc = currentDisi.nextDoc();
             if (doc != NO_MORE_DOCS) {
                 currentDocId = doc;
-                // Don't increment documentsReturned here either - advance() skips documents, doesn't return them one by one
-//                System.out.println("DEBUG: ResumableDISI " + instanceId + " - advance() found doc " + doc + " >= target " + target);
-                return doc;
+                if (currentDocId >= target) {
+                    return currentDocId;
+                }
+                // Otherwise, advance to target
+                doc = currentDisi.advance(target);
+                if (doc != NO_MORE_DOCS) {
+                    currentDocId = doc;
+                    return doc;
+                }
             }
             // Fall through to try expansion
         } else {
@@ -150,21 +172,23 @@ public class ResumableDISI extends DocIdSetIterator {
         }
 
         // Current iterator exhausted, try to expand internally
-        if (expandInternally()) {
-            // If the first document of new batch is >= target, we're good
-            if (currentDocId >= target) {
-                // Don't increment documentsReturned - it was already counted in expandInternally()
-//                System.out.println("DEBUG: ResumableDISI " + instanceId + " - advance() expanded, first doc " + currentDocId + " >= target " + target);
-                return currentDocId;
-            }
-            // Otherwise, advance to target
-            int doc = currentDisi.advance(target);
+        while (expandInternally()) {
+            // Position the new iterator and check if it meets target
+            int doc = currentDisi.nextDoc();
             if (doc != NO_MORE_DOCS) {
                 currentDocId = doc;
-                // Don't increment documentsReturned - advance() skips documents
-//                System.out.println("DEBUG: ResumableDISI " + instanceId + " - advance() expanded and found doc " + doc + " >= target " + target);
-                return doc;
+                if (currentDocId >= target) {
+                    return currentDocId;
+                }
+                // Otherwise, advance to target
+                doc = currentDisi.advance(target);
+                if (doc != NO_MORE_DOCS) {
+                    currentDocId = doc;
+                    return doc;
+                }
             }
+            // This expansion didn't have a suitable document, try expanding again
+//            System.out.println("DEBUG: ResumableDISI " + instanceId + " - advance() expansion didn't find target " + target + ", trying next expansion");
         }
 
         // No more expansion possible
@@ -194,6 +218,7 @@ public class ResumableDISI extends DocIdSetIterator {
 //        }
 
         // Get a new scorer from the supplier - this will resume from saved BKD state
+        System.out.println("DEBUG: ResumableDISI " + instanceId + " - calling expandInternally");
         Scorer scorer = scorerSupplier.get(scorerSupplier.cost());
         if (scorer == null) {
             fullyExhausted = true;
@@ -203,17 +228,17 @@ public class ResumableDISI extends DocIdSetIterator {
         currentDisi = scorer.iterator();
         documentsScored += expansionSize; // Track total documents scored
 
-        System.out.println("DEBUG: ResumableDISI " + instanceId + " - got iterator with " + currentDisi.cost() + " documents");
+//        System.out.println("DEBUG: ResumableDISI " + instanceId + " - got iterator with " + currentDisi.cost() + " documents");
 
-        // Check if the new iterator has any documents
-        int firstDoc = currentDisi.nextDoc();
-        if (firstDoc == NO_MORE_DOCS) {
+        // Check if the iterator has any documents by looking at cost
+        if (currentDisi.cost() == 0) {
+            System.out.println("DEBUG: ResumableDISI " + instanceId + " - expandInternally got empty iterator (cost=0), marking as exhausted");
             fullyExhausted = true;
+            currentDocId = NO_MORE_DOCS;
             return false;
         }
 
-        // Position the iterator on the first document
-        currentDocId = firstDoc;
+        // Don't position the iterator - let nextDoc() or advance() handle that
         return true;
     }
 

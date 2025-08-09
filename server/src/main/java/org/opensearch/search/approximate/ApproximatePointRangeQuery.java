@@ -46,6 +46,10 @@ import java.util.function.Function;
  * after {@code size} is hit
  */
 public class ApproximatePointRangeQuery extends ApproximateQuery {
+    // Track total documents across all get() calls
+    private static int totalDocsAdded = 0;
+    private static int totalGetCalls = 0;
+
     public static final Function<byte[], String> LONG_FORMAT = bytes -> Long.toString(LongPoint.decodeDimension(bytes, 0));
     public static final Function<byte[], String> INT_FORMAT = bytes -> Integer.toString(IntPoint.decodeDimension(bytes, 0));
     public static final Function<byte[], String> HALF_FLOAT_FORMAT = bytes -> Float.toString(HalfFloatPoint.decodeDimension(bytes, 0));
@@ -174,15 +178,15 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                     @Override
                     public void visit(int docID) {
-                        // it is possible that size < 1024 and docCount < size but we will continue to count through all the 1024 docs
+                        // Log first docID
                         if (docCount[0] == 0) {
-                            System.out.println(docID);
+                            System.out.println("First docID: " + docID);
                         }
                         adder.add(docID);
                         docCount[0]++;
-                        if (docCount[0] == 10241) {
-                            System.out.println(docID);
-//                            System.out.println(docCount[0]);
+                        // Log when we hit certain milestones
+                        if (docCount[0] >= 10240) {
+                            System.out.println("Last docID at 10240: " + docID);
                         }
                     }
 
@@ -193,18 +197,15 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                     @Override
                     public void visit(IntsRef ref) {
+                        // Log first docID from bulk visit
                         if (docCount[0] == 0){
-                            System.out.println(ref.ints[0]);
-                        }
-                        if (docCount[0] == 10240) {
-                            System.out.println(ref.ints[0]);
-//                            System.out.println(docCount[0]);
+                            System.out.println("First docID (bulk): " + ref.ints[0]);
                         }
                         adder.add(ref);
                         docCount[0] += ref.length;
-                        if (docCount[0] == 10240) {
-                            System.out.println(ref.ints[0]);
-//                            System.out.println(docCount[0]);
+                        // Log last docID from bulk visit when we hit milestone
+                        if (docCount[0] >= 10240) {
+                            System.out.println("Last docID (bulk) at " + docCount[0] + ": " + ref.ints[ref.length - 1]);
                         }
                     }
 
@@ -373,64 +374,55 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
             public void intersectLeftIterative(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount, ResumableDISI.BKDState state) throws IOException {
 
                 while (true) {
-                    System.out.println("Doc count: "+docCount[0]);
+                    PointValues.Relation compare =
+                        visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+                    if (compare == PointValues.Relation.CELL_INSIDE_QUERY) {
+                        // Check if processing this entire subtree would exceed our limit
+                        long subtreeSize = pointTree.size();
+                        if (docCount[0] + subtreeSize > size) {
+                            // Too big - need to process children individually
+                            if (pointTree.moveToChild()) {
+                                continue; // Process children one by one
+                            }
+                        }
+                        // Safe to process entire subtree
+                        pointTree.visitDocIDs(visitor);
+//                        if (docCount[0] >= size) {
+//                            System.out.println("DEBUG: Saving state at node - min: " + java.util.Arrays.toString(pointTree.getMinPackedValue()) +
+//                                             ", max: " + java.util.Arrays.toString(pointTree.getMaxPackedValue()));
+//                            state.setPointTree(pointTree);
+//                            state.setInProgress(true);
+//                            return;
+//                        }
+                    } else if (compare == PointValues.Relation.CELL_CROSSES_QUERY) {
+                        // The cell crosses the shape boundary, or the cell fully contains the query, so we fall
+                        // through and do full filtering:
+                        if (pointTree.moveToChild()) {
+                            continue;
+                        }
+                        // Leaf node; scan and filter all points in this block:
+                        pointTree.visitDocValues(visitor);
+//                        if (docCount[0] >= size) {
+//                            System.out.println("DEBUG: Saving state at leaf node - min: " + java.util.Arrays.toString(pointTree.getMinPackedValue()) +
+//                                             ", max: " + java.util.Arrays.toString(pointTree.getMaxPackedValue()));
+//                            state.setPointTree(pointTree);
+//                            state.setInProgress(true);
+//                            return;
+//                        }
+                    }
+                    // position ourself to next place
+                    while (pointTree.moveToSibling() == false) {
+                        if (pointTree.moveToParent() == false) {
+                            // Reached true root - entire BKD tree traversal is complete
+                            state.setExhausted(true);
+                            return;
+                        }
+                    }
                     if (docCount[0] >= size) {
                         state.setPointTree(pointTree);
                         state.setInProgress(true);
                         return;
                     }
-
-                    PointValues.Relation compare =
-                        visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
-                    if (compare == PointValues.Relation.CELL_INSIDE_QUERY) {
-                        // This cell is fully inside the query shape: recursively add all points in this cell
-                        // without filtering
-                        pointTree.visitDocIDs(visitor);
-                        if (docCount[0] >= size) {
-                            state.setPointTree(pointTree);
-                            state.setInProgress(true);
-                            return;
-                        }
-                    } else if (compare == PointValues.Relation.CELL_CROSSES_QUERY) {
-                        // The cell crosses the shape boundary, or the cell fully contains the query, so we fall
-                        // through and do full filtering:
-                        if (pointTree.moveToChild()) {
-                            if (docCount[0] >= size) {
-                                state.setPointTree(pointTree);
-                                state.setInProgress(true);
-                                return;
-                            }
-                            continue;
-                        }
-                        if (docCount[0] >= size) {
-                            state.setPointTree(pointTree);
-                            state.setInProgress(true);
-                            return;
-                        }
-                        // TODO: we can assert that the first value here in fact matches what the pointTree
-                        // claimed?
-                        // Leaf node; scan and filter all points in this block:
-                        pointTree.visitDocValues(visitor);
-                    }
-                    // position ourself to next place
-                    while (pointTree.moveToSibling() == false) {
-                        if (docCount[0] >= size) {
-                            state.setPointTree(pointTree);
-                            state.setInProgress(true);
-                            return;
-                        }
-                        if (pointTree.moveToParent() == false) {
-                            if (docCount[0] >= size) {
-                                state.setPointTree(pointTree);
-                                state.setInProgress(true);
-                                return;
-                            }
-                            return;
-                        }
-                    }
-
-
-
                 }
             }
 
@@ -521,9 +513,9 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                                     state.setPointTree(values.getPointTree());
                                     docCount[0] = 0; // Reset doc count for first call
                                 } else if (state.getPointTree() != null && !state.isExhausted()) {
-                                    // Resume from where we left off - but reset docCount for this expansion
+                                    // Resume from where we left off - reset docCount for this expansion
                                     System.out.println("DEBUG: Resuming from saved state");
-                                    docCount[0] = 0;
+                                    docCount[0] = 0; // Reset doc count for each expansion
                                 } else {
                                     System.out.println("DEBUG: BKD state is exhausted or invalid");
                                 }
@@ -536,21 +528,27 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                                     // Use intersectLeftIterative for resumable traversal
                                     System.out.println("DEBUG: Starting intersectLeftIterative, current docCount: " + docCount[0]);
-                                    intersectLeftIterative(visitor, state.getPointTree(), docCount, state);
+                                    if (!context.isTopLevel) {
+                                        intersectLeftIterative(visitor, state.getPointTree(), docCount, state);
+                                    } else {
+                                        intersectLeft(visitor, state.getPointTree(), docCount, state, true);
+                                    }
                                     System.out.println("DEBUG: After intersectLeftIterative, docCount: " + docCount[0] + ", size: " + size);
 
                                     // Check if we collected enough documents
                                     if (docCount[0] >= size) {
                                         state.setInProgress(true);
                                         state.needMore = true;
-                                    } else {
-                                        // If we didn't reach the size limit, we've exhausted the tree
-                                        state.setExhausted(true);
                                     }
+                                    // Note: exhaustion is now handled inside intersectLeftIterative
 
-                                    System.out.println("DEBUG: BKD traversal completed, found " + docCount[0] + " documents");
+                                    //System.out.println("DEBUG: BKD traversal completed, found " + docCount[0] + " documents");
 
-                                    docCount[0] = 0;
+                                    // Track total documents added
+                                    totalDocsAdded += docCount[0];
+                                    totalGetCalls++;
+                                    System.out.println("DEBUG: Total docs added across all calls: " + totalDocsAdded + " (call #" + totalGetCalls + ")");
+
 
                                     // If we didn't collect any documents and we're not in progress, we've exhausted the tree
 
