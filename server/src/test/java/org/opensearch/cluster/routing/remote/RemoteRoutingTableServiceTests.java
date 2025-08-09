@@ -35,6 +35,7 @@ import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
+import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -575,7 +576,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
                 compressor
             ).streamInput()
         );
-        TestCapturingListener<IndexRoutingTable> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<IndexRoutingTable>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         remoteRoutingTableService.getAsyncIndexRoutingReadAction(
@@ -587,7 +588,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
-        IndexRoutingTable indexRoutingTable = listener.getResult();
+        IndexRoutingTable indexRoutingTable = listener.getResult().getObj();
         assertEquals(clusterState.getRoutingTable().getIndicesRouting().get(indexName), indexRoutingTable);
     }
 
@@ -603,7 +604,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             REMOTE_ROUTING_TABLE_DIFF_FORMAT.serialize(diff, uploadedFileName, compressor).streamInput()
         );
 
-        TestCapturingListener<Diff<RoutingTable>> listener = new TestCapturingListener<>();
+        TestCapturingListener<RemoteReadResult<Diff<RoutingTable>>> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
@@ -615,7 +616,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
-        Diff<RoutingTable> resultDiff = listener.getResult();
+        Diff<RoutingTable> resultDiff = listener.getResult().getObj();
         assertEquals(
             currentState.getRoutingTable().getIndicesRouting(),
             resultDiff.apply(previousState.getRoutingTable()).getIndicesRouting()
