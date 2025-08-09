@@ -152,24 +152,24 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
         // Create appropriate iterators for each clause - ResumableDISI only for approximatable queries
         List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
-        System.out.println("DEBUG: Creating iterators for " + clauseWeights.size() + " clauses");
+//        System.out.println("DEBUG: Creating iterators for " + clauseWeights.size() + " clauses");
 
         for (Weight weight : clauseWeights) {
             Query query = weight.getQuery();
             ScorerSupplier supplier = weight.scorerSupplier(context);
-            System.out.println("DEBUG: Processing query: " + query.getClass().getSimpleName() + " - " + query);
+//            System.out.println("DEBUG: Processing query: " + query.getClass().getSimpleName() + " - " + query);
 
             if (query instanceof ApproximateQuery) {
                 // Use ResumableDISI for approximatable queries
-                System.out.println("DEBUG: Using ResumableDISI for ApproximateQuery");
+//                System.out.println("DEBUG: Using ResumableDISI for ApproximateQuery");
                 ResumableDISI disi = new ResumableDISI(supplier);
                 clauseIterators.add(disi);
             } else {
                 // Use regular DocIdSetIterator for non-approximatable queries
-                System.out.println("DEBUG: Using regular DISI for non-approximatable query");
+//                System.out.println("DEBUG: Using regular DISI for non-approximatable query");
                 Scorer scorer = supplier.get(supplier.cost());
                 DocIdSetIterator iterator = scorer.iterator();
-                System.out.println("DEBUG: Regular iterator cost: " + iterator.cost());
+//                System.out.println("DEBUG: Regular iterator cost: " + iterator.cost());
                 clauseIterators.add(iterator);
             }
         }
@@ -201,6 +201,8 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
         // Create a simple bulk scorer that wraps the conjunction
         return new BulkScorer() {
+            private int totalCollected = 0; // Track total hits across all score() calls
+
             @Override
             public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
 
@@ -218,18 +220,27 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                 int collected = 0;
                 int doc = -1;
 
-                // Score documents in the range [min, max) following Lucene's pattern
-                // Note: No threshold limit here - that's handled by individual ResumableDISI clauses
+                // Score documents in the range [min, max) with early termination
                 for (doc = conjunctionDISI.docID(); doc < max; doc = conjunctionDISI.nextDoc()) {
+                    // Early termination when we reach the threshold
+//                    if (totalCollected >= threshold) {
+////                        System.out.println("DEBUG: Early termination at " + totalCollected + " hits (threshold: " + threshold + ")");
+//                        break;
+//                    }
+
                     if (acceptDocs == null || acceptDocs.get(doc)) {
                         collector.collect(doc);
                         collected++;
+                        totalCollected++;
                     }
                 }
+                
+                System.out.println("Total Collected: " + totalCollected + " Collected this window: " + collected);
 
-                System.out.println("Num conjunction hits "+collected);
+//                System.out.println("Num conjunction hits " + collected + " (total: " + totalCollected + ")");
 
                 // Return the current iterator position (standard Lucene pattern)
+                System.out.println("Conjunction DISI current position after bulkscorer.score: "+conjunctionDISI.docID());
                 return conjunctionDISI.docID();
             }
 
