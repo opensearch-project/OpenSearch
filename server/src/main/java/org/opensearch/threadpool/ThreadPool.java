@@ -469,6 +469,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             }
             Settings tpGroup = entry.getValue();
             ExecutorHolder holder = executors.get(tpName);
+            // Skip validation for ForkJoinPool type since it does not support these settings
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                continue;
+            }
             assert holder.executor instanceof OpenSearchThreadPoolExecutor;
             OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor;
             if (holder.info.type == ThreadPoolType.SCALING) {
@@ -504,6 +508,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             String tpName = entry.getKey();
             Settings tpGroup = entry.getValue();
             ExecutorHolder holder = executors.get(tpName);
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                continue;
+            }
             assert holder.executor instanceof OpenSearchThreadPoolExecutor;
             OpenSearchThreadPoolExecutor executor = (OpenSearchThreadPoolExecutor) holder.executor;
             if (holder.info.type == ThreadPoolType.SCALING) {
@@ -541,6 +548,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             final String name = holder.info.getName();
             // no need to have info on "same" thread pool
             if ("same".equals(name)) {
+                continue;
+            }
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                // Add ForkJoinPool with sentinel values
+                stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1));
                 continue;
             }
             int threads = -1;
@@ -664,8 +676,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
-                executor.executor().shutdown();
+            ExecutorService es = executor.executor();
+            if (es instanceof ThreadPoolExecutor) {
+                es.shutdown();
+            } else if (es instanceof ForkJoinPool) {
+                es.shutdown();
             }
         }
     }
@@ -674,22 +689,49 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
-                executor.executor().shutdownNow();
+            ExecutorService es = executor.executor();
+            if (es instanceof ThreadPoolExecutor) {
+                es.shutdownNow();
+            } else if (es instanceof ForkJoinPool) {
+                es.shutdownNow(); // same as shutdown(), but explicit to the reader
             }
         }
     }
 
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        boolean result = scheduler.awaitTermination(timeout, unit);
+        long nanos = unit.toNanos(timeout);
+        long deadline = System.nanoTime() + nanos;
+        boolean result = scheduler.awaitTermination(Math.max(0, nanos), TimeUnit.NANOSECONDS);
+        long now = System.nanoTime();
+        nanos = deadline - now;
+
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
-                result &= executor.executor().awaitTermination(timeout, unit);
+                if (nanos <= 0) {
+                    result = false;
+                    break;
+                }
+                result &= executor.executor().awaitTermination(Math.max(0, nanos), TimeUnit.NANOSECONDS);
+                now = System.nanoTime();
+                nanos = deadline - now;
             }
         }
-        cachedTimeThread.join(unit.toMillis(timeout));
+        if (nanos > 0) {
+            cachedTimeThread.join(TimeUnit.NANOSECONDS.toMillis(nanos));
+        }
         return result;
     }
+
+    // public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+    // boolean result = scheduler.awaitTermination(timeout, unit);
+    // for (ExecutorHolder executor : executors.values()) {
+    // if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
+    // result &= executor.executor().awaitTermination(timeout, unit);
+    // }
+    // }
+    // cachedTimeThread.join(unit.toMillis(timeout));
+    // return result;
+    // }
 
     public ScheduledExecutorService scheduler() {
         return this.scheduler;
@@ -948,6 +990,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
                 // to avoid serialization/de-serization issue between nodes with different OpenSearch version
                 out.writeString(ThreadPoolType.FIXED.getType());
+            } else if (type == ThreadPoolType.FORK_JOIN && out.getVersion().before(Version.V_3_2_0)) {
+                // Opensearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED (or SCALING, or
+                // another safe fallback)
+                out.writeString(ThreadPoolType.FIXED.getType());
             } else {
                 out.writeString(type.getType());
             }
@@ -993,6 +1039,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 builder.field("core", min);
                 assert max != -1;
                 builder.field("max", max);
+            } else if (type == ThreadPoolType.FORK_JOIN) {
+                builder.field("size", -1);
+                builder.field("min", -1);
+                builder.field("max", -1);
+                builder.field("keep_alive", (Object) null);
+                builder.field("queue_size", -1);
             } else {
                 assert max != -1;
                 builder.field("size", max);

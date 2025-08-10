@@ -1,7 +1,7 @@
 "Test cat thread_pool total_wait_time output":
   - skip:
-      version: " - 2.10.99"
-      reason: thread_pool total_wait_time stats were introduced in V_2.11.0
+      version: " - 2.10.99,3.2.0-"
+      reason: thread_pool total_wait_time stats were introduced in V_2.11.0; fork_join thread pool not present before 3.2.0
 
   - do:
       cat.thread_pool: {}
@@ -129,3 +129,32 @@
                /  #node_name     name       active     queue     rejected
                ^  (\S+       \s+ search  \s+ \d+    \s+ \d+   \s+ \d+      \n
                    \S+       \s+ write   \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/
+
+# NEW TEST for 3.2.0 and later (expect fork_join)
+---
+"Test cat thread_pool total_wait_time output (with fork_join)":
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool introduced in 3.2.0
+
+  - do:
+      cat.thread_pool: {}
+
+  - match:
+      $body: |
+        /  #node_name     name     active     queue     rejected
+        ^  (\S+       \s+ \S+  \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: search,search_throttled,generic,fork_join
+        h: name,total_wait_time,twt
+        v: true
+
+  - match:
+      $body: |
+        /^  name              \s+ total_wait_time \s+ twt              \n
+           (generic           \s+ -1              \s+ -1               \n
+            fork_join         \s+ -1              \s+ -1               \n
+            search            \s+ \d*\.*\d*\D+    \s+ \d*\.*\d*\D+     \n
+            search_throttled  \s+ \d*\.*\d*\D+    \s+ \d*\.*\d*\D+     \n)+  $/

@@ -262,16 +262,45 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     }
                 }
 
+                // --- BEGIN CHANGE: Normalize ForkJoinPool stats to 0 ---
+                boolean isForkJoin = poolInfo != null && poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.FORK_JOIN;
+
+                int active = (poolStats == null ? 0 : poolStats.getActive());
+                int threads = (poolStats == null ? 0 : poolStats.getThreads());
+                int queue = (poolStats == null ? 0 : poolStats.getQueue());
+                long rejected = (poolStats == null ? 0 : poolStats.getRejected());
+                int largest = (poolStats == null ? 0 : poolStats.getLargest());
+                long completed = (poolStats == null ? 0 : poolStats.getCompleted());
+                long waitTime = (poolStats == null ? 0 : poolStats.getWaitTime().nanos());
+
+                // Normalize ForkJoinPool stats to 0 or -1 as per convention
+                if (isForkJoin) {
+                    active = 0;
+                    threads = 0;
+                    queue = 0;
+                    rejected = 0;
+                    largest = 0;
+                    completed = 0;
+                    waitTime = -1; // if wait time is unsupported
+                    // Set maxQueueSize to -1 if not supported for ForkJoinPool
+                    maxQueueSize = -1L;
+                    core = null;
+                    max = null;
+                    size = null;
+                    keepAlive = null;
+                }
+                // --- END CHANGE ---
+
                 table.addCell(entry.getKey());
                 table.addCell(poolInfo == null ? null : poolInfo.getThreadPoolType().getType());
-                table.addCell(poolStats == null ? null : poolStats.getActive());
-                table.addCell(poolStats == null ? null : poolStats.getThreads());
-                table.addCell(poolStats == null ? null : poolStats.getQueue());
+                table.addCell(active);
+                table.addCell(threads);
+                table.addCell(queue);
                 table.addCell(maxQueueSize == null ? -1 : maxQueueSize);
-                table.addCell(poolStats == null ? null : poolStats.getRejected());
-                table.addCell(poolStats == null ? null : poolStats.getLargest());
-                table.addCell(poolStats == null ? null : poolStats.getCompleted());
-                table.addCell(poolStats == null ? null : poolStats.getWaitTime());
+                table.addCell(rejected);
+                table.addCell(largest);
+                table.addCell(completed);
+                table.addCell(waitTime);
                 table.addCell(core);
                 table.addCell(max);
                 table.addCell(size);
