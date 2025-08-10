@@ -29,6 +29,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.grpc.Status;
+
 public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithIndexResponse() throws IOException {
@@ -206,7 +208,7 @@ public class BulkItemResponseProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Item should have index field set", item.hasIndex());
         assertEquals("Index should match", "test-index", item.getIndex().getIndex());
         assertEquals("Id should match", "test-id", item.getIndex().getId().getString());
-        assertEquals("Status should match", RestStatus.INTERNAL_SERVER_ERROR.getStatus(), item.getIndex().getStatus());
+        assertEquals("Status should match", Status.INTERNAL.getCode().value(), item.getIndex().getStatus());
 
         // Verify error
         assertTrue("Error should be set", item.getIndex().hasError());
