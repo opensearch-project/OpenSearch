@@ -1044,7 +1044,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 builder.field("min", -1);
                 builder.field("max", -1);
                 builder.field("keep_alive", (Object) null);
-                builder.field("queue_size", -1);
             } else {
                 assert max != -1;
                 builder.field("size", max);
