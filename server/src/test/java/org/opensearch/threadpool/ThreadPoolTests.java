@@ -38,9 +38,15 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.node.Node;
 
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
+import java.util.concurrent.RecursiveTask;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
@@ -209,10 +215,7 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     public void testForkJoinPoolRegistrationAndTaskExecution() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
         int parallelism = 4;
-        ThreadPool threadPool = new ThreadPool(
-            settings,
-            new ForkJoinPoolExecutorBuilder("test_fork_join", parallelism)
-        );
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("test_fork_join", parallelism));
         ForkJoinPool pool = (ForkJoinPool) threadPool.executor("test_fork_join");
         AtomicInteger result = new AtomicInteger(0);
         pool.submit(() -> result.set(42)).join();
@@ -318,31 +321,33 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         ForkJoinPool pool = (ForkJoinPool) threadPool.executor("my_fork_join");
         RecursiveTask<Integer> task = new RecursiveTask<>() {
             @Override
-            protected Integer compute() { return 123; }
+            protected Integer compute() {
+                return 123;
+            }
         };
         int result = pool.invoke(task);
         assertEquals(123, result);
         threadPool.shutdown();
     }
 
-//    public void testForkJoinPoolTypeNotSupportedYet() {
-//        Settings settings = Settings.builder()
-//            .put("node.name", "test-node")
-//            .build();
-//
-//        Throwable exception = null;
-//        ThreadPool threadPool = null;
-//        try {
-//            threadPool = new ThreadPool(settings);
-//            threadPool.registerForkJoinPool("myForkJoinPool", 4);
-//        } catch (Exception e) {
-//            exception = e;
-//        } finally {
-//            // Always shutdown to avoid thread leak
-//            if (threadPool != null) {
-//                threadPool.shutdown();
-//            }
-//        }
-//        assertNotNull("ForkJoinPoolType should not be supported yet", exception);
-//    }
+    // public void testForkJoinPoolTypeNotSupportedYet() {
+    // Settings settings = Settings.builder()
+    // .put("node.name", "test-node")
+    // .build();
+    //
+    // Throwable exception = null;
+    // ThreadPool threadPool = null;
+    // try {
+    // threadPool = new ThreadPool(settings);
+    // threadPool.registerForkJoinPool("myForkJoinPool", 4);
+    // } catch (Exception e) {
+    // exception = e;
+    // } finally {
+    // // Always shutdown to avoid thread leak
+    // if (threadPool != null) {
+    // threadPool.shutdown();
+    // }
+    // }
+    // assertNotNull("ForkJoinPoolType should not be supported yet", exception);
+    // }
 }

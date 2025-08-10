@@ -18,8 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory;
+import java.util.concurrent.ForkJoinWorkerThread;
 
 /**
  * A builder for fork join executors.
@@ -61,25 +61,13 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
         };
         final ForkJoinPool executor = new ForkJoinPool(parallelism, factory, null, false);
 
-        final ThreadPool.Info info = new ThreadPool.Info(
-            name(),
-            ThreadPool.ThreadPoolType.FORK_JOIN,
-            parallelism,
-            parallelism,
-            null,
-            null
-        );
+        final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FORK_JOIN, parallelism, parallelism, null, null);
         return new ThreadPool.ExecutorHolder(executor, info);
     }
 
     @Override
     String formatInfo(ThreadPool.Info info) {
-        return String.format(
-            Locale.ROOT,
-            "name [%s], parallelism [%d]",
-            info.getName(),
-            info.getMax()
-        );
+        return String.format(Locale.ROOT, "name [%s], parallelism [%d]", info.getName(), info.getMax());
     }
 
     static class ForkJoinPoolExecutorSettings extends ExecutorBuilder.ExecutorSettings {
