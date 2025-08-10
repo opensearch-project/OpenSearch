@@ -9,7 +9,6 @@ package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.GeneralNumber;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 
 import java.io.IOException;
@@ -42,26 +41,15 @@ public class SearchAfterBuilderProtoUtils {
         List<Object> values = new ArrayList<>();
 
         for (FieldValue fieldValue : searchAfterProto) {
-            if (fieldValue.hasGeneralNumber()) {
-                GeneralNumber generalNumber = fieldValue.getGeneralNumber();
-                if (generalNumber.hasInt32Value()) {
-                    values.add(generalNumber.getInt32Value());
-                } else if (generalNumber.hasInt64Value()) {
-                    values.add(generalNumber.getInt64Value());
-                } else if (generalNumber.hasDoubleValue()) {
-                    values.add(generalNumber.getDoubleValue());
-                } else if (generalNumber.hasFloatValue()) {
-                    values.add(generalNumber.getFloatValue());
-                }
-            } else if (fieldValue.hasStringValue()) {
-                values.add(fieldValue.getStringValue());
-            } else if (fieldValue.hasBoolValue()) {
-                values.add(fieldValue.getBoolValue());
+            if (fieldValue.hasFloat()) {
+                values.add(fieldValue.getFloat());
+            } else if (fieldValue.hasString()) {
+                values.add(fieldValue.getString());
+            } else if (fieldValue.hasBool()) {
+                values.add(fieldValue.getBool());
+            } else if (fieldValue.hasNullValue()) {
+                values.add(null);
             }
-            // TODO missing null value
-            // else if(fieldValue.hasNullValue ()){
-            // values.add(fieldValue.getNullValue());
-            // }
         }
         return values.toArray();
     }

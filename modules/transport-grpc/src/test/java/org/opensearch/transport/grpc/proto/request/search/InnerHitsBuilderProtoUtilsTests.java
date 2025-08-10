@@ -110,11 +110,7 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithFetchFields() throws IOException {
         // Create a protobuf InnerHits with fetch fields
-        InnerHits innerHits = InnerHits.newBuilder()
-            .setName("test_inner_hits")
-            .addFields(FieldAndFormat.newBuilder().setField("field1").setFormat("format1").build())
-            .addFields(FieldAndFormat.newBuilder().setField("field2").setFormat("format2").build())
-            .build();
+        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").addFields("field1").addFields("field2").build();
 
         // Call the method under test
         InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));
@@ -124,15 +120,15 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("FetchFields should not be null", innerHitBuilder.getFetchFields());
         assertEquals("FetchFields size should match", 2, innerHitBuilder.getFetchFields().size());
 
-        // Check field names and formats
+        // Check field names (formats will be null for string-based fields)
         boolean foundField1 = false;
         boolean foundField2 = false;
         for (org.opensearch.search.fetch.subphase.FieldAndFormat fieldAndFormat : innerHitBuilder.getFetchFields()) {
             if (fieldAndFormat.field.equals("field1")) {
-                assertEquals("Format should match for field1", "format1", fieldAndFormat.format);
+                assertNull("Format should be null for field1", fieldAndFormat.format);
                 foundField1 = true;
             } else if (fieldAndFormat.field.equals("field2")) {
-                assertEquals("Format should match for field2", "format2", fieldAndFormat.format);
+                assertNull("Format should be null for field2", fieldAndFormat.format);
                 foundField2 = true;
             }
         }

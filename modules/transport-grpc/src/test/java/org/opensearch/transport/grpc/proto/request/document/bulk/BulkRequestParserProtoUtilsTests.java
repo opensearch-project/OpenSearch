@@ -75,7 +75,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             .setUnderscoreId("test-id")
             .setRouting("test-routing")
             .setVersion(2)
-            .setVersionType(org.opensearch.protobufs.VersionType.newBuilder().setVersionTypeExternalGte(true).build())
+            .setVersionType(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL_GTE)
             .setPipeline("test-pipeline")
             .setIfSeqNo(3)
             .setIfPrimaryTerm(4)
@@ -117,7 +117,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
         byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
 
-        OpType opType = OpType.newBuilder().setOpTypeCreate(true).build();
+        OpType opType = org.opensearch.protobufs.OpType.OP_TYPE_CREATE;
 
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
@@ -146,7 +146,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             .setUnderscoreId("test-id")
             .setRouting("test-routing")
             .setVersion(2)
-            .setVersionType(org.opensearch.protobufs.VersionType.newBuilder().setVersionTypeExternal(true).build())
+            .setVersionType(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL)
             .setIfSeqNo(3)
             .setIfPrimaryTerm(4)
             .build();

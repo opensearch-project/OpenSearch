@@ -46,13 +46,14 @@ public class SearchHitsProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Total hits value should match", 10, hitsMetadata.getTotal().getTotalHits().getValue());
         assertEquals(
             "Total hits relation should be EQUAL_TO",
-            org.opensearch.protobufs.TotalHits.TotalHitsRelation.TOTAL_HITS_RELATION_EQ,
+            org.opensearch.protobufs.TotalHitsRelation.TOTAL_HITS_RELATION_EQ,
             hitsMetadata.getTotal().getTotalHits().getRelation()
         );
+        // Max score is HitsMetadataMaxScore object with getFloatValue() method
         assertEquals("Max score should match", 3.0f, hitsMetadata.getMaxScore().getFloatValue(), 0.0f);
         assertEquals("Hits count should match", 2, hitsMetadata.getHitsCount());
-        assertEquals("First hit ID should match", "test_id_1", hitsMetadata.getHits(0).getId());
-        assertEquals("Second hit ID should match", "test_id_2", hitsMetadata.getHits(1).getId());
+        assertEquals("First hit ID should match", "test_id_1", hitsMetadata.getHits(0).getUnderscoreId());
+        assertEquals("Second hit ID should match", "test_id_2", hitsMetadata.getHits(1).getUnderscoreId());
     }
 
     public void testToProtoWithNullTotalHits() throws IOException {
@@ -96,7 +97,7 @@ public class SearchHitsProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Total hits value should match", 10, hitsMetadata.getTotal().getTotalHits().getValue());
         assertEquals(
             "Total hits relation should be GREATER_THAN_OR_EQUAL_TO",
-            org.opensearch.protobufs.TotalHits.TotalHitsRelation.TOTAL_HITS_RELATION_GTE,
+            org.opensearch.protobufs.TotalHitsRelation.TOTAL_HITS_RELATION_GTE,
             hitsMetadata.getTotal().getTotalHits().getRelation()
         );
     }

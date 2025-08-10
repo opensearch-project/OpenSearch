@@ -304,7 +304,7 @@ public class BulkRequestParserProtoUtils {
                 .routing(routing)
                 .version(version)
                 .versionType(versionType)
-                .create(opType.getOpTypeCase() == OpType.OpTypeCase.OP_TYPE_CREATE)
+                .create(opType == OpType.OP_TYPE_CREATE)
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)

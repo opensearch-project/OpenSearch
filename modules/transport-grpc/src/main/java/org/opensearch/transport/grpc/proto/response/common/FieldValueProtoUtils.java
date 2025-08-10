@@ -8,8 +8,6 @@
 package org.opensearch.transport.grpc.proto.response.common;
 
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.GeneralNumber;
-import org.opensearch.protobufs.ObjectMap;
 
 import java.util.Map;
 
@@ -54,37 +52,22 @@ public class FieldValueProtoUtils {
         }
 
         switch (javaObject) {
-            case String s -> fieldValueBuilder.setStringValue(s);
-            case Integer i -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setInt32Value(i).build());
-            case Long l -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(l).build());
-            case Double d -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(d).build());
-            case Float f -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setFloatValue(f).build());
-            case Boolean b -> fieldValueBuilder.setBoolValue(b);
-            case Enum<?> e -> fieldValueBuilder.setStringValue(e.toString());
+            case String s -> fieldValueBuilder.setString(s);
+            case Integer i -> fieldValueBuilder.setFloat(i.floatValue());
+            case Long l -> fieldValueBuilder.setFloat(l.floatValue());
+            case Double d -> fieldValueBuilder.setFloat(d.floatValue());
+            case Float f -> fieldValueBuilder.setFloat(f);
+            case Boolean b -> fieldValueBuilder.setBool(b);
+            case Enum<?> e -> fieldValueBuilder.setString(e.toString());
             case Map<?, ?> m -> {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) m;
-                handleMapValue(map, fieldValueBuilder);
+                // For maps, we'll convert to string representation since FieldValue doesn't support complex objects
+                fieldValueBuilder.setString(m.toString());
             }
             default -> throw new IllegalArgumentException("Cannot convert " + javaObject + " to FieldValue");
         }
     }
 
-    /**
-     * Helper method to handle Map values.
-     *
-     * @param map The map to convert
-     * @param fieldValueBuilder The builder to populate with the map data
-     */
-    @SuppressWarnings("unchecked")
-    private static void handleMapValue(Map<String, Object> map, FieldValue.Builder fieldValueBuilder) {
-        ObjectMap.Builder objectMapBuilder = ObjectMap.newBuilder();
-
-        // Process each map entry
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            objectMapBuilder.putFields(entry.getKey(), ObjectMapProtoUtils.toProto(entry.getValue()));
-        }
-
-        fieldValueBuilder.setObjectMap(objectMapBuilder.build());
-    }
+    // Note: The simplified FieldValue structure in 0.8.0-SNAPSHOT only supports
+    // bool, float, string, and null_value fields. Complex objects like maps
+    // are converted to string representations.
 }

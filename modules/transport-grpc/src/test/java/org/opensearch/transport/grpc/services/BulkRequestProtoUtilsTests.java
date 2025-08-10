@@ -16,7 +16,6 @@ import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.DeleteOperation;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.protobufs.OperationContainer;
-import org.opensearch.protobufs.Refresh;
 import org.opensearch.protobufs.UpdateOperation;
 import org.opensearch.protobufs.WriteOperation;
 import org.opensearch.test.OpenSearchTestCase;
@@ -119,7 +118,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
 
         return BulkRequest.newBuilder()
             .addRequestBody(requestBody)
-            .setRefresh(Refresh.newBuilder().setRefreshTrue(true).build())
+            .setRefresh(org.opensearch.protobufs.Refresh.REFRESH_TRUE)
             .setPipeline("test-pipeline")
             .build();
     }

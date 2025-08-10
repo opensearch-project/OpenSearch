@@ -15,21 +15,21 @@ import org.opensearch.test.OpenSearchTestCase;
 public class OpTypeProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithOpTypeCreate() {
-        OpType opType = OpType.newBuilder().setOpTypeCreate(true).build();
+        OpType opType = org.opensearch.protobufs.OpType.OP_TYPE_CREATE;
         DocWriteRequest.OpType result = OpTypeProtoUtils.fromProto(opType);
 
         assertEquals("OP_TYPE_CREATE should convert to DocWriteRequest.OpType.CREATE", DocWriteRequest.OpType.CREATE, result);
     }
 
     public void testFromProtoWithOpTypeIndex() {
-        OpType opType = OpType.newBuilder().setOpTypeIndex(true).build();
+        OpType opType = org.opensearch.protobufs.OpType.OP_TYPE_INDEX;
         DocWriteRequest.OpType result = OpTypeProtoUtils.fromProto(opType);
 
         assertEquals("OP_TYPE_INDEX should convert to DocWriteRequest.OpType.INDEX", DocWriteRequest.OpType.INDEX, result);
     }
 
     public void testFromProtoWithOpTypeUnspecified() {
-        OpType opType = OpType.newBuilder().build();
+        OpType opType = org.opensearch.protobufs.OpType.UNRECOGNIZED;
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
             () -> OpTypeProtoUtils.fromProto(opType)
@@ -39,7 +39,7 @@ public class OpTypeProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithUnrecognizedOpType() {
-        OpType opType = OpType.newBuilder().build();
+        OpType opType = org.opensearch.protobufs.OpType.UNRECOGNIZED;
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
             () -> OpTypeProtoUtils.fromProto(opType)

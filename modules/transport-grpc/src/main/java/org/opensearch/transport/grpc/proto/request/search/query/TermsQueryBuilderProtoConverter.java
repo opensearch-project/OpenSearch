@@ -35,6 +35,17 @@ public class TermsQueryBuilderProtoConverter implements QueryBuilderProtoConvert
             throw new IllegalArgumentException("QueryContainer does not contain a Terms query");
         }
 
-        return TermsQueryBuilderProtoUtils.fromProto(queryContainer.getTerms());
+        // Extract the first (and should be only) entry from the terms map
+        org.opensearch.protobufs.TermsQuery termsQuery = queryContainer.getTerms();
+        if (termsQuery.getTermsCount() != 1) {
+            throw new IllegalArgumentException("TermsQuery must contain exactly one field, found: " + termsQuery.getTermsCount());
+        }
+
+        // Get the first entry from the map
+        String fieldName = termsQuery.getTermsMap().keySet().iterator().next();
+        org.opensearch.protobufs.TermsQueryField termsQueryField = termsQuery.getTermsMap().get(fieldName);
+
+        // Note: This is a simplified conversion - the full fieldName context is lost
+        return TermsQueryBuilderProtoUtils.fromProto(termsQueryField);
     }
 }

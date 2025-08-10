@@ -29,7 +29,7 @@ public class VersionTypeProtoUtils {
      * @return The corresponding OpenSearch VersionType
      */
     public static VersionType fromProto(org.opensearch.protobufs.VersionType versionType) {
-        switch (versionType.getVersionTypeCase()) {
+        switch (versionType) {
             case VERSION_TYPE_EXTERNAL:
                 return VersionType.EXTERNAL;
             case VERSION_TYPE_EXTERNAL_GTE:
@@ -37,7 +37,8 @@ public class VersionTypeProtoUtils {
             case VERSION_TYPE_INTERNAL:
                 return VersionType.INTERNAL;
             case VERSION_TYPE_FORCE:
-            case VERSIONTYPE_NOT_SET:
+                return VersionType.INTERNAL; // Map FORCE to INTERNAL as fallback
+            case VERSION_TYPE_UNSPECIFIED:
             default:
                 return VersionType.INTERNAL;
         }

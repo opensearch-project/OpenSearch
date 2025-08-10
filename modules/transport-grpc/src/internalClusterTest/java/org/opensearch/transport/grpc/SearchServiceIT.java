@@ -57,7 +57,7 @@ public class SearchServiceIT extends GrpcTransportBaseIT {
                 searchResponse.getResponseBody().getHits().getTotal().getTotalHits().getValue() > 0
             );
             assertEquals("Search response should have one hit", 1, searchResponse.getResponseBody().getHits().getHitsCount());
-            assertEquals("Hit should have correct ID", "1", searchResponse.getResponseBody().getHits().getHits(0).getId());
+            assertEquals("Hit should have correct ID", "1", searchResponse.getResponseBody().getHits().getHits(0).getUnderscoreId());
         }
     }
 }

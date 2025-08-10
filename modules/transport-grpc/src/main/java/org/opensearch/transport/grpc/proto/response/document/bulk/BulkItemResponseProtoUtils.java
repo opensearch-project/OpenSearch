@@ -17,7 +17,6 @@ import org.opensearch.protobufs.ErrorCause;
 import org.opensearch.protobufs.Id;
 import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ResponseItem;
-import org.opensearch.protobufs.ResponseOpType;
 import org.opensearch.transport.grpc.proto.response.document.common.DocWriteResponseProtoUtils;
 import org.opensearch.transport.grpc.proto.response.document.get.GetResultProtoUtils;
 import org.opensearch.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
@@ -72,16 +71,15 @@ public class BulkItemResponseProtoUtils {
             responseItemBuilder.setError(errorCause);
         }
 
-        // Set the operation type in ResponseItem
+        // Process operation-specific fields
         switch (response.getOpType()) {
             case CREATE:
-                responseItemBuilder.setResponseOpType(ResponseOpType.RESPONSE_OP_TYPE_CREATE);
+                // No specific fields for CREATE
                 break;
             case INDEX:
-                responseItemBuilder.setResponseOpType(ResponseOpType.RESPONSE_OP_TYPE_INDEX);
+                // No specific fields for INDEX
                 break;
             case UPDATE:
-                responseItemBuilder.setResponseOpType(ResponseOpType.RESPONSE_OP_TYPE_UPDATE);
                 UpdateResponse updateResponse = response.getResponse();
                 if (updateResponse != null) {
                     GetResult getResult = updateResponse.getGetResult();
@@ -91,7 +89,7 @@ public class BulkItemResponseProtoUtils {
                 }
                 break;
             case DELETE:
-                responseItemBuilder.setResponseOpType(ResponseOpType.RESPONSE_OP_TYPE_DELETE);
+                // No specific fields for DELETE
                 break;
             default:
                 throw new UnsupportedOperationException("Invalid op type: " + response.getOpType());

@@ -17,7 +17,7 @@ import org.opensearch.transport.grpc.proto.request.common.RefreshProtoUtils;
 public class RefreshProtoUtilsTests extends OpenSearchTestCase {
 
     public void testGetRefreshPolicyWithRefreshTrue() {
-        Refresh refresh = Refresh.newBuilder().setRefreshTrue(true).build();
+        Refresh refresh = org.opensearch.protobufs.Refresh.REFRESH_TRUE;
 
         String refreshPolicy = RefreshProtoUtils.getRefreshPolicy(refresh);
 
@@ -25,7 +25,7 @@ public class RefreshProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testGetRefreshPolicyWithRefreshWaitFor() {
-        Refresh refresh = Refresh.newBuilder().setRefreshWaitFor(true).build();
+        Refresh refresh = org.opensearch.protobufs.Refresh.REFRESH_WAIT_FOR;
 
         String refreshPolicy = RefreshProtoUtils.getRefreshPolicy(refresh);
 
@@ -33,7 +33,7 @@ public class RefreshProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testGetRefreshPolicyWithRefreshFalse() {
-        Refresh refresh = Refresh.newBuilder().setRefreshFalse(true).build();
+        Refresh refresh = org.opensearch.protobufs.Refresh.REFRESH_FALSE;
 
         String refreshPolicy = RefreshProtoUtils.getRefreshPolicy(refresh);
 
@@ -41,7 +41,7 @@ public class RefreshProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testGetRefreshPolicyWithRefreshUnspecified() {
-        Refresh refresh = Refresh.newBuilder().build();
+        Refresh refresh = org.opensearch.protobufs.Refresh.UNRECOGNIZED;
 
         String refreshPolicy = RefreshProtoUtils.getRefreshPolicy(refresh);
 

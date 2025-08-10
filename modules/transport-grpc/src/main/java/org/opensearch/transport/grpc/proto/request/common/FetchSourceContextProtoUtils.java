@@ -81,8 +81,8 @@ public class FetchSourceContextProtoUtils {
         String[] sourceExcludes = null;
         String[] sourceIncludes = null;
 
-        if (request.hasSource()) {
-            SourceConfigParam source = request.getSource();
+        if (request.hasUnderscoreSource()) {
+            SourceConfigParam source = request.getUnderscoreSource();
 
             if (source.hasBoolValue()) {
                 fetchSource = source.getBoolValue();
@@ -91,12 +91,12 @@ public class FetchSourceContextProtoUtils {
             }
         }
 
-        if (request.getSourceIncludesCount() > 0) {
-            sourceIncludes = request.getSourceIncludesList().toArray(new String[0]);
+        if (request.getUnderscoreSourceIncludesCount() > 0) {
+            sourceIncludes = request.getUnderscoreSourceIncludesList().toArray(new String[0]);
         }
 
-        if (request.getSourceExcludesCount() > 0) {
-            sourceExcludes = request.getSourceExcludesList().toArray(new String[0]);
+        if (request.getUnderscoreSourceExcludesCount() > 0) {
+            sourceExcludes = request.getUnderscoreSourceExcludesList().toArray(new String[0]);
         }
 
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {

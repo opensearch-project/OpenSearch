@@ -32,12 +32,12 @@ public class OpTypeProtoUtils {
      */
     public static DocWriteRequest.OpType fromProto(OpType opType) {
 
-        switch (opType.getOpTypeCase()) {
+        switch (opType) {
             case OP_TYPE_CREATE:
                 return DocWriteRequest.OpType.CREATE;
             case OP_TYPE_INDEX:
                 return DocWriteRequest.OpType.INDEX;
-            case OPTYPE_NOT_SET:
+            case OP_TYPE_UNSPECIFIED:
             default:
                 throw new UnsupportedOperationException("Invalid optype: " + opType);
         }

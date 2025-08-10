@@ -46,7 +46,7 @@ public class ProtoActionsProtoUtils {
         int failed,
         ShardOperationFailedException[] shardFailures
     ) throws IOException {
-        searchResponseBodyProtoBuilder.setShards(
+        searchResponseBodyProtoBuilder.setUnderscoreShards(
             ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures)
         );
     }

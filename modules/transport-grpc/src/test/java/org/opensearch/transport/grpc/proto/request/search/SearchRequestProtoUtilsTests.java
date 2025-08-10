@@ -14,7 +14,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.protobufs.SearchRequestBody;
-import org.opensearch.protobufs.SourceConfigParam;
 import org.opensearch.protobufs.TrackHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.StoredFieldsContext;
@@ -50,7 +49,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
             .addIndex("index1")
             .addIndex("index2")
-            .setSearchType(org.opensearch.protobufs.SearchRequest.SearchType.SEARCH_TYPE_QUERY_THEN_FETCH)
+            .setSearchType(org.opensearch.protobufs.SearchType.SEARCH_TYPE_QUERY_THEN_FETCH)
             .setBatchedReduceSize(10)
             .setPreFilterShardSize(5)
             .setMaxConcurrentShardRequests(20)
@@ -212,10 +211,10 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     public void testParseSearchSourceWithSource() throws IOException {
         // Create a protobuf SearchRequest with source context
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setSource(SourceConfigParam.newBuilder().setBoolValue(true).build())
-            .addSourceIncludes("include1")
-            .addSourceIncludes("include2")
-            .addSourceExcludes("exclude1")
+            .setSource("true")
+            .addUnderscoreSourceIncludes("include1")
+            .addUnderscoreSourceIncludes("include2")
+            .addUnderscoreSourceExcludes("exclude1")
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -236,7 +235,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     public void testParseSearchSourceWithTrackTotalHitsBoolean() throws IOException {
         // Create a protobuf SearchRequest with track total hits boolean
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setTrackTotalHits(TrackHits.newBuilder().setBoolValue(true).build())
+            .setTrackTotalHits(TrackHits.newBuilder().setEnabled(true).build())
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -253,7 +252,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     public void testParseSearchSourceWithTrackTotalHitsInteger() throws IOException {
         // Create a protobuf SearchRequest with track total hits integer
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setTrackTotalHits(TrackHits.newBuilder().setInt32Value(1000).build())
+            .setTrackTotalHits(TrackHits.newBuilder().setCount(1000).build())
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -294,7 +293,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
             .setSuggestField("title")
             .setSuggestText("opensearch")
             .setSuggestSize(10)
-            .setSuggestMode(org.opensearch.protobufs.SearchRequest.SuggestMode.SUGGEST_MODE_POPULAR)
+            .setSuggestMode(org.opensearch.protobufs.SuggestMode.SUGGEST_MODE_POPULAR)
             .build();
 
         // Create a SearchSourceBuilder to populate

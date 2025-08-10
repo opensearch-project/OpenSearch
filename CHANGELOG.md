@@ -5,7 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
-- Upgrade opensearch-protobufs dependency to 0.7.0 and update transport-grpc module compatibility
+* Upgrade opensearch-protobufs dependency to 0.7.0 and update transport-grpc module compatibility ([#19003](https://github.com/opensearch-project/OpenSearch/issues/19003))
+* Upgrade opensearch-protobufs dependency to 0.8.0 and update transport-grpc module compatibility ([#19007](https://github.com/opensearch-project/OpenSearch/issues/19007))
+
 
 ### Changed
 
