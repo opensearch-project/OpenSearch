@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
+- [Feature Request] Add support for a ForkJoinPool type ([#18674](https://github.com/opensearch-project/OpenSearch/issues/18674))
 
 ### Changed
 
