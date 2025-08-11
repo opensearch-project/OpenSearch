@@ -56,7 +56,6 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
     @Override
     ThreadPool.ExecutorHolder build(final ForkJoinPoolExecutorSettings settings, final ThreadContext threadContext) {
         if (!ALLOWED_FJP_POOLS.contains(name())) {
-            new RuntimeException("ForkJoinPool misused for pool: " + name()).printStackTrace();
             throw new IllegalArgumentException("ForkJoinPool is only supported for: " + ALLOWED_FJP_POOLS + ", but got: " + name());
         }
         int parallelism = settings.parallelism;
