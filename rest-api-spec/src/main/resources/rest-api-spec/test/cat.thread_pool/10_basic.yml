@@ -129,4 +129,3 @@
                /  #node_name     name       active     queue     rejected
                ^  (\S+       \s+ search  \s+ \d+    \s+ \d+   \s+ \d+      \n
                    \S+       \s+ write   \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/
-
