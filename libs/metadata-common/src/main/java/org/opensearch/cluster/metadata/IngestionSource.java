@@ -11,16 +11,16 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
-import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.ResetState;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
-import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
+import static org.opensearch.cluster.metadata.core.IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING;
+import static org.opensearch.cluster.metadata.core.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
+import static org.opensearch.cluster.metadata.core.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
+import static org.opensearch.cluster.metadata.core.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
 
 /**
  * Class encapsulating the configuration of an ingestion source.
@@ -147,15 +147,15 @@ public class IngestionSource {
      */
     @ExperimentalApi
     public static class PointerInitReset {
-        private final StreamPoller.ResetState type;
+        private final ResetState type;
         private final String value;
 
-        public PointerInitReset(StreamPoller.ResetState type, String value) {
+        public PointerInitReset(ResetState type, String value) {
             this.type = type;
             this.value = value;
         }
 
-        public StreamPoller.ResetState getType() {
+        public ResetState getType() {
             return type;
         }
 

@@ -40,6 +40,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
@@ -140,13 +141,11 @@ public final class IndexModule {
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
 
-    public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>(
-        "index.store.type",
-        "",
-        Function.identity(),
-        Property.IndexScope,
-        Property.NodeScope
-    );
+    /**
+     * @deprecated use {@link org.opensearch.cluster.metadata.core.AbstractIndexMetadata#INDEX_STORE_TYPE_SETTING} instead
+     */
+    @Deprecated
+    public static final Setting<String> INDEX_STORE_TYPE_SETTING = IndexMetadata.INDEX_STORE_TYPE_SETTING;
 
     public static final Setting<String> INDEX_COMPOSITE_STORE_TYPE_SETTING = new Setting<>(
         "index.composite_store.type",

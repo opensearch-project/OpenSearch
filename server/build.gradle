@@ -71,6 +71,7 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
+  api project(":libs:opensearch-metadata-common")
 
   compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')
@@ -397,7 +398,11 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     // See please https://github.com/siom79/japicmp/issues/201
     compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
     oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
-    newClasspath.from(tasks.named('jar'))
+    newClasspath.from(
+      tasks.named('jar'),
+      // TODO: Can be removed in later versions, once metadata-common lib is stable
+      project(':libs:opensearch-metadata-common').tasks.named('jar')
+    )
     onlyModified = true
     failOnModification = true
     ignoreMissingClasses = true

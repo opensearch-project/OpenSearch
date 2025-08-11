@@ -58,13 +58,17 @@ public final class AutoExpandReplicas {
 
     private static final AutoExpandReplicas FALSE_INSTANCE = new AutoExpandReplicas(0, 0, false);
 
+    public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
+
     public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(
-        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
+        SETTING_AUTO_EXPAND_REPLICAS,
         "false",
         AutoExpandReplicas::parse,
         Property.Dynamic,
         Property.IndexScope
     );
+
+    public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = SETTING;
 
     private static AutoExpandReplicas parse(String value) {
         final int min;

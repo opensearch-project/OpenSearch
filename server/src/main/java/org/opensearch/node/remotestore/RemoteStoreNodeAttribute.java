@@ -30,6 +30,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeUtils.containsKey;
+
 /**
  * This is an abstraction for validating and storing information specific to remote backed storage nodes.
  *
@@ -37,7 +39,11 @@ import java.util.stream.Collectors;
  */
 public class RemoteStoreNodeAttribute {
 
-    public static final List<String> REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = List.of("remote_store", "remote_publication");
+    /**
+     * @deprecated - Use {@link RemoteStoreNodeUtils#REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX} instead
+     */
+    @Deprecated
+    public static final List<String> REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = RemoteStoreNodeUtils.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 
     // TO-DO the string constants are used only for tests and can be moved to test package
     public static final String REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.state.repository";
@@ -45,16 +51,27 @@ public class RemoteStoreNodeAttribute {
     public static final String REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.translog.repository";
     public static final String REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.routing_table.repository";
 
-    public static final List<String> REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
-        .map(prefix -> prefix + ".state.repository")
-        .collect(Collectors.toList());
+    /**
+     * @deprecated - Use {@link RemoteStoreNodeUtils#REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS} instead
+     */
+    @Deprecated
+    public static final List<String> REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS =
+        RemoteStoreNodeUtils.REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS;
 
-    public static final List<String> REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
-        .map(prefix -> prefix + ".routing_table.repository")
-        .collect(Collectors.toList());
-    public static final List<String> REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
-        .map(prefix -> prefix + ".segment.repository")
-        .collect(Collectors.toList());
+    /**
+     * @deprecated - Use {@link RemoteStoreNodeUtils#REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS} instead
+     */
+    @Deprecated
+    public static final List<String> REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS =
+        RemoteStoreNodeUtils.REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS;
+
+    /**
+     * @deprecated - Use {@link RemoteStoreNodeUtils#REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS} instead
+     */
+    @Deprecated
+    public static final List<String> REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS =
+        RemoteStoreNodeUtils.REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS;
+
     public static final List<String> REMOTE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEYS = REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.stream()
         .map(prefix -> prefix + ".translog.repository")
         .collect(Collectors.toList());
@@ -389,20 +406,28 @@ public class RemoteStoreNodeAttribute {
         return null;
     }
 
+    /**
+     * @deprecated - Use {@link RemoteStoreNodeUtils#isClusterStateRepoConfigured(Map)} instead
+     */
+    @Deprecated
     public static boolean isClusterStateRepoConfigured(Map<String, String> attributes) {
-        return containsKey(attributes, REMOTE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEYS);
+        return RemoteStoreNodeUtils.isClusterStateRepoConfigured(attributes);
     }
 
+    /**
+     * @deprecated - Use {@link RemoteStoreNodeUtils#isRoutingTableRepoConfigured(Map)} instead
+     */
+    @Deprecated
     public static boolean isRoutingTableRepoConfigured(Map<String, String> attributes) {
-        return containsKey(attributes, REMOTE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEYS);
+        return RemoteStoreNodeUtils.isRoutingTableRepoConfigured(attributes);
     }
 
+    /**
+     * @deprecated - Use {@link RemoteStoreNodeUtils#isSegmentRepoConfigured(Map)} instead
+     */
+    @Deprecated
     public static boolean isSegmentRepoConfigured(Map<String, String> attributes) {
-        return containsKey(attributes, REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS);
-    }
-
-    private static boolean containsKey(Map<String, String> attributes, List<String> keys) {
-        return keys.stream().filter(k -> attributes.containsKey(k)).findFirst().isPresent();
+        return RemoteStoreNodeUtils.isSegmentRepoConfigured(attributes);
     }
 
     @Override
