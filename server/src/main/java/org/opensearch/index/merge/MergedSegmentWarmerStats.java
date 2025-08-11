@@ -48,31 +48,36 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
     // [REPLICA SHARD] Total time spent receiving segments in milliseconds
     private long totalReceiveTimeMillis;
 
+    // [PRIMARY SHARD] Total number of warms rejected by the {@Link MergedSegmentWarmerPressureService}
+    private long totalRejectedCount;
+
     // [PRIMARY SHARD] Current number of ongoing segment warming operations
     private long ongoingCount;
 
     public MergedSegmentWarmerStats() {}
 
     public MergedSegmentWarmerStats(StreamInput in) throws IOException {
-        totalInvocationsCount = in.readVLong();
-        totalTimeMillis = in.readVLong();
-        totalFailureCount = in.readVLong();
-        totalBytesSent = in.readVLong();
-        totalBytesReceived = in.readVLong();
-        totalSendTimeMillis = in.readVLong();
-        totalReceiveTimeMillis = in.readVLong();
-        ongoingCount = in.readVLong();
+        totalWarmInvocationsCount = in.readVLong();
+        totalWarmTimeMillis = in.readVLong();
+        totalWarmFailureCount = in.readVLong();
+        totalBytesUploaded = in.readVLong();
+        totalBytesDownloaded = in.readVLong();
+        totalUploadTimeMillis = in.readVLong();
+        totalDownloadTimeMillis = in.readVLong();
+        totalRejectedCount = in.readVLong();
+        ongoingWarms = in.readVLong();
     }
 
     public synchronized void add(
-        long totalInvocationsCount,
-        long totalTimeMillis,
-        long totalFailureCount,
-        long totalBytesSent,
-        long totalBytesReceived,
-        long totalSendTimeMillis,
-        long totalReceiveTimeMillis,
-        long ongoingCount
+        long totalWarmInvocationsCount,
+        long totalWarmTimeMillis,
+        long totalWarmFailureCount,
+        long totalBytesUploaded,
+        long totalBytesDownloaded,
+        long totalUploadTimeMillis,
+        long totalDownloadTimeMillis,
+        long totalRejectedCount,
+        long ongoingWarms
     ) {
         this.totalInvocationsCount += totalInvocationsCount;
         this.totalTimeMillis += totalTimeMillis;
@@ -81,6 +86,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         this.totalBytesReceived += totalBytesReceived;
         this.totalSendTimeMillis += totalSendTimeMillis;
         this.totalReceiveTimeMillis += totalReceiveTimeMillis;
+        this.totalRejectedCount += totalRejectedWarms;
         this.ongoingCount += ongoingCount;
     }
 
@@ -92,13 +98,14 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         if (mergedSegmentWarmerStats == null) {
             return;
         }
-        this.totalInvocationsCount += mergedSegmentWarmerStats.totalInvocationsCount;
-        this.totalTimeMillis += mergedSegmentWarmerStats.totalTimeMillis;
-        this.totalFailureCount += mergedSegmentWarmerStats.totalFailureCount;
-        this.totalBytesSent += mergedSegmentWarmerStats.totalBytesSent;
-        this.totalBytesReceived += mergedSegmentWarmerStats.totalBytesReceived;
-        this.totalSendTimeMillis += mergedSegmentWarmerStats.totalSendTimeMillis;
-        this.totalReceiveTimeMillis += mergedSegmentWarmerStats.totalReceiveTimeMillis;
+        this.totalWarmInvocationsCount += mergedSegmentWarmerStats.totalWarmInvocationsCount;
+        this.totalWarmTimeMillis += mergedSegmentWarmerStats.totalWarmTimeMillis;
+        this.totalWarmFailureCount += mergedSegmentWarmerStats.totalWarmFailureCount;
+        this.totalBytesUploaded += mergedSegmentWarmerStats.totalBytesUploaded;
+        this.totalBytesDownloaded += mergedSegmentWarmerStats.totalBytesDownloaded;
+        this.totalUploadTimeMillis += mergedSegmentWarmerStats.totalUploadTimeMillis;
+        this.totalDownloadTimeMillis += mergedSegmentWarmerStats.totalDownloadTimeMillis;
+        this.totalRejectedCount += mergedSegmentWarmerStats.totalRejectedWarms;
     }
 
     public long getTotalInvocationsCount() {
@@ -133,16 +140,21 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         return new TimeValue(totalSendTimeMillis);
     }
 
+    public long getTotalRejectedCount() {
+        return totalRejectedCount;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.MERGED_SEGMENT_WARMER);
-        builder.field(Fields.WARM_INVOCATIONS_COUNT, totalInvocationsCount);
-        builder.humanReadableField(Fields.TOTAL_TIME_MILLIS, Fields.TOTAL_TIME, getTotalTime());
-        builder.field(Fields.TOTAL_FAILURE_COUNT, totalFailureCount);
-        builder.humanReadableField(Fields.TOTAL_BYTES_SENT, Fields.TOTAL_SENT_SIZE, getTotalSentSize());
-        builder.humanReadableField(Fields.TOTAL_BYTES_RECEIVED, Fields.TOTAL_RECEIVED_SIZE, getTotalReceivedSize());
-        builder.humanReadableField(Fields.TOTAL_SEND_TIME_MILLIS, Fields.TOTAL_SEND_TIME, getTotalSendTime());
-        builder.humanReadableField(Fields.TOTAL_RECEIVE_TIME_MILLIS, Fields.TOTAL_RECEIVE_TIME, getTotalReceiveTime());
+        builder.field(Fields.TOTAL_WARM_INVOCATIONS_COUNT, totalWarmInvocationsCount);
+        builder.field(Fields.TOTAL_WARM_TIME_MILLIS, totalWarmTimeMillis);
+        builder.field(Fields.TOTAL_WARM_FAILURE_COUNT, totalWarmFailureCount);
+        builder.humanReadableField(Fields.TOTAL_BYTES_UPLOADED, Fields.TOTAL_BYTES_UPLOADED, new ByteSizeValue(totalBytesUploaded));
+        builder.humanReadableField(Fields.TOTAL_BYTES_DOWNLOADED, Fields.TOTAL_BYTES_DOWNLOADED, new ByteSizeValue(totalBytesDownloaded));
+        builder.field(Fields.TOTAL_UPLOAD_TIME_MILLIS, totalUploadTimeMillis);
+        builder.field(Fields.TOTAL_DOWNLOAD_TIME_MILLIS, totalDownloadTimeMillis);
+        builder.field(Fields.TOTAL_REJECTED_COUNT, totalRejectedCount);
         builder.field(Fields.ONGOING_COUNT, ongoingCount);
         builder.endObject();
         return builder;
@@ -162,6 +174,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         static final String TOTAL_BYTES_RECEIVED = "total_bytes_received";
         static final String TOTAL_SEND_TIME_MILLIS = "total_send_time_millis";
         static final String TOTAL_RECEIVE_TIME_MILLIS = "total_receive_time_millis";
+        static final String TOTAL_REJECTED_COUNT = "total_rejected_count";
         static final String ONGOING_COUNT = "ongoing_count";
 
         public static final String TOTAL_TIME = "total_time";
@@ -180,6 +193,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalBytesReceived);
         out.writeVLong(totalSendTimeMillis);
         out.writeVLong(totalReceiveTimeMillis);
+        out.writeVLong(totalRejectedCount);
         out.writeVLong(ongoingCount);
     }
 }

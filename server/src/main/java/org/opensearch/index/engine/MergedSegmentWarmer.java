@@ -16,6 +16,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.index.merge.MergedSegmentWarmerPressureService;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -34,6 +35,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
     private final IndexShard indexShard;
+    private final MergedSegmentWarmerPressureService mergedSegmentWarmerPressureService;
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
     private final Logger logger;
 
@@ -47,6 +49,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.indexShard = indexShard;
+        this.mergedSegmentWarmerPressureService = indexShard.mergedSegmentWarmerPressureService();
         this.mergedSegmentTransferTracker = indexShard.mergedSegmentTransferTracker();
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
     }
@@ -91,7 +94,17 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
     }
 
     // package-private for tests
-    boolean shouldWarm() {
-        return indexShard.getRecoverySettings().isMergedSegmentReplicationWarmerEnabled() == true;
+    private boolean shouldWarm() {
+        if (indexShard.getRecoverySettings().isMergedSegmentReplicationWarmerEnabled() == false) {
+            return false
+        }
+
+        if (mergedSegmentWarmerPressureService.isEnabled() &&
+            mergedSegmentWarmerPressureService.shouldWarm(mergedSegmentReplicationTracker.stats()) == false) {
+            mergedSegmentReplicationTracker.incrementTotalRejectedWarms();
+            return false;
+        }
+
+        return true;
     }
 }

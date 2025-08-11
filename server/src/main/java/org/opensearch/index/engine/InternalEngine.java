@@ -2635,6 +2635,10 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
+    public int getMaxMergesCount() {
+        return mergeScheduler.getMaxMergeCount();
+    }
+
     LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
     }

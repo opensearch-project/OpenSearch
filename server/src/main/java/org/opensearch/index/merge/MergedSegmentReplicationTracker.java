@@ -30,6 +30,7 @@ public class MergedSegmentReplicationTracker extends AbstractIndexShardComponent
     private final CounterMetric totalBytesDownloaded = new CounterMetric();
     private final CounterMetric totalUploadTimeMillis = new CounterMetric();
     private final CounterMetric totalDownloadTimeMillis = new CounterMetric();
+    private final CounterMetric totalRejectedWarms = new CounterMetric();
     private final CounterMetric ongoingWarms = new CounterMetric();
 
     public MergedSegmentReplicationTracker(ShardId shardId, IndexSettings indexSettings) {
@@ -50,6 +51,10 @@ public class MergedSegmentReplicationTracker extends AbstractIndexShardComponent
 
     public void incrementTotalWarmFailureCount() {
         totalWarmFailureCount.inc();
+    }
+
+    public void incrementTotalRejectedWarms() {
+        totalRejectedWarms.inc();
     }
 
     public void addTotalWarmTimeMillis(long time) {
@@ -82,6 +87,7 @@ public class MergedSegmentReplicationTracker extends AbstractIndexShardComponent
             totalBytesDownloaded.count(),
             totalUploadTimeMillis.count(),
             totalDownloadTimeMillis.count(),
+            totalRejectedWarms.count(),
             ongoingWarms.count()
         );
         return stats;

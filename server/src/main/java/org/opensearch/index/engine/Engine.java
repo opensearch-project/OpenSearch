@@ -221,6 +221,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
+    public int getMaxMergesCount() {
+        return 0;
+    }
+
     /**
      * Reads the current stored history ID from commit data.
      */
