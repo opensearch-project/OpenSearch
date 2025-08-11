@@ -36,4 +36,54 @@ public class VersionTypeProtoUtilsTests extends OpenSearchTestCase {
 
         assertEquals("UNRECOGNIZED should default to VersionType.INTERNAL", VersionType.INTERNAL, result);
     }
+
+    public void testFromProtoWithVersionTypeForce() {
+        VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_FORCE);
+
+        assertEquals("VERSION_TYPE_FORCE should convert to VersionType.INTERNAL", VersionType.INTERNAL, result);
+    }
+
+    public void testFromProtoWithVersionTypeUnspecified() {
+        VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_UNSPECIFIED);
+
+        assertEquals("VERSION_TYPE_UNSPECIFIED should default to VersionType.INTERNAL", VersionType.INTERNAL, result);
+    }
+
+    public void testFromProtoWithAllVersionTypes() {
+        assertEquals(
+            "VERSION_TYPE_EXTERNAL should convert to VersionType.EXTERNAL",
+            VersionType.EXTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL)
+        );
+
+        assertEquals(
+            "VERSION_TYPE_EXTERNAL_GTE should convert to VersionType.EXTERNAL_GTE",
+            VersionType.EXTERNAL_GTE,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL_GTE)
+        );
+
+        assertEquals(
+            "VERSION_TYPE_INTERNAL should convert to VersionType.INTERNAL",
+            VersionType.INTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_INTERNAL)
+        );
+
+        assertEquals(
+            "VERSION_TYPE_FORCE should convert to VersionType.INTERNAL",
+            VersionType.INTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_FORCE)
+        );
+
+        assertEquals(
+            "VERSION_TYPE_UNSPECIFIED should default to VersionType.INTERNAL",
+            VersionType.INTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_UNSPECIFIED)
+        );
+
+        assertEquals(
+            "UNRECOGNIZED should default to VersionType.INTERNAL",
+            VersionType.INTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.UNRECOGNIZED)
+        );
+    }
 }
