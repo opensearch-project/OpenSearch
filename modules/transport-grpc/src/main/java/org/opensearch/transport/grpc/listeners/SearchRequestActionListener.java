@@ -13,9 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.transport.grpc.proto.response.search.SearchResponseProtoUtils;
+import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
 import java.io.IOException;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 /**
@@ -44,13 +46,16 @@ public class SearchRequestActionListener implements ActionListener<SearchRespons
             responseObserver.onNext(protoResponse);
             responseObserver.onCompleted();
         } catch (RuntimeException | IOException e) {
-            responseObserver.onError(e);
+            logger.error("Failed to convert search response to protobuf: " + e.getMessage());
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            responseObserver.onError(grpcError);
         }
     }
 
     @Override
     public void onFailure(Exception e) {
-        logger.error("SearchRequestActionListener failed to process search request:" + e.getMessage());
-        responseObserver.onError(e);
+        logger.error("SearchRequestActionListener failed to process search request: " + e.getMessage());
+        StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+        responseObserver.onError(grpcError);
     }
 }
