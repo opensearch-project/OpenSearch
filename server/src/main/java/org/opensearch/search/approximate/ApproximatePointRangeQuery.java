@@ -31,6 +31,8 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumericPointEncoder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
@@ -52,10 +54,9 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     public static final Function<byte[], String> UNSIGNED_LONG_FORMAT = bytes -> BigIntegerPoint.decodeDimension(bytes, 0).toString();
 
     private int size;
-
     private SortOrder sortOrder;
-
-    public final PointRangeQuery pointRangeQuery;
+    public PointRangeQuery pointRangeQuery;
+    private final Function<byte[], String> valueToString;
 
     public ApproximatePointRangeQuery(
         String field,
@@ -78,6 +79,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     ) {
         this.size = size;
         this.sortOrder = sortOrder;
+        this.valueToString = valueToString;
         this.pointRangeQuery = new PointRangeQuery(field, lowerPoint, upperPoint, numDims) {
             @Override
             protected String toString(int dimension, byte[] value) {
@@ -114,11 +116,11 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
     @Override
     public final ConstantScoreWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
+
         Weight pointRangeQueryWeight = pointRangeQuery.createWeight(searcher, scoreMode, boost);
 
         return new ConstantScoreWeight(this, boost) {
-
-            private final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
 
             // we pull this from PointRangeQuery since it is final
             private boolean matches(byte[] packedValue) {
@@ -138,7 +140,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
             // we pull this from PointRangeQuery since it is final
             private PointValues.Relation relate(byte[] minPackedValue, byte[] maxPackedValue) {
-
                 boolean crosses = false;
 
                 for (int dim = 0; dim < pointRangeQuery.getNumDims(); dim++) {
@@ -352,6 +353,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 if (checkValidPointValues(values) == false) {
                     return null;
                 }
+                // values.size(): total points indexed, In most cases: values.size() ≈ number of documents (assuming single-valued fields)
                 if (size > values.size()) {
                     return pointRangeQueryWeight.scorerSupplier(context);
                 } else {
@@ -423,6 +425,19 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         };
     }
 
+    private byte[] computeEffectiveBound(SearchContext context, boolean isLowerBound) {
+        byte[] originalBound = isLowerBound ? pointRangeQuery.getLowerPoint() : pointRangeQuery.getUpperPoint();
+        boolean isAscending = sortOrder == null || sortOrder.equals(SortOrder.ASC);
+        if ((isLowerBound && isAscending) || (isLowerBound == false && isAscending == false)) {
+            Object searchAfterValue = context.request().source().searchAfter()[0];
+            MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(pointRangeQuery.getField());
+            if (fieldType instanceof NumericPointEncoder encoder) {
+                return encoder.encodePoint(searchAfterValue, isLowerBound);
+            }
+        }
+        return originalBound;
+    }
+
     @Override
     public boolean canApproximate(SearchContext context) {
         if (context == null) {
@@ -435,7 +450,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
             return false;
         }
-
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
@@ -459,12 +473,24 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     // Cannot sort documents missing this field.
                     return false;
                 }
-                if (context.request().source().searchAfter() != null) {
-                    // TODO: We *could* optimize searchAfter, especially when this is the only sort field, but existing pruning is pretty
-                    // good.
-                    return false;
-                }
                 this.setSortOrder(primarySortField.order());
+                if (context.request().source().searchAfter() != null) {
+                    byte[] lower;
+                    byte[] upper;
+                    if (sortOrder == SortOrder.ASC) {
+                        lower = computeEffectiveBound(context, true);
+                        upper = pointRangeQuery.getUpperPoint();
+                    } else {
+                        lower = pointRangeQuery.getLowerPoint();
+                        upper = computeEffectiveBound(context, false);
+                    }
+                    this.pointRangeQuery = new PointRangeQuery(pointRangeQuery.getField(), lower, upper, pointRangeQuery.getNumDims()) {
+                        @Override
+                        protected String toString(int dimension, byte[] value) {
+                            return valueToString.apply(value);
+                        }
+                    };
+                }
             }
             return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
         }

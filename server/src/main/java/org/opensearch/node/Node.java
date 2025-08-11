@@ -192,6 +192,9 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicator;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.PublishMergedSegmentAction;
+import org.opensearch.indices.replication.checkpoint.RemoteStorePublishMergedSegmentAction;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.SystemIngestPipelineCache;
@@ -1659,6 +1662,18 @@ public class Node implements Closeable {
                 b.bind(MergedSegmentWarmerFactory.class).toInstance(mergedSegmentWarmerFactory);
                 b.bind(MappingTransformerRegistry.class).toInstance(mappingTransformerRegistry);
                 b.bind(AutoForceMergeManager.class).toInstance(autoForceMergeManager);
+                if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)) {
+                    if (isRemoteDataAttributePresent(settings)) {
+                        b.bind(MergedSegmentPublisher.PublishAction.class)
+                            .to(RemoteStorePublishMergedSegmentAction.class)
+                            .asEagerSingleton();
+                    } else {
+                        b.bind(MergedSegmentPublisher.PublishAction.class).to(PublishMergedSegmentAction.class).asEagerSingleton();
+                    }
+                } else {
+                    b.bind(MergedSegmentPublisher.PublishAction.class).toInstance((shard, checkpoint) -> {});
+                }
+                b.bind(MergedSegmentPublisher.class).asEagerSingleton();
 
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });

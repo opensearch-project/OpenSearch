@@ -11,12 +11,12 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description = 'gRPC based transport implementation'
-  classname = 'org.opensearch.plugin.transport.grpc.GrpcPlugin'
+  classname = 'org.opensearch.transport.grpc.GrpcPlugin'
 }
 
 testClusters {
   integTest {
-    setting 'aux.transport.types', '[experimental-transport-grpc]'
+    setting 'aux.transport.types', '[transport-grpc]'
   }
 }
 

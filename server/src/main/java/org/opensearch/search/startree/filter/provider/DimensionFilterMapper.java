@@ -10,6 +10,7 @@ package org.opensearch.search.startree.filter.provider;
 
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
@@ -32,6 +33,7 @@ import org.opensearch.search.startree.filter.MatchNoneFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -161,7 +163,9 @@ public interface DimensionFilterMapper {
             org.opensearch.index.mapper.KeywordFieldMapper.CONTENT_TYPE,
             new KeywordFieldMapper(),
             UNSIGNED_LONG.typeName(),
-            new UnsignedLongFieldMapperNumeric()
+            new UnsignedLongFieldMapperNumeric(),
+            org.opensearch.index.mapper.IpFieldMapper.CONTENT_TYPE,
+            new IpFieldMapper()
         );
 
         public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType, SearchContext searchContext) {
@@ -406,25 +410,25 @@ class DoubleFieldMapperNumeric extends NumericDecimalFieldMapper {
     }
 }
 
-class KeywordFieldMapper implements DimensionFilterMapper {
+abstract class OrdinalFieldMapper implements DimensionFilterMapper {
+
+    abstract Object parseRawField(String field, Object rawValue, MappedFieldType mappedFieldType) throws IllegalArgumentException;
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
-        KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
         List<Object> convertedValues = new ArrayList<>(rawValues.size());
         for (Object rawValue : rawValues) {
-            convertedValues.add(parseRawKeyword(mappedFieldType.name(), rawValue, keywordFieldType));
+            convertedValues.add(parseRawField(mappedFieldType.name(), rawValue, mappedFieldType));
         }
         return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
     }
 
     @Override
     public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
-        KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
         return new RangeMatchDimFilter(
             mappedFieldType.name(),
-            parseRawKeyword(mappedFieldType.name(), rangeQuery.from(), keywordFieldType),
-            parseRawKeyword(mappedFieldType.name(), rangeQuery.to(), keywordFieldType),
+            parseRawField(mappedFieldType.name(), rangeQuery.from(), mappedFieldType),
+            parseRawField(mappedFieldType.name(), rangeQuery.to(), mappedFieldType),
             rangeQuery.includeLower(),
             rangeQuery.includeUpper()
         );
@@ -484,8 +488,20 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         }
     }
 
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof BytesRef) || !(v2 instanceof BytesRef)) {
+            throw new IllegalArgumentException("Expected BytesRef values for comparison");
+        }
+        return ((BytesRef) v1).compareTo((BytesRef) v2);
+    }
+}
+
+class KeywordFieldMapper extends OrdinalFieldMapper {
+
     // TODO : Think around making TermBasedFT#indexedValueForSearch() accessor public for reuse here.
-    private Object parseRawKeyword(String field, Object rawValue, KeywordFieldType keywordFieldType) {
+    Object parseRawField(String field, Object rawValue, MappedFieldType mappedFieldType) {
+        KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
         Object parsedValue = null;
         if (rawValue != null) {
             if (keywordFieldType.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
@@ -499,12 +515,51 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         }
         return parsedValue;
     }
+}
 
-    @Override
-    public int compareValues(Object v1, Object v2) {
-        if (!(v1 instanceof BytesRef) || !(v2 instanceof BytesRef)) {
-            throw new IllegalArgumentException("Expected BytesRef values for keyword comparison");
+/**
+ * This class provides functionality to map IP address values for exact and range-based
+ * filtering within a Star-Tree index. It handles the conversion of IP address
+ * objects into sortable {@link BytesRef}.
+ */
+class IpFieldMapper extends OrdinalFieldMapper {
+
+    /**
+     * Parses a raw IP address value into a sortable {@link BytesRef}.
+     *
+     * This method handles various input types, including {@link InetAddress}, {@link BytesRef},
+     * and {@link String}, converting them into a binary representation using
+     * {@link InetAddressPoint#encode(InetAddress)}.
+     *
+     * @param field The name of the field being processed.
+     * @param rawValue The raw IP address value.
+     * @return A {@link BytesRef} representation of the IP address, or null if the input is null.
+     */
+    Object parseRawField(String field, Object rawValue, MappedFieldType mappedFieldType) throws IllegalArgumentException {
+        Object parsedValue = null;
+        if (rawValue != null) {
+            try {
+                switch (rawValue) {
+                    case InetAddress inetAddress -> {
+                        parsedValue = new BytesRef(InetAddressPoint.encode(inetAddress));
+                    }
+                    case BytesRef bytesRef -> {
+                        return bytesRef;
+                    }
+                    case String s -> {
+                        InetAddress addr = InetAddress.getByName(s);
+                        parsedValue = new BytesRef(InetAddressPoint.encode(addr));
+                    }
+                    default -> {
+                        throw new IllegalArgumentException(
+                            "Unsupported value type for IP field [" + field + "]: " + rawValue.getClass().getName()
+                        );
+                    }
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Failed to parse IP value for field [" + field + "]", e);
+            }
         }
-        return ((BytesRef) v1).compareTo((BytesRef) v2);
+        return parsedValue;
     }
 }
