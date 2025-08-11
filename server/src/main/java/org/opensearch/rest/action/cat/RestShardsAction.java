@@ -491,6 +491,7 @@ public class RestShardsAction extends AbstractListAction {
             );
             table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalWarmFailureCount));
             table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalUploadTimeMillis));
+            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalRejectedWarms));
 
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotal));
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotalTime));

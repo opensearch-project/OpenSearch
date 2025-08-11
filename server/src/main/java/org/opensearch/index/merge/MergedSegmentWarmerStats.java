@@ -6,33 +6,10 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
 
 package org.opensearch.index.merge;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -47,7 +24,7 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@ExperimentalApi
 public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
     private long totalWarmInvocationsCount;
     private long totalWarmTimeMillis;
@@ -56,6 +33,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
     private long totalBytesDownloaded;
     private long totalUploadTimeMillis;
     private long totalDownloadTimeMillis;
+    private long totalRejectedWarms;
     private long ongoingWarms;
 
     public MergedSegmentWarmerStats() {}
@@ -68,6 +46,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         totalBytesDownloaded = in.readVLong();
         totalUploadTimeMillis = in.readVLong();
         totalDownloadTimeMillis = in.readVLong();
+        totalRejectedWarms = in.readVLong();
         ongoingWarms = in.readVLong();
     }
 
@@ -79,6 +58,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         long totalBytesDownloaded,
         long totalUploadTimeMillis,
         long totalDownloadTimeMillis,
+        long totalRejectedWarms,
         long ongoingWarms
     ) {
         this.totalWarmInvocationsCount += totalWarmInvocationsCount;
@@ -88,6 +68,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         this.totalBytesDownloaded += totalBytesDownloaded;
         this.totalUploadTimeMillis += totalUploadTimeMillis;
         this.totalDownloadTimeMillis += totalDownloadTimeMillis;
+        this.totalRejectedWarms += totalRejectedWarms;
         this.ongoingWarms += ongoingWarms;
     }
 
@@ -111,6 +92,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         this.totalBytesDownloaded += mergedSegmentWarmerStats.totalBytesDownloaded;
         this.totalUploadTimeMillis += mergedSegmentWarmerStats.totalUploadTimeMillis;
         this.totalDownloadTimeMillis += mergedSegmentWarmerStats.totalDownloadTimeMillis;
+        this.totalRejectedWarms += mergedSegmentWarmerStats.totalRejectedWarms;
     }
 
     public long getTotalWarmInvocationsCount() {
@@ -145,6 +127,10 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         return totalUploadTimeMillis;
     }
 
+    public long getTotalRejectedWarms() {
+        return totalRejectedWarms;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.MERGED_SEGMENT_WARMER);
@@ -155,6 +141,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.TOTAL_BYTES_DOWNLOADED, Fields.TOTAL_BYTES_DOWNLOADED, new ByteSizeValue(totalBytesDownloaded));
         builder.field(Fields.TOTAL_UPLOAD_TIME_MILLIS, totalUploadTimeMillis);
         builder.field(Fields.TOTAL_DOWNLOAD_TIME_MILLIS, totalDownloadTimeMillis);
+        builder.field(Fields.TOTAL_REJECTED_WARMS, totalRejectedWarms);
         builder.field(Fields.ONGOING_WARMS, ongoingWarms);
         builder.endObject();
         return builder;
@@ -174,6 +161,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         static final String TOTAL_BYTES_DOWNLOADED = "total_bytes_downloaded";
         static final String TOTAL_UPLOAD_TIME_MILLIS = "total_upload_time_millis";
         static final String TOTAL_DOWNLOAD_TIME_MILLIS = "total_download_time_millis";
+        static final String TOTAL_REJECTED_WARMS = "total_rejected_warms";
         static final String ONGOING_WARMS = "ongoing_warms";
     }
 
@@ -186,6 +174,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalBytesDownloaded);
         out.writeVLong(totalUploadTimeMillis);
         out.writeVLong(totalDownloadTimeMillis);
+        out.writeVLong(totalRejectedWarms);
         out.writeVLong(ongoingWarms);
     }
 }

@@ -1080,6 +1080,13 @@ public class RestIndicesAction extends AbstractListAction {
                 primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalUploadTimeMillis()
             );
 
+            table.addCell(
+                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalRejectedWarms()
+            );
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalRejectedWarms()
+            );
+
             table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());
             table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotal());
 

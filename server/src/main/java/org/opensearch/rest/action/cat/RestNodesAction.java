@@ -584,6 +584,8 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalDownloadTimeMillis());
             table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalWarmFailureCount());
             table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalUploadTimeMillis());
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalRejectedWarms());
+
 
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());

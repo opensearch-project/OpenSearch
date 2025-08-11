@@ -158,6 +158,7 @@ import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.MergedSegmentReplicationTracker;
+import org.opensearch.index.merge.MergedSegmentWarmerPressureService;
 import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
@@ -391,6 +392,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
     private final MergedSegmentReplicationTracker mergedSegmentReplicationTracker;
+    private final MergedSegmentWarmerPressureService mergedSegmentWarmerPressureService;
 
 
     @InternalApi
@@ -543,6 +545,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.mergedSegmentPublisher = mergedSegmentPublisher;
         this.referencedSegmentsPublisher = referencedSegmentsPublisher;
         this.mergedSegmentReplicationTracker = new MergedSegmentReplicationTracker(shardId(), indexSettings);
+        this.mergedSegmentWarmerPressureService = new MergedSegmentWarmerPressureService(this);
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -585,7 +588,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * To be delegated to {@link ReplicationTracker} so that relevant remote store based
      * operations can be ignored during engine migration
      * <p>
-     * Has explicit null checks to ensure that the {@link ReplicationTracker#invariant()}
+     * Has explicit null checks to ensure that the {@link ReplicationTracker # invariant()}
      * checks does not fail during a cluster manager state update when the latest replication group
      * calculation is not yet done and the cached replication group details are available
      */
@@ -2265,6 +2268,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public MergedSegmentReplicationTracker mergedSegmentReplicationTracker() {
         return mergedSegmentReplicationTracker;
+    }
+
+    public MergedSegmentWarmerPressureService mergedSegmentWarmerPressureService() {
+        return mergedSegmentWarmerPressureService;
     }
 
     /**
@@ -5756,5 +5763,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Visible for testing
     public AsyncShardRefreshTask getRefreshTask() {
         return refreshTask;
+    }
+
+    public int getMaxMergesAllowed() {
+        Engine engine = getEngineOrNull();
+        if (engine == null) {
+            return 0;
+        }
+
+        return engine.getMaxMergesCount();
     }
 }
