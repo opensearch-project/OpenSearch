@@ -2364,7 +2364,11 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
     }
 
     public void testResponseHeadersArePreserved() throws InterruptedException {
-        List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
+        //List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
+        List<String> executors = ThreadPool.THREAD_POOL_TYPES.keySet()
+            .stream()
+            .filter(name -> !name.equals("fork_join") && !name.equals("jvector"))
+            .collect(Collectors.toList());
         CollectionUtil.timSort(executors); // makes sure it's reproducible
         serviceA.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
 

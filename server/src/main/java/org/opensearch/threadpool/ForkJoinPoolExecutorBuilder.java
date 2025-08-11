@@ -17,6 +17,7 @@ import org.opensearch.node.Node;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory;
 import java.util.concurrent.ForkJoinWorkerThread;
@@ -29,6 +30,7 @@ import java.util.concurrent.ForkJoinWorkerThread;
 public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinPoolExecutorBuilder.ForkJoinPoolExecutorSettings> {
 
     private final Setting<Integer> parallelismSetting;
+    private static final Set<String> ALLOWED_FJP_POOLS = Set.of("fork_join", "jvector");
 
     public ForkJoinPoolExecutorBuilder(final String name, final int parallelism) {
         this(name, parallelism, "thread_pool." + name);
@@ -53,6 +55,10 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
 
     @Override
     ThreadPool.ExecutorHolder build(final ForkJoinPoolExecutorSettings settings, final ThreadContext threadContext) {
+        if (!ALLOWED_FJP_POOLS.contains(name())) {
+            new RuntimeException("ForkJoinPool misused for pool: " + name()).printStackTrace();
+            throw new IllegalArgumentException("ForkJoinPool is only supported for: " + ALLOWED_FJP_POOLS + ", but got: " + name());
+        }
         int parallelism = settings.parallelism;
         ForkJoinWorkerThreadFactory factory = pool -> {
             ForkJoinWorkerThread worker = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
