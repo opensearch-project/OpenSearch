@@ -37,11 +37,9 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.rest.RestRequest;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -91,35 +89,15 @@ public final class SettingsFilter {
         }
     }
 
+    /**
+     * @deprecated - Use {@link SettingsFilterUtils#filterSettings(Params, Settings)} instead
+     */
+    @Deprecated
     public static Settings filterSettings(Params params, Settings settings) {
-        String patterns = params.param(SETTINGS_FILTER_PARAM);
-        final Settings filteredSettings;
-        if (patterns != null && patterns.isEmpty() == false) {
-            filteredSettings = filterSettings(Strings.commaDelimitedListToSet(patterns), settings);
-        } else {
-            filteredSettings = settings;
-        }
-        return filteredSettings;
+        return SettingsFilterUtils.filterSettings(params, settings);
     }
 
     public Settings filter(Settings settings) {
-        return filterSettings(patterns, settings);
-    }
-
-    private static Settings filterSettings(Iterable<String> patterns, Settings settings) {
-        Settings.Builder builder = Settings.builder().put(settings);
-        List<String> simpleMatchPatternList = new ArrayList<>();
-        for (String pattern : patterns) {
-            if (Regex.isSimpleMatchPattern(pattern)) {
-                simpleMatchPatternList.add(pattern);
-            } else {
-                builder.remove(pattern);
-            }
-        }
-        if (!simpleMatchPatternList.isEmpty()) {
-            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[0]);
-            builder.keys().removeIf(key -> Regex.simpleMatch(simpleMatchPatterns, key));
-        }
-        return builder.build();
+        return SettingsFilterUtils.filterSettings(patterns, settings);
     }
 }

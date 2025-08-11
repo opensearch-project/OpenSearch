@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.core.AbstractIndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -77,26 +78,19 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     /**
      * Controls the maximum number of shards per index on a single OpenSearch
      * node. Negative values are interpreted as unlimited.
+     * @deprecated use {@link org.opensearch.cluster.metadata.core.AbstractIndexMetadata#INDEX_TOTAL_SHARDS_PER_NODE_SETTING} instead
      */
-    public static final Setting<Integer> INDEX_TOTAL_SHARDS_PER_NODE_SETTING = Setting.intSetting(
-        "index.routing.allocation.total_shards_per_node",
-        -1,
-        -1,
-        Property.Dynamic,
-        Property.IndexScope
-    );
+    @Deprecated
+    public static final Setting<Integer> INDEX_TOTAL_SHARDS_PER_NODE_SETTING = AbstractIndexMetadata.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 
     /**
      * Controls the maximum number of primary shards per index on a single OpenSearch
      * node for segment replication enabled indices. Negative values are interpreted as unlimited.
+     * @deprecated use {@link org.opensearch.cluster.metadata.core.AbstractIndexMetadata#INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING} instead
      */
-    public static final Setting<Integer> INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING = Setting.intSetting(
-        "index.routing.allocation.total_primary_shards_per_node",
-        -1,
-        -1,
-        Property.Dynamic,
-        Property.IndexScope
-    );
+    @Deprecated
+    public static final Setting<Integer> INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING =
+        AbstractIndexMetadata.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 
     /**
      * Controls the maximum number of shards per node on a cluster level.

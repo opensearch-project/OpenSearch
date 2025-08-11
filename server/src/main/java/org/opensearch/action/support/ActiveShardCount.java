@@ -38,8 +38,6 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -52,41 +50,27 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACT
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class ActiveShardCount implements Writeable {
-
-    private static final int ACTIVE_SHARD_COUNT_DEFAULT = -2;
-    private static final int ALL_ACTIVE_SHARDS = -1;
+public final class ActiveShardCount extends ShardCount {
 
     public static final ActiveShardCount DEFAULT = new ActiveShardCount(ACTIVE_SHARD_COUNT_DEFAULT);
     public static final ActiveShardCount ALL = new ActiveShardCount(ALL_ACTIVE_SHARDS);
     public static final ActiveShardCount NONE = new ActiveShardCount(0);
     public static final ActiveShardCount ONE = new ActiveShardCount(1);
 
-    private final int value;
-
     private ActiveShardCount(final int value) {
-        this.value = value;
+        super(value);
     }
 
     /**
-     * Get an ActiveShardCount instance for the given value.  The value is first validated to ensure
-     * it is a valid shard count and throws an IllegalArgumentException if validation fails.  Valid
-     * values are any non-negative number.  Directly use {@link ActiveShardCount#DEFAULT} for the
+     * Get an ActiveShardCount instance for the given value. Directly use {@link ActiveShardCount#DEFAULT} for the
      * default value (which is one shard copy) or {@link ActiveShardCount#ALL} to specify all the shards.
+     * @see ShardCount#from(int)
      */
     public static ActiveShardCount from(final int value) {
         if (value < 0) {
             throw new IllegalArgumentException("shard count cannot be a negative value");
         }
         return get(value);
-    }
-
-    /**
-     * Validates that the instance is valid for the given number of replicas in an index.
-     */
-    public boolean validate(final int numberOfReplicas) {
-        assert numberOfReplicas >= 0;
-        return value <= numberOfReplicas + 1;
     }
 
     private static ActiveShardCount get(final int value) {
@@ -105,51 +89,17 @@ public final class ActiveShardCount implements Writeable {
         }
     }
 
-    @Override
-    public void writeTo(final StreamOutput out) throws IOException {
-        out.writeInt(value);
-    }
-
     public static ActiveShardCount readFrom(final StreamInput in) throws IOException {
         return get(in.readInt());
     }
 
     /**
-     * Parses the active shard count from the given string.  Valid values are "all" for
-     * all shard copies, null for the default value (which defaults to one shard copy),
-     * or a numeric value greater than or equal to 0. Any other input will throw an
-     * IllegalArgumentException.
+     * Parses the active shard count from the given string.
+     * @see ShardCount#parseString(String)
      */
     public static ActiveShardCount parseString(final String str) {
-        if (str == null) {
-            return ActiveShardCount.DEFAULT;
-        } else if (str.equals("all")) {
-            return ActiveShardCount.ALL;
-        } else {
-            int val;
-            try {
-                val = Integer.parseInt(str);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("cannot parse ActiveShardCount[" + str + "]", e);
-            }
-            return ActiveShardCount.from(val);
-        }
-    }
-
-    /**
-     * Returns true iff the given number of active shards is enough to meet
-     * the required shard count represented by this instance.  This method
-     * should only be invoked with {@link ActiveShardCount} objects created
-     * from {@link #from(int)}, or {@link #NONE} or {@link #ONE}.
-     */
-    public boolean enoughShardsActive(final int activeShardCount) {
-        if (this.value < 0) {
-            throw new IllegalStateException("not enough information to resolve to shard count");
-        }
-        if (activeShardCount < 0) {
-            throw new IllegalArgumentException("activeShardCount cannot be negative");
-        }
-        return this.value <= activeShardCount;
+        ShardCount base = ShardCount.parseString(str);
+        return get(base.value);
     }
 
     /**
@@ -214,35 +164,6 @@ public final class ActiveShardCount implements Writeable {
             return activeShardCount >= 1;
         } else {
             return activeShardCount >= value;
-        }
-    }
-
-    @Override
-    public int hashCode() {
-        return Integer.hashCode(value);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ActiveShardCount that = (ActiveShardCount) o;
-        return value == that.value;
-    }
-
-    @Override
-    public String toString() {
-        switch (value) {
-            case ALL_ACTIVE_SHARDS:
-                return "ALL";
-            case ACTIVE_SHARD_COUNT_DEFAULT:
-                return "DEFAULT";
-            default:
-                return Integer.toString(value);
         }
     }
 

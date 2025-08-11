@@ -303,8 +303,6 @@ import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 import org.opensearch.wlm.listeners.WorkloadGroupRequestOperationListener;
 import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
 
-import javax.net.ssl.SNIHostName;
-
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -385,35 +383,23 @@ public class Node implements Closeable {
     );
 
     /**
-     * controls whether the node is allowed to persist things like metadata to disk
-     * Note that this does not control whether the node stores actual indices (see
-     * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
-     * and {@link #NODE_MASTER_SETTING} must also be false.
+     * @deprecated - Use {@link NodeSettings#NODE_LOCAL_STORAGE_SETTING} instead
      */
-    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
-        "node.local_storage",
-        true,
-        Property.Deprecated,
-        Property.NodeScope
-    );
-    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
-    public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting(
-        "node.attr.",
-        (key) -> new Setting<>(key, "", (value) -> {
-            if (value.length() > 0
-                && (Character.isWhitespace(value.charAt(0)) || Character.isWhitespace(value.charAt(value.length() - 1)))) {
-                throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace " + "[" + value + "]");
-            }
-            if (value.length() > 0 && "node.attr.server_name".equals(key)) {
-                try {
-                    new SNIHostName(value);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("invalid node.attr.server_name [" + value + "]", e);
-                }
-            }
-            return value;
-        }, Property.NodeScope)
-    );
+    @Deprecated
+    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = NodeSettings.NODE_LOCAL_STORAGE_SETTING;
+
+    /**
+     * @deprecated - Use {@link NodeSettings#NODE_NAME_SETTING} instead
+     */
+    @Deprecated
+    public static final Setting<String> NODE_NAME_SETTING = NodeSettings.NODE_NAME_SETTING;
+
+    /**
+     * @deprecated - Use {@link NodeSettings#NODE_ATTRIBUTES} instead
+     */
+    @Deprecated
+    public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = NodeSettings.NODE_ATTRIBUTES;
+
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
         switch (s) {
             case "hierarchy":
@@ -633,7 +619,7 @@ public class Node implements Closeable {
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
-            // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
+            // adds the ThreadContext to access request/response headers without explicit injection
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 

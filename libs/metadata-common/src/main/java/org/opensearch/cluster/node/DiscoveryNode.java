@@ -44,8 +44,7 @@ import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.node.Node;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.NodeSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,9 +62,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isClusterStateRepoConfigured;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRoutingTableRepoConfigured;
+import static org.opensearch.node.remotestore.RemoteStoreNodeUtils.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeUtils.isClusterStateRepoConfigured;
+import static org.opensearch.node.remotestore.RemoteStoreNodeUtils.isRoutingTableRepoConfigured;
+import static org.opensearch.node.remotestore.RemoteStoreNodeUtils.isSegmentRepoConfigured;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -78,7 +78,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     static final String COORDINATING_ONLY = "coordinating_only";
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
-        boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
+        boolean localStorageEnable = NodeSettings.NODE_LOCAL_STORAGE_SETTING.get(settings);
         if (localStorageEnable == false && (isDataNode(settings) || isClusterManagerNode(settings))) {
             // TODO: make this a proper setting validation logic, requiring multi-settings validation
             throw new IllegalArgumentException("storage can not be disabled for cluster-manager and data nodes");
@@ -311,9 +311,9 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
 
     /** Creates a DiscoveryNode representing the local node. */
     public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
-        Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
+        Map<String, String> attributes = NodeSettings.NODE_ATTRIBUTES.getAsMap(settings);
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
+        return new DiscoveryNode(NodeSettings.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
     }
 
     /** extract node roles from the given settings */
@@ -548,7 +548,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      * @return true if the node contains remote store node attributes, false otherwise
      */
     public boolean isRemoteStoreNode() {
-        return isClusterStateRepoConfigured(this.getAttributes()) && RemoteStoreNodeAttribute.isSegmentRepoConfigured(this.getAttributes());
+        return isClusterStateRepoConfigured(this.getAttributes()) && isSegmentRepoConfigured(this.getAttributes());
     }
 
     /**

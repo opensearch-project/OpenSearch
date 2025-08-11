@@ -14,6 +14,7 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.Closeable;
+import java.util.stream.Stream;
 
 /**
  * A poller for reading messages from an ingestion shard. This is used in the ingestion engine.
@@ -87,14 +88,33 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
     }
 
     /**
-     *  A reset state to indicate how to reset the pointer
+     * A reset state to indicate how to reset the pointer
+     * @deprecated - Use {@link org.opensearch.indices.pollingingest.ResetState} instead
      */
+    @Deprecated
     @ExperimentalApi
     enum ResetState {
-        EARLIEST,
-        LATEST,
-        RESET_BY_OFFSET,
-        RESET_BY_TIMESTAMP,
-        NONE,
+        EARLIEST(org.opensearch.indices.pollingingest.ResetState.EARLIEST),
+        LATEST(org.opensearch.indices.pollingingest.ResetState.LATEST),
+        RESET_BY_OFFSET(org.opensearch.indices.pollingingest.ResetState.RESET_BY_OFFSET),
+        RESET_BY_TIMESTAMP(org.opensearch.indices.pollingingest.ResetState.RESET_BY_TIMESTAMP),
+        NONE(org.opensearch.indices.pollingingest.ResetState.NONE);
+
+        private final org.opensearch.indices.pollingingest.ResetState delegate;
+
+        ResetState(org.opensearch.indices.pollingingest.ResetState delegate) {
+            this.delegate = delegate;
+        }
+
+        public org.opensearch.indices.pollingingest.ResetState unwrap() {
+            return delegate;
+        }
+
+        public static ResetState from(org.opensearch.indices.pollingingest.ResetState state) {
+            return Stream.of(values())
+                .filter(resetState -> resetState.delegate == state)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No ResetState match for: " + state));
+        }
     }
 }
