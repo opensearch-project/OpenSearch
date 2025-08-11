@@ -35,8 +35,8 @@ public class MergedSegmentWarmerPressureService {
 
     public MergedSegmentWarmerPressureService(IndexShard indexShard) {
         this.pressureSettings = new PressureSettings(indexShard);
-        this.throttlePredicates = List.of(new ConcurrencyLimiterPredicate(indexShard, pressureSettings));
         this.logger = Loggers.getLogger(MergedSegmentWarmerPressureService.class, indexShard.shardId());
+        this.throttlePredicates = List.of(new ConcurrencyLimiterPredicate(indexShard, pressureSettings));
     }
 
     public boolean isEnabled() {
@@ -117,7 +117,7 @@ public class MergedSegmentWarmerPressureService {
         String rejectionMessage(MergedSegmentWarmerStats stats) {
             long maxAllowed = calculateMaxAllowedConcurrentWarms(indexShard.getMaxMergesAllowed());
             return super.rejectionMessage(stats) + String.format(
-                    Locale.ROOT,
+                Locale.ROOT,
                 "\nCurrent ongoing warms: %d, max allowed: %d",
                 stats.getOngoingWarms(),
                 maxAllowed
@@ -128,7 +128,6 @@ public class MergedSegmentWarmerPressureService {
         public boolean test(MergedSegmentWarmerStats statsSnapshot) {
             long onGoingWarms = statsSnapshot.getOngoingWarms();
             long maxAllowedWarms = calculateMaxAllowedConcurrentWarms(indexShard.getMaxMergesAllowed());
-
             return maxAllowedWarms > onGoingWarms;
         }
     }
