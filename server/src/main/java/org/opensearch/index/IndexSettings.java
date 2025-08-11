@@ -1267,7 +1267,10 @@ public final class IndexSettings {
         );
         scopedSettings.addSettingsUpdateConsumer(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING, this::setStarTreeIndexEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGED_SEGMENT_WARMER_PRESSURE_ENABLED, this::setMergedSegmentWarmerPressureEnabled);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGED_SEGMENT_WARMER_MAX_CONCURRENT_WARMS_FACTOR, this::setMaxConcurrentMergedSegmentWarmsFactor);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MERGED_SEGMENT_WARMER_MAX_CONCURRENT_WARMS_FACTOR,
+            this::setMaxConcurrentMergedSegmentWarmsFactor
+        );
     }
 
     private void setMergedSegmentWarmerPressureEnabled(Boolean value) {

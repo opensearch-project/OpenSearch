@@ -33,13 +33,9 @@ public class MergedSegmentWarmerPressureService {
 
     private final List<ThrottlePredicate> throttlePredicates;
 
-    public MergedSegmentWarmerPressureService(
-        IndexShard indexShard
-    ) {
+    public MergedSegmentWarmerPressureService(IndexShard indexShard) {
         this.pressureSettings = new PressureSettings(indexShard);
-        this.throttlePredicates = List.of(
-            new ConcurrencyLimiterPredicate(indexShard, pressureSettings)
-        );
+        this.throttlePredicates = List.of(new ConcurrencyLimiterPredicate(indexShard, pressureSettings));
         this.logger = Loggers.getLogger(MergedSegmentWarmerPressureService.class, indexShard.shardId());
     }
 
@@ -57,7 +53,7 @@ public class MergedSegmentWarmerPressureService {
     public boolean shouldWarm(MergedSegmentWarmerStats stats) {
         return throttlePredicates.stream().allMatch(throttlePredicate -> {
             boolean res = throttlePredicate.test(stats);
-            if(res == false && logger.isTraceEnabled()) logger.trace(throttlePredicate.rejectionMessage(stats));
+            if (res == false && logger.isTraceEnabled()) logger.trace(throttlePredicate.rejectionMessage(stats));
             return res;
         });
     }
@@ -85,7 +81,8 @@ public class MergedSegmentWarmerPressureService {
         abstract String name();
 
         String rejectionMessage(MergedSegmentWarmerStats statsSnapshot) {
-            return String.format(Locale.ROOT,
+            return String.format(
+                Locale.ROOT,
                 "Merged segment warm rejected for shard [%s] by predicate: %s ",
                 indexShard.shardId(),
                 name()
@@ -93,7 +90,14 @@ public class MergedSegmentWarmerPressureService {
         }
     }
 
-    private static class ConcurrencyLimiterPredicate extends ThrottlePredicate{
+    /**
+     * Predicate that limits concurrent segment warming operations to prevent blocking merges.
+     * This is important because if all threads are blocked in merge operations and segment warming
+     * is slow, we don't want to block new merges from proceeding. The predicate ensures there are
+     * always enough threads available for merge operations by limiting concurrent warm operations
+     * based on a configurable factor of the maximum concurrent merges.
+     */
+    private static class ConcurrencyLimiterPredicate extends ThrottlePredicate {
         private final String NAME = "Concurrency limiter predicate for merged segment warmer throttling";
 
         private ConcurrencyLimiterPredicate(IndexShard indexShard, PressureSettings pressureSettings) {
@@ -112,8 +116,8 @@ public class MergedSegmentWarmerPressureService {
         @Override
         String rejectionMessage(MergedSegmentWarmerStats stats) {
             long maxAllowed = calculateMaxAllowedConcurrentWarms(indexShard.getMaxMergesAllowed());
-            return super.rejectionMessage(stats) +
-                String.format("\nCurrent ongoing warms: %d, max allowed: %d",
+            return super.rejectionMessage(stats) + String.format(
+                "\nCurrent ongoing warms: %d, max allowed: %d",
                 stats.getOngoingWarms(),
                 maxAllowed
             );
@@ -127,7 +131,6 @@ public class MergedSegmentWarmerPressureService {
             return maxAllowedWarms > onGoingWarms;
         }
     }
-
 
     /**
      * Settings related to back pressure for MergedSegmentWarmer throttling.
