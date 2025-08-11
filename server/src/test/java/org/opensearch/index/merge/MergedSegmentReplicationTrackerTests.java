@@ -22,10 +22,7 @@ public class MergedSegmentReplicationTrackerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         ShardId shardId = new ShardId("test", "uuid", 0);
-        IndexSettings indexSettings = new IndexSettings(
-            newIndexMeta("test", builder().build()),
-            builder().build()
-        );
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", builder().build()), builder().build());
         tracker = new MergedSegmentReplicationTracker(shardId, indexSettings);
     }
 
@@ -45,7 +42,7 @@ public class MergedSegmentReplicationTrackerTests extends OpenSearchTestCase {
         tracker.incrementTotalWarmInvocationsCount();
         tracker.incrementTotalWarmFailureCount();
         tracker.incrementTotalRejectedWarms();
-        
+
         MergedSegmentWarmerStats stats = tracker.stats();
         assertEquals(1, stats.getTotalWarmInvocationsCount());
         assertEquals(1, stats.getTotalWarmFailureCount());
@@ -55,7 +52,7 @@ public class MergedSegmentReplicationTrackerTests extends OpenSearchTestCase {
         tracker.incrementOngoingWarms();
         tracker.incrementOngoingWarms();
         assertEquals(2, tracker.stats().getOngoingWarms());
-        
+
         tracker.decrementOngoingWarms();
         assertEquals(1, tracker.stats().getOngoingWarms());
     }
@@ -66,7 +63,7 @@ public class MergedSegmentReplicationTrackerTests extends OpenSearchTestCase {
         tracker.addTotalDownloadTimeMillis(300);
         tracker.addTotalBytesUploaded(1024);
         tracker.addTotalBytesDownloaded(2048);
-        
+
         MergedSegmentWarmerStats stats = tracker.stats();
         assertEquals(100, stats.getTotalWarmTimeMillis());
         assertEquals(200, stats.getTotalUploadTimeMillis());
@@ -79,7 +76,7 @@ public class MergedSegmentReplicationTrackerTests extends OpenSearchTestCase {
         tracker.addTotalWarmTimeMillis(100);
         tracker.addTotalWarmTimeMillis(50);
         assertEquals(150, tracker.stats().getTotalWarmTimeMillis());
-        
+
         tracker.addTotalBytesUploaded(1000);
         tracker.addTotalBytesUploaded(500);
         assertEquals(1500, tracker.stats().getTotalBytesUploaded());

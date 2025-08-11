@@ -174,13 +174,14 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         assert checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
 
         final Directory storeDirectory = indexShard.store().directory();
-        ActionListener<GetSegmentFilesResponse> notifyOnceListener = ActionListener.notifyOnce(listener);
+        ActionListener<GetSegmentFilesResponse> notifyOnceListener = ActionLisserver/src/main/java/org/opensearch/indices/replication/RemoteStoreReplicationSource.javatener.notifyOnce(listener);
 
         List<String> toDownloadSegmentNames = filesToFetch.stream().map(StoreFileMetadata::name).toList();
 
         CountDownLatch latch = new CountDownLatch(1);
         indexShard.getFileDownloader()
-            .downloadAsync(cancellableThreads,
+            .downloadAsync(
+                cancellableThreads,
                 remoteDirectory,
                 new ReplicationStatsDirectoryWrapper(storeDirectory, fileProgressTracker),
                 toDownloadSegmentNames,
