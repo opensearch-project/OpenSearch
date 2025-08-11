@@ -43,9 +43,9 @@ import org.opensearch.test.hamcrest.RegexMatcher;
 import java.io.IOException;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.closeTo;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -69,19 +69,21 @@ public class MatchAssertion extends Assertion {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY
+                } else if (token.isValue()
+                    || token == XContentParser.Token.START_OBJECT
+                    || token == XContentParser.Token.START_ARRAY
                     || token == XContentParser.Token.VALUE_NULL) {
-                    if ("epsilon".equals(currentFieldName)) {
-                        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                            epsilon = parser.doubleValue();
+                        if ("epsilon".equals(currentFieldName)) {
+                            if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                                epsilon = parser.doubleValue();
+                            } else {
+                                throw new IllegalArgumentException("epsilon must be a number");
+                            }
                         } else {
-                            throw new IllegalArgumentException("epsilon must be a number");
+                            field = currentFieldName;
+                            expectedValue = XContentParserUtils.parseFieldsValue(parser);
                         }
-                    } else {
-                        field = currentFieldName;
-                        expectedValue = XContentParserUtils.parseFieldsValue(parser);
                     }
-                }
             }
         } else {
             // simple match: { field: value }
