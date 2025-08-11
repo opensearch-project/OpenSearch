@@ -231,7 +231,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 final ThreadPoolStats.Stats poolStats = entry.getValue();
                 final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
 
-                // --- START: ForkJoinPool support ---
                 boolean isForkJoin = poolInfo != null && poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.FORK_JOIN;
                 if (isForkJoin) {
                     // only emit a single row for fork_join for the whole cluster
@@ -266,7 +265,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     table.endRow();
                     continue;
                 }
-                // --- END: ForkJoinPool support ---
 
                 table.startRow();
 
