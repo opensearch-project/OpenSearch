@@ -693,7 +693,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (es instanceof ThreadPoolExecutor) {
                 es.shutdownNow();
             } else if (es instanceof ForkJoinPool) {
-                es.shutdownNow(); // same as shutdown(), but explicit to the reader
+                // same as shutdown(), but explicit to the reader
+                es.shutdownNow();
             }
         }
     }
