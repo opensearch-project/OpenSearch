@@ -393,7 +393,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
     private final MergedSegmentReplicationTracker mergedSegmentReplicationTracker;
 
-
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
