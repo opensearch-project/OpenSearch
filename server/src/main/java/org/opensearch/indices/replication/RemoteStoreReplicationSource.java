@@ -180,7 +180,8 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
         CountDownLatch latch = new CountDownLatch(1);
         indexShard.getFileDownloader()
-            .downloadAsync(cancellableThreads,
+            .downloadAsync(
+                cancellableThreads,
                 remoteDirectory,
                 new ReplicationStatsDirectoryWrapper(storeDirectory, fileProgressTracker),
                 toDownloadSegmentNames,

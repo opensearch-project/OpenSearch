@@ -92,8 +92,8 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
     }
 
     private boolean shouldWarm() {
-        if (mergedSegmentWarmerPressureService.isEnabled() &&
-            mergedSegmentWarmerPressureService.shouldWarm(mergedSegmentReplicationTracker.stats()) == false) {
+        if (mergedSegmentWarmerPressureService.isEnabled()
+            && mergedSegmentWarmerPressureService.shouldWarm(mergedSegmentReplicationTracker.stats()) == false) {
             mergedSegmentReplicationTracker.incrementTotalRejectedWarms();
             return false;
         }

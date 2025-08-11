@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-
 package org.opensearch.index.merge;
 
 import org.opensearch.common.annotation.ExperimentalApi;

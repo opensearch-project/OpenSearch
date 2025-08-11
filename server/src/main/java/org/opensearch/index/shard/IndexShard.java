@@ -394,7 +394,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentReplicationTracker mergedSegmentReplicationTracker;
     private final MergedSegmentWarmerPressureService mergedSegmentWarmerPressureService;
 
-
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,

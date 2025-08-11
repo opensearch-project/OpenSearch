@@ -639,7 +639,6 @@ public class RestIndicesAction extends AbstractListAction {
         );
         table.addCell("pri.merged_segment_warmer.total_upload_time_millis", "default:false;text-align:right;desc:UPDATE");
 
-
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
 
@@ -1080,9 +1079,7 @@ public class RestIndicesAction extends AbstractListAction {
                 primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalUploadTimeMillis()
             );
 
-            table.addCell(
-                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalRejectedWarms()
-            );
+            table.addCell(totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalRejectedWarms());
             table.addCell(
                 primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalRejectedWarms()
             );
