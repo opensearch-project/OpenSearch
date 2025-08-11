@@ -247,6 +247,10 @@ public class RestShardsAction extends AbstractListAction {
             "merged_segment_warmer.total_upload_time_millis",
             "alias:mswtutm,mergedSegmentWarmerTotalUploadTimeMillis;default:false;text-align:right;desc:UPDATE"
         );
+        table.addCell(
+            "merged_segment_warmer.total_rejected_warms",
+            "alias:mswtrw,mergedSegmentWarmerTotalRejectedWarms;default:false;text-align:right;desc:UPDATE"
+        );
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");

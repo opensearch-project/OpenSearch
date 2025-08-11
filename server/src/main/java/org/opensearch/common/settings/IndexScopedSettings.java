@@ -283,6 +283,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Settings for Auto Force Merge
                 IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED,
 
+                // Settings for merged segment warmer backpressure
+                IndexSettings.INDEX_MERGED_SEGMENT_WARMER_PRESSURE_ENABLED,
+                IndexSettings.INDEX_MERGED_SEGMENT_WARMER_MAX_CONCURRENT_WARMS_FACTOR,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();

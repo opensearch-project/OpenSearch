@@ -639,6 +639,12 @@ public class RestIndicesAction extends AbstractListAction {
         );
         table.addCell("pri.merged_segment_warmer.total_upload_time_millis", "default:false;text-align:right;desc:UPDATE");
 
+        table.addCell(
+            "merged_segment_warmer.total_rejected_warms",
+            "alias:mswtrw,mergedSegmentWarmerTotalRejectedWarms;default:false;text-align:right;desc:UPDATE"
+        );
+        table.addCell("pri.merged_segment_warmer.total_rejected_warms", "default:false;text-align:right;desc:UPDATE");
+
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
 

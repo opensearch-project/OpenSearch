@@ -13,6 +13,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 
 public class MergedSegmentReplicationTrackerTests extends OpenSearchTestCase {
 
