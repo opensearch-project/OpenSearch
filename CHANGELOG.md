@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix NullPointerException in segment replicator ([#18997](https://github.com/opensearch-project/OpenSearch/pull/18997))
 
 ### Dependencies
+- Bump `com.google.cloud:google-cloud-storage` from 1.113.1 to 2.55.0 ([#19018](https://github.com/opensearch-project/OpenSearch/pull/19018))
 
 ### Deprecated
 
