@@ -117,6 +117,7 @@ public class MergedSegmentWarmerPressureService {
         String rejectionMessage(MergedSegmentWarmerStats stats) {
             long maxAllowed = calculateMaxAllowedConcurrentWarms(indexShard.getMaxMergesAllowed());
             return super.rejectionMessage(stats) + String.format(
+                    Locale.ROOT,
                 "\nCurrent ongoing warms: %d, max allowed: %d",
                 stats.getOngoingWarms(),
                 maxAllowed
