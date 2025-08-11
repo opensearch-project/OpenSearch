@@ -20,6 +20,8 @@ import org.opensearch.transport.grpc.proto.response.document.bulk.BulkResponsePr
 
 import java.io.IOException;
 
+import io.grpc.Status;
+
 public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithSuccessfulResponse() throws IOException {
@@ -47,7 +49,7 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.ResponseItem responseItem = item.getIndex();
         assertEquals("Should have the correct index", "test-index", responseItem.getIndex());
         assertEquals("Should have the correct id", "test-id", responseItem.getId().getString());
-        assertEquals("Should have the correct status", 201, responseItem.getStatus());
+        assertEquals("Should have the correct status", Status.OK.getCode().value(), responseItem.getStatus());
     }
 
     public void testToProtoWithFailedResponse() throws IOException {

@@ -13,9 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.transport.grpc.proto.response.document.bulk.BulkResponseProtoUtils;
+import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
 import java.io.IOException;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 /**
@@ -49,7 +51,9 @@ public class BulkRequestActionListener implements ActionListener<BulkResponse> {
             responseObserver.onNext(protoResponse);
             responseObserver.onCompleted();
         } catch (RuntimeException | IOException e) {
-            responseObserver.onError(e);
+            logger.error("Failed to convert bulk response to protobuf: " + e.getMessage());
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            responseObserver.onError(grpcError);
         }
     }
 
@@ -61,7 +65,8 @@ public class BulkRequestActionListener implements ActionListener<BulkResponse> {
      */
     @Override
     public void onFailure(Exception e) {
-        logger.error("BulkRequestActionListener failed to process bulk request:" + e.getMessage());
-        responseObserver.onError(e);
+        logger.error("BulkRequestActionListener failed to process bulk request: " + e.getMessage());
+        StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+        responseObserver.onError(grpcError);
     }
 }

@@ -148,7 +148,7 @@ ReadOnlyPaths=/proc/self/mountinfo /proc/diskstats
 ## Allow read access to control group stats
 ReadOnlyPaths=/proc/self/cgroup /sys/fs/cgroup/cpu /sys/fs/cgroup/cpu/-
 ReadOnlyPaths=/sys/fs/cgroup/cpuacct /sys/fs/cgroup/cpuacct/- /sys/fs/cgroup/memory /sys/fs/cgroup/memory/-
-ReadOnlyPaths=/sys/fs/cgroup/system.slice/opensearch.service/-
+ReadOnlyPaths=/sys/fs/cgroup/system.slice/-
 
 
 RestrictNamespaces=true
