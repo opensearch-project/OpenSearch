@@ -60,12 +60,20 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         } else {
             fieldPattern = randomAlphaOfLengthBetween(1, 10);
         }
+
+        // Avoid patterns that would match the derived field "raw.derived_keyword"
+        // which doesn't support exists queries
+        if (fieldPattern.startsWith("raw")) {
+            fieldPattern = TEXT_FIELD_NAME;
+        }
+
         // also sometimes test wildcard patterns
         if (randomBoolean()) {
-            if (randomBoolean()) {
+            if (randomBoolean() && !fieldPattern.equals("r") && !fieldPattern.equals("ra")) {
                 fieldPattern = fieldPattern + "*";
             }
         }
+
         return new ExistsQueryBuilder(fieldPattern);
     }
 
