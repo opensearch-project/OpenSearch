@@ -31,9 +31,9 @@
 
 package org.opensearch.test.rest.yaml.section;
 
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -108,8 +108,7 @@ public class MatchAssertionTests extends OpenSearchTestCase {
     public void testNegativeEpsilon() {
         XContentLocation location = new XContentLocation(0, 0);
         MatchAssertion matchAssertion = new MatchAssertion(location, "field", 5.0, -0.01);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> matchAssertion.doAssert(5.0, 5.0));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchAssertion.doAssert(5.0, 5.0));
         assertThat(e.getMessage(), containsString("epsilon must be non-negative, but was: " + -0.01));
     }
 
@@ -117,8 +116,7 @@ public class MatchAssertionTests extends OpenSearchTestCase {
         String jsonContent = "{ \"field_to_match\": 42.0, \"epsilon\": \"invalid_epsilon_value\" }";
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), jsonContent)) {
             parser.nextToken();
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> MatchAssertion.parse(parser));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MatchAssertion.parse(parser));
             assertThat(e.getMessage(), containsString("epsilon must be a number"));
         }
     }
