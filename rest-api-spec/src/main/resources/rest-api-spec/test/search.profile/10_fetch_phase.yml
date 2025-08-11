@@ -42,8 +42,8 @@ setup:
 ---
 "Combined fetch sub-phases profiling":
   - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
+      version: " - 3.2.99"
+      reason: "Inner hits fetch phase profiling was introduced in 3.3.0"
       features: "contains"
 
   - do:
@@ -199,8 +199,8 @@ setup:
 ---
 "Top-hits aggregation profiling":
   - skip:
-      version: " - 3.1.99"
-      reason: "Fetch phase profiling was introduced in 3.2.0"
+      version: " - 3.2.99"
+      reason: "Top-hits aggregation profiling was introduced in 3.3.0"
       features: "contains"
 
   - do:
