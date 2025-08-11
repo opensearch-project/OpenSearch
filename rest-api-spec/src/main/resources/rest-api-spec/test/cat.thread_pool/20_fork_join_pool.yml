@@ -1,0 +1,171 @@
+---
+"Test cat thread_pool fork_join output":
+
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool support was introduced in 3.2.0
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        v: true
+
+  - match:
+      $body: |
+        /^ *node_name\s+name\s+active\s+queue\s+rejected\s*\n
+           (\S+\s+fork_join\s+\d+\s+\d+\s+\d+\s*\n)+$/
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        h: node_name,name,type,active,queue,queue_size,rejected,largest,completed,max,keep_alive
+        v: true
+
+  - match:
+      $body: |
+        /^ *node_name\s+name\s+type\s+active\s+queue\s+queue_size\s+rejected\s+largest\s+completed\s+max\s+keep_alive\s*\n
+           (\S+\s+fork_join\s+fork_join\s+0\s+0\s+-1\s+0\s+0\s+0\s+\s+\s*\n)+$/
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        h: name,total_wait_time,twt
+        v: true
+
+  - match:
+      $body: |
+        /^ *name\s+total_wait_time\s+twt\s*\n
+           (fork_join\s+-1\s+-1\s*\n)+$/
+
+---
+"Test cat thread_pool fork_join with unrelated pool":
+
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool support was introduced in 3.2.0
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join,search
+        h: name,type,active,queue,queue_size,rejected
+        v: true
+
+  - match:
+      $body: |
+        /^ *name\s+type\s+active\s+queue\s+queue_size\s+rejected\s*\n
+           fork_join\s+fork_join\s+0\s+0\s+-1\s+0\s*\n
+           (search\s+\S+\s+\d+\s+\d+\s+(-1|\d+)\s+\d+\s*\n)+
+        $/
+
+---
+"Test cat thread_pool fork_join with only fork_join present":
+
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool support was introduced in 3.2.0
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        h: name,type,active,queue,queue_size,rejected
+        v: true
+
+  - match:
+      $body: |
+        /^ *name\s+type\s+active\s+queue\s+queue_size\s+rejected\s*\n
+           fork_join\s+fork_join\s+0\s+0\s+-1\s+0\s*\n
+        $/
+
+---
+"Test cat thread_pool fork_join with custom header order":
+
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool support was introduced in 3.2.0
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        h: queue,active,name,type
+        v: true
+
+  - match:
+      $body: |
+        /^ *queue\s+active\s+name\s+type\s*\n
+           \s*0\s+0\s+fork_join\s+fork_join\s*\n
+        $/
+
+---
+"Test cat thread_pool fork_join missing optional columns":
+
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool support was introduced in 3.2.0
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        h: name,type,keep_alive,queue_size,max
+        v: true
+
+  - match:
+      $body: |
+        /^ *name\s+type\s+keep_alive\s+queue_size\s+max\s*\n
+           fork_join\s+fork_join\s+\s+-1\s*\n
+        $/
+
+---
+"Test cat thread_pool fork_join with all headers":
+
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool support was introduced in 3.2.0
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        h: node_name,node_id,ephemeral_node_id,pid,host,ip,port,name,type,active,pool_size,queue,queue_size,rejected,largest,completed,total_wait_time,core,max,size,keep_alive
+        v: true
+
+  - match:
+      $body: |
+        /^ *node_name\s+node_id\s+ephemeral_node_id\s+pid\s+host\s+ip\s+port\s+name\s+type\s+active\s+pool_size\s+queue\s+queue_size\s+rejected\s+largest\s+completed\s+total_wait_time\s+core\s+max\s+size\s+keep_alive\s*\n
+           (\S+\s+\S+\s+\S+\s+(\d+)?\s+\S+\s+(\d{1,3}\.){3}\d{1,3}\s+\d+\s+fork_join\s+fork_join\s+0\s+0\s+0\s+-1\s+0\s+0\s+0\s+-1\s+\s+\s+\s*\n)+
+        $/
+
+---
+"Test cat thread_pool fork_join with unknown header":
+
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool support was introduced in 3.2.0
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        h: name,type,foo,active
+        v: true
+
+  # OpenSearch does not output unknown headers, so foo is omitted
+  - match:
+      $body: |
+        /^ *name\s+type\s+active\s*\n
+           fork_join\s+fork_join\s+0\s*\n
+        $/
+
+---
+"Test cat thread_pool fork_join with v:false":
+
+  - skip:
+      version: " - 3.1.99"
+      reason: fork_join thread pool support was introduced in 3.2.0
+
+  - do:
+      cat.thread_pool:
+        thread_pool_patterns: fork_join
+        h: name,type,active
+        v: false
+
+  - match:
+      $body: |
+        /fork_join\s+fork_join\s+0/
