@@ -1039,22 +1039,31 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 builder.field("core", min);
                 assert max != -1;
                 builder.field("max", max);
+                if (keepAlive != null) {
+                    builder.field("keep_alive", keepAlive.toString());
+                }
+                if (queueSize == null) {
+                    builder.field("queue_size", -1);
+                } else {
+                    builder.field("queue_size", queueSize.singles());
+                }
             } else if (type == ThreadPoolType.FORK_JOIN) {
                 builder.field("size", -1);
                 builder.field("min", -1);
                 builder.field("max", -1);
                 builder.field("keep_alive", (Object) null);
+                builder.field("queue_size", -1);
             } else {
                 assert max != -1;
                 builder.field("size", max);
-            }
-            if (keepAlive != null) {
-                builder.field("keep_alive", keepAlive.toString());
-            }
-            if (queueSize == null) {
-                builder.field("queue_size", -1);
-            } else {
-                builder.field("queue_size", queueSize.singles());
+                if (keepAlive != null) {
+                    builder.field("keep_alive", keepAlive.toString());
+                }
+                if (queueSize == null) {
+                    builder.field("queue_size", -1);
+                } else {
+                    builder.field("queue_size", queueSize.singles());
+                }
             }
             builder.endObject();
             return builder;
