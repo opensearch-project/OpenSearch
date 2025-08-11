@@ -161,6 +161,14 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         }
         enablePreferPrimaryBalance();
 
+        // Modify other configurations, expecting that the primary balance strategy will not be affected.
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(PRIMARY_SHARD_REBALANCE_BUFFER.getKey(), 0.2))
+        );
+
         ClusterState state;
         createIndex("test", maxShardCount, maxReplicaCount, true);
         ensureGreen(TimeValue.timeValueSeconds(60));
