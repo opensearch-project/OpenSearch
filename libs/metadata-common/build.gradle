@@ -1,0 +1,50 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.publish'
+
+base {
+  archivesName = 'opensearch-metadata-common'
+}
+
+dependencies {
+  api project(':libs:opensearch-cli')
+  api project(':libs:opensearch-common')
+  api project(':libs:opensearch-core')
+  api project(':libs:opensearch-x-content')
+
+  // time handling, remove with java 8 time
+  api libs.jodatime
+
+  // logging
+  api libs.log4japi
+  api libs.log4jjul
+  api libs.log4jcore
+  annotationProcessor libs.log4jcore
+  annotationProcessor project(':libs:opensearch-common')
+
+  // lucene
+  api libs.bundles.lucene
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs -= '-Xlint:cast'
+  options.compilerArgs -= '-Xlint:rawtypes'
+  options.compilerArgs -= '-Xlint:unchecked'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+
+test.enabled = false
+thirdPartyAudit.enabled = false
+testingConventions.enabled = false

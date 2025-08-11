@@ -99,7 +99,7 @@ public class IngestionEngine extends InternalEngine {
             + engineConfig.getShardId().getId();
 
         Map<String, String> commitData = commitDataAsMap(indexWriter);
-        StreamPoller.ResetState resetState = ingestionSource.getPointerInitReset().getType();
+        StreamPoller.ResetState resetState = StreamPoller.ResetState.from(ingestionSource.getPointerInitReset().getType());
         String resetValue = ingestionSource.getPointerInitReset().getValue();
         IngestionShardPointer startPointer = null;
         Set<IngestionShardPointer> persistedPointers = new HashSet<>();

@@ -39,7 +39,6 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.transport.RemoteClusterService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,6 +47,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
+
+import static org.opensearch.node.remotestore.RemoteStoreNodeUtils.ENABLE_REMOTE_CLUSTERS;
 
 /**
  * Represents a node role.
@@ -286,12 +287,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // copy the setting here so we can mark it private in org.opensearch.node.Node
-            return Setting.boolSetting(
-                "node.remote_cluster_client",
-                RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-                Property.Deprecated,
-                Property.NodeScope
-            );
+            return Setting.boolSetting("node.remote_cluster_client", ENABLE_REMOTE_CLUSTERS, Property.Deprecated, Property.NodeScope);
         }
 
     };

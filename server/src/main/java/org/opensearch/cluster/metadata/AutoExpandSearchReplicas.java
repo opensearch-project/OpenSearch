@@ -36,13 +36,17 @@ public final class AutoExpandSearchReplicas {
 
     private static final AutoExpandSearchReplicas FALSE_INSTANCE = new AutoExpandSearchReplicas(0, 0, false);
 
+    public static final String SETTING_AUTO_EXPAND_SEARCH_REPLICAS = "index.auto_expand_search_replicas";
+
     public static final Setting<AutoExpandSearchReplicas> SETTING = new Setting<>(
-        IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS,
+        SETTING_AUTO_EXPAND_SEARCH_REPLICAS,
         "false",
         AutoExpandSearchReplicas::parse,
         Property.Dynamic,
         Property.IndexScope
     );
+
+    public static final Setting<AutoExpandSearchReplicas> INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING = SETTING;
 
     private static AutoExpandSearchReplicas parse(String value) {
         final int min;
