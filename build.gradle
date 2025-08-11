@@ -233,7 +233,7 @@ tasks.register("verifyVersions") {
 boolean bwc_tests_enabled = true
 
 if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
-  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+  // Disable BWC tests for checkPart* tasks as it's expected that this will run in it's own check
   bwc_tests_enabled = false
 }
 
