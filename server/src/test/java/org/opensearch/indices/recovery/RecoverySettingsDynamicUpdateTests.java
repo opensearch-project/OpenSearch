@@ -191,26 +191,21 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
 
         clusterSettings.applySettings(
-            Settings.builder()
-                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
-                .build()
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build()
         );
         assertTrue(recoverySettings.isMergedSegmentReplicationWarmerEnabled());
 
         clusterSettings.applySettings(
-            Settings.builder()
-                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), false)
-                .build()
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), false).build()
         );
         assertFalse(recoverySettings.isMergedSegmentReplicationWarmerEnabled());
     }
 
     public void testMergedSegmentReplicationWarmerEnabledSettingInvalidUpdate() {
-        Exception e = assertThrows(IllegalArgumentException.class,
+        Exception e = assertThrows(
+            IllegalArgumentException.class,
             () -> clusterSettings.applySettings(
-            Settings.builder()
-                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
-                .build()
+                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build()
             )
         );
         assertEquals(
