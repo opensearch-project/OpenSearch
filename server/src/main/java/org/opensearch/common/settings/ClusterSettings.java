@@ -801,6 +801,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
+                SearchService.QUERY_REWRITING_ENABLED_SETTING,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,

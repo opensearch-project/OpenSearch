@@ -276,6 +276,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Deprecated
     );
 
+    public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
+        "search.query_rewriting.enabled",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // Allow concurrent segment search for all requests
     public static final String CONCURRENT_SEGMENT_SEARCH_MODE_ALL = "all";
 
@@ -1488,8 +1495,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
-            InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
-            context.parsedQuery(queryShardContext.toQuery(source.query()));
+            QueryBuilder query = source.query();
+
+            // Apply query rewriting optimizations if enabled
+            if (QUERY_REWRITING_ENABLED_SETTING.get(clusterService.getSettings())) {
+                query = org.opensearch.search.query.QueryRewriterRegistry.rewrite(query, queryShardContext, true);
+            }
+
+            InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
+            context.parsedQuery(queryShardContext.toQuery(query));
         }
         if (source.postFilter() != null) {
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
