@@ -34,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -688,38 +689,44 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         logger.info("--> network disruption is started");
         networkDisruption.startDisrupting();
 
-        // wait for leader checker to fail
-        Thread.sleep(13000);
+        assertBusy(() -> {
+            // Check cluster health for weighed in node when cluster manager is not discovered, health check should
+            // return a response with 503 status code
+            assertThrows(
+                ClusterManagerNotDiscoveredException.class,
+                () -> client(nodes_in_zone_a.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
+            );
 
-        // Check cluster health for weighed in node when cluster manager is not discovered, health check should
-        // return a response with 503 status code
-        assertThrows(
-            ClusterManagerNotDiscoveredException.class,
-            () -> client(nodes_in_zone_a.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
-        );
+            // Check cluster health for weighed away node when cluster manager is not discovered, health check should
+            // return a response with 503 status code
+            assertThrows(
+                ClusterManagerNotDiscoveredException.class,
+                () -> client(nodes_in_zone_c.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
+            );
+        }, 1, TimeUnit.MINUTES);
 
-        // Check cluster health for weighed away node when cluster manager is not discovered, health check should
-        // return a response with 503 status code
-        assertThrows(
-            ClusterManagerNotDiscoveredException.class,
-            () -> client(nodes_in_zone_c.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
-        );
+        logger.info("--> stop network disruption");
         networkDisruption.stopDisrupting();
-        Thread.sleep(1000);
 
-        // delete weights
-        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setVersion(0).get();
-        assertTrue(deleteResponse.isAcknowledged());
+        assertBusy(() -> {
+            // delete weights
+            ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin()
+                .cluster()
+                .prepareDeleteWeightedRouting()
+                .setVersion(0)
+                .get();
+            assertTrue(deleteResponse.isAcknowledged());
 
-        // Check local cluster health
-        nodeLocalHealth = client(nodes_in_zone_c.get(0)).admin()
-            .cluster()
-            .prepareHealth()
-            .setLocal(true)
-            .setEnsureNodeWeighedIn(true)
-            .get();
-        assertFalse(nodeLocalHealth.isTimedOut());
-        assertTrue(nodeLocalHealth.hasDiscoveredClusterManager());
+            // Check local cluster health
+            ClusterHealthResponse clusterHealthResponse = client(nodes_in_zone_c.get(0)).admin()
+                .cluster()
+                .prepareHealth()
+                .setLocal(true)
+                .setEnsureNodeWeighedIn(true)
+                .get();
+            assertFalse(clusterHealthResponse.isTimedOut());
+            assertTrue(clusterHealthResponse.hasDiscoveredClusterManager());
+        }, 1, TimeUnit.MINUTES);
     }
 
     public void testReadWriteWeightedRoutingMetadataOnNodeRestart() throws Exception {
