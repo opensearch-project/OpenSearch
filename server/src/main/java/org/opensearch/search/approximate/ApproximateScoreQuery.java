@@ -9,7 +9,6 @@
 package org.opensearch.search.approximate;
 
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -59,38 +58,11 @@ public final class ApproximateScoreQuery extends Query {
 
     public void setContext(SearchContext context) {
         resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
-
-        boolean needsRewrite = false;
-
         if (resolvedQuery instanceof ApproximateBooleanQuery appxBool) {
-            if (appxBool.getBooleanQuery().clauses().size() == 1) {
-                // For single-clause boolean queries, unwrap and process as before
-                resolvedQuery = ApproximateBooleanQuery.unwrap(resolvedQuery);
-                if (resolvedQuery instanceof ApproximateScoreQuery appxResolved) {
-                    appxResolved.setContext(context);
+            for (BooleanClause boolClause : appxBool.boolQuery.clauses()) {
+                if (boolClause.query() instanceof ApproximateScoreQuery apprxQuery) {
+                    apprxQuery.setContext(context);
                 }
-            } else {
-                for (BooleanClause boolClause : appxBool.boolQuery.clauses()) {
-                    if (boolClause.query() instanceof ApproximateScoreQuery apprxQuery) {
-                        apprxQuery.setContext(context);
-                    }
-                }
-            }
-            needsRewrite = true;
-        } else if (resolvedQuery instanceof BooleanQuery) {
-            resolvedQuery = ApproximateBooleanQuery.unwrap(resolvedQuery);
-            if (resolvedQuery instanceof ApproximateScoreQuery appxResolved) {
-                appxResolved.setContext(context);
-            }
-            needsRewrite = true;
-        }
-
-        // Only rewrite boolean queries
-        if (needsRewrite) {
-            try {
-                resolvedQuery = resolvedQuery.rewrite(context.searcher());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
         }
     }

@@ -343,10 +343,11 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         // TODO: Figure out why multi-clause breaks testPhrasePrefix() in HighlighterWithAnalyzersTests.java
-        // return ((BooleanQuery) query).clauses().size() == 1
-        // ? new ApproximateScoreQuery(query, new ApproximateBooleanQuery((BooleanQuery) query))
-        // : query;
-        return new ApproximateScoreQuery(query, new ApproximateBooleanQuery((BooleanQuery) query));
+        if (query instanceof BooleanQuery boolQuery) {
+            return new ApproximateScoreQuery(query, new ApproximateBooleanQuery(boolQuery));
+        }
+
+        return query;
     }
 
     private static void addBooleanClauses(
