@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add temporal routing processors for time-based document routing ([#18920](https://github.com/opensearch-project/OpenSearch/issues/18920))
 
 ### Changed
+- IllegalArgumentException when scroll ID has a node no longer part of the Cluster ([#19031](https://github.com/opensearch-project/OpenSearch/pull/19031))
 
 ### Fixed
 - Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
