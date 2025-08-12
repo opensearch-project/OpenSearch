@@ -61,24 +61,22 @@ public class SearchSortValuesAndFormats implements Writeable {
         this.formattedSortValues = Arrays.copyOf(rawSortValues, rawSortValues.length);
         for (int i = 0; i < rawSortValues.length; ++i) {
             Object sortValue = rawSortValues[i];
-            if (sortValue instanceof BytesRef) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
-            } else if (sortValue instanceof Long) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((long) sortValue);
-            } else if (sortValue instanceof BigInteger) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((BigInteger) sortValue);
-            } else if (sortValue instanceof Double) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((double) sortValue);
-            } else if (sortValue instanceof Float || sortValue instanceof Integer) {
-                // sort by _score or _doc
-                this.formattedSortValues[i] = sortValue;
-            } else {
-                assert sortValue == null : "Sort values must be a BytesRef, Long, Integer, Double or Float, but got "
-                    + sortValue.getClass()
-                    + ": "
-                    + sortValue;
-                this.formattedSortValues[i] = sortValue;
-            }
+            this.formattedSortValues[i] = switch (sortValue) {
+                case BytesRef bytesRef -> sortValueFormats[i].format(bytesRef);
+                case Long longValue -> sortValueFormats[i].format(longValue);
+                case BigInteger bigInteger -> sortValueFormats[i].format(bigInteger);
+                case Double doubleValue -> sortValueFormats[i].format(doubleValue);
+                case Float ignored -> sortValue;
+                case Integer ignored -> sortValue; // sort by _score or _doc
+                case null -> sortValue;
+                default -> {
+                    assert false : "Sort values must be a BytesRef, Long, Integer, Double or Float, but got "
+                        + sortValue.getClass()
+                        + ": "
+                        + sortValue;
+                    yield sortValue;
+                }
+            };
         }
     }
 
