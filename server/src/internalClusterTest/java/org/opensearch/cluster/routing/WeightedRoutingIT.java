@@ -717,8 +717,16 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
                 .get();
             assertTrue(deleteResponse.isAcknowledged());
 
+            ClusterHealthResponse clusterHealthResponse = client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForNodes("4")
+                .execute()
+                .actionGet();
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+
             // Check local cluster health
-            ClusterHealthResponse clusterHealthResponse = client(nodes_in_zone_c.get(0)).admin()
+            clusterHealthResponse = client(nodes_in_zone_c.get(0)).admin()
                 .cluster()
                 .prepareHealth()
                 .setLocal(true)
