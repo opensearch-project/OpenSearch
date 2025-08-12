@@ -25,7 +25,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ScriptedAvg implements Writeable, ToXContent, ToXContentFragment {
+public class ScriptedAvg implements Writeable {
     private double sum;
     private long count;
 
@@ -60,15 +60,6 @@ public class ScriptedAvg implements Writeable, ToXContent, ToXContentFragment {
 
     public long getCount() {
         return count;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("sum", sum);
-        builder.field("count", count);
-        builder.endObject();
-        return builder;
     }
 
 }
