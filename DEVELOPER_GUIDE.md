@@ -76,9 +76,9 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 #### JDK
 
-OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-24 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`. 
+OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-24 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`.
 
-Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11). 
+Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
 
 
 In addition, certain backward compatibility tests check out and compile the previous major version of OpenSearch, and therefore require installing [JDK 11](https://adoptium.net/temurin/releases/?version=11) and [JDK 17](https://adoptium.net/temurin/releases/?version=17) and setting the `JAVA11_HOME` and `JAVA17_HOME` environment variables. More to that, since 8.10 release, Gradle has deprecated the usage of the any JDKs below JDK-16. For smooth development experience, the recommendation is to install at least [JDK 17](https://adoptium.net/temurin/releases/?version=17) or [JDK 21](https://adoptium.net/temurin/releases/?version=21). If you still want to build with JDK-11 only, please add `-Dorg.gradle.warning.mode=none` when invoking any Gradle build task from command line, for example:
@@ -319,17 +319,14 @@ For example, we have an hdfs test that uses mini-hdfs to test our repository-hdf
 
 ## Java Language Formatting Guidelines
 
-Java files in the OpenSearch codebase are formatted with the Eclipse JDT formatter, using the [Spotless Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle) plugin. This plugin is configured on a project-by-project basis, via `build.gradle` in the root of the repository. So long as at least one project is configured, the formatting check can be run explicitly with:
+Java files in the OpenSearch codebase are formatted with the Eclipse JDT formatter, using the [Spotless Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle) plugin. This plugin is configured on a project-by-project basis, via `build.gradle` in the root of the repository.
 
-    ./gradlew spotlessJavaCheck
-
-The code can be formatted with:
-
-    ./gradlew spotlessApply
-
-These tasks can also be run for specific subprojects, e.g.
-
-    ./gradlew server:spotlessJavaCheck
+- As long only one project is configured, the formatting check can be run explicitly with:
+  - `./gradlew spotlessJavaCheck`
+- The code can be formatted with:
+  - `./gradlew spotlessApply`
+- These tasks can also be run for specific subprojects, e.g.
+  - `./gradlew server:spotlessJavaCheck`
 
 Please follow these formatting guidelines:
 
@@ -340,6 +337,38 @@ Please follow these formatting guidelines:
 * If *absolutely* necessary, you can disable formatting for regions of code with the `// tag::NAME` and `// end::NAME` directives, but note that these are intended for use in documentation, so please make it clear what you have done, and only do this where the benefit clearly outweighs the decrease in consistency.
 * Note that JavaDoc and block comments i.e. `/* ... */` are not formatted, but line comments i.e `// ...` are.
 * There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, it might get called out in PR reviews as something to change.
+
+## 🚀 Code Transformation & Automated Rewriting
+*(Advanced Refactoring, Modernization, and Bulk Code Changes)*
+
+### 🔧 Automated Rewriting of Source Code
+The OpenSearch build system supports **automated, large-scale code transformations** using [Moderne](https://moderne.io/) and OpenRewrite. These tools enable:
+
+- **Safe Refactoring** (e.g., renaming methods, migrating deprecated APIs)
+- **Modernization** (e.g., adopting Java 17 features like `var`, `records`, or `switch` expressions)
+- **Anti-Pattern Fixes** (e.g., replacing `Vector` with `ArrayList`, removing redundant `StringBuilder`)
+- **Convention Enforcement** (e.g., consistent JUnit test naming, `final` keyword usage)
+- **Dependency Upgrades** (e.g., automatic migration when updating library versions)
+
+### ⚙️ Usage
+- **Dry-run (check changes without applying):**
+    - Full project: `./gradlew rewriteDryRun`
+    - Subproject (e.g., `server`): `./gradlew server:rewriteDryRun`
+- **Apply transformations:**
+    - Full project: `./gradlew rewriteRun`
+    - Subproject: `./gradlew server:rewriteRun`
+
+### 🛠️ Example Transformations
+| **Before**                     | **After**                          | **Rule**                          |
+|--------------------------------|------------------------------------|-----------------------------------|
+| `new ArrayList<String>()`      | `new ArrayList<>()`                | Diamond Operator (Java 7+)        |
+| `if (x == false)`              | `if (!x)`                          | Boolean Simplification            |
+| `@Test public void testFoo()`  | `@Test void foo()`                 | JUnit 5 Convention                |
+
+### ⚠️ Notes
+- **Custom Rules**: Add project-specific rewrites in `code-convention.yml`.
+- **Exclusions**: Use `// rewrite:off` and `// rewrite:on` to opt out of transformations for specific code blocks.
+- **PR Reviews**: Automated rewrites are flagged in CI. Verify changes match intent before merging.
 
 ## Adding Dependencies
 

@@ -56,6 +56,7 @@ plugins {
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.25.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
+  id "org.openrewrite.rewrite" version "7.11.0" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
