@@ -79,21 +79,21 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             return false;
         }
 
-//        // For single clause boolean queries, check if the clause can be approximated
-//        if (clauses.size() == 1 && clauses.get(0).occur() != BooleanClause.Occur.MUST_NOT) {
-//            BooleanClause singleClause = clauses.get(0);
-//            Query clauseQuery = singleClause.query();
-//
-//            // If the clause is already an ApproximateScoreQuery, we can approximate + set context
-//            if (clauseQuery instanceof ApproximateScoreQuery approximateScoreQuery) {
-//                if (approximateScoreQuery.getApproximationQuery() instanceof ApproximateBooleanQuery nestedBool) {
-//                    return nestedBool.canApproximate(context);
-//                }
-//                return approximateScoreQuery.getApproximationQuery().canApproximate(context);
-//            }
-//        }
+        // // For single clause boolean queries, check if the clause can be approximated
+        // if (clauses.size() == 1 && clauses.get(0).occur() != BooleanClause.Occur.MUST_NOT) {
+        // BooleanClause singleClause = clauses.get(0);
+        // Query clauseQuery = singleClause.query();
+        //
+        // // If the clause is already an ApproximateScoreQuery, we can approximate + set context
+        // if (clauseQuery instanceof ApproximateScoreQuery approximateScoreQuery) {
+        // if (approximateScoreQuery.getApproximationQuery() instanceof ApproximateBooleanQuery nestedBool) {
+        // return nestedBool.canApproximate(context);
+        // }
+        // return approximateScoreQuery.getApproximationQuery().canApproximate(context);
+        // }
+        // }
 
-//        return clauses.size() > 1 && clauses.stream().allMatch(clause -> clause.occur() == BooleanClause.Occur.FILTER);
+        // return clauses.size() > 1 && clauses.stream().allMatch(clause -> clause.occur() == BooleanClause.Occur.FILTER);
         return clauses.stream().allMatch(clause -> clause.occur() == BooleanClause.Occur.FILTER);
     }
 
