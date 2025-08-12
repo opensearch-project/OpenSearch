@@ -22,6 +22,7 @@ import java.util.List;
  */
 public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
     private final List<Weight> clauseWeights;
+    private final List<ScorerSupplier> cachedSuppliers; // Cache suppliers to avoid repeated calls
     private final ScoreMode scoreMode;
     private final float boost;
     private final int threshold;
@@ -46,16 +47,18 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
         LeafReaderContext context
     ) throws IOException {
         this.clauseWeights = new ArrayList<>();
+        this.cachedSuppliers = new ArrayList<>();
         this.scoreMode = scoreMode;
         this.boost = boost;
         this.threshold = threshold;
         this.context = context;
 
-        // Store weights that have valid scorer suppliers
+        // Store weights and cache their suppliers
         for (Weight clauseWeight : clauseWeights) {
             ScorerSupplier supplier = clauseWeight.scorerSupplier(context);
             if (supplier != null) {
                 this.clauseWeights.add(clauseWeight);
+                this.cachedSuppliers.add(supplier);
             }
         }
     }
@@ -73,9 +76,10 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
         // Create appropriate iterators for each clause - ResumableDISI only for approximatable queries
         List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
-        for (Weight weight : clauseWeights) {
+        for (int i = 0; i < clauseWeights.size(); i++) {
+            Weight weight = clauseWeights.get(i);
+            ScorerSupplier supplier = cachedSuppliers.get(i); // Use cached supplier
             Query query = weight.getQuery();
-            ScorerSupplier supplier = weight.scorerSupplier(context);
 
             if (query instanceof ApproximateQuery) {
                 // Use ResumableDISI for approximatable queries
@@ -85,27 +89,6 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                 // Use regular DocIdSetIterator for non-approximatable queries
                 Scorer scorer = supplier.get(leadCost);
                 clauseIterators.add(scorer.iterator());
-            }
-        }
-
-        // Debug: Print first 100 docIDs from each DISI
-        System.out.println("DEBUG: Printing first 100 docIDs from each DISI:");
-        for (int i = 0; i < clauseIterators.size(); i++) {
-            DocIdSetIterator iter = clauseIterators.get(i);
-            System.out.print("DISI " + i + " first 100 docIDs: [");
-            try {
-                for (int j = 0; j < 100; j++) {
-                    int docId = iter.nextDoc();
-                    if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                        System.out.print("NO_MORE_DOCS");
-                        break;
-                    }
-                    System.out.print(docId);
-                    if (j < 99) System.out.print(", ");
-                }
-                System.out.println("]");
-            } catch (IOException e) {
-                System.out.println("Error reading DISI " + i + ": " + e.getMessage() + "]");
             }
         }
 
@@ -143,18 +126,10 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
     public long cost() {
         if (cost == -1) {
             // Estimate cost as the minimum cost of all clauses (conjunction)
-            if (!clauseWeights.isEmpty()) {
+            if (!cachedSuppliers.isEmpty()) {
                 cost = Long.MAX_VALUE;
-                for (Weight weight : clauseWeights) {
-                    try {
-                        ScorerSupplier supplier = weight.scorerSupplier(context);
-                        if (supplier != null) {
-                            cost = Math.min(cost, supplier.cost());
-                        }
-                    } catch (IOException e) {
-                        // If we can't get the cost, use a default
-                        cost = Math.min(cost, 1000);
-                    }
+                for (ScorerSupplier supplier : cachedSuppliers) {
+                    cost = Math.min(cost, supplier.cost());
                 }
             } else {
                 cost = 0;
@@ -172,58 +147,23 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             return null;
         }
 
-        // Create appropriate iterators for each clause - ResumableDISI only for approximatable queries
-        List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
-        // System.out.println("DEBUG: Creating iterators for " + clauseWeights.size() + " clauses");
-
-        for (Weight weight : clauseWeights) {
-            Query query = weight.getQuery();
-            ScorerSupplier supplier = weight.scorerSupplier(context);
-            // System.out.println("DEBUG: Processing query: " + query.getClass().getSimpleName() + " - " + query);
-
-            if (query instanceof ApproximateQuery) {
-                // Use ResumableDISI for approximatable queries
-                // System.out.println("DEBUG: Using ResumableDISI for ApproximateQuery");
-                ResumableDISI disi = new ResumableDISI(supplier);
-                clauseIterators.add(disi);
-            } else {
-                // Use regular DocIdSetIterator for non-approximatable queries
-                // System.out.println("DEBUG: Using regular DISI for non-approximatable query");
-                Scorer scorer = supplier.get(supplier.cost());
-                DocIdSetIterator iterator = scorer.iterator();
-                // System.out.println("DEBUG: Regular iterator cost: " + iterator.cost());
-                clauseIterators.add(iterator);
-            }
+        // Calculate window size heuristic using cached suppliers
+        long minCost = Long.MAX_VALUE;
+        long maxCost = 0;
+        for (ScorerSupplier supplier : cachedSuppliers) {
+            long cost = supplier.cost();
+            minCost = Math.min(minCost, cost);
+            maxCost = Math.max(maxCost, cost);
         }
+        final int initialWindowSize = (int) Math.min(minCost, maxCost >> 7); // max(costs)/2^7
+        System.out.println("DEBUG: Window heuristic - minCost: " + minCost + ", maxCost: " + maxCost + ", initialWindowSize: " + initialWindowSize);
 
-        // // Debug: Print first 100 docIDs from each DISI
-        System.out.println("DEBUG: Printing first 100 docIDs from each DISI:");
-        for (int i = 0; i < clauseIterators.size(); i++) {
-            DocIdSetIterator iter = clauseIterators.get(i);
-            System.out.print("DISI " + i + " first 100 docIDs: [");
-            try {
-                for (int j = 0; j < 10000; j++) {
-                    int docId = iter.nextDoc();
-                    if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                        System.out.print("NO_MORE_DOCS");
-                        break;
-                    }
-                    System.out.print(docId);
-                    if (j < 9999) System.out.print(", ");
-                }
-                System.out.println("]");
-            } catch (IOException e) {
-                System.out.println("Error reading DISI " + i + ": " + e.getMessage() + "]");
-            }
-        }
-
-        // Use Lucene's ConjunctionUtils to create the conjunction ONCE (outside the BulkScorer)
-        final DocIdSetIterator conjunctionDISI = ConjunctionUtils.intersectIterators(clauseIterators);
-        // Create a simple scorer for the collector
+        // Create a simple scorer for the collector (will be used by windowed approach)
         Scorer scorer = new Scorer() {
             @Override
             public DocIdSetIterator iterator() {
-                return conjunctionDISI;
+                // This won't be used in windowed approach
+                return DocIdSetIterator.empty();
             }
 
             @Override
@@ -238,7 +178,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
             @Override
             public int docID() {
-                return conjunctionDISI.docID();
+                return -1;
             }
         };
 
@@ -248,40 +188,95 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             private boolean expansionStopped = false;
             private final List<Integer> conjunctionDocIds = new ArrayList<>(); // Track total hits across all score() calls
 
-            @Override
-            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+            // Windowed approach state
+            private int currentWindowSize = initialWindowSize;
+            private DocIdSetIterator globalConjunction = null;
 
-                System.out.println("bulkscorer.score called with min: " + min + " and max: " + max);
-                collector.setScorer(scorer);
-
-                // Position the iterator correctly (following Lucene's DefaultBulkScorer pattern)
-                if (conjunctionDISI.docID() < min) {
-                    if (conjunctionDISI.docID() == min - 1) {
-                        conjunctionDISI.nextDoc();
+            private List<DocIdSetIterator> rebuildIteratorsWithWindowSize(int windowSize) throws IOException {
+                List<DocIdSetIterator> newIterators = new ArrayList<>();
+                for (int i = 0; i < clauseWeights.size(); i++) {
+                    Weight weight = clauseWeights.get(i);
+                    ScorerSupplier supplier = cachedSuppliers.get(i); // Use cached supplier
+                    Query query = weight.getQuery();
+                    
+                    if (query instanceof ApproximateQuery) {
+                        // For approximatable queries, try to use the window size
+                        if (query instanceof ApproximatePointRangeQuery) {
+                            ApproximatePointRangeQuery approxQuery = (ApproximatePointRangeQuery) query;
+                            // Temporarily set the size
+                            int originalSize = approxQuery.getSize();
+                            approxQuery.setSize(windowSize);
+                            try {
+                                Scorer scorer = supplier.get(windowSize);
+                                newIterators.add(scorer.iterator());
+                            } finally {
+                                // Restore original size
+                                approxQuery.setSize(originalSize);
+                            }
+                        } else {
+                            // Other approximate queries - use ResumableDISI
+                            ResumableDISI disi = new ResumableDISI(supplier);
+                            newIterators.add(disi);
+                        }
                     } else {
-                        conjunctionDISI.advance(min);
+                        // Regular queries use full cost
+                        Scorer scorer = supplier.get(supplier.cost());
+                        newIterators.add(scorer.iterator());
                     }
                 }
+                return newIterators;
+            }
+
+            @Override
+            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                System.out.println("bulkscorer.score called with min: " + min + " and max: " + max);
+                collector.setScorer(scorer);
+                
+                // Check if we need to expand window
+                if (totalCollected < 10000 && 
+                    (globalConjunction == null || globalConjunction.docID() == DocIdSetIterator.NO_MORE_DOCS)) {
+                    
+                    System.out.println("DEBUG: Expanding window from " + currentWindowSize + " to " + (currentWindowSize * 3));
+                    currentWindowSize *= 3;
+                    
+                    // Rebuild iterators with new window size
+                    List<DocIdSetIterator> newIterators = rebuildIteratorsWithWindowSize(currentWindowSize);
+                    globalConjunction = ConjunctionUtils.intersectIterators(newIterators);
+                    
+                    // Return first docID from new conjunction (could be < min)
+                    int firstDoc = globalConjunction.nextDoc();
+                    if (firstDoc != DocIdSetIterator.NO_MORE_DOCS) {
+                        System.out.println("DEBUG: New window first docID: " + firstDoc + " (min was: " + min + ")");
+                        return firstDoc;  // CancellableBulkScorer will use this as new min
+                    }
+                }
+                
+                // Score existing conjunction within [min, max) range
+                return scoreExistingConjunction(collector, acceptDocs, min, max);
+            }
+            
+            private int scoreExistingConjunction(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                if (globalConjunction == null) {
+                    return DocIdSetIterator.NO_MORE_DOCS;
+                }
+                
+                // Position the iterator correctly
+                if (globalConjunction.docID() < min) {
+                    if (globalConjunction.docID() == min - 1) {
+                        globalConjunction.nextDoc();
+                    } else {
+                        globalConjunction.advance(min);
+                    }
+                }
+
                 int collected = 0;
                 int doc = -1;
 
-                // Score documents in the range [min, max) with early termination
-                for (doc = conjunctionDISI.docID(); doc < max; doc = conjunctionDISI.nextDoc()) {
-                    // Early termination when we reach the threshold
+                // Score documents in the range [min, max)
+                for (doc = globalConjunction.docID(); doc < max; doc = globalConjunction.nextDoc()) {
                     if (totalCollected >= 10000) {
-                        if (!expansionStopped) {
-                            // Stop all ResumableDISI instances from expanding further
-                            for (DocIdSetIterator iter : clauseIterators) {
-                                if (iter instanceof ResumableDISI disi) {
-                                    disi.stopExpansion();
-                                }
-                            }
-                            expansionStopped = true;
-                            System.out.println("DEBUG: Stopped expansion for all ResumableDISI at " + totalCollected + " hits");
-                            System.out.println("DEBUG: Conjunction docIDs: " + conjunctionDocIds);
-
-                        }
-                        return DocIdSetIterator.NO_MORE_DOCS; // Exit the entire score method
+                        System.out.println("DEBUG: Reached 10000 hits, stopping");
+                        return DocIdSetIterator.NO_MORE_DOCS; // Early termination
                     }
 
                     if (acceptDocs == null || acceptDocs.get(doc)) {
@@ -295,16 +290,13 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                 System.out.println("Total Collected: " + totalCollected + " Collected this window: " + collected);
 
                 // Check if conjunction exhausted
-                if (conjunctionDISI.docID() == DocIdSetIterator.NO_MORE_DOCS) {
+                if (globalConjunction.docID() == DocIdSetIterator.NO_MORE_DOCS) {
                     System.out.println("DEBUG: Conjunction exhausted at " + totalCollected + " total hits");
                     System.out.println("DEBUG: Conjunction docIDs: " + conjunctionDocIds);
                 }
 
-                // System.out.println("Num conjunction hits " + collected + " (total: " + totalCollected + ")");
-
-                // Return the current iterator position (standard Lucene pattern)
-                System.out.println("Conjunction DISI current position after bulkscorer.score: " + conjunctionDISI.docID());
-                return conjunctionDISI.docID();
+                System.out.println("Conjunction DISI current position after bulkscorer.score: " + globalConjunction.docID());
+                return globalConjunction.docID();
             }
 
             @Override
