@@ -186,7 +186,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     public void visit(int docID) {
                         // Log first docID
                         if (docCount[0] == 0) {
-                            System.out.println("First docID: " + docID);
+//                            System.out.println("First docID: " + docID);
                         }
                         // firstDocIds.add(docID);
 
@@ -194,7 +194,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         docCount[0]++;
                         // Log when we hit certain milestones
                         if (docCount[0] >= 10200) {
-                            System.out.println("Last docID at 10240: " + docID);
+//                            System.out.println("Last docID at 10240: " + docID);
                         }
                     }
 
@@ -207,7 +207,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     public void visit(IntsRef ref) {
                         // Log first docID from bulk visit
                         if (docCount[0] == 0) {
-                            System.out.println("First docID (bulk): " + ref.ints[0]);
+//                            System.out.println("First docID (bulk): " + ref.ints[0]);
                         }
                         //
                         // // Collect first 10240 docIDs for validation
@@ -372,11 +372,11 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                             return;
                         }
                     }
-                    if (docCount[0] >= size) {
-                        state.setPointTree(pointTree);
-                        state.setInProgress(true);
-                        return;
-                    }
+//                    if (docCount[0] >= size) {
+//                        state.setPointTree(pointTree);
+//                        state.setInProgress(true);
+//                        return;
+//                    }
                 }
             }
 
@@ -518,72 +518,38 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                             @Override
                             public Scorer get(long leadCost) throws IOException {
-                                System.out.println("DEBUG: ApproximatePointRangeQuery.get() called - BKD state management disabled");
+                                // Use leadCost as dynamic size if it's reasonable, otherwise use original size
+                                int dynamicSize = (leadCost > 0 && leadCost < Integer.MAX_VALUE) ? (int) leadCost : size;
+                                return getWithSize(dynamicSize);
+                            }
 
-                                // // Create fresh DocIdSetBuilder and visitor for each call
-                                result = new DocIdSetBuilder(reader.maxDoc(), values);
-                                visitor = getIntersectVisitor(result, docCount);
+                            public Scorer getWithSize(int dynamicSize) throws IOException {
+                                // Temporarily update size for this call
+                                int originalSize = size;
+                                size = dynamicSize;
 
-                                // Simple approach: always traverse from root
-                                System.out.println("DEBUG: Starting BKD traversal from root, target size: " + size);
-                                // values.intersect(visitor);
+                                try {
+                                    System.out.println("DEBUG: ApproximatePointRangeQuery.get() called with dynamic size: " + dynamicSize);
 
-                                // Check if we have a saved tree and we're not exhausted
-                                if (state.getPointTree() == null && !state.isExhausted()) {
-                                    // First call - start from the root
-                                    System.out.println("DEBUG: First call - starting from root");
-                                    state.setPointTree(values.getPointTree());
-                                    docCount[0] = 0; // Reset doc count for first call
-                                } else if (state.getPointTree() != null && !state.isExhausted()) {
-                                    // Resume from where we left off - reset docCount for this expansion
-                                    System.out.println("DEBUG: Resuming from saved state");
-                                    docCount[0] = 0; // Reset doc count for each expansion
-                                } else {
-                                    System.out.println("DEBUG: BKD state is exhausted or invalid");
+                                    // For windowed approach, create fresh iterator without ResumableDISI state
+                                    DocIdSetBuilder freshResult = new DocIdSetBuilder(reader.maxDoc(), values);
+                                    long[] freshDocCount = new long[1];
+                                    PointValues.IntersectVisitor freshVisitor = getIntersectVisitor(freshResult, freshDocCount);
+
+                                    System.out.println("DEBUG: Starting fresh BKD traversal from root, target size: " + size);
+
+                                    // Always start fresh traversal from root
+                                    intersectLeft(values.getPointTree(), freshVisitor, freshDocCount);
+
+                                    System.out.println("DEBUG: Fresh traversal completed, docCount: " + freshDocCount[0]);
+
+                                    DocIdSetIterator iterator = freshResult.build().iterator();
+                                    System.out.println("DEBUG: Built fresh iterator with cost: " + iterator.cost());
+                                    return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                } finally {
+                                    // Restore original size
+                                    size = originalSize;
                                 }
-
-                                // Only process if we're not exhausted and have a valid tree
-                                if (!state.isExhausted() && state.getPointTree() != null) {
-                                    System.out.println("DEBUG: Processing BKD tree, current docCount: " + docCount[0] + ", size: " + size);
-                                    // Reset the in-progress flag before processing
-                                    state.setInProgress(false);
-
-                                    // Use intersectLeftIterative for resumable traversal
-                                    System.out.println("DEBUG: Starting intersectLeftIterative, current docCount: " + docCount[0]);
-                                    if (!context.isTopLevel) {
-                                        intersectLeftIterativeNew(visitor, state.getPointTree(), docCount, state);
-                                    } else {
-                                        intersectLeft(visitor, state.getPointTree(), docCount);
-                                        // values.intersect(visitor);
-                                    }
-                                    System.out.println("DEBUG: After intersectLeftIterative, docCount: " + docCount[0] + ", size: " + size);
-
-                                    // Check if we collected enough documents
-                                    if (docCount[0] >= size) {
-                                        state.setInProgress(true);
-                                        state.needMore = true;
-                                    }
-                                    // Note: exhaustion is now handled inside intersectLeftIterative
-
-                                    // System.out.println("DEBUG: BKD traversal completed, found " + docCount[0] + " documents");
-
-                                    // Track total documents added
-                                    totalDocsAdded += docCount[0];
-                                    totalGetCalls++;
-                                    System.out.println(
-                                        "DEBUG: Total docs added across all calls: " + totalDocsAdded + " (call #" + totalGetCalls + ")"
-                                    );
-
-                                    // If we didn't collect any documents and we're not in progress, we've exhausted the tree
-
-                                } else {
-                                    System.out.println("DEBUG: Skipping BKD processing - exhausted: " + state.isExhausted());
-                                }
-                                DocIdSetIterator iterator = result.build().iterator();
-                                result = null;
-                                System.out.println("DEBUG: Built iterator with cost: " + iterator.cost());
-                                // System.out.println("DocIDs collected: "+firstDocIds);
-                                return new ConstantScoreScorer(score(), scoreMode, iterator);
                             }
 
                             @Override
