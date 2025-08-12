@@ -15,9 +15,11 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.listeners.SearchRequestActionListener;
 import org.opensearch.transport.grpc.proto.request.search.SearchRequestProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
+import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 
 import java.io.IOException;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 /**
@@ -66,7 +68,8 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             client.search(searchRequest, listener);
         } catch (RuntimeException | IOException e) {
             logger.error("SearchServiceImpl failed to process search request, request=" + request + ", error=" + e.getMessage());
-            responseObserver.onError(e);
+            StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
+            responseObserver.onError(grpcError);
         }
     }
 }

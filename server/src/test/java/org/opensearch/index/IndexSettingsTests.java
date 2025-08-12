@@ -1023,4 +1023,78 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings);
         assertTrue("Index should be on remote node", settings.isAssignedOnRemoteNode());
     }
+
+    public void testUpdateDerivedSourceFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        SettingsException error = expectThrows(
+            SettingsException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put("index.derived_source.enabled", randomBoolean()).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.derived_source.enabled], not updateable"));
+    }
+
+    public void testDerivedSourceTranslogReadPreferenceValidation() {
+        // Test 1: Valid case - when derived source is enabled
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 2: Invalid case - setting read preference when derived source is disabled
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 3: Default(Derived) behavior - no read preference set
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 4: Dynamic update - valid case
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(metadata.getSettings())
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING.getKey(), false)
+                    .build()
+            )
+        );
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
+
+        // Test 5: If derived source is disabled then translog setting value should also be disabled
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isDerivedSourceEnabledForTranslog());
+    }
 }
