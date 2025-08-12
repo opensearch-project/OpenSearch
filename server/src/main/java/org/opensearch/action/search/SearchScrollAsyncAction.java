@@ -159,7 +159,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             try {
                 DiscoveryNode node = clusterNodeLookup.apply(target.getClusterAlias(), target.getNode());
                 if (node == null) {
-                    throw new IllegalStateException("node [" + target.getNode() + "] is not available");
+                    throw new IllegalArgumentException("scroll ID points to a node [" + target.getNode() + "] no longer available");
                 }
                 connection = getConnection(target.getClusterAlias(), node);
             } catch (Exception ex) {
