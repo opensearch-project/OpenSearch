@@ -163,6 +163,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         Set<String> filesBeforeMerge = new HashSet<>(Arrays.asList(directory.listAll()));
         client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).get();
         flushAndRefresh(INDEX_NAME);
+        Thread.sleep(1000);
         Set<String> filesAfterMerge = new HashSet<>(Arrays.asList(directory.listAll()));
 
         Set<String> filesFromPreviousGenStillPresent = filesBeforeMerge.stream()
