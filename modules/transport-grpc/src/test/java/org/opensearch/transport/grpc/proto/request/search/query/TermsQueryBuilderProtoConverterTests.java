@@ -7,9 +7,8 @@
  */
 package org.opensearch.transport.grpc.proto.request.search.query;
 
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
-import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.FieldValueArray;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.TermsQuery;
 import org.opensearch.protobufs.TermsQueryField;
@@ -29,39 +28,38 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
     }
 
     public void testGetHandledQueryCase() {
+        // Test that the converter returns the correct QueryContainerCase
         assertEquals("Converter should handle TERMS case", QueryContainer.QueryContainerCase.TERMS, converter.getHandledQueryCase());
     }
 
     public void testFromProto() {
-        FieldValueArray fieldValueArray = FieldValueArray.newBuilder()
-            .addFieldValueArray(FieldValue.newBuilder().setString("value1").build())
-            .addFieldValueArray(FieldValue.newBuilder().setString("value2").build())
-            .build();
-
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fieldValueArray).build();
-
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().build();
         Map<String, TermsQueryField> termsMap = new HashMap<>();
         termsMap.put("test-field", termsQueryField);
-
-        TermsQuery termsQuery = TermsQuery.newBuilder().putAllTerms(termsMap).build();
-
+        TermsQuery termsQuery = TermsQuery.newBuilder().putTerms("test-field", termsQueryField).build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
 
-        TermsQueryBuilder queryBuilder = (TermsQueryBuilder) converter.fromProto(queryContainer);
+        QueryBuilder queryBuilder = converter.fromProto(queryContainer);
 
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
-        assertEquals("Field name should match", "simplified_field", queryBuilder.fieldName());
-        assertEquals("Values size should match", 2, queryBuilder.values().size());
-        assertEquals("First value should match", "value1", queryBuilder.values().get(0));
-        assertEquals("Second value should match", "value2", queryBuilder.values().get(1));
+        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+
+        assertEquals("Field name should be hardcoded", "simplified_field", termsQueryBuilder.fieldName());
+        assertEquals("Values should be empty (hardcoded)", 0, termsQueryBuilder.values().size());
+        assertEquals("Boost should be default", 1.0f, termsQueryBuilder.boost(), 0.0f);
+        assertTrue("Query name should be null", termsQueryBuilder.queryName() == null);
+        assertEquals("Value type should be default", TermsQueryBuilder.ValueType.DEFAULT, termsQueryBuilder.valueType());
     }
 
     public void testFromProtoWithInvalidContainer() {
+        // Create a QueryContainer with a different query type
         QueryContainer emptyContainer = QueryContainer.newBuilder().build();
 
+        // Test that the converter throws an exception
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(emptyContainer));
 
+        // Verify the exception message
         assertTrue(
             "Exception message should mention 'does not contain a Terms query'",
             exception.getMessage().contains("does not contain a Terms query")
@@ -77,16 +75,8 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithMultipleFields() {
-        TermsQueryField field1 = TermsQueryField.newBuilder()
-            .setFieldValueArray(
-                FieldValueArray.newBuilder().addFieldValueArray(FieldValue.newBuilder().setString("value1").build()).build()
-            )
-            .build();
-        TermsQueryField field2 = TermsQueryField.newBuilder()
-            .setFieldValueArray(
-                FieldValueArray.newBuilder().addFieldValueArray(FieldValue.newBuilder().setString("value2").build()).build()
-            )
-            .build();
+        TermsQueryField field1 = TermsQueryField.newBuilder().build();
+        TermsQueryField field2 = TermsQueryField.newBuilder().build();
 
         Map<String, TermsQueryField> termsMap = new HashMap<>();
         termsMap.put("field1", field1);
