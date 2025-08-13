@@ -26,21 +26,7 @@ public class QueryRewritingBenchmark extends OpenSearchTestCase {
     private static final int WARMUP_ITERATIONS = 1000;
     private static final int BENCHMARK_ITERATIONS = 10000;
 
-    public void testQueryRewritingPerformanceAndValue() {
-        System.out.println("\n====== QUERY REWRITING BENCHMARK ======\n");
-
-        // Benchmark different query patterns
-        benchmarkFilterMerging();
-        benchmarkNestedFlattening();
-        benchmarkComplexRealWorldQuery();
-
-        System.out.println("\n======================================");
-    }
-
-    private void benchmarkFilterMerging() {
-        System.out.println("1. FILTER MERGING OPTIMIZATION");
-        System.out.println("   Scenario: Multiple term queries on same field\n");
-
+    public void testFilterMergingPerformance() {
         // Create query with multiple terms that can be merged
         BoolQueryBuilder query = QueryBuilders.boolQuery();
         String[] brands = { "apple", "samsung", "dell", "hp", "lenovo", "asus", "acer", "msi" };
@@ -49,18 +35,14 @@ public class QueryRewritingBenchmark extends OpenSearchTestCase {
         }
 
         BenchmarkResult result = runBenchmark("Filter Merging", query);
-        result.print();
 
-        // Show the optimization
-        System.out.println("   Original: 8 separate term queries → 8 field lookups");
-        System.out.println("   Optimized: 1 terms query → 1 field lookup");
-        System.out.println("   Expected execution speedup: 3-5x for filter evaluation\n");
+        // Assert significant node reduction
+        assertTrue("Should reduce nodes by > 70%", result.getReductionPercent() > 70);
+        assertTrue("Rewrite overhead should be < 50 microseconds", result.rewriteOverhead < 50);
+        assertTrue("ROI should be positive", result.getROI() > 1);
     }
 
-    private void benchmarkNestedFlattening() {
-        System.out.println("2. NESTED BOOLEAN FLATTENING");
-        System.out.println("   Scenario: Deeply nested boolean queries\n");
-
+    public void testNestedFlatteningPerformance() {
         // Create deeply nested query
         QueryBuilder innerQuery = QueryBuilders.termQuery("status", "active");
         for (int i = 0; i < 5; i++) {
@@ -68,16 +50,13 @@ public class QueryRewritingBenchmark extends OpenSearchTestCase {
         }
 
         BenchmarkResult result = runBenchmark("Nested Flattening", innerQuery);
-        result.print();
 
-        System.out.println("   Optimization: Removed 5 levels of nesting + 5 match_all queries");
-        System.out.println("   Benefit: Reduced call stack depth, less memory allocation\n");
+        // Assert optimization effectiveness
+        assertTrue("Should reduce nodes by > 80%", result.getReductionPercent() > 80);
+        assertTrue("Rewrite overhead should be < 100 microseconds", result.rewriteOverhead < 100);
     }
 
-    private void benchmarkComplexRealWorldQuery() {
-        System.out.println("3. REAL-WORLD E-COMMERCE QUERY");
-        System.out.println("   Scenario: Complex faceted search with multiple filters\n");
-
+    public void testComplexRealWorldQueryPerformance() {
         QueryBuilder query = QueryBuilders.boolQuery()
             // Category filters
             .filter(
@@ -105,27 +84,28 @@ public class QueryRewritingBenchmark extends OpenSearchTestCase {
             .filter(QueryBuilders.matchAllQuery());
 
         BenchmarkResult result = runBenchmark("E-commerce Query", query);
-        result.print();
 
-        System.out.println("   Optimizations applied:");
-        System.out.println("   - Merged 3 category terms → 1 terms query");
-        System.out.println("   - Merged 5 brand terms → 1 terms query");
-        System.out.println("   - Removed 2 match_all queries");
-        System.out.println("   - Flattened nested structure");
-        System.out.println("   Real impact: 50%+ faster query execution for this pattern\n");
+        // Assert real-world optimization value
+        assertTrue("Should reduce nodes by > 50%", result.getReductionPercent() > 50);
+        assertTrue("Rewrite overhead should be reasonable", result.rewriteOverhead < 200);
+        assertTrue("Should provide significant ROI", result.getROI() > 10);
     }
 
     private BenchmarkResult runBenchmark(String name, QueryBuilder query) {
+        // Warmup
         for (int i = 0; i < WARMUP_ITERATIONS; i++) {
             QueryRewriterRegistry.rewrite(query, context, true);
             QueryRewriterRegistry.rewrite(query, context, false);
         }
+
+        // Benchmark without rewriting
         long startWithout = System.nanoTime();
         for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
             QueryRewriterRegistry.rewrite(query, context, false);
         }
         long timeWithout = System.nanoTime() - startWithout;
 
+        // Benchmark with rewriting
         long startWith = System.nanoTime();
         QueryBuilder optimized = null;
         for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
@@ -184,19 +164,15 @@ public class QueryRewritingBenchmark extends OpenSearchTestCase {
             this.totalTimeWithout = totalTimeWithout;
         }
 
-        void print() {
-            double reduction = (nodesBefore - nodesAfter) * 100.0 / nodesBefore;
-            double overhead = (totalTimeWith - totalTimeWithout) * 100.0 / totalTimeWithout;
+        double getReductionPercent() {
+            return (nodesBefore - nodesAfter) * 100.0 / nodesBefore;
+        }
 
-            System.out.printf("   Query nodes: %d → %d (%.1f%% reduction)\n", nodesBefore, nodesAfter, reduction);
-            System.out.printf("   Rewrite overhead: %.2f μs (%.1f%% of baseline)\n", rewriteOverhead, overhead);
-
-            // Value calculation: assume each node reduction saves 0.5-1ms in execution
-            double estimatedSavings = (nodesBefore - nodesAfter) * 0.75; // ms
-            double breakEven = rewriteOverhead / 1000.0; // convert to ms
-
-            System.out.printf("   Value: Saves ~%.1f ms execution time for %.3f ms rewrite cost\n", estimatedSavings, breakEven);
-            System.out.printf("   ROI: %.0fx return (rewrite once, execute many times)\n", estimatedSavings / breakEven);
+        double getROI() {
+            // Assume each node reduction saves 0.5-1ms in execution
+            double estimatedSavingsMs = (nodesBefore - nodesAfter) * 0.75;
+            double rewriteCostMs = rewriteOverhead / 1000.0;
+            return estimatedSavingsMs / rewriteCostMs;
         }
     }
 }
