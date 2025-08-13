@@ -52,6 +52,7 @@ import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GR
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONNECTION_AGE;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONNECTION_IDLE;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_MSG_SIZE;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PORT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT;
@@ -220,6 +221,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             SETTING_GRPC_BIND_HOST,
             SETTING_GRPC_WORKER_COUNT,
             SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS,
+            SETTING_GRPC_MAX_MSG_SIZE,
             SETTING_GRPC_MAX_CONNECTION_AGE,
             SETTING_GRPC_MAX_CONNECTION_IDLE,
             SETTING_GRPC_KEEPALIVE_TIMEOUT
