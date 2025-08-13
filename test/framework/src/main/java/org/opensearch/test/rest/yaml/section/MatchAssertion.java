@@ -33,14 +33,13 @@ package org.opensearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.test.NotEqualMessageBuilder;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -63,33 +62,27 @@ public class MatchAssertion extends Assertion {
         Object expectedValue = null;
         Double epsilon = null;
 
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()
-                    || token == XContentParser.Token.START_OBJECT
-                    || token == XContentParser.Token.START_ARRAY
-                    || token == XContentParser.Token.VALUE_NULL) {
-                        if ("epsilon".equals(currentFieldName)) {
-                            if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                                epsilon = parser.doubleValue();
-                            } else {
-                                throw new IllegalArgumentException("epsilon must be a number");
-                            }
-                        } else {
-                            field = currentFieldName;
-                            expectedValue = XContentParserUtils.parseFieldsValue(parser);
-                        }
+        Map<String, Object> fields = ParserUtils.parseFields(parser);
+
+        if (fields.size() == 1) {
+            Map.Entry<String, Object> entry = fields.entrySet().iterator().next();
+            field = entry.getKey();
+            expectedValue = entry.getValue();
+        } else if (fields.size() == 2) {
+            for (Map.Entry<String, Object> entry : fields.entrySet()) {
+                if ("epsilon".equals(entry.getKey())) {
+                    if (entry.getValue() instanceof Number) {
+                        epsilon = ((Number) entry.getValue()).doubleValue();
+                    } else {
+                        throw new IllegalArgumentException("epsilon must be a number");
                     }
+                } else {
+                    field = entry.getKey();
+                    expectedValue = entry.getValue();
+                }
             }
         } else {
-            // simple match: { field: value }
-            Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
-            field = stringObjectTuple.v1();
-            expectedValue = stringObjectTuple.v2();
+            throw new IllegalArgumentException("match assertion must have 1 or 2 fields, but found " + fields.size());
         }
 
         if (field == null) {

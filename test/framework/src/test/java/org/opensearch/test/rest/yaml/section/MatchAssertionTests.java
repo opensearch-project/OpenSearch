@@ -31,93 +31,163 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.xcontent.XContentLocation;
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
 
-import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchAssertionTests extends OpenSearchTestCase {
+public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase {
+    public void testParseIsTrue() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
 
-    public void testNull() {
-        XContentLocation xContentLocation = new XContentLocation(0, 0);
-        {
-            MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", null);
-            matchAssertion.doAssert(null, null);
-            expectThrows(AssertionError.class, () -> matchAssertion.doAssert("non-null", null));
-        }
-        {
-            MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", "non-null");
-            expectThrows(AssertionError.class, () -> matchAssertion.doAssert(null, "non-null"));
-        }
-        {
-            MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", "/exp/");
-            expectThrows(AssertionError.class, () -> matchAssertion.doAssert(null, "/exp/"));
-        }
+        IsTrueAssertion trueAssertion = IsTrueAssertion.parse(parser);
+
+        assertThat(trueAssertion, notNullValue());
+        assertThat(trueAssertion.getField(), equalTo("get.fields._timestamp"));
     }
 
-    public void testNullInMap() {
-        XContentLocation xContentLocation = new XContentLocation(0, 0);
-        MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", singletonMap("a", null));
-        matchAssertion.doAssert(singletonMap("a", null), matchAssertion.getExpectedValue());
-        AssertionError e = expectThrows(AssertionError.class, () -> matchAssertion.doAssert(emptyMap(), matchAssertion.getExpectedValue()));
-        assertThat(e.getMessage(), containsString("expected [null] but not found"));
+    public void testParseIsFalse() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "docs.1._source");
+
+        IsFalseAssertion falseAssertion = IsFalseAssertion.parse(parser);
+
+        assertThat(falseAssertion, notNullValue());
+        assertThat(falseAssertion.getField(), equalTo("docs.1._source"));
     }
 
-    public void testEpsilon() {
-        XContentLocation xContentLocation = new XContentLocation(0, 0);
-        MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", 0.95, 0.01);
-        matchAssertion.doAssert(0.955, 0.95);
-        matchAssertion.doAssert(0.945, 0.95);
-        expectThrows(AssertionError.class, () -> matchAssertion.doAssert(0.965, 0.95));
-        expectThrows(AssertionError.class, () -> matchAssertion.doAssert(0.935, 0.95));
+    public void testParseGreaterThan() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 3}");
+
+        GreaterThanAssertion greaterThanAssertion = GreaterThanAssertion.parse(parser);
+        assertThat(greaterThanAssertion, notNullValue());
+        assertThat(greaterThanAssertion.getField(), equalTo("field"));
+        assertThat(greaterThanAssertion.getExpectedValue(), instanceOf(Integer.class));
+        assertThat((Integer) greaterThanAssertion.getExpectedValue(), equalTo(3));
     }
 
-    public void testEpsilonWithDifferentTypes() {
-        XContentLocation xContentLocation = new XContentLocation(0, 0);
-        MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "field", 100L, 1.0);
-        matchAssertion.doAssert(100.5, 100L);
-        matchAssertion.doAssert(99.5, 100L);
-        MatchAssertion matchAssertion2 = new MatchAssertion(xContentLocation, "field", 100.0, 1.0);
-        matchAssertion2.doAssert(100, 100.0);
-        matchAssertion2.doAssert(99, 100.0);
+    public void testParseLessThan() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 3}");
 
-        expectThrows(AssertionError.class, () -> matchAssertion.doAssert(101.1, 100L));
-        expectThrows(AssertionError.class, () -> matchAssertion2.doAssert(98, 100.0));
+        LessThanAssertion lessThanAssertion = LessThanAssertion.parse(parser);
+        assertThat(lessThanAssertion, notNullValue());
+        assertThat(lessThanAssertion.getField(), equalTo("field"));
+        assertThat(lessThanAssertion.getExpectedValue(), instanceOf(Integer.class));
+        assertThat((Integer) lessThanAssertion.getExpectedValue(), equalTo(3));
     }
 
-    public void testEpsilonIsZero() {
-        XContentLocation location = new XContentLocation(0, 0);
-        MatchAssertion matchAssertion = new MatchAssertion(location, "field", 5.0, 0.0);
-        matchAssertion.doAssert(5.0, 5.0);
+    public void testParseLength() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ _id: 22}");
 
-        expectThrows(AssertionError.class, () -> matchAssertion.doAssert(5.0000000001, 5.0));
-        expectThrows(AssertionError.class, () -> matchAssertion.doAssert(4.9999999999, 5.0));
-
-        MatchAssertion intMatchAssertion = new MatchAssertion(location, "field", 5, 0.0);
-        intMatchAssertion.doAssert(5, 5);
-        intMatchAssertion.doAssert(5.0, 5);
-        expectThrows(AssertionError.class, () -> intMatchAssertion.doAssert(6, 5));
+        LengthAssertion lengthAssertion = LengthAssertion.parse(parser);
+        assertThat(lengthAssertion, notNullValue());
+        assertThat(lengthAssertion.getField(), equalTo("_id"));
+        assertThat(lengthAssertion.getExpectedValue(), instanceOf(Integer.class));
+        assertThat((Integer) lengthAssertion.getExpectedValue(), equalTo(22));
     }
 
-    public void testNegativeEpsilon() {
-        XContentLocation location = new XContentLocation(0, 0);
-        MatchAssertion matchAssertion = new MatchAssertion(location, "field", 5.0, -0.01);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchAssertion.doAssert(5.0, 5.0));
-        assertThat(e.getMessage(), containsString("epsilon must be non-negative, but was: " + -0.01));
+    public void testParseMatchSimpleIntegerValue() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 10 }");
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+
+        assertThat(matchAssertion, notNullValue());
+        assertThat(matchAssertion.getField(), equalTo("field"));
+        assertThat(matchAssertion.getExpectedValue(), instanceOf(Integer.class));
+        assertThat((Integer) matchAssertion.getExpectedValue(), equalTo(10));
     }
 
-    public void testParseEpsilonNotANumber() throws IOException {
-        String jsonContent = "{ \"field_to_match\": 42.0, \"epsilon\": \"invalid_epsilon_value\" }";
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), jsonContent)) {
-            parser.nextToken();
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MatchAssertion.parse(parser));
-            assertThat(e.getMessage(), containsString("epsilon must be a number"));
-        }
+    public void testParseMatchSimpleStringValue() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ foo: bar }");
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+
+        assertThat(matchAssertion, notNullValue());
+        assertThat(matchAssertion.getField(), equalTo("foo"));
+        assertThat(matchAssertion.getExpectedValue(), instanceOf(String.class));
+        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("bar"));
+    }
+
+    public void testParseMatchArray() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{'matches': ['test_percolator_1', 'test_percolator_2']}");
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+
+        assertThat(matchAssertion, notNullValue());
+        assertThat(matchAssertion.getField(), equalTo("matches"));
+        assertThat(matchAssertion.getExpectedValue(), instanceOf(List.class));
+        List<?> strings = (List<?>) matchAssertion.getExpectedValue();
+        assertThat(strings.size(), equalTo(2));
+        assertThat(strings.get(0).toString(), equalTo("test_percolator_1"));
+        assertThat(strings.get(1).toString(), equalTo("test_percolator_2"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testParseContains() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{testKey: { someKey: someValue } }");
+
+        ContainsAssertion containsAssertion = ContainsAssertion.parse(parser);
+        assertThat(containsAssertion, notNullValue());
+        assertThat(containsAssertion.getField(), equalTo("testKey"));
+        assertThat(containsAssertion.getExpectedValue(), instanceOf(Map.class));
+        assertThat(((Map<String, String>) containsAssertion.getExpectedValue()).get("someKey"), equalTo("someValue"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testParseMatchSourceValues() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ _source: { responses.0.hits.total: 3, foo: bar  }}");
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+
+        assertThat(matchAssertion, notNullValue());
+        assertThat(matchAssertion.getField(), equalTo("_source"));
+        assertThat(matchAssertion.getExpectedValue(), instanceOf(Map.class));
+        Map<String, Object> expectedValue = (Map<String, Object>) matchAssertion.getExpectedValue();
+        assertThat(expectedValue.size(), equalTo(2));
+        Object o = expectedValue.get("responses.0.hits.total");
+        assertThat(o, instanceOf(Integer.class));
+        assertThat((Integer) o, equalTo(3));
+        o = expectedValue.get("foo");
+        assertThat(o, instanceOf(String.class));
+        assertThat(o.toString(), equalTo("bar"));
+    }
+
+    public void testParseMatchWithEpsilon() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 10.5, epsilon: 0.1 }");
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+
+        assertThat(matchAssertion, notNullValue());
+        assertThat(matchAssertion.getField(), equalTo("field"));
+        assertThat(matchAssertion.getExpectedValue(), instanceOf(Double.class));
+        assertThat((Double) matchAssertion.getExpectedValue(), equalTo(10.5));
+    }
+
+    public void testParseMatchWithEpsilonReversedOrder() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ epsilon: 0.1, field: 10.5 }");
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+
+        assertThat(matchAssertion, notNullValue());
+        assertThat(matchAssertion.getField(), equalTo("field"));
+        assertThat(matchAssertion.getExpectedValue(), instanceOf(Double.class));
+        assertThat((Double) matchAssertion.getExpectedValue(), equalTo(10.5));
+    }
+
+    public void testParseMatchFailsWithInvalidEpsilon() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 10.5, epsilon: 'invalid' }");
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { MatchAssertion.parse(parser); });
+        assertThat(exception.getMessage(), equalTo("epsilon must be a number"));
+    }
+
+    public void testParseMatchFailsWithTooManyFields() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 10.5, epsilon: 0.1, extra: 'value' }");
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { MatchAssertion.parse(parser); });
+        assertThat(exception.getMessage(), equalTo("match assertion must have 1 or 2 fields, but found 3"));
     }
 }
