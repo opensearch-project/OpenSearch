@@ -332,7 +332,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     0,
                     numHits,
                     topFieldDocs.toArray(new CollapseTopFieldDocs[0]),
-                    true
+                    false
                 );
                 result.topDocs(new TopDocsAndMaxScore(topDocs, maxScore), sortFmt);
             };
