@@ -132,11 +132,6 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public String getIndexFieldName() {
-            return this.indexFieldData.getFieldName();
-        }
-
-        @Override
         public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
             return indexFieldData.load(context).getBytesValues();
         }
@@ -757,11 +752,6 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public String getIndexFieldName() {
-                return indexFieldData.getFieldName();
-            }
-
-            @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
@@ -831,11 +821,6 @@ public abstract class ValuesSource {
 
             public FieldData(AbstractGeoShapeIndexFieldData indexFieldData) {
                 this.indexFieldData = indexFieldData;
-            }
-
-            @Override
-            public String getIndexFieldName() {
-                return indexFieldData.getFieldName();
             }
 
             /**
