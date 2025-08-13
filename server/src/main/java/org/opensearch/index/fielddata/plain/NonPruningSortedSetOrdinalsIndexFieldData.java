@@ -226,33 +226,9 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
             super(sortField);
         }
 
+        
         public static Type readType(DataInput in) throws IOException {
             return SortField.readType(in);
-        }
-
-        @Override
-        public Object getMissingValue() {
-            return delegate.getMissingValue();
-        }
-
-        @Override
-        public void setMissingValue(Object missingValue) {
-            delegate.setMissingValue(missingValue);
-        }
-
-        @Override
-        public String getField() {
-            return delegate.getField();
-        }
-
-        @Override
-        public Type getType() {
-            return delegate.getType();
-        }
-
-        @Override
-        public boolean getReverse() {
-            return delegate.getReverse();
         }
 
         @Override
@@ -268,73 +244,9 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
         }
 
         @Override
-        public String toString() {
-            return delegate.toString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return delegate.equals(o);
-        }
-
-        @Override
-        public int hashCode() {
-            return delegate.hashCode();
-        }
-
-        @Override
-        public void setBytesComparator(Comparator<BytesRef> b) {
-            delegate.setBytesComparator(b);
-        }
-
-        @Override
-        public Comparator<BytesRef> getBytesComparator() {
-            return delegate.getBytesComparator();
-        }
-
-        @Override
         public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
             // explictly disable pruning
             return delegate.getComparator(numHits, Pruning.NONE);
-        }
-
-        @Override
-        public SortField rewrite(IndexSearcher searcher) throws IOException {
-            return delegate.rewrite(searcher);
-        }
-
-        @Override
-        public boolean needsScores() {
-            return delegate.needsScores();
-        }
-
-        @Override
-        public IndexSorter getIndexSorter() {
-            return delegate.getIndexSorter();
-        }
-
-        @Deprecated
-        @Override
-        public void setOptimizeSortWithIndexedData(boolean optimizeSortWithIndexedData) {
-            delegate.setOptimizeSortWithIndexedData(optimizeSortWithIndexedData);
-        }
-
-        @Deprecated
-        @Override
-        public boolean getOptimizeSortWithIndexedData() {
-            return delegate.getOptimizeSortWithIndexedData();
-        }
-
-        @Deprecated
-        @Override
-        public void setOptimizeSortWithPoints(boolean optimizeSortWithPoints) {
-            delegate.setOptimizeSortWithPoints(optimizeSortWithPoints);
-        }
-
-        @Deprecated
-        @Override
-        public boolean getOptimizeSortWithPoints() {
-            return delegate.getOptimizeSortWithPoints();
         }
     }
 }
