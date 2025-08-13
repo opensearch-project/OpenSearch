@@ -48,6 +48,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -531,15 +532,20 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(indicesService.spliterator()).thenReturn(indexServices.spliterator());
 
         AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
-            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getConfiguredClusterSettings(
+                true,
+                true,
+                // Configure maximum delay because this test will interrupt it
+                Map.of(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), TimeValue.timeValueSeconds(60))
+            ),
             dataNode1
         );
         autoForceMergeManager.start();
         Thread testThread = new Thread(() -> autoForceMergeManager.getTask().runInternal());
         testThread.start();
-        Thread.sleep(1000L);
         testThread.interrupt();
-        assertTrue(testThread.isInterrupted());
+        assertTrue("Expected testThread to exit quickly after being interrupted", testThread.join(Duration.ofSeconds(10)));
+        assertTrue("Expected the interrupt status to be set", testThread.isInterrupted());
         autoForceMergeManager.close();
         executorService.shutdown();
     }
