@@ -1,3 +1,11 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.search.approximate;
 
 import org.apache.lucene.index.LeafReaderContext;
@@ -25,7 +33,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
     private final List<ScorerSupplier> cachedSuppliers; // Cache suppliers to avoid repeated calls
     private final ScoreMode scoreMode;
     private final float boost;
-    private final int threshold;
+    private final int size;
     private long cost = -1;
 
     /**
@@ -34,7 +42,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
      * @param clauseWeights The weights for each clause in the boolean query
      * @param scoreMode The score mode
      * @param boost The boost factor
-     * @param threshold The threshold for early termination
+     * @param size The threshold for early termination
      * @param context The leaf reader context
      * @throws IOException If there's an error creating scorer suppliers
      */
@@ -42,14 +50,14 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
         List<Weight> clauseWeights,
         ScoreMode scoreMode,
         float boost,
-        int threshold,
+        int size,
         LeafReaderContext context
     ) throws IOException {
         this.clauseWeights = new ArrayList<>();
         this.cachedSuppliers = new ArrayList<>();
         this.scoreMode = scoreMode;
         this.boost = boost;
-        this.threshold = threshold;
+        this.size = size;
 
         // Store weights and cache their suppliers
         for (Weight clauseWeight : clauseWeights) {
@@ -209,7 +217,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                 collector.setScorer(scorer);
 
                 // Check if we need to expand window
-                if (totalCollected < 10000 && (globalConjunction == null || globalConjunction.docID() == DocIdSetIterator.NO_MORE_DOCS)) {
+                if (totalCollected < size && (globalConjunction == null || globalConjunction.docID() == DocIdSetIterator.NO_MORE_DOCS)) {
                     currentWindowSize *= 3;
 
                     // Rebuild iterators with new window size
@@ -248,7 +256,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
                 // Score documents in the range [min, max)
                 for (doc = globalConjunction.docID(); doc < max; doc = globalConjunction.nextDoc()) {
-                    if (totalCollected >= 10000) {
+                    if (totalCollected >= size) {
                         return DocIdSetIterator.NO_MORE_DOCS; // Early termination
                     }
 
@@ -263,7 +271,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                 if (globalConjunction.docID() == DocIdSetIterator.NO_MORE_DOCS) {
 
                     // If we need more hits, expand immediately
-                    if (totalCollected < 10000) {
+                    if (totalCollected < size) {
                         currentWindowSize *= 3;
 
                         try {
