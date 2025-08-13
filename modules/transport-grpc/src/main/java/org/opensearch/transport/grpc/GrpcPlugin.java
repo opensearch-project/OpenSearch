@@ -7,6 +7,8 @@
  */
 package org.opensearch.transport.grpc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
@@ -65,6 +67,8 @@ import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.
  */
 public final class GrpcPlugin extends Plugin implements NetworkPlugin, ExtensiblePlugin {
 
+    private static final Logger logger = LogManager.getLogger(GrpcPlugin.class);
+
     private Client client;
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
     private QueryBuilderProtoConverterRegistry queryRegistry;
@@ -85,8 +89,19 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
         // Load query converters from other plugins
         List<QueryBuilderProtoConverter> extensions = loader.loadExtensions(QueryBuilderProtoConverter.class);
-        if (extensions != null) {
-            queryConverters.addAll(extensions);
+        if (extensions != null && !extensions.isEmpty()) {
+            logger.info("Loading {} QueryBuilderProtoConverter extensions from other plugins", extensions.size());
+            for (QueryBuilderProtoConverter converter : extensions) {
+                logger.info(
+                    "Discovered QueryBuilderProtoConverter extension: {} (handles: {})",
+                    converter.getClass().getName(),
+                    converter.getHandledQueryCase()
+                );
+                queryConverters.add(converter);
+            }
+            logger.info("Successfully loaded {} QueryBuilderProtoConverter extensions", extensions.size());
+        } else {
+            logger.info("No QueryBuilderProtoConverter extensions found from other plugins");
         }
     }
 
@@ -268,8 +283,19 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         this.queryUtils = new AbstractQueryBuilderProtoUtils(queryRegistry);
 
         // Register external converters
-        for (QueryBuilderProtoConverter converter : queryConverters) {
-            queryRegistry.registerConverter(converter);
+        if (!queryConverters.isEmpty()) {
+            logger.info("Registering {} external QueryBuilderProtoConverter(s) with the registry", queryConverters.size());
+            for (QueryBuilderProtoConverter converter : queryConverters) {
+                logger.info(
+                    "Registering external converter: {} (handles: {})",
+                    converter.getClass().getName(),
+                    converter.getHandledQueryCase()
+                );
+                queryRegistry.registerConverter(converter);
+            }
+            logger.info("Successfully registered all {} external converters", queryConverters.size());
+        } else {
+            logger.info("No external QueryBuilderProtoConverter(s) to register");
         }
 
         return super.createComponents(

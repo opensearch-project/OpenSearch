@@ -325,6 +325,10 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         assertNotNull("QueryUtils should be initialized after createComponents", newPlugin.getQueryUtils());
 
         // Verify that the external converter was registered by checking it was called
-        Mockito.verify(mockConverter).getHandledQueryCase();
+        // Note: getHandledQueryCase() is called 3 times:
+        // 1. In loadExtensions() for logging
+        // 2. In createComponents() for logging
+        // 3. In QueryBuilderProtoConverterSpiRegistry.registerConverter() for registration
+        Mockito.verify(mockConverter, Mockito.times(3)).getHandledQueryCase();
     }
 }
