@@ -1748,7 +1748,15 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 result.aggregations(aggs);
                 result.setShardIndex(index);
                 result.size(1);
-                consumer.consumeResult(result, latch::countDown);
+
+                if (shouldFailPartial) {
+                    assertThrows(CircuitBreakingException.class, () -> {
+                        latch.countDown();
+                        consumer.consumeResult(result, () -> {});
+                    });
+                } else {
+                    consumer.consumeResult(result, latch::countDown);
+                }
             });
             threads[index].start();
         }
@@ -1782,7 +1790,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
         @Override
         public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            assert bytes >= 0;
+            assert bytes >= 0 : bytes + " is less than 0";
             if (shouldBreak.get()) {
                 throw new CircuitBreakingException(label, getDurability());
             }

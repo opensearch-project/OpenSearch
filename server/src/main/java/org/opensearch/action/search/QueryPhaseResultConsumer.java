@@ -129,7 +129,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     @Override
-    public void consumeResult(SearchPhaseResult result, Runnable next) {
+    public void consumeResult(SearchPhaseResult result, Runnable next) throws CircuitBreakingException {
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex());
@@ -342,12 +342,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return Math.round(1.5d * size - size);
         }
 
-        public void consume(QuerySearchResult result, Runnable next) {
+        public void consume(QuerySearchResult result, Runnable next) throws CircuitBreakingException {
             boolean executeNextImmediately = true;
             synchronized (this) {
+                checkCircuitBreaker();
                 if (hasFailure() || result.isNull()) {
                     result.consumeAll();
-                    if (result.isNull()) {
+                    if (result.isNull() && !hasFailure()) {
                         SearchShardTarget target = result.getSearchShardTarget();
                         emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
                     }
@@ -378,17 +379,33 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
         }
 
+        /**
+         * This method is needed to prevent OOM when the buffered results are too large
+         *
+         */
+        private void checkCircuitBreaker() throws CircuitBreakingException {
+            try {
+                // force the CircuitBreaker eval to ensure during buffering we did not hit the circuit breaker limit
+                addEstimateAndMaybeBreak(0);
+            } catch (CircuitBreakingException e) {
+                resetCircuitBreaker();
+                // onPartialMergeFailure should only be invoked once since this is responsible for cancelling the
+                // search task
+                if (!hasFailure()) {
+                    failure.set(e);
+                    onPartialMergeFailure.accept(e);
+                }
+                throw e;
+            }
+        }
+
         private synchronized void onMergeFailure(Exception exc) {
             if (hasFailure()) {
                 assert circuitBreakerBytes == 0;
                 return;
             }
             assert circuitBreakerBytes >= 0;
-            if (circuitBreakerBytes > 0) {
-                // make sure that we reset the circuit breaker
-                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-                circuitBreakerBytes = 0;
-            }
+            resetCircuitBreaker();
             failure.compareAndSet(null, exc);
             MergeTask task = runningTask.get();
             runningTask.compareAndSet(task, null);
@@ -402,6 +419,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             mergeResult = null;
             for (MergeTask toCancel : toCancels) {
                 toCancel.cancel();
+            }
+        }
+
+        private void resetCircuitBreaker() {
+            if (circuitBreakerBytes > 0) {
+                // make sure that we reset the circuit breaker
+                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+                circuitBreakerBytes = 0;
             }
         }
 
