@@ -104,16 +104,126 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
     }
 
     /**
+     * {@link SortField} implementation which delegates calls to another {@link SortField}.
+     *
+     */
+    public abstract class FilteredSortField extends SortField {
+        protected final SortField delegate;
+
+        protected FilteredSortField(SortField sortField) {
+            super(sortField.getField(), sortField.getType());
+            this.delegate = sortField;
+        }
+
+        @Override
+        public Object getMissingValue() {
+            return delegate.getMissingValue();
+        }
+
+        @Override
+        public void setMissingValue(Object missingValue) {
+            delegate.setMissingValue(missingValue);
+        }
+
+        @Override
+        public String getField() {
+            return delegate.getField();
+        }
+
+        @Override
+        public Type getType() {
+            return delegate.getType();
+        }
+
+        @Override
+        public boolean getReverse() {
+            return delegate.getReverse();
+        }
+
+        @Override
+        public FieldComparatorSource getComparatorSource() {
+            return delegate.getComparatorSource();
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return delegate.equals(o);
+        }
+
+        @Override
+        public int hashCode() {
+            return delegate.hashCode();
+        }
+
+        @Override
+        public void setBytesComparator(Comparator<BytesRef> b) {
+            delegate.setBytesComparator(b);
+        }
+
+        @Override
+        public Comparator<BytesRef> getBytesComparator() {
+            return delegate.getBytesComparator();
+        }
+
+        @Override
+        public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
+            return delegate.getComparator(numHits, pruning);
+        }
+
+        @Override
+        public SortField rewrite(IndexSearcher searcher) throws IOException {
+            return delegate.rewrite(searcher);
+        }
+
+        @Override
+        public boolean needsScores() {
+            return delegate.needsScores();
+        }
+
+        @Override
+        public IndexSorter getIndexSorter() {
+            return delegate.getIndexSorter();
+        }
+
+        @Deprecated
+        @Override
+        public void setOptimizeSortWithIndexedData(boolean optimizeSortWithIndexedData) {
+            delegate.setOptimizeSortWithIndexedData(optimizeSortWithIndexedData);
+        }
+
+        @Deprecated
+        @Override
+        public boolean getOptimizeSortWithIndexedData() {
+            return delegate.getOptimizeSortWithIndexedData();
+        }
+
+        @Deprecated
+        @Override
+        public void setOptimizeSortWithPoints(boolean optimizeSortWithPoints) {
+            delegate.setOptimizeSortWithPoints(optimizeSortWithPoints);
+        }
+
+        @Deprecated
+        @Override
+        public boolean getOptimizeSortWithPoints() {
+            return delegate.getOptimizeSortWithPoints();
+        }
+    }
+
+    /**
      * {@link SortField} extension which disables pruning in the comparator.
      *
      * @opensearch.internal
      */
-    public static class NonPruningSortField extends SortField {
-        private final SortField delegate;
+    public final class NonPruningSortField extends FilteredSortField {
 
         private NonPruningSortField(SortField sortField) {
-            super(sortField.getField(), sortField.getType());
-            this.delegate = sortField;
+            super(sortField);
         }
 
         public static Type readType(DataInput in) throws IOException {
@@ -151,7 +261,8 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
             return new FieldComparatorSource() {
                 @Override
                 public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
-                    return source.newComparator(fieldname, numHits, Pruning.NONE, reversed); // < ----------- ALWAYS DISABLE PRUNING
+                    // explictly disable pruning
+                    return source.newComparator(fieldname, numHits, Pruning.NONE, reversed);
                 }
             };
         }
@@ -183,7 +294,8 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
 
         @Override
         public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
-            return delegate.getComparator(numHits, Pruning.NONE); // < ----------- ALWAYS DISABLE PRUNING
+            // explictly disable pruning
+            return delegate.getComparator(numHits, Pruning.NONE);
         }
 
         @Override
