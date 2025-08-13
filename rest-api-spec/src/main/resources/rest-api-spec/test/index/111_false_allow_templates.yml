@@ -1,8 +1,8 @@
 ---
 "Index documents with setting dynamic parameter to false_allow_templates in the mapping of the index":
   - skip:
-      version: " - 3.1.99"
-      reason: "introduced in 3.2.0"
+      version: " - 3.2.99"
+      reason: "introduced in 3.3.0"
 
   - do:
       indices.create:
