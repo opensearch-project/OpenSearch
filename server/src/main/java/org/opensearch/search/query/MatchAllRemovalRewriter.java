@@ -13,24 +13,10 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Removes unnecessary match_all queries from boolean contexts where they have no effect.
- * For example:
- * <pre>
- * {"bool": {"must": [
- *   {"match_all": {}},
- *   {"term": {"field": "value"}}
- * ]}}
- * </pre>
- * becomes:
- * <pre>
- * {"bool": {"must": [
- *   {"term": {"field": "value"}}
- * ]}}
- * </pre>
  *
  * @opensearch.internal
  */
@@ -40,72 +26,154 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
         if (query instanceof BoolQueryBuilder) {
             return rewriteBoolQuery((BoolQueryBuilder) query);
-        } else if (query instanceof MatchAllQueryBuilder) {
-            // Top-level match_all is valid, don't remove
-            return query;
         }
         return query;
     }
 
-    private BoolQueryBuilder rewriteBoolQuery(BoolQueryBuilder original) {
-        BoolQueryBuilder rewritten = new BoolQueryBuilder();
+    private QueryBuilder rewriteBoolQuery(BoolQueryBuilder original) {
+        // Special case: bool query with only match_all queries and no should/mustNot
+        if (original.should().isEmpty() && original.mustNot().isEmpty()) {
+            boolean onlyMatchAll = true;
+            int matchAllCount = 0;
 
+            for (QueryBuilder q : original.must()) {
+                if (q instanceof MatchAllQueryBuilder) {
+                    matchAllCount++;
+                } else {
+                    onlyMatchAll = false;
+                    break;
+                }
+            }
+
+            if (onlyMatchAll) {
+                for (QueryBuilder q : original.filter()) {
+                    if (q instanceof MatchAllQueryBuilder) {
+                        matchAllCount++;
+                    } else {
+                        onlyMatchAll = false;
+                        break;
+                    }
+                }
+            }
+
+            if (onlyMatchAll && matchAllCount > 0) {
+                // Convert to single match_all, preserving boost
+                MatchAllQueryBuilder matchAll = new MatchAllQueryBuilder();
+                if (original.boost() != 1.0f) {
+                    matchAll.boost(original.boost());
+                }
+                return matchAll;
+            }
+        }
+
+        // Check if we need rewriting
+        boolean needsRewrite = shouldRewrite(original);
+
+        if (!needsRewrite) {
+            return original;
+        }
+
+        // Create rewritten query
+        BoolQueryBuilder rewritten = new BoolQueryBuilder();
         rewritten.boost(original.boost());
         rewritten.queryName(original.queryName());
         rewritten.minimumShouldMatch(original.minimumShouldMatch());
         rewritten.adjustPureNegative(original.adjustPureNegative());
-        processClausesWithMatchAllRemoval(original.must(), rewritten::must, true);
-        processClausesWithMatchAllRemoval(original.filter(), rewritten::filter, true);
-        processClausesWithMatchAllRemoval(original.should(), rewritten::should, false);
-        processClausesWithMatchAllRemoval(original.mustNot(), rewritten::mustNot, false);
 
-        if (!rewritten.hasClauses() && hadMatchAllClauses(original)) {
-            return new BoolQueryBuilder().must(new MatchAllQueryBuilder());
-        }
+        // Process all clauses
+        processClauses(original.must(), rewritten::must, true, original);
+        processClauses(original.filter(), rewritten::filter, true, original);
+        processClauses(original.should(), rewritten::should, false, original);
+        processClauses(original.mustNot(), rewritten::mustNot, false, original);
 
         return rewritten;
     }
 
-    private void processClausesWithMatchAllRemoval(List<QueryBuilder> clauses, ClauseAdder adder, boolean removeMatchAll) {
-        List<QueryBuilder> processedClauses = new ArrayList<>();
-        boolean hasNonMatchAll = false;
-
-        for (QueryBuilder clause : clauses) {
-            if (clause instanceof MatchAllQueryBuilder && removeMatchAll) {
-                continue;
-            } else if (clause instanceof BoolQueryBuilder) {
-                QueryBuilder rewritten = rewriteBoolQuery((BoolQueryBuilder) clause);
-                processedClauses.add(rewritten);
-                hasNonMatchAll = true;
-            } else {
-                processedClauses.add(clause);
-                if (!(clause instanceof MatchAllQueryBuilder)) {
-                    hasNonMatchAll = true;
-                }
-            }
+    private boolean shouldRewrite(BoolQueryBuilder bool) {
+        // Check if any must/filter has match_all
+        if (hasMatchAll(bool.must()) || hasMatchAll(bool.filter())) {
+            return true;
         }
 
-        // Add all processed clauses
-        for (QueryBuilder clause : processedClauses) {
-            // In must/filter context, only add match_all if there are no other clauses
-            if (clause instanceof MatchAllQueryBuilder && removeMatchAll && hasNonMatchAll) {
-                continue;
-            }
-            adder.addClause(clause);
-        }
-    }
-
-    private boolean hadMatchAllClauses(BoolQueryBuilder query) {
-        return hasMatchAll(query.must()) || hasMatchAll(query.filter()) || hasMatchAll(query.should()) || hasMatchAll(query.mustNot());
+        // Check nested bool queries
+        return hasNestedBoolThatNeedsRewrite(bool);
     }
 
     private boolean hasMatchAll(List<QueryBuilder> clauses) {
-        for (QueryBuilder clause : clauses) {
-            if (clause instanceof MatchAllQueryBuilder) {
+        for (QueryBuilder q : clauses) {
+            if (q instanceof MatchAllQueryBuilder) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean hasNestedBoolThatNeedsRewrite(BoolQueryBuilder bool) {
+        for (QueryBuilder q : bool.must()) {
+            if (q instanceof BoolQueryBuilder && shouldRewrite((BoolQueryBuilder) q)) {
+                return true;
+            }
+        }
+        for (QueryBuilder q : bool.filter()) {
+            if (q instanceof BoolQueryBuilder && shouldRewrite((BoolQueryBuilder) q)) {
+                return true;
+            }
+        }
+        for (QueryBuilder q : bool.should()) {
+            if (q instanceof BoolQueryBuilder && shouldRewrite((BoolQueryBuilder) q)) {
+                return true;
+            }
+        }
+        for (QueryBuilder q : bool.mustNot()) {
+            if (q instanceof BoolQueryBuilder && shouldRewrite((BoolQueryBuilder) q)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void processClauses(List<QueryBuilder> clauses, ClauseAdder adder, boolean removeMatchAll, BoolQueryBuilder original) {
+        if (!removeMatchAll) {
+            // For should/mustNot, don't remove match_all
+            for (QueryBuilder clause : clauses) {
+                if (clause instanceof BoolQueryBuilder) {
+                    adder.addClause(rewriteBoolQuery((BoolQueryBuilder) clause));
+                } else {
+                    adder.addClause(clause);
+                }
+            }
+            return;
+        }
+
+        // For must/filter, remove match_all if:
+        // 1. There are other non-match_all clauses in the same list OR
+        // 2. There are clauses in other lists (must, filter, should, mustNot)
+        boolean hasOtherClauses = hasNonMatchAllInSameList(clauses) || hasClausesInOtherLists(original);
+
+        for (QueryBuilder clause : clauses) {
+            if (clause instanceof BoolQueryBuilder) {
+                adder.addClause(rewriteBoolQuery((BoolQueryBuilder) clause));
+            } else if (clause instanceof MatchAllQueryBuilder && hasOtherClauses) {
+                // Skip match_all
+                continue;
+            } else {
+                adder.addClause(clause);
+            }
+        }
+    }
+
+    private boolean hasNonMatchAllInSameList(List<QueryBuilder> clauses) {
+        for (QueryBuilder q : clauses) {
+            if (!(q instanceof MatchAllQueryBuilder)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasClausesInOtherLists(BoolQueryBuilder bool) {
+        // Check if there are any clauses in any list
+        return !bool.must().isEmpty() || !bool.filter().isEmpty() || !bool.should().isEmpty() || !bool.mustNot().isEmpty();
     }
 
     @Override

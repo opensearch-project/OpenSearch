@@ -12,6 +12,7 @@ import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -42,10 +43,11 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
 
         // Should have:
         // - Flattened nested boolean
-        // - Merged term queries into terms queries
+        // - Terms in must clauses are NOT merged (semantically different)
         // - Removed match_all queries
-        assertThat(rewrittenBool.must().size(), equalTo(1)); // terms query for status
-        assertThat(rewrittenBool.must().get(0), instanceOf(TermsQueryBuilder.class));
+        assertThat(rewrittenBool.must().size(), equalTo(2)); // two term queries for status
+        assertThat(rewrittenBool.must().get(0), instanceOf(TermQueryBuilder.class));
+        assertThat(rewrittenBool.must().get(1), instanceOf(TermQueryBuilder.class));
 
         assertThat(rewrittenBool.filter().size(), equalTo(1)); // terms query for type
         assertThat(rewrittenBool.filter().get(0), instanceOf(TermsQueryBuilder.class));
@@ -82,9 +84,10 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // Should be flattened first, then terms merged, then match_all removed
-        assertThat(rewrittenBool.must().size(), equalTo(1));
-        assertThat(rewrittenBool.must().get(0), instanceOf(TermsQueryBuilder.class));
+        // Should be flattened first, match_all removed, but terms NOT merged in must context
+        assertThat(rewrittenBool.must().size(), equalTo(2));
+        assertThat(rewrittenBool.must().get(0), instanceOf(TermQueryBuilder.class));
+        assertThat(rewrittenBool.must().get(1), instanceOf(TermQueryBuilder.class));
     }
 
     public void testComplexRealWorldQuery() {

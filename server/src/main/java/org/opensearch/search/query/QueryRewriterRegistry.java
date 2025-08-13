@@ -49,7 +49,7 @@ public final class QueryRewriterRegistry {
                     current = rewritten;
                 }
             } catch (Exception e) {
-                logger.warn("Query rewriter {} failed", rewriter.name(), e);
+                logger.warn("Query rewriter {} failed: {}", rewriter.name(), e.getMessage());
             }
         }
 

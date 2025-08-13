@@ -37,7 +37,63 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
         }
 
         BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
+
+        // First check if flattening is needed
+        if (!needsFlattening(boolQuery)) {
+            return query;
+        }
+
         return flattenBoolQuery(boolQuery);
+    }
+
+    private boolean needsFlattening(BoolQueryBuilder boolQuery) {
+        // Check all clause types for nested bool queries that can be flattened
+        if (hasFlattenableBool(boolQuery.must(), ClauseType.MUST)
+            || hasFlattenableBool(boolQuery.filter(), ClauseType.FILTER)
+            || hasFlattenableBool(boolQuery.should(), ClauseType.SHOULD)
+            || hasFlattenableBool(boolQuery.mustNot(), ClauseType.MUST_NOT)) {
+            return true;
+        }
+
+        // Check if any nested bool queries need flattening
+        return hasNestedBoolThatNeedsFlattening(boolQuery);
+    }
+
+    private boolean hasFlattenableBool(List<QueryBuilder> clauses, ClauseType parentType) {
+        for (QueryBuilder clause : clauses) {
+            if (clause instanceof BoolQueryBuilder) {
+                BoolQueryBuilder nestedBool = (BoolQueryBuilder) clause;
+                // Can flatten if nested bool only has one type of clause matching parent
+                if (canFlatten(nestedBool, parentType)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasNestedBoolThatNeedsFlattening(BoolQueryBuilder boolQuery) {
+        for (QueryBuilder clause : boolQuery.must()) {
+            if (clause instanceof BoolQueryBuilder && needsFlattening((BoolQueryBuilder) clause)) {
+                return true;
+            }
+        }
+        for (QueryBuilder clause : boolQuery.filter()) {
+            if (clause instanceof BoolQueryBuilder && needsFlattening((BoolQueryBuilder) clause)) {
+                return true;
+            }
+        }
+        for (QueryBuilder clause : boolQuery.should()) {
+            if (clause instanceof BoolQueryBuilder && needsFlattening((BoolQueryBuilder) clause)) {
+                return true;
+            }
+        }
+        for (QueryBuilder clause : boolQuery.mustNot()) {
+            if (clause instanceof BoolQueryBuilder && needsFlattening((BoolQueryBuilder) clause)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private BoolQueryBuilder flattenBoolQuery(BoolQueryBuilder original) {
@@ -47,6 +103,7 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
         flattened.queryName(original.queryName());
         flattened.minimumShouldMatch(original.minimumShouldMatch());
         flattened.adjustPureNegative(original.adjustPureNegative());
+
         flattenClauses(original.must(), flattened, ClauseType.MUST);
         flattenClauses(original.filter(), flattened, ClauseType.FILTER);
         flattenClauses(original.should(), flattened, ClauseType.SHOULD);
@@ -55,101 +112,86 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
         return flattened;
     }
 
-    private void flattenClauses(List<QueryBuilder> clauses, BoolQueryBuilder target, ClauseType type) {
+    private void flattenClauses(List<QueryBuilder> clauses, BoolQueryBuilder target, ClauseType clauseType) {
         for (QueryBuilder clause : clauses) {
-            if (clause instanceof BoolQueryBuilder && canFlatten((BoolQueryBuilder) clause, type)) {
-                BoolQueryBuilder innerBool = (BoolQueryBuilder) clause;
-                if (type == ClauseType.FILTER) {
-                    for (QueryBuilder innerClause : innerBool.filter()) {
-                        target.filter(processClause(innerClause));
-                    }
-                    if (!innerBool.must().isEmpty() || !innerBool.should().isEmpty() || !innerBool.mustNot().isEmpty()) {
-                        BoolQueryBuilder preservedBool = new BoolQueryBuilder();
-                        preservedBool.boost(innerBool.boost());
-                        flattenClauses(innerBool.must(), preservedBool, ClauseType.MUST);
-                        flattenClauses(innerBool.should(), preservedBool, ClauseType.SHOULD);
-                        flattenClauses(innerBool.mustNot(), preservedBool, ClauseType.MUST_NOT);
-                        if (preservedBool.hasClauses()) {
-                            target.filter(preservedBool);
+            if (clause instanceof BoolQueryBuilder) {
+                BoolQueryBuilder nestedBool = (BoolQueryBuilder) clause;
+
+                if (canFlatten(nestedBool, clauseType)) {
+                    // Flatten the nested bool query by extracting its clauses
+                    List<QueryBuilder> nestedClauses = getClausesForType(nestedBool, clauseType);
+                    for (QueryBuilder nestedClause : nestedClauses) {
+                        // Recursively flatten if needed
+                        if (nestedClause instanceof BoolQueryBuilder) {
+                            nestedClause = flattenBoolQuery((BoolQueryBuilder) nestedClause);
                         }
+                        addClauseBasedOnType(target, nestedClause, clauseType);
                     }
                 } else {
-                    addClausesBasedOnType(innerBool, target, type);
+                    // Can't flatten this bool, but recursively flatten its contents
+                    BoolQueryBuilder flattenedNested = flattenBoolQuery(nestedBool);
+                    addClauseBasedOnType(target, flattenedNested, clauseType);
                 }
             } else {
-                addClauseToTarget(target, processClause(clause), type);
+                // Non-boolean clause, add as-is
+                addClauseBasedOnType(target, clause, clauseType);
             }
         }
     }
 
-    private QueryBuilder processClause(QueryBuilder clause) {
-        if (clause instanceof BoolQueryBuilder) {
-            return flattenBoolQuery((BoolQueryBuilder) clause);
-        }
-        return clause;
-    }
+    private boolean canFlatten(BoolQueryBuilder nestedBool, ClauseType parentType) {
+        // Can only flatten if:
+        // 1. The nested bool has the same properties as default (boost=1, no queryName, etc.)
+        // 2. The nested bool only has clauses of the same type as the parent
 
-    private boolean canFlatten(BoolQueryBuilder boolQuery, ClauseType parentType) {
-        if (boolQuery.boost() != 1.0f || boolQuery.minimumShouldMatch() != null) {
+        if (nestedBool.boost() != 1.0f || nestedBool.queryName() != null) {
             return false;
         }
 
-        if (parentType == ClauseType.FILTER) {
-            return !boolQuery.filter().isEmpty();
-        }
-        int clauseTypeCount = 0;
-        if (!boolQuery.must().isEmpty()) clauseTypeCount++;
-        if (!boolQuery.filter().isEmpty()) clauseTypeCount++;
-        if (!boolQuery.should().isEmpty()) clauseTypeCount++;
-        if (!boolQuery.mustNot().isEmpty()) clauseTypeCount++;
-
-        return clauseTypeCount == 1;
-    }
-
-    private void addClausesBasedOnType(BoolQueryBuilder source, BoolQueryBuilder target, ClauseType type) {
-        List<QueryBuilder> relevantClauses = getClausesForType(source, type);
-
-        boolean hasOnlyThisClauseType = (type == ClauseType.MUST
-            && !source.must().isEmpty()
-            && source.filter().isEmpty()
-            && source.should().isEmpty()
-            && source.mustNot().isEmpty())
-            || (type == ClauseType.SHOULD
-                && source.must().isEmpty()
-                && source.filter().isEmpty()
-                && !source.should().isEmpty()
-                && source.mustNot().isEmpty())
-            || (type == ClauseType.MUST_NOT
-                && source.must().isEmpty()
-                && source.filter().isEmpty()
-                && source.should().isEmpty()
-                && !source.mustNot().isEmpty());
-
-        if (hasOnlyThisClauseType && !relevantClauses.isEmpty()) {
-            for (QueryBuilder clause : relevantClauses) {
-                addClauseToTarget(target, processClause(clause), type);
-            }
-        } else {
-            addClauseToTarget(target, flattenBoolQuery(source), type);
+        // Check if only has clauses matching parent type
+        switch (parentType) {
+            case MUST:
+                return !nestedBool.must().isEmpty()
+                    && nestedBool.filter().isEmpty()
+                    && nestedBool.should().isEmpty()
+                    && nestedBool.mustNot().isEmpty();
+            case FILTER:
+                return nestedBool.must().isEmpty()
+                    && !nestedBool.filter().isEmpty()
+                    && nestedBool.should().isEmpty()
+                    && nestedBool.mustNot().isEmpty();
+            case SHOULD:
+                return nestedBool.must().isEmpty()
+                    && nestedBool.filter().isEmpty()
+                    && !nestedBool.should().isEmpty()
+                    && nestedBool.mustNot().isEmpty()
+                    && nestedBool.minimumShouldMatch() == null;
+            case MUST_NOT:
+                return nestedBool.must().isEmpty()
+                    && nestedBool.filter().isEmpty()
+                    && nestedBool.should().isEmpty()
+                    && !nestedBool.mustNot().isEmpty();
+            default:
+                return false;
         }
     }
 
-    private List<QueryBuilder> getClausesForType(BoolQueryBuilder source, ClauseType type) {
+    private List<QueryBuilder> getClausesForType(BoolQueryBuilder bool, ClauseType type) {
         switch (type) {
             case MUST:
-                return source.must();
+                return bool.must();
             case FILTER:
-                return source.filter();
+                return bool.filter();
             case SHOULD:
-                return source.should();
+                return bool.should();
             case MUST_NOT:
-                return source.mustNot();
+                return bool.mustNot();
             default:
                 return new ArrayList<>();
         }
     }
 
-    private void addClauseToTarget(BoolQueryBuilder target, QueryBuilder clause, ClauseType type) {
+    private void addClauseBasedOnType(BoolQueryBuilder target, QueryBuilder clause, ClauseType type) {
         switch (type) {
             case MUST:
                 target.must(clause);
