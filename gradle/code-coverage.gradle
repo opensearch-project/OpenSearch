@@ -65,7 +65,6 @@ allprojects {
   }
 }
 
-// Always register the coverage report tasks (not just when tests.coverage is set)
 reporting {
   reports {
     testCodeCoverageReport(JacocoCoverageReport) {
@@ -80,9 +79,6 @@ reporting {
 // When generating coverage reports without re-running tests, use this approach:
 // 1. Run: ./gradlew check  (or any test tasks)
 // 2. Run: ./gradlew generateCoverageReports
-
-// Wrapper task to generate all coverage reports without re-running tests
-// Note: This task requires running tests first (e.g., ./gradlew check)
 tasks.register('generateCoverageReports', Exec) {
   description = 'Generate all coverage reports using existing test execution data (without re-running tests)'
   group = JavaBasePlugin.VERIFICATION_GROUP
@@ -111,7 +107,6 @@ tasks.register('generateCoverageReports', Exec) {
 }
 
 // Only attach to check task if tests.coverage.check is explicitly true
-// This allows CI to run coverage reports independently
 if (System.getProperty("tests.coverage")) {
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
     dependsOn(
