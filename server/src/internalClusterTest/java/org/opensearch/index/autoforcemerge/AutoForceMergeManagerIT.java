@@ -86,7 +86,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         assertNotNull(shard);
 
         // Before stats
-        SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
+        SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false, false);
 
         // This is to make sure auto force merge action gets triggered multiple times ang gets successful at least once.
         Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 3);
@@ -94,7 +94,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         flushAndRefresh(INDEX_NAME_1);
 
         // After stats
-        SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
+        SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false, false);
         assertEquals(segmentsStatsBefore.getCount(), segmentsStatsAfter.getCount());
 
         // Deleting the index (so that ref count drops to zero for all the files) and then pruning the cache to clear it to avoid any file
@@ -123,9 +123,9 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         }
         IndexShard shard = getIndexShard(dataNode, INDEX_NAME_1);
         assertNotNull(shard);
-        SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
+        SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false, false);
         Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 3);
-        SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
+        SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false, false);
         assertEquals(segmentsStatsBefore.getCount(), segmentsStatsAfter.getCount());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
     }
@@ -150,9 +150,9 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         }
         IndexShard shard = getIndexShard(dataNode, INDEX_NAME_1);
         assertNotNull(shard);
-        SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
-        waitUntil(() -> shard.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
+        SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false, false);
+        waitUntil(() -> shard.segmentStats(false, false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false, false);
         assertTrue((int) segmentsStatsBefore.getCount() > segmentsStatsAfter.getCount());
         assertEquals((int) SEGMENT_COUNT, segmentsStatsAfter.getCount());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
@@ -211,26 +211,26 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         assertNotNull(shard4);
         assertNotNull(shard5);
 
-        SegmentsStats segmentsStatsForShard1Before = shard1.segmentStats(false, false);
-        SegmentsStats segmentsStatsForShard2Before = shard2.segmentStats(false, false);
-        SegmentsStats segmentsStatsForShard3Before = shard3.segmentStats(false, false);
-        SegmentsStats segmentsStatsForShard4Before = shard4.segmentStats(false, false);
-        SegmentsStats segmentsStatsForShard5Before = shard5.segmentStats(false, false);
+        SegmentsStats segmentsStatsForShard1Before = shard1.segmentStats(false, false, false);
+        SegmentsStats segmentsStatsForShard2Before = shard2.segmentStats(false, false, false);
+        SegmentsStats segmentsStatsForShard3Before = shard3.segmentStats(false, false, false);
+        SegmentsStats segmentsStatsForShard4Before = shard4.segmentStats(false, false, false);
+        SegmentsStats segmentsStatsForShard5Before = shard5.segmentStats(false, false, false);
         AtomicLong totalSegmentsBefore = new AtomicLong(
             segmentsStatsForShard1Before.getCount() + segmentsStatsForShard2Before.getCount() + segmentsStatsForShard3Before.getCount()
                 + segmentsStatsForShard4Before.getCount() + segmentsStatsForShard5Before.getCount()
         );
         assertTrue(totalSegmentsBefore.get() > 5);
-        waitUntil(() -> shard1.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        waitUntil(() -> shard2.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        waitUntil(() -> shard3.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        waitUntil(() -> shard4.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        waitUntil(() -> shard5.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
-        SegmentsStats segmentsStatsForShard1After = shard1.segmentStats(false, false);
-        SegmentsStats segmentsStatsForShard2After = shard2.segmentStats(false, false);
-        SegmentsStats segmentsStatsForShard3After = shard3.segmentStats(false, false);
-        SegmentsStats segmentsStatsForShard4After = shard4.segmentStats(false, false);
-        SegmentsStats segmentsStatsForShard5After = shard5.segmentStats(false, false);
+        waitUntil(() -> shard1.segmentStats(false, false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard2.segmentStats(false, false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard3.segmentStats(false, false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard4.segmentStats(false, false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard5.segmentStats(false, false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        SegmentsStats segmentsStatsForShard1After = shard1.segmentStats(false, false, false);
+        SegmentsStats segmentsStatsForShard2After = shard2.segmentStats(false, false, false);
+        SegmentsStats segmentsStatsForShard3After = shard3.segmentStats(false, false, false);
+        SegmentsStats segmentsStatsForShard4After = shard4.segmentStats(false, false, false);
+        SegmentsStats segmentsStatsForShard5After = shard5.segmentStats(false, false, false);
         AtomicLong totalSegmentsAfter = new AtomicLong(
             segmentsStatsForShard1After.getCount() + segmentsStatsForShard2After.getCount() + segmentsStatsForShard3After.getCount()
                 + segmentsStatsForShard4After.getCount() + segmentsStatsForShard5After.getCount()

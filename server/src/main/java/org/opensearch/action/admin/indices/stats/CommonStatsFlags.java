@@ -61,6 +61,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     private String[] fieldDataFields = null;
     private String[] completionDataFields = null;
     private boolean includeSegmentFileSizes = false;
+    private boolean includeFieldLevelSegmentFileSizes = false;
     private boolean includeUnloadedSegments = false;
     private boolean includeAllShardIndexingPressureTrackers = false;
     private boolean includeOnlyTopIndexingPressureMetrics = false;
@@ -94,6 +95,11 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            includeFieldLevelSegmentFileSizes = in.readBoolean();
+        } else {
+            includeFieldLevelSegmentFileSizes = false;
+        }
         includeUnloadedSegments = in.readBoolean();
         includeAllShardIndexingPressureTrackers = in.readBoolean();
         includeOnlyTopIndexingPressureMetrics = in.readBoolean();
@@ -121,6 +127,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            out.writeBoolean(includeFieldLevelSegmentFileSizes);
+        }
         out.writeBoolean(includeUnloadedSegments);
         out.writeBoolean(includeAllShardIndexingPressureTrackers);
         out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
@@ -142,6 +151,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = null;
         completionDataFields = null;
         includeSegmentFileSizes = false;
+        includeFieldLevelSegmentFileSizes = false;
         includeUnloadedSegments = false;
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
@@ -159,6 +169,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = null;
         completionDataFields = null;
         includeSegmentFileSizes = false;
+        includeFieldLevelSegmentFileSizes = false;
         includeUnloadedSegments = false;
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
@@ -223,6 +234,11 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         return this;
     }
 
+    public CommonStatsFlags includeFieldLevelSegmentFileSizes(boolean includeFieldLevelSegmentFileSizes) {
+        this.includeFieldLevelSegmentFileSizes = includeFieldLevelSegmentFileSizes;
+        return this;
+    }
+
     public CommonStatsFlags includeUnloadedSegments(boolean includeUnloadedSegments) {
         this.includeUnloadedSegments = includeUnloadedSegments;
         return this;
@@ -267,6 +283,10 @@ public class CommonStatsFlags implements Writeable, Cloneable {
 
     public boolean includeSegmentFileSizes() {
         return this.includeSegmentFileSizes;
+    }
+
+    public boolean includeFieldLevelSegmentFileSizes() {
+        return this.includeFieldLevelSegmentFileSizes;
     }
 
     public void setIncludeIndicesStatsByLevel(boolean includeIndicesStatsByLevel) {

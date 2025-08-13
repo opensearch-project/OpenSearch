@@ -157,6 +157,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         if (indicesStatsRequest.segments()) {
             indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
+            indicesStatsRequest.includeFieldLevelSegmentFileSizes(request.paramAsBoolean("include_field_level_segment_file_sizes", false));
             indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 

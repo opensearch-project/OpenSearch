@@ -94,4 +94,38 @@ public class RestIndicesStatsActionTests extends OpenSearchTestCase {
         assertThat(e, hasToString(containsString("request [/_stats] contains _all and individual metrics [_all," + metric + "]")));
     }
 
+    /**
+     * Test parsing of include_field_level_segment_file_sizes parameter
+     */
+    public void testFieldLevelSegmentFileSizesParameter() throws IOException {
+        // Test with parameter set to true
+        HashMap<String, String> paramsTrue = new HashMap<>();
+        paramsTrue.put("include_field_level_segment_file_sizes", "true");
+        RestRequest requestTrue = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats/segments")
+            .withParams(paramsTrue)
+            .build();
+
+        action.prepareRequest(requestTrue, mock(NodeClient.class));
+
+        // Test with parameter set to false
+        HashMap<String, String> paramsFalse = new HashMap<>();
+        paramsFalse.put("include_field_level_segment_file_sizes", "false");
+        RestRequest requestFalse = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats/segments")
+            .withParams(paramsFalse)
+            .build();
+
+        action.prepareRequest(requestFalse, mock(NodeClient.class));
+
+        // Test with multiple segment parameters together
+        HashMap<String, String> paramsMultiple = new HashMap<>();
+        paramsMultiple.put("include_segment_file_sizes", "true");
+        paramsMultiple.put("include_field_level_segment_file_sizes", "true");
+        paramsMultiple.put("include_unloaded_segments", "true");
+        RestRequest requestMultiple = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats/segments")
+            .withParams(paramsMultiple)
+            .build();
+
+        action.prepareRequest(requestMultiple, mock(NodeClient.class));
+    }
+
 }

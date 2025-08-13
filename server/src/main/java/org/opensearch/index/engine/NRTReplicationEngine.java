@@ -144,6 +144,20 @@ public class NRTReplicationEngine extends Engine {
         }
     }
 
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        return super.segmentsStats(includeSegmentFileSizes, false, includeUnloadedSegments);
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(
+        boolean includeSegmentFileSizes,
+        boolean includeFieldLevelSegmentFileSizes,
+        boolean includeUnloadedSegments
+    ) {
+        return super.segmentsStats(includeSegmentFileSizes, includeFieldLevelSegmentFileSizes, includeUnloadedSegments);
+    }
+
     public void cleanUnreferencedFiles() throws IOException {
         replicaFileTracker.deleteUnreferencedFiles(store.directory().listAll());
     }
