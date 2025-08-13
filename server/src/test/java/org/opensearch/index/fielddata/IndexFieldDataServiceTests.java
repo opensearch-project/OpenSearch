@@ -95,7 +95,6 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService(),
             indexService.getThreadPool()
         );
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
@@ -130,7 +129,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(fd instanceof SortedNumericIndexFieldData);
     }
 
-    public void testIndexFieldDataCacheIsCleredAfterIndexRemoval() throws IOException, InterruptedException {
+    public void testIndexFieldDataCacheIsClearedAfterIndexRemoval() throws IOException, InterruptedException {
         final IndexService indexService = createIndex("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         // copy the ifdService since we can set the listener only once.
@@ -138,7 +137,6 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService(),
             indexService.getThreadPool()
         );
 
@@ -194,7 +192,6 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService(),
             indexService.getThreadPool()
         );
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
@@ -220,7 +217,6 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService(),
             indexService.getThreadPool()
         );
 
@@ -289,7 +285,6 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService(),
             indexService.getThreadPool()
         );
 
@@ -347,7 +342,6 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
-            indexService.mapperService(),
             indexService.getThreadPool()
         );
         // set it the first time...
@@ -388,7 +382,6 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             IndexFieldDataService ifds = new IndexFieldDataService(
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 cache,
-                null,
                 null,
                 threadPool
             );

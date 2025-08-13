@@ -33,7 +33,6 @@
 package org.opensearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.core.index.shard.ShardId;
@@ -41,17 +40,13 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -84,8 +79,8 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
     private final IndicesFieldDataCache indicesFieldDataCache;
     // the below map needs to be modified under a lock
+    // TODO: If we change this to ConcurrentHashMap, we can prob remove synchronized blocks, tho I'm not 100% sure.
     private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
-    private final MapperService mapperService;
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
         @Override
         public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {}
@@ -99,41 +94,26 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         IndexSettings indexSettings,
         IndicesFieldDataCache indicesFieldDataCache,
         CircuitBreakerService circuitBreakerService,
-        MapperService mapperService,
         ThreadPool threadPool
     ) {
         super(indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
-        this.mapperService = mapperService;
         this.threadPool = threadPool;
     }
 
     public synchronized void clear() {
-        List<Exception> exceptions = new ArrayList<>(0);
-        final Collection<IndexFieldDataCache> fieldDataCacheValues = fieldDataCaches.values();
-        for (IndexFieldDataCache cache : fieldDataCacheValues) {
-            try {
-                cache.clear();
-            } catch (Exception e) {
-                exceptions.add(e);
-            }
-        }
-        fieldDataCacheValues.clear();
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+        // Since IndexFieldDataCache implementation is now tied to a single node-level IndicesFieldDataCache, it's safe to clear using that
+        // IndicesFieldDataCache.
+        indicesFieldDataCache.clear(index());
+        fieldDataCaches.clear();
+        // TODO: Exception handling? Dont think we need it now as the purpose is to rethrow several exceptions as one runtime exception, but
+        // we can just have it thrown as normal.
     }
 
     public synchronized void clearField(final String fieldName) {
-        List<Exception> exceptions = new ArrayList<>(0);
-        final IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);
-        if (cache != null) {
-            try {
-                cache.clear(fieldName);
-            } catch (Exception e) {
-                exceptions.add(e);
-            }
-        }
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+        indicesFieldDataCache.clear(index(), fieldName);
+        fieldDataCaches.remove(fieldName);
     }
 
     /**

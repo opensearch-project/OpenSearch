@@ -3360,7 +3360,6 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.indexSettings,
             indicesFieldDataCache,
             new NoneCircuitBreakerService(),
-            shard.mapperService(),
             shard.getThreadPool()
         );
         IndexFieldData.Global ifd = indexFieldDataService.getForField(foo, "test", () -> {

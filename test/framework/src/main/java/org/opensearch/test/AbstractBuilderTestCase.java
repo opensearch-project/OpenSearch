@@ -438,7 +438,6 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 idxSettings,
                 indicesFieldDataCache,
                 new NoneCircuitBreakerService(),
-                mapperService,
                 threadPool
             );
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {

@@ -81,7 +81,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         Property.NodeScope
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
-    private final Cache<Key, Accountable> cache;
+    final Cache<Key, Accountable> cache;
 
     public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
@@ -99,7 +99,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
-        return new IndexFieldCache(logger, cache, index, fieldName, indicesFieldDataCacheListener, listener);
+        return new IndexFieldCache(logger, this, index, fieldName, indicesFieldDataCacheListener, listener);
     }
 
     public Cache<Key, Accountable> getCache() {
@@ -128,6 +128,41 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     /**
+     * Clear all keys in the node-level cache which match the given index.
+     * @param index The index to clear
+     */
+    public void clear(Index index) {
+        // TODO: This is for testing only - this should get moved to a markForCleanup type method after i see if tests pass
+        for (Key key : cache.keys()) {
+            if (key.indexCache.index.equals(index)) {
+                cache.invalidate(key);
+            }
+        }
+        // force eviction
+        cache.refresh();
+    }
+
+    /**
+     * Clear all keys in the node-level cache which match the given index and field.
+     * @param index The index to clear
+     * @param field The field to clear
+     */
+    public void clear(Index index, String field) {
+        // TODO: This is for testing only - this should get moved to a markForCleanup type method after i see if tests pass
+        for (Key key : cache.keys()) {
+            if (key.indexCache.index.equals(index)) {
+                if (key.indexCache.fieldName.equals(field)) {
+                    cache.invalidate(key);
+                }
+            }
+        }
+        // we call refresh because this is a manual operation, should happen
+        // rarely and probably means the user wants to see memory returned as
+        // soon as possible
+        cache.refresh();
+    }
+
+    /**
      * Computes a weight based on ramBytesUsed
      *
      * @opensearch.internal
@@ -149,15 +184,15 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         private final Logger logger;
         final Index index;
         final String fieldName;
-        private final Cache<Key, Accountable> cache;
+        final IndicesFieldDataCache nodeLevelCache;
         private final Listener[] listeners;
 
-        IndexFieldCache(Logger logger, final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
+        IndexFieldCache(Logger logger, final IndicesFieldDataCache nodeLevelCache, Index index, String fieldName, Listener... listeners) {
             this.logger = logger;
             this.listeners = listeners;
             this.index = index;
             this.fieldName = fieldName;
-            this.cache = cache;
+            this.nodeLevelCache = nodeLevelCache;
         }
 
         @Override
@@ -171,7 +206,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
             // noinspection unchecked
-            final Accountable accountable = cache.computeIfAbsent(key, k -> {
+            final Accountable accountable = nodeLevelCache.cache.computeIfAbsent(key, k -> {
                 cacheHelper.addClosedListener(IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
                 final LeafFieldData fieldData = indexFieldData.loadDirect(context);
@@ -201,7 +236,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
             // noinspection unchecked
-            final Accountable accountable = cache.computeIfAbsent(key, k -> {
+            final Accountable accountable = nodeLevelCache.cache.computeIfAbsent(key, k -> {
                 OpenSearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
                 final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
@@ -220,34 +255,20 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         public void onClose(CacheKey key) throws IOException {
-            cache.invalidate(new Key(this, key, null));
+            nodeLevelCache.cache.invalidate(new Key(this, key, null)); // TODO: Not sure on this
             // don't call cache.cleanUp here as it would have bad performance implications
         }
 
         @Override
         public void clear() {
-            for (Key key : cache.keys()) {
-                if (key.indexCache.index.equals(index)) {
-                    cache.invalidate(key);
-                }
-            }
-            // force eviction
-            cache.refresh();
+            // TODO: We need this method to work because of the interface, but we won't use it directly in the actual cache clear path.
+            nodeLevelCache.clear(index);
         }
 
         @Override
         public void clear(String fieldName) {
-            for (Key key : cache.keys()) {
-                if (key.indexCache.index.equals(index)) {
-                    if (key.indexCache.fieldName.equals(fieldName)) {
-                        cache.invalidate(key);
-                    }
-                }
-            }
-            // we call refresh because this is a manual operation, should happen
-            // rarely and probably means the user wants to see memory returned as
-            // soon as possible
-            cache.refresh();
+            // TODO: We need this method to work because of the interface, but we won't use it directly in the actual cache clear path.
+            nodeLevelCache.clear(index, fieldName);
         }
     }
 
