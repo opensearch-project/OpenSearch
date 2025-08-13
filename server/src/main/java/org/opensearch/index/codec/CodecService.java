@@ -53,7 +53,7 @@ import java.util.Map;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "3.3.0")
 public class CodecService {
 
     private final Map<String, Codec> codecs;

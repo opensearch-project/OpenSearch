@@ -630,7 +630,7 @@ public final class EngineConfig {
      *
      * @opensearch.api
      */
-    @PublicApi(since = "1.0.0")
+    @PublicApi(since = "3.3.0")
     public static class Builder {
         private ShardId shardId;
         private ThreadPool threadPool;
