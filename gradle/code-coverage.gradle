@@ -112,7 +112,7 @@ tasks.register('generateCoverageReports', Exec) {
 
 // Only attach to check task if tests.coverage.check is explicitly true
 // This allows CI to run coverage reports independently
-if (System.getProperty("tests.coverage.check", "false").toBoolean()) {
+if (System.getProperty("tests.coverage")) {
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
     dependsOn(
       tasks.named('testCodeCoverageReport', JacocoReport),
