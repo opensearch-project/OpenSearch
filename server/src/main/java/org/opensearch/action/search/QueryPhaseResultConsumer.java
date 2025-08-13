@@ -348,7 +348,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 checkCircuitBreaker();
                 if (hasFailure() || result.isNull()) {
                     result.consumeAll();
-                    if (result.isNull() && !hasFailure()) {
+                    if (result.isNull()) {
                         SearchShardTarget target = result.getSearchShardTarget();
                         emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
                     }
@@ -388,7 +388,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 // force the CircuitBreaker eval to ensure during buffering we did not hit the circuit breaker limit
                 addEstimateAndMaybeBreak(0);
             } catch (CircuitBreakingException e) {
-                resetCircuitBreaker();
+                resetCircuitBreakerForCurrentRequest();
                 // onPartialMergeFailure should only be invoked once since this is responsible for cancelling the
                 // search task
                 if (!hasFailure()) {
@@ -405,7 +405,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 return;
             }
             assert circuitBreakerBytes >= 0;
-            resetCircuitBreaker();
+            resetCircuitBreakerForCurrentRequest();
             failure.compareAndSet(null, exc);
             MergeTask task = runningTask.get();
             runningTask.compareAndSet(task, null);
@@ -422,9 +422,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
         }
 
-        private void resetCircuitBreaker() {
+        private void resetCircuitBreakerForCurrentRequest() {
             if (circuitBreakerBytes > 0) {
-                // make sure that we reset the circuit breaker
                 circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
                 circuitBreakerBytes = 0;
             }
