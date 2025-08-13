@@ -367,11 +367,6 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public String getIndexFieldName() {
-                return delegate.getIndexFieldName();
-            }
-
-            @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return new BytesValues(delegate.bytesValues(context), script.newInstance(context));
             }
@@ -513,11 +508,6 @@ public abstract class ValuesSource {
             @Override
             public boolean needsScores() {
                 return script.needs_score();
-            }
-
-            @Override
-            public String getIndexFieldName() {
-                return delegate.getIndexFieldName();
             }
 
             @Override
