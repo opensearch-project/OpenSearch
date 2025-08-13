@@ -77,6 +77,41 @@ reporting {
   }
 }
 
+// When generating coverage reports without re-running tests, use this approach:
+// 1. Run: ./gradlew check  (or any test tasks)
+// 2. Run: ./gradlew generateCoverageReports
+// This task generates coverage reports using existing test execution data without re-running tests
+
+// Wrapper task to generate all coverage reports without re-running tests
+// Usage: ./gradlew generateCoverageReports
+// Note: This task requires running tests first (e.g., ./gradlew check)
+tasks.register('generateCoverageReports', Exec) {
+  description = 'Generate all coverage reports using existing test execution data (without re-running tests)'
+  group = JavaBasePlugin.VERIFICATION_GROUP
+  
+  def gradlewCmd = System.getProperty("os.name").toLowerCase().contains("windows") ? "gradlew.bat" : "./gradlew"
+  
+  // Define the test task types that should be excluded
+  def testTasksToExclude = ['test', 'internalClusterTest', 'javaRestTest']
+  
+  // Build command line with dynamic exclusions
+  def args = ['testCodeCoverageReport', 'testCodeCoverageReportJavaRestTest']
+  testTasksToExclude.each { testType ->
+    args.addAll(['-x', testType])
+  }
+  
+  commandLine = [gradlewCmd] + args
+  
+  doFirst {
+    println "Generating coverage reports from existing test data..."
+    println "Excluding test tasks: ${testTasksToExclude.join(', ')}"
+  }
+  
+  doLast {
+    println "Coverage reports generated successfully!"
+  }
+}
+
 // Only attach to check task if tests.coverage.check is explicitly true
 // This allows CI to run coverage reports independently
 if (System.getProperty("tests.coverage.check", "false").toBoolean()) {
