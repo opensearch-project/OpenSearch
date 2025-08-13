@@ -41,8 +41,17 @@ public class SearchAfterBuilderProtoUtils {
         List<Object> values = new ArrayList<>();
 
         for (FieldValue fieldValue : searchAfterProto) {
-            if (fieldValue.hasFloat()) {
-                values.add(fieldValue.getFloat());
+            if (fieldValue.hasGeneralNumber()) {
+                org.opensearch.protobufs.GeneralNumber number = fieldValue.getGeneralNumber();
+                if (number.hasDoubleValue()) {
+                    values.add(number.getDoubleValue());
+                } else if (number.hasFloatValue()) {
+                    values.add(number.getFloatValue());
+                } else if (number.hasInt64Value()) {
+                    values.add(number.getInt64Value());
+                } else if (number.hasInt32Value()) {
+                    values.add(number.getInt32Value());
+                }
             } else if (fieldValue.hasString()) {
                 values.add(fieldValue.getString());
             } else if (fieldValue.hasBool()) {

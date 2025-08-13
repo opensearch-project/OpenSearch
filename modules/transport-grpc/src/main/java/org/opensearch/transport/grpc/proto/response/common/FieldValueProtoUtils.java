@@ -19,7 +19,7 @@ import java.util.Map;
 public class FieldValueProtoUtils {
 
     private FieldValueProtoUtils() {
-        // Utility class, no instances
+
     }
 
     /**
@@ -53,10 +53,26 @@ public class FieldValueProtoUtils {
 
         switch (javaObject) {
             case String s -> fieldValueBuilder.setString(s);
-            case Integer i -> fieldValueBuilder.setFloat(i.floatValue());
-            case Long l -> fieldValueBuilder.setFloat(l.floatValue());
-            case Double d -> fieldValueBuilder.setFloat(d.floatValue());
-            case Float f -> fieldValueBuilder.setFloat(f);
+            case Integer i -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                num.setInt32Value(i);
+                fieldValueBuilder.setGeneralNumber(num.build());
+            }
+            case Long l -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                num.setInt64Value(l);
+                fieldValueBuilder.setGeneralNumber(num.build());
+            }
+            case Double d -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                num.setDoubleValue(d);
+                fieldValueBuilder.setGeneralNumber(num.build());
+            }
+            case Float f -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                num.setFloatValue(f);
+                fieldValueBuilder.setGeneralNumber(num.build());
+            }
             case Boolean b -> fieldValueBuilder.setBool(b);
             case Enum<?> e -> fieldValueBuilder.setString(e.toString());
             case Map<?, ?> m -> {
@@ -66,8 +82,4 @@ public class FieldValueProtoUtils {
             default -> throw new IllegalArgumentException("Cannot convert " + javaObject + " to FieldValue");
         }
     }
-
-    // Note: The simplified FieldValue structure in 0.8.0-SNAPSHOT only supports
-    // bool, float, string, and null_value fields. Complex objects like maps
-    // are converted to string representations.
 }

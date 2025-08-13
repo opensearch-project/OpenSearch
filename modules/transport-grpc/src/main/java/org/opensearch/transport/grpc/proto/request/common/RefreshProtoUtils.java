@@ -36,7 +36,6 @@ public class RefreshProtoUtils {
             case REFRESH_WAIT_FOR:
                 return WriteRequest.RefreshPolicy.WAIT_UNTIL.getValue();
             case REFRESH_FALSE:
-            case REFRESH_BOOLEAN:
             case REFRESH_UNSPECIFIED:
             default:
                 return WriteRequest.RefreshPolicy.NONE.getValue();

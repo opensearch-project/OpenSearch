@@ -51,8 +51,17 @@ public class TermQueryBuilderProtoUtils {
 
         FieldValue fieldValue = termQueryProto.getValue();
 
-        if (fieldValue.hasFloat()) {
-            value = fieldValue.getFloat();
+        if (fieldValue.hasGeneralNumber()) {
+            org.opensearch.protobufs.GeneralNumber number = fieldValue.getGeneralNumber();
+            if (number.hasDoubleValue()) {
+                value = number.getDoubleValue();
+            } else if (number.hasFloatValue()) {
+                value = number.getFloatValue();
+            } else if (number.hasInt64Value()) {
+                value = number.getInt64Value();
+            } else if (number.hasInt32Value()) {
+                value = number.getInt32Value();
+            }
         } else if (fieldValue.hasString()) {
             value = fieldValue.getString();
         } else if (fieldValue.hasBool()) {

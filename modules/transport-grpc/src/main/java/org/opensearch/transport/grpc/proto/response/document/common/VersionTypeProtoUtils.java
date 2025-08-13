@@ -36,8 +36,6 @@ public class VersionTypeProtoUtils {
                 return VersionType.EXTERNAL_GTE;
             case VERSION_TYPE_INTERNAL:
                 return VersionType.INTERNAL;
-            case VERSION_TYPE_FORCE:
-                return VersionType.INTERNAL; // Map FORCE to INTERNAL as fallback
             case VERSION_TYPE_UNSPECIFIED:
             default:
                 return VersionType.INTERNAL;

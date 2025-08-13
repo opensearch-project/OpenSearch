@@ -8,7 +8,10 @@
 package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
+
+import java.util.Map;
 
 /**
  * Converter for Terms queries.
@@ -42,10 +45,23 @@ public class TermsQueryBuilderProtoConverter implements QueryBuilderProtoConvert
         }
 
         // Get the first entry from the map
-        String fieldName = termsQuery.getTermsMap().keySet().iterator().next();
-        org.opensearch.protobufs.TermsQueryField termsQueryField = termsQuery.getTermsMap().get(fieldName);
+        Map.Entry<String, org.opensearch.protobufs.TermsQueryField> entry = termsQuery.getTermsMap().entrySet().iterator().next();
+        String fieldName = entry.getKey();
+        org.opensearch.protobufs.TermsQueryField termsQueryField = entry.getValue();
 
-        // Note: This is a simplified conversion - the full fieldName context is lost
-        return TermsQueryBuilderProtoUtils.fromProto(termsQueryField);
+        org.opensearch.protobufs.TermsQueryValueType vt = termsQuery.hasValueType()
+            ? termsQuery.getValueType()
+            : org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_DEFAULT;
+
+        TermsQueryBuilder builder = TermsQueryBuilderProtoUtils.fromProto(fieldName, termsQueryField, vt);
+
+        if (termsQuery.hasBoost()) {
+            builder.boost(termsQuery.getBoost());
+        }
+        if (termsQuery.hasUnderscoreName()) {
+            builder.queryName(termsQuery.getUnderscoreName());
+        }
+
+        return builder;
     }
 }

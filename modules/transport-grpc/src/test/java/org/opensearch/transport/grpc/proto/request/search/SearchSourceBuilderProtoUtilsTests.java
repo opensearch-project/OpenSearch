@@ -527,7 +527,9 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf SearchRequestBody with searchAfter
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
             .addSearchAfter(FieldValue.newBuilder().setString("value1").build())
-            .addSearchAfter(FieldValue.newBuilder().setFloat(42.0f).build())
+            .addSearchAfter(
+                FieldValue.newBuilder().setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setFloatValue(42.0f)).build()
+            )
             .build();
 
         // Create a SearchSourceBuilder to populate

@@ -41,7 +41,9 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setField("test_field")
             .setUnderscoreName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setFloat(10.5f).build())
+            .setValue(
+                FieldValue.newBuilder().setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setFloatValue(10.5f)).build()
+            )
             .build();
 
         // Call the method under test
@@ -155,7 +157,9 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setField("test_field")
             .setUnderscoreName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setFloat(42.0f).build())
+            .setValue(
+                FieldValue.newBuilder().setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setFloatValue(42.0f)).build()
+            )
             .build();
 
         // Call the method under test
@@ -175,7 +179,11 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setField("test_field")
             .setUnderscoreName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setFloat(9223372036854775807.0f).build())
+            .setValue(
+                FieldValue.newBuilder()
+                    .setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setInt64Value(9223372036854775807L))
+                    .build()
+            )
             .build();
 
         // Call the method under test
@@ -184,7 +192,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
         assertEquals("Field name should match", "test_field", termQueryBuilder.fieldName());
-        assertEquals("Value should match", 9223372036854775807.0f, termQueryBuilder.value());
+        assertEquals("Value should match", 9223372036854775807L, termQueryBuilder.value());
         assertEquals("Boost should match", 2.0f, termQueryBuilder.boost(), 0.0f);
         assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
     }
@@ -195,7 +203,11 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setField("test_field")
             .setUnderscoreName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setFloat((float) 3.14159).build())
+            .setValue(
+                FieldValue.newBuilder()
+                    .setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setDoubleValue(3.14159))
+                    .build()
+            )
             .build();
 
         // Call the method under test
@@ -204,7 +216,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
         assertEquals("Field name should match", "test_field", termQueryBuilder.fieldName());
-        assertEquals("Value should match", (float) 3.14159, termQueryBuilder.value());
+        assertEquals("Value should match", 3.14159, termQueryBuilder.value());
         assertEquals("Boost should match", 2.0f, termQueryBuilder.boost(), 0.0f);
         assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
     }

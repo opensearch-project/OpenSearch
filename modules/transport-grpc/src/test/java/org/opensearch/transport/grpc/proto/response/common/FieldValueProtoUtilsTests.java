@@ -21,8 +21,9 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         FieldValue fieldValue = FieldValueProtoUtils.toProto(intValue);
 
         assertNotNull("FieldValue should not be null", fieldValue);
-        assertTrue("FieldValue should have float value", fieldValue.hasFloat());
-        assertEquals("Float value should match", 42.0f, fieldValue.getFloat(), 0.0f);
+        assertTrue("FieldValue should have general number", fieldValue.hasGeneralNumber());
+        assertTrue(fieldValue.getGeneralNumber().hasInt32Value());
+        assertEquals("Integer value should match", 42, fieldValue.getGeneralNumber().getInt32Value());
     }
 
     public void testToProtoWithLong() {
@@ -30,8 +31,9 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         FieldValue fieldValue = FieldValueProtoUtils.toProto(longValue);
 
         assertNotNull("FieldValue should not be null", fieldValue);
-        assertTrue("FieldValue should have float value", fieldValue.hasFloat());
-        assertEquals("Float value should match", 9223372036854775807L, fieldValue.getFloat(), 0.0f);
+        assertTrue("FieldValue should have general number", fieldValue.hasGeneralNumber());
+        assertTrue(fieldValue.getGeneralNumber().hasInt64Value());
+        assertEquals("Long value should match", 9223372036854775807L, fieldValue.getGeneralNumber().getInt64Value());
     }
 
     public void testToProtoWithDouble() {
@@ -39,8 +41,9 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         FieldValue fieldValue = FieldValueProtoUtils.toProto(doubleValue);
 
         assertNotNull("FieldValue should not be null", fieldValue);
-        assertTrue("FieldValue should have float value", fieldValue.hasFloat());
-        assertEquals("Float value should match", 3.14159f, fieldValue.getFloat(), 0.001f);
+        assertTrue("FieldValue should have general number", fieldValue.hasGeneralNumber());
+        assertTrue(fieldValue.getGeneralNumber().hasDoubleValue());
+        assertEquals("Double value should match", 3.14159, fieldValue.getGeneralNumber().getDoubleValue(), 0.001);
     }
 
     public void testToProtoWithFloat() {
@@ -48,8 +51,9 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         FieldValue fieldValue = FieldValueProtoUtils.toProto(floatValue);
 
         assertNotNull("FieldValue should not be null", fieldValue);
-        assertTrue("FieldValue should have float value", fieldValue.hasFloat());
-        assertEquals("Float value should match", 2.71828f, fieldValue.getFloat(), 0.0f);
+        assertTrue("FieldValue should have general number", fieldValue.hasGeneralNumber());
+        assertTrue(fieldValue.getGeneralNumber().hasFloatValue());
+        assertEquals("Float value should match", 2.71828f, fieldValue.getGeneralNumber().getFloatValue(), 0.0f);
     }
 
     public void testToProtoWithString() {

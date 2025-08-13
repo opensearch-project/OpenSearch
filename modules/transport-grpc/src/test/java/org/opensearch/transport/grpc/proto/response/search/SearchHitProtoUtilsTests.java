@@ -53,7 +53,9 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("SeqNo should match", 4, hit.getUnderscoreSeqNo());
         assertEquals("PrimaryTerm should match", 5, hit.getUnderscorePrimaryTerm());
         assertEquals("Should have one score value", 1, hit.getScoreCount());
-        assertEquals("Score should match", 2.0f, hit.getScore(0).getFloat(), 0.0f);
+        assertTrue("Score should have general number", hit.getScore(0).hasGeneralNumber());
+        assertTrue(hit.getScore(0).getGeneralNumber().hasFloatValue());
+        assertEquals("Score should match", 2.0f, hit.getScore(0).getGeneralNumber().getFloatValue(), 0.0f);
     }
 
     public void testToProtoWithNullScore() throws IOException {

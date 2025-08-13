@@ -7,98 +7,110 @@
  */
 package org.opensearch.transport.grpc.proto.request.search.query;
 
-import com.google.protobuf.ProtocolStringList;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
+import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.FieldValueArray;
 import org.opensearch.protobufs.TermsQueryField;
+import org.opensearch.protobufs.TermsQueryValueType;
 import org.opensearch.protobufs.ValueType;
 
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
-import static org.opensearch.index.query.AbstractQueryBuilder.maybeConvertToBytesRef;
-
 /**
- * Utility class for converting TermQuery Protocol Buffers to OpenSearch objects.
- * This class provides methods to transform Protocol Buffer representations of term queries
- * into their corresponding OpenSearch TermQueryBuilder implementations for search operations.
+ * Utility class for converting Terms query Protocol Buffers to OpenSearch objects.
+ * This class provides methods to transform Protocol Buffer representations of terms queries
+ * into their corresponding OpenSearch TermsQueryBuilder implementations for search operations.
+ * Similar to {@link TermsQueryBuilder#fromXContent(XContentParser)}.
  */
 public class TermsQueryBuilderProtoUtils {
 
     private TermsQueryBuilderProtoUtils() {
-        // Utility class, no instances
+
     }
 
     /**
-     * Converts a Protocol Buffer TermQuery map to an OpenSearch TermQueryBuilder.
-     * Similar to {@link TermsQueryBuilder#fromXContent(XContentParser)}, this method
-     * parses the Protocol Buffer representation and creates a properly configured
-     * TermQueryBuilder with the appropriate field name, value, boost, query name,
-     * and case sensitivity settings.
-     *
-     * @param termsQueryProto The map of field names to Protocol Buffer TermsQuery objects
-     * @return A configured TermQueryBuilder instance
-     * @throws IllegalArgumentException if the term query map has more than one element,
-     *         if the field value type is not supported, or if the term query field value is not recognized
+     * Builds a TermsQueryBuilder from a field name, TermsQueryField oneof, and value_type.
+     * @param fieldName the field name (from the terms map key)
+     * @param termsQueryField the protobuf oneof (field_value_array or lookup)
+     * @param valueTypeProto the container-level value_type
+     * @return configured TermsQueryBuilder
+     * @throws IllegalArgumentException if neither values nor lookup is set, or if bitmap validation fails
      */
-    protected static TermsQueryBuilder fromProto(TermsQueryField termsQueryProto) {
+    protected static TermsQueryBuilder fromProto(String fieldName, TermsQueryField termsQueryField, TermsQueryValueType valueTypeProto) {
+        if (fieldName == null || fieldName.isEmpty()) {
+            throw new IllegalArgumentException("fieldName must be provided");
+        }
 
-        String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
 
-        String queryName = null;
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        String valueTypeStr = TermsQueryBuilder.ValueType.DEFAULT.name();
+        switch (termsQueryField.getTermsQueryFieldCase()) {
+            case FIELD_VALUE_ARRAY:
+                values = parseFieldValueArray(termsQueryField.getFieldValueArray());
+                break;
+            case LOOKUP:
+                termsLookup = parseTermsLookup(termsQueryField.getLookup());
+                break;
+            case TERMSQUERYFIELD_NOT_SET:
+            default:
 
-        // Note: In the simplified TermsQueryField structure, boost, underscore_name, and value_type
-        // fields are not available. Using default values.
+        }
 
-        // TODO: The TermsQueryField structure has been significantly simplified in 0.8.0-SNAPSHOT.
-        // This code needs to be rewritten to handle the new oneof structure with field_value_array and lookup.
-        // For now, providing a basic implementation that will compile.
+        if (values == null && termsLookup == null) {
+            throw new IllegalArgumentException("Either field_value_array or lookup must be set");
+        }
 
-        // Simplified handling - just use empty values for now
-        fieldName = "simplified_field";
-        values = new java.util.ArrayList<>();
-
-        TermsQueryBuilder.ValueType valueType = TermsQueryBuilder.ValueType.fromString(valueTypeStr);
+        TermsQueryBuilder.ValueType valueType = parseValueType(valueTypeProto);
 
         if (valueType == TermsQueryBuilder.ValueType.BITMAP) {
-            if (values != null && values.size() == 1 && values.get(0) instanceof BytesRef) {
-                values.set(0, new BytesArray(Base64.getDecoder().decode(((BytesRef) values.get(0)).utf8ToString())));
+            if (values != null && values.size() == 1) {
+                Object v = values.get(0);
+                if (v instanceof BytesRef) {
+                    byte[] decoded = Base64.getDecoder().decode(((BytesRef) v).utf8ToString());
+                    values.set(0, new BytesArray(decoded));
+                } else if (v instanceof String) {
+                    byte[] decoded = Base64.getDecoder().decode((String) v);
+                    values.set(0, new BytesArray(decoded));
+                } else {
+                    throw new IllegalArgumentException("Invalid value for bitmap type");
+                }
             } else if (termsLookup == null) {
-                throw new IllegalArgumentException(
-                    "Invalid value for bitmap type: Expected a single-element array with a base64 encoded serialized bitmap."
-                );
+                throw new IllegalArgumentException("Bitmap type requires a single base64 value or a lookup");
             }
         }
 
-        TermsQueryBuilder termsQueryBuilder;
-        if (values == null) {
-            termsQueryBuilder = new TermsQueryBuilder(fieldName, termsLookup);
-        } else if (termsLookup == null) {
-            termsQueryBuilder = new TermsQueryBuilder(fieldName, values);
-        } else {
-            throw new IllegalArgumentException("values and termsLookup cannot both be null");
-        }
+        TermsQueryBuilder termsQueryBuilder = (values != null)
+            ? new TermsQueryBuilder(fieldName, values)
+            : new TermsQueryBuilder(fieldName, termsLookup);
 
-        return termsQueryBuilder.boost(boost).queryName(queryName).valueType(valueType);
+        return termsQueryBuilder.valueType(valueType);
+    }
+
+    private static TermsLookup parseTermsLookup(org.opensearch.protobufs.TermsLookup lookup) {
+        if (lookup == null) {
+            return null;
+        }
+        TermsLookup tl = new TermsLookup(lookup.getIndex(), lookup.getId(), lookup.getPath());
+        if (lookup.hasRouting()) {
+            tl.routing(lookup.getRouting());
+        }
+        if (lookup.hasStore()) {
+            tl.store(lookup.getStore());
+        }
+        return tl;
     }
 
     /**
-     * Parses a protobuf ScriptLanguage to a String representation
+     * Map protobuf {@link ValueType} to {@link TermsQueryBuilder.ValueType}.
      *
-     * See {@link org.opensearch.index.query.TermsQueryBuilder.ValueType#fromString(String)}  }
-     * *
-     * @param valueType the Protocol Buffer ValueType to convert
-     * @return the string representation of the script language
-     * @throws UnsupportedOperationException if no language was specified
+     * @param valueType the  protobuf value type to convert
+     * @return the corresponding {@link TermsQueryBuilder.ValueType}
      */
     public static TermsQueryBuilder.ValueType parseValueType(ValueType valueType) {
         switch (valueType) {
@@ -113,21 +125,50 @@ public class TermsQueryBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link TermsQueryBuilder#parseValues(XContentParser)}
-     * @param termsLookupFieldStringArray
-     * @return
-     * @throws IllegalArgumentException
+     * Map protobuf {@link TermsQueryValueType} to {@link TermsQueryBuilder.ValueType}.
+     *
+     * @param valueType the protobuf value type to convert
+     * @return the corresponding {@link TermsQueryBuilder.ValueType}
      */
-    static List<Object> parseValues(ProtocolStringList termsLookupFieldStringArray) throws IllegalArgumentException {
-        List<Object> values = new ArrayList<>();
+    public static TermsQueryBuilder.ValueType parseValueType(TermsQueryValueType valueType) {
+        switch (valueType) {
+            case TERMS_QUERY_VALUE_TYPE_BITMAP:
+                return TermsQueryBuilder.ValueType.BITMAP;
+            case TERMS_QUERY_VALUE_TYPE_DEFAULT:
+            case TERMS_QUERY_VALUE_TYPE_UNSPECIFIED:
+            default:
+                return TermsQueryBuilder.ValueType.DEFAULT;
+        }
+    }
 
-        for (Object value : termsLookupFieldStringArray) {
-            Object convertedValue = maybeConvertToBytesRef(value);
-            if (value == null) {
-                throw new IllegalArgumentException("No value specified for terms query");
-            }
-            values.add(convertedValue);
+    /** Parse FieldValueArray into a List of Java values. */
+    private static List<Object> parseFieldValueArray(FieldValueArray fieldValueArray) {
+        List<Object> values = new ArrayList<>(fieldValueArray.getFieldValueArrayCount());
+        for (FieldValue fv : fieldValueArray.getFieldValueArrayList()) {
+            values.add(parseFieldValue(fv));
         }
         return values;
+    }
+
+    private static Object parseFieldValue(FieldValue fieldValue) {
+        if (fieldValue.hasString()) {
+            return fieldValue.getString();
+        } else if (fieldValue.hasBool()) {
+            return fieldValue.getBool();
+        } else if (fieldValue.hasGeneralNumber()) {
+            org.opensearch.protobufs.GeneralNumber number = fieldValue.getGeneralNumber();
+            if (number.hasDoubleValue()) {
+                return number.getDoubleValue();
+            } else if (number.hasFloatValue()) {
+                return number.getFloatValue();
+            } else if (number.hasInt64Value()) {
+                return number.getInt64Value();
+            } else if (number.hasInt32Value()) {
+                return number.getInt32Value();
+            }
+        } else if (fieldValue.hasNullValue()) {
+            return null;
+        }
+        throw new IllegalArgumentException("Unsupported FieldValue variant");
     }
 }

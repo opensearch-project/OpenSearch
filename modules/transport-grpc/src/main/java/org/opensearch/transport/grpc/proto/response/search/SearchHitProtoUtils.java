@@ -153,7 +153,9 @@ public class SearchHitProtoUtils {
         // Process score - now it's a repeated FieldValue field
         if (!Float.isNaN(hit.getScore())) {
             org.opensearch.protobufs.FieldValue.Builder fieldValueBuilder = org.opensearch.protobufs.FieldValue.newBuilder();
-            fieldValueBuilder.setFloat(hit.getScore());
+            org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+            num.setFloatValue(hit.getScore());
+            fieldValueBuilder.setGeneralNumber(num.build());
             hitBuilder.addScore(fieldValueBuilder.build());
         }
     }

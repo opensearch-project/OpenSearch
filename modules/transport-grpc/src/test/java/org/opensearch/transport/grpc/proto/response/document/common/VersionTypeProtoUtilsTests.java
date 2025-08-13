@@ -16,13 +16,13 @@ public class VersionTypeProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithVersionTypeExternal() {
         VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL);
 
-        assertEquals("VERSION_TYPE_EXTERNAL should convert to VersionType.EXTERNAL", VersionType.EXTERNAL, result);
+        assertEquals("Should map to EXTERNAL", VersionType.EXTERNAL, result);
     }
 
     public void testFromProtoWithVersionTypeExternalGte() {
         VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL_GTE);
 
-        assertEquals("VERSION_TYPE_EXTERNAL_GTE should convert to VersionType.EXTERNAL_GTE", VersionType.EXTERNAL_GTE, result);
+        assertEquals("Should map to EXTERNAL_GTE", VersionType.EXTERNAL_GTE, result);
     }
 
     public void testFromProtoWithDefaultCase() {
@@ -35,12 +35,6 @@ public class VersionTypeProtoUtilsTests extends OpenSearchTestCase {
         VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.UNRECOGNIZED);
 
         assertEquals("UNRECOGNIZED should default to VersionType.INTERNAL", VersionType.INTERNAL, result);
-    }
-
-    public void testFromProtoWithVersionTypeForce() {
-        VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_FORCE);
-
-        assertEquals("VERSION_TYPE_FORCE should convert to VersionType.INTERNAL", VersionType.INTERNAL, result);
     }
 
     public void testFromProtoWithVersionTypeUnspecified() {
@@ -66,12 +60,6 @@ public class VersionTypeProtoUtilsTests extends OpenSearchTestCase {
             "VERSION_TYPE_INTERNAL should convert to VersionType.INTERNAL",
             VersionType.INTERNAL,
             VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_INTERNAL)
-        );
-
-        assertEquals(
-            "VERSION_TYPE_FORCE should convert to VersionType.INTERNAL",
-            VersionType.INTERNAL,
-            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_FORCE)
         );
 
         assertEquals(
