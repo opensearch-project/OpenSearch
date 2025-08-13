@@ -52,10 +52,11 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Version should match", 3, hit.getUnderscoreVersion());
         assertEquals("SeqNo should match", 4, hit.getUnderscoreSeqNo());
         assertEquals("PrimaryTerm should match", 5, hit.getUnderscorePrimaryTerm());
-        assertEquals("Should have one score value", 1, hit.getScoreCount());
-        assertTrue("Score should have general number", hit.getScore(0).hasGeneralNumber());
-        assertTrue(hit.getScore(0).getGeneralNumber().hasFloatValue());
-        assertEquals("Score should match", 2.0f, hit.getScore(0).getGeneralNumber().getFloatValue(), 0.0f);
+
+        // Verify the new HitUnderscoreScore structure
+        assertTrue("Score should be set", hit.hasScore());
+        assertEquals("Score should match", 2.0, hit.getScore().getDouble(), 0.0);
+        assertFalse("Score should not be null", hit.getScore().hasNullValue());
     }
 
     public void testToProtoWithNullScore() throws IOException {
@@ -68,7 +69,13 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertEquals("Score should be empty for NaN", 0, hit.getScoreCount());
+        assertTrue("Score should be set for NaN", hit.hasScore());
+        assertTrue("Score should have null value for NaN", hit.getScore().hasNullValue());
+        assertEquals(
+            "Score null value should be NULL_VALUE_NULL",
+            org.opensearch.protobufs.NullValue.NULL_VALUE_NULL,
+            hit.getScore().getNullValue()
+        );
     }
 
     public void testToProtoWithSource() throws IOException {
@@ -252,5 +259,41 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Nested identity should be set", hit.hasUnderscoreNested());
         assertEquals("Nested field should match", "parent_field", hit.getUnderscoreNested().getField());
         assertEquals("Nested offset should match", 5, hit.getUnderscoreNested().getOffset());
+    }
+
+    public void testToProtoWithHitUnderscoreScoreStructure() throws IOException {
+
+        // Test with a valid score
+        SearchHit searchHitWithScore = new SearchHit(1);
+        searchHitWithScore.score(3.14159f);
+
+        HitsMetadataHitsInner hitWithScore = SearchHitProtoUtils.toProto(searchHitWithScore);
+
+        assertNotNull("Hit with score should not be null", hitWithScore);
+        assertTrue("Score should be set", hitWithScore.hasScore());
+        assertEquals("Score value should match", 3.14159, hitWithScore.getScore().getDouble(), 0.00001);
+        assertFalse("Score should not have null value", hitWithScore.getScore().hasNullValue());
+
+        // Test with zero score
+        SearchHit searchHitWithZeroScore = new SearchHit(2);
+        searchHitWithZeroScore.score(0.0f);
+
+        HitsMetadataHitsInner hitWithZeroScore = SearchHitProtoUtils.toProto(searchHitWithZeroScore);
+
+        assertNotNull("Hit with zero score should not be null", hitWithZeroScore);
+        assertTrue("Score should be set", hitWithZeroScore.hasScore());
+        assertEquals("Zero score value should match", 0.0, hitWithZeroScore.getScore().getDouble(), 0.0);
+        assertFalse("Zero score should not have null value", hitWithZeroScore.getScore().hasNullValue());
+
+        // Test with negative score
+        SearchHit searchHitWithNegativeScore = new SearchHit(3);
+        searchHitWithNegativeScore.score(-1.5f);
+
+        HitsMetadataHitsInner hitWithNegativeScore = SearchHitProtoUtils.toProto(searchHitWithNegativeScore);
+
+        assertNotNull("Hit with negative score should not be null", hitWithNegativeScore);
+        assertTrue("Score should be set", hitWithNegativeScore.hasScore());
+        assertEquals("Negative score value should match", -1.5, hitWithNegativeScore.getScore().getDouble(), 0.0);
+        assertFalse("Negative score should not have null value", hitWithNegativeScore.getScore().hasNullValue());
     }
 }

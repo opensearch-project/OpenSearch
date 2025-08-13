@@ -116,27 +116,27 @@ public class SearchHitProtoUtils {
      * @param hitBuilder The builder to populate with the basic information
      */
     private static void processBasicInfo(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
-        // Set index if available (now underscore_index)
+        // Set index if available
         if (hit.getIndex() != null) {
             hitBuilder.setUnderscoreIndex(RemoteClusterAware.buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex()));
         }
 
-        // Set ID if available (now underscore_id)
+        // Set ID if available
         if (hit.getId() != null) {
             hitBuilder.setUnderscoreId(hit.getId());
         }
 
-        // Set nested identity if available (now underscore_nested)
+        // Set nested identity if available
         if (hit.getNestedIdentity() != null) {
             hitBuilder.setUnderscoreNested(NestedIdentityProtoUtils.toProto(hit.getNestedIdentity()));
         }
 
-        // Set version if available (now underscore_version)
+        // Set version if available
         if (hit.getVersion() != -1) {
             hitBuilder.setUnderscoreVersion(hit.getVersion());
         }
 
-        // Set sequence number and primary term if available (now underscore_seq_no and underscore_primary_term)
+        // Set sequence number and primary term if available
         if (hit.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             hitBuilder.setUnderscoreSeqNo(hit.getSeqNo());
             hitBuilder.setUnderscorePrimaryTerm(hit.getPrimaryTerm());
@@ -150,13 +150,15 @@ public class SearchHitProtoUtils {
      * @param hitBuilder The builder to populate with the score information
      */
     private static void processScore(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
-        // Process score - now it's a repeated FieldValue field
         if (!Float.isNaN(hit.getScore())) {
-            org.opensearch.protobufs.FieldValue.Builder fieldValueBuilder = org.opensearch.protobufs.FieldValue.newBuilder();
-            org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
-            num.setFloatValue(hit.getScore());
-            fieldValueBuilder.setGeneralNumber(num.build());
-            hitBuilder.addScore(fieldValueBuilder.build());
+            org.opensearch.protobufs.HitUnderscoreScore.Builder scoreBuilder = org.opensearch.protobufs.HitUnderscoreScore.newBuilder();
+            scoreBuilder.setDouble(hit.getScore());
+            hitBuilder.setScore(scoreBuilder.build());
+        } else {
+            // Handle null/NaN score case
+            org.opensearch.protobufs.HitUnderscoreScore.Builder scoreBuilder = org.opensearch.protobufs.HitUnderscoreScore.newBuilder();
+            scoreBuilder.setNullValue(org.opensearch.protobufs.NullValue.NULL_VALUE_NULL);
+            hitBuilder.setScore(scoreBuilder.build());
         }
     }
 

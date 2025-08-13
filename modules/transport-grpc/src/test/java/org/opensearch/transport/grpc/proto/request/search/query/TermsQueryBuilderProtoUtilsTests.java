@@ -15,6 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -242,6 +243,196 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(
             TermsQueryBuilder.ValueType.DEFAULT,
             TermsQueryBuilderProtoUtils.parseValueType(org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_UNSPECIFIED)
+        );
+    }
+
+    public void testFromProtoWithTermsQuery() {
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build();
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
+            .setFieldValueArray(fva)
+            .build();
+
+        org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
+            .putTerms("test_field", termsQueryField)
+            .setBoost(2.0f)
+            .setUnderscoreName("test_query")
+            .build();
+
+        TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(termsQuery);
+
+        assertNotNull("Result should not be null", result);
+        assertEquals("Field name should match", "test_field", result.fieldName());
+        assertEquals("Boost should be set", 2.0f, result.boost(), 0.0f);
+        assertEquals("Query name should be set", "test_query", result.queryName());
+        assertEquals("Value type should be DEFAULT", TermsQueryBuilder.ValueType.DEFAULT, result.valueType());
+        assertEquals("Values should have 1 entry", 1, result.values().size());
+        assertEquals("First value should match", "test_value", result.values().get(0));
+    }
+
+    public void testFromProtoWithTermsQueryNullInput() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> TermsQueryBuilderProtoUtils.fromProto((org.opensearch.protobufs.TermsQuery) null)
+        );
+    }
+
+    public void testFromProtoWithTermsQueryEmptyMap() {
+        org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder().build();
+
+        assertThrows(IllegalArgumentException.class, () -> TermsQueryBuilderProtoUtils.fromProto(termsQuery));
+    }
+
+    public void testFromProtoWithTermsQueryMultipleFields() {
+        org.opensearch.protobufs.FieldValue fv1 = org.opensearch.protobufs.FieldValue.newBuilder().setString("value1").build();
+        org.opensearch.protobufs.FieldValue fv2 = org.opensearch.protobufs.FieldValue.newBuilder().setString("value2").build();
+        org.opensearch.protobufs.FieldValueArray fva1 = org.opensearch.protobufs.FieldValueArray.newBuilder()
+            .addFieldValueArray(fv1)
+            .build();
+        org.opensearch.protobufs.FieldValueArray fva2 = org.opensearch.protobufs.FieldValueArray.newBuilder()
+            .addFieldValueArray(fv2)
+            .build();
+
+        org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
+            .putTerms("field1", org.opensearch.protobufs.TermsQueryField.newBuilder().setFieldValueArray(fva1).build())
+            .putTerms("field2", org.opensearch.protobufs.TermsQueryField.newBuilder().setFieldValueArray(fva2).build())
+            .build();
+
+        assertThrows(IllegalArgumentException.class, () -> TermsQueryBuilderProtoUtils.fromProto(termsQuery));
+    }
+
+    public void testFromProtoWithTermsQueryLookup() {
+        // Test the fromProto(TermsQuery) method with lookup
+        org.opensearch.protobufs.TermsLookup lookup = org.opensearch.protobufs.TermsLookup.newBuilder()
+            .setIndex("test_index")
+            .setId("test_id")
+            .setPath("test_path")
+            .setRouting("test_routing")
+            .build();
+
+        org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
+            .setLookup(lookup)
+            .build();
+
+        org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
+            .putTerms("lookup_field", termsQueryField)
+            .setBoost(1.5f)
+            .setUnderscoreName("lookup_query")
+            .build();
+
+        TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(termsQuery);
+
+        assertNotNull("Result should not be null", result);
+        assertEquals("Field name should match", "lookup_field", result.fieldName());
+        assertEquals("Boost should be set", 1.5f, result.boost(), 0.0f);
+        assertEquals("Query name should be set", "lookup_query", result.queryName());
+        assertNotNull("TermsLookup should be set", result.termsLookup());
+        assertEquals("Index should match", "test_index", result.termsLookup().index());
+        assertEquals("ID should match", "test_id", result.termsLookup().id());
+        assertEquals("Path should match", "test_path", result.termsLookup().path());
+        assertEquals("Routing should match", "test_routing", result.termsLookup().routing());
+    }
+
+    public void testFromProtoWithTermsQueryDefaultValues() {
+        // Test the fromProto(TermsQuery) method with default values
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("default_value").build();
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
+            .setFieldValueArray(fva)
+            .build();
+
+        org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
+            .putTerms("default_field", termsQueryField)
+            .build();
+
+        TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(termsQuery);
+
+        assertNotNull("Result should not be null", result);
+        assertEquals("Field name should match", "default_field", result.fieldName());
+        assertEquals("Boost should be default", 1.0f, result.boost(), 0.0f);
+        assertNull("Query name should be null", result.queryName());
+        assertEquals("Value type should be default", TermsQueryBuilder.ValueType.DEFAULT, result.valueType());
+    }
+
+    public void testFromProtoWithTermsQueryBitmapValueType() {
+        // Test the fromProto(TermsQuery) method with bitmap value type
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("AQI=").build(); // base64 for
+                                                                                                                             // {1,2}
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
+            .setFieldValueArray(fva)
+            .build();
+
+        org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
+            .putTerms("bitmap_field", termsQueryField)
+            .setValueType(org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_BITMAP)
+            .build();
+
+        TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(termsQuery);
+
+        assertNotNull("Result should not be null", result);
+        assertEquals("Field name should match", "bitmap_field", result.fieldName());
+        assertEquals("Value type should be BITMAP", TermsQueryBuilder.ValueType.BITMAP, result.valueType());
+        assertEquals("Values should have 1 entry", 1, result.values().size());
+        assertTrue("Value should be BytesArray", result.values().get(0) instanceof org.opensearch.core.common.bytes.BytesArray);
+    }
+
+    public void testFromProtoWithTermsQueryNullValueType() {
+        // Test the fromProto(TermsQuery) method with null value type (should default to DEFAULT)
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build();
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
+            .setFieldValueArray(fva)
+            .build();
+
+        org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
+            .putTerms("test_field", termsQueryField)
+            .build();
+
+        TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(termsQuery);
+
+        assertNotNull("Result should not be null", result);
+        assertEquals("Value type should default to DEFAULT", TermsQueryBuilder.ValueType.DEFAULT, result.valueType());
+    }
+
+    public void testFromProtoWithTermsQueryUnspecifiedValueType() {
+        // Test the fromProto(TermsQuery) method with UNSPECIFIED value type (should default to DEFAULT)
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build();
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
+            .setFieldValueArray(fva)
+            .build();
+
+        org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
+            .putTerms("test_field", termsQueryField)
+            .setValueType(org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_UNSPECIFIED)
+            .build();
+
+        TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(termsQuery);
+
+        assertNotNull("Result should not be null", result);
+        assertEquals("Value type should default to DEFAULT for UNSPECIFIED", TermsQueryBuilder.ValueType.DEFAULT, result.valueType());
+    }
+
+    public void testFromProtoWithTermsQueryBitmapInvalidMultipleValues() {
+        String fieldName = "bitmap_field";
+        org.opensearch.protobufs.FieldValue fv1 = org.opensearch.protobufs.FieldValue.newBuilder().setString("AQI=").build();
+        org.opensearch.protobufs.FieldValue fv2 = org.opensearch.protobufs.FieldValue.newBuilder().setString("AQI=").build();
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder()
+            .addFieldValueArray(fv1)
+            .addFieldValueArray(fv2)
+            .build();
+        org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
+            .setFieldValueArray(fva)
+            .build();
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> TermsQueryBuilderProtoUtils.fromProto(
+                fieldName,
+                termsQueryField,
+                org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_BITMAP
+            )
         );
     }
 }
