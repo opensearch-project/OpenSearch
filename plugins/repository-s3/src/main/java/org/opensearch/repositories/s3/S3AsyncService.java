@@ -88,10 +88,6 @@ class S3AsyncService implements Closeable {
     S3AsyncService(final Path configPath, @Nullable ScheduledExecutorService clientExecutorService) {
 
         staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
-            .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath))
-            .immutableMap();
-
-        staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
             .put(
                 buildClientName("default", S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE),
                 S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath)
