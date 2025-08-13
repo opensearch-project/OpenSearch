@@ -65,19 +65,21 @@ allprojects {
   }
 }
 
-if (System.getProperty("tests.coverage")) {
-  reporting {
-    reports {
-      testCodeCoverageReport(JacocoCoverageReport) {
-        testSuiteName = "test"
-      }
-      testCodeCoverageReportJavaRestTest(JacocoCoverageReport) {
-        testSuiteName = "javaRestTest"
-      }
+// Always register the coverage report tasks (not just when tests.coverage is set)
+reporting {
+  reports {
+    testCodeCoverageReport(JacocoCoverageReport) {
+      testSuiteName = "test"
+    }
+    testCodeCoverageReportJavaRestTest(JacocoCoverageReport) {
+      testSuiteName = "javaRestTest"
     }
   }
+}
 
-  // Attach code coverage report task to Gradle check task
+// Only attach to check task if tests.coverage.check is explicitly true
+// This allows CI to run coverage reports independently
+if (System.getProperty("tests.coverage.check", "false").toBoolean()) {
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
     dependsOn(
       tasks.named('testCodeCoverageReport', JacocoReport),
