@@ -1123,6 +1123,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertEquals(2, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs, instanceOf(CollapseTopFieldDocs.class));
+        for (ScoreDoc scoreDoc: context.queryResult().topDocs().topDocs.scoreDocs) {
+            assertEquals(-1, scoreDoc.shardIndex);
+        }
 
         CollapseTopFieldDocs topDocs = (CollapseTopFieldDocs) context.queryResult().topDocs().topDocs;
         assertThat(topDocs.collapseValues.length, equalTo(2));
@@ -1135,6 +1138,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertEquals(2, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs, instanceOf(CollapseTopFieldDocs.class));
+        for (ScoreDoc scoreDoc: context.queryResult().topDocs().topDocs.scoreDocs) {
+            assertEquals(-1, scoreDoc.shardIndex);
+        }
 
         topDocs = (CollapseTopFieldDocs) context.queryResult().topDocs().topDocs;
         assertThat(topDocs.collapseValues.length, equalTo(2));
@@ -1147,6 +1153,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertEquals(2, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs, instanceOf(CollapseTopFieldDocs.class));
+        for (ScoreDoc scoreDoc: context.queryResult().topDocs().topDocs.scoreDocs) {
+            assertEquals(-1, scoreDoc.shardIndex);
+        }
 
         topDocs = (CollapseTopFieldDocs) context.queryResult().topDocs().topDocs;
         assertThat(topDocs.collapseValues.length, equalTo(2));
