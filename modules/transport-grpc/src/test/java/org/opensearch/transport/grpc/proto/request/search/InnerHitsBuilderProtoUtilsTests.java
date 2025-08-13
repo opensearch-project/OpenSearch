@@ -199,7 +199,7 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setFilter(SourceFilter.newBuilder().addIncludes("include1").addIncludes("include2").addExcludes("exclude1").build())
             .build();
 
-        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setUnderscoreSource(sourceContext).build();
+        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setXSource(sourceContext).build();
 
         // Call the method under test
         InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(Collections.singletonList(innerHits));

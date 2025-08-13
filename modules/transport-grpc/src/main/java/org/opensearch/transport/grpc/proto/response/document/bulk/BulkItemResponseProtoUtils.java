@@ -58,11 +58,11 @@ public class BulkItemResponseProtoUtils {
             BulkItemResponse.Failure failure = response.getFailure();
             responseItemBuilder = ResponseItem.newBuilder();
 
-            responseItemBuilder.setUnderscoreIndex(failure.getIndex());
+            responseItemBuilder.setXIndex(failure.getIndex());
             if (response.getId().isEmpty()) {
-                responseItemBuilder.setUnderscoreId(Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
+                responseItemBuilder.setXId(Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
             } else {
-                responseItemBuilder.setUnderscoreId(Id.newBuilder().setString(response.getId()).build());
+                responseItemBuilder.setXId(Id.newBuilder().setString(response.getId()).build());
             }
             int grpcStatusCode = RestToGrpcStatusConverter.getGrpcStatusCode(failure.getStatus());
             responseItemBuilder.setStatus(grpcStatusCode);

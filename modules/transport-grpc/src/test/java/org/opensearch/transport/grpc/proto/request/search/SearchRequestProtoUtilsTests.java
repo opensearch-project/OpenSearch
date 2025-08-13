@@ -212,9 +212,9 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf SearchRequest with source context
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
             .setSource("true")
-            .addUnderscoreSourceIncludes("include1")
-            .addUnderscoreSourceIncludes("include2")
-            .addUnderscoreSourceExcludes("exclude1")
+            .addXSourceIncludes("include1")
+            .addXSourceIncludes("include2")
+            .addXSourceExcludes("exclude1")
             .build();
 
         // Create a SearchSourceBuilder to populate

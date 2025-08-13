@@ -50,15 +50,15 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
         ResponseItem.Builder result = GetResultProtoUtils.toProto(getResult, responseItemBuilder);
 
         // Verify the conversion
-        assertEquals("Should have the correct index", index, result.getUnderscoreIndex());
-        assertEquals("Should have the correct id", id, result.getUnderscoreId().getString());
-        assertEquals("Should have the correct version", version, result.getUnderscoreVersion());
+        assertEquals("Should have the correct index", index, result.getXIndex());
+        assertEquals("Should have the correct id", id, result.getXId().getString());
+        assertEquals("Should have the correct version", version, result.getXVersion());
 
         InlineGetDictUserDefined get = result.getGet();
         assertTrue("Should be found", get.getFound());
         assertEquals("Should have the correct sequence number", seqNo, get.getSeqNo());
-        assertEquals("Should have the correct primary term", primaryTerm, get.getUnderscorePrimaryTerm());
-        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), get.getUnderscoreSource());
+        assertEquals("Should have the correct primary term", primaryTerm, get.getXPrimaryTerm());
+        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), get.getXSource());
     }
 
     public void testToProtoWithNonExistingDocument() throws IOException {
@@ -83,8 +83,8 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
         ResponseItem.Builder result = GetResultProtoUtils.toProto(getResult, responseItemBuilder);
 
         // Verify the conversion
-        assertEquals("Should have the correct index", index, result.getUnderscoreIndex());
-        assertEquals("Should have the correct id", id, result.getUnderscoreId().getString());
+        assertEquals("Should have the correct index", index, result.getXIndex());
+        assertEquals("Should have the correct id", id, result.getXId().getString());
         assertFalse("Should not be found", result.getGet().getFound());
     }
 
@@ -106,8 +106,8 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
         // Verify the conversion
         assertTrue("Should be found", builder.getFound());
         assertEquals("Should have the correct sequence number", seqNo, builder.getSeqNo());
-        assertEquals("Should have the correct primary term", primaryTerm, builder.getUnderscorePrimaryTerm());
-        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), builder.getUnderscoreSource());
+        assertEquals("Should have the correct primary term", primaryTerm, builder.getXPrimaryTerm());
+        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), builder.getXSource());
     }
 
     public void testToProtoEmbeddedWithoutSequenceNumber() throws IOException {
@@ -135,11 +135,11 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the conversion
         assertTrue("Should be found", builder.getFound());
-        assertEquals("Should have the correct source", ByteString.copyFrom(source.toBytesRef().bytes), builder.getUnderscoreSource());
+        assertEquals("Should have the correct source", ByteString.copyFrom(source.toBytesRef().bytes), builder.getXSource());
 
         // Sequence number and primary term should not be set
         assertFalse("Should not have sequence number", builder.hasSeqNo());
-        assertFalse("Should not have primary term", builder.hasUnderscorePrimaryTerm());
+        assertFalse("Should not have primary term", builder.hasXPrimaryTerm());
     }
 
     public void testToProtoEmbeddedWithoutSource() throws IOException {
@@ -167,6 +167,6 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Should be found", builder.getFound());
 
         // Source should not be set
-        assertFalse("Should not have source", builder.hasUnderscoreSource());
+        assertFalse("Should not have source", builder.hasXSource());
     }
 }

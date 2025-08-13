@@ -37,7 +37,7 @@ public class DocumentServiceIT extends GrpcTransportBaseIT {
             DocumentServiceGrpc.DocumentServiceBlockingStub documentStub = DocumentServiceGrpc.newBlockingStub(channel);
 
             // Create a bulk request with an index operation
-            IndexOperation indexOp = IndexOperation.newBuilder().setUnderscoreIndex(indexName).setUnderscoreId("1").build();
+            IndexOperation indexOp = IndexOperation.newBuilder().setXIndex(indexName).setXId("1").build();
 
             BulkRequestBody requestBody = BulkRequestBody.newBuilder()
                 .setOperationContainer(org.opensearch.protobufs.OperationContainer.newBuilder().setIndex(indexOp).build())

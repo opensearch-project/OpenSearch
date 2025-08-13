@@ -69,8 +69,8 @@ public class TermsQueryBuilderProtoUtils {
         if (termsQueryProto.hasBoost()) {
             builder.boost(termsQueryProto.getBoost());
         }
-        if (termsQueryProto.hasUnderscoreName()) {
-            builder.queryName(termsQueryProto.getUnderscoreName());
+        if (termsQueryProto.hasXName()) {
+            builder.queryName(termsQueryProto.getXName());
         }
 
         return builder;

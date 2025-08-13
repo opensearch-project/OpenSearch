@@ -47,8 +47,8 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         // Verify the item response
         org.opensearch.protobufs.Item item = protoResponse.getBulkResponseBody().getItems(0);
         org.opensearch.protobufs.ResponseItem responseItem = item.getIndex(); // Since this is an INDEX operation
-        assertEquals("Should have the correct index", "test-index", responseItem.getUnderscoreIndex());
-        assertEquals("Should have the correct id", "test-id", responseItem.getUnderscoreId().getString());
+        assertEquals("Should have the correct index", "test-index", responseItem.getXIndex());
+        assertEquals("Should have the correct id", "test-id", responseItem.getXId().getString());
         assertEquals("Should have the correct status", Status.OK.getCode().value(), responseItem.getStatus());
     }
 
@@ -75,8 +75,8 @@ public class BulkResponseProtoUtilsTests extends OpenSearchTestCase {
         // Verify the item response
         org.opensearch.protobufs.Item item = protoResponse.getBulkResponseBody().getItems(0);
         org.opensearch.protobufs.ResponseItem responseItem = item.getIndex(); // Since this is an INDEX operation
-        assertEquals("Should have the correct index", "test-index", responseItem.getUnderscoreIndex());
-        assertEquals("Should have the correct id", "test-id", responseItem.getUnderscoreId().getString());
+        assertEquals("Should have the correct index", "test-index", responseItem.getXIndex());
+        assertEquals("Should have the correct id", "test-id", responseItem.getXId().getString());
         assertTrue("Should have error", responseItem.getError().getReason().length() > 0);
     }
 

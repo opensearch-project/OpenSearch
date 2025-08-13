@@ -40,17 +40,17 @@ public class DocWriteResponseProtoUtils {
         ResponseItem.Builder responseItem = ResponseItem.newBuilder();
 
         // Set the index name
-        responseItem.setUnderscoreIndex(response.getIndex());
+        responseItem.setXIndex(response.getIndex());
 
         // Handle document ID (can be null in some cases)
         if (response.getId().isEmpty()) {
-            responseItem.setUnderscoreId(Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
+            responseItem.setXId(Id.newBuilder().setNullValue(NullValue.NULL_VALUE_NULL).build());
         } else {
-            responseItem.setUnderscoreId(Id.newBuilder().setString(response.getId()).build());
+            responseItem.setXId(Id.newBuilder().setString(response.getId()).build());
         }
 
         // Set document version
-        responseItem.setUnderscoreVersion(response.getVersion());
+        responseItem.setXVersion(response.getVersion());
 
         // Set operation result (CREATED, UPDATED, DELETED, NOT_FOUND, NOOP)
         responseItem.setResult(response.getResult().getLowercase());
@@ -61,12 +61,12 @@ public class DocWriteResponseProtoUtils {
         }
         // Handle shard information
         ShardInfo shardInfo = ShardInfoProtoUtils.toProto(response.getShardInfo());
-        responseItem.setUnderscoreShards(shardInfo);
+        responseItem.setXShards(shardInfo);
 
         // Set sequence number and primary term if available
         if (response.getSeqNo() >= 0) {
-            responseItem.setUnderscoreSeqNo(response.getSeqNo());
-            responseItem.setUnderscorePrimaryTerm(response.getPrimaryTerm());
+            responseItem.setXSeqNo(response.getSeqNo());
+            responseItem.setXPrimaryTerm(response.getPrimaryTerm());
         }
 
         return responseItem;

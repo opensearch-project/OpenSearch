@@ -111,8 +111,8 @@ public class SearchSourceBuilderProtoUtils {
                 searchSourceBuilder.trackTotalHitsUpTo(protoRequest.getTrackTotalHits().getCount());
             }
         }
-        if (protoRequest.hasUnderscoreSource()) {
-            searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getUnderscoreSource()));
+        if (protoRequest.hasXSource()) {
+            searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getXSource()));
         }
         if (protoRequest.getStoredFieldsCount() > 0) {
             searchSourceBuilder.storedFields(StoredFieldsContextProtoUtils.fromProto(protoRequest.getStoredFieldsList()));
@@ -131,8 +131,8 @@ public class SearchSourceBuilderProtoUtils {
         if (protoRequest.hasVerbosePipeline()) {
             searchSourceBuilder.verbosePipeline(protoRequest.getVerbosePipeline());
         }
-        if (protoRequest.hasUnderscoreSource()) {
-            searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getUnderscoreSource()));
+        if (protoRequest.hasXSource()) {
+            searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getXSource()));
         }
         if (protoRequest.getScriptFieldsCount() > 0) {
             for (Map.Entry<String, ScriptField> entry : protoRequest.getScriptFieldsMap().entrySet()) {

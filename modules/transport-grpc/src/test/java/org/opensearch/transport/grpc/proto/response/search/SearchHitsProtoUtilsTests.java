@@ -52,8 +52,8 @@ public class SearchHitsProtoUtilsTests extends OpenSearchTestCase {
         // Max score is HitsMetadataMaxScore object with getFloatValue() method
         assertEquals("Max score should match", 3.0f, hitsMetadata.getMaxScore().getFloatValue(), 0.0f);
         assertEquals("Hits count should match", 2, hitsMetadata.getHitsCount());
-        assertEquals("First hit ID should match", "test_id_1", hitsMetadata.getHits(0).getUnderscoreId());
-        assertEquals("Second hit ID should match", "test_id_2", hitsMetadata.getHits(1).getUnderscoreId());
+        assertEquals("First hit ID should match", "test_id_1", hitsMetadata.getHits(0).getXId());
+        assertEquals("Second hit ID should match", "test_id_2", hitsMetadata.getHits(1).getXId());
     }
 
     public void testToProtoWithNullTotalHits() throws IOException {

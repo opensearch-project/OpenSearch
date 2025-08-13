@@ -34,8 +34,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
     public void testBuildCreateRequest() {
         WriteOperation writeOperation = WriteOperation.newBuilder()
-            .setUnderscoreIndex("test-index")
-            .setUnderscoreId("test-id")
+            .setXIndex("test-index")
+            .setXId("test-id")
             .setRouting("test-routing")
             .setRequireAlias(true)
             .build();
@@ -71,8 +71,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
     public void testBuildIndexRequest() {
         IndexOperation indexOperation = IndexOperation.newBuilder()
-            .setUnderscoreIndex("test-index")
-            .setUnderscoreId("test-id")
+            .setXIndex("test-index")
+            .setXId("test-id")
             .setRouting("test-routing")
             .setVersion(2)
             .setVersionType(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL_GTE)
@@ -113,7 +113,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildIndexRequestWithOpType() {
-        IndexOperation indexOperation = IndexOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
 
@@ -142,8 +142,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
     public void testBuildDeleteRequest() {
         DeleteOperation deleteOperation = DeleteOperation.newBuilder()
-            .setUnderscoreIndex("test-index")
-            .setUnderscoreId("test-id")
+            .setXIndex("test-index")
+            .setXId("test-id")
             .setRouting("test-routing")
             .setVersion(2)
             .setVersionType(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL)
@@ -174,8 +174,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
     public void testBuildUpdateRequest() {
         UpdateOperation updateOperation = UpdateOperation.newBuilder()
-            .setUnderscoreIndex("test-index")
-            .setUnderscoreId("test-id")
+            .setXIndex("test-index")
+            .setXId("test-id")
             .setRouting("test-routing")
             .setRetryOnConflict(3)
             .setIfSeqNo(4)
@@ -219,10 +219,10 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testGetDocWriteRequests() {
-        IndexOperation indexOp = IndexOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id-1").build();
-        WriteOperation writeOp = WriteOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id-2").build();
-        UpdateOperation updateOp = UpdateOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id-3").build();
-        DeleteOperation deleteOp = DeleteOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id-4").build();
+        IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id-1").build();
+        WriteOperation writeOp = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id-2").build();
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id-3").build();
+        DeleteOperation deleteOp = DeleteOperation.newBuilder().setXIndex("test-index").setXId("test-id-4").build();
 
         BulkRequestBody indexBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setIndex(indexOp).build())
@@ -356,8 +356,8 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
 
     public void testBuildIndexRequestWithAllFields() {
         IndexOperation indexOperation = IndexOperation.newBuilder()
-            .setUnderscoreIndex("test-index")
-            .setUnderscoreId("test-id")
+            .setXIndex("test-index")
+            .setXId("test-id")
             .setRouting("test-routing")
             .setVersion(2)
             .setVersionType(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL)
@@ -398,7 +398,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildIndexRequestWithNullOpType() {
-        IndexOperation indexOperation = IndexOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        IndexOperation indexOperation = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         byte[] document = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
 
@@ -424,7 +424,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildUpdateRequestWithScript() {
-        UpdateOperation updateOperation = UpdateOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         byte[] document = "{\"doc\":{\"field\":\"value\"}}".getBytes(StandardCharsets.UTF_8);
 
@@ -472,7 +472,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildUpdateRequestWithUpsert() {
-        UpdateOperation updateOperation = UpdateOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         byte[] document = "{\"doc\":{\"field\":\"value\"}}".getBytes(StandardCharsets.UTF_8);
         byte[] upsertDoc = "{\"upsert_field\":\"upsert_value\"}".getBytes(StandardCharsets.UTF_8);
@@ -503,7 +503,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildUpdateRequestWithScriptedUpsert() {
-        UpdateOperation updateOperation = UpdateOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         byte[] document = "{\"doc\":{\"field\":\"value\"}}".getBytes(StandardCharsets.UTF_8);
 
@@ -533,7 +533,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildUpdateRequestWithFetchSource() {
-        UpdateOperation updateOperation = UpdateOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         byte[] document = "{\"doc\":{\"field\":\"value\"}}".getBytes(StandardCharsets.UTF_8);
 
@@ -542,7 +542,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
             .setObject(ByteString.copyFrom(document))
             .setUpdateAction(
                 org.opensearch.protobufs.UpdateAction.newBuilder()
-                    .setUnderscoreSource(org.opensearch.protobufs.SourceConfig.newBuilder().setFetch(true).build())
+                    .setXSource(org.opensearch.protobufs.SourceConfig.newBuilder().setFetch(true).build())
                     .build()
             )
             .build();
@@ -567,7 +567,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildUpdateRequestWithoutUpdateAction() {
-        UpdateOperation updateOperation = UpdateOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        UpdateOperation updateOperation = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         byte[] document = "{\"doc\":{\"field\":\"value\"}}".getBytes(StandardCharsets.UTF_8);
 
@@ -621,7 +621,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testGetDocWriteRequestsWithGlobalValues() {
-        IndexOperation indexOp = IndexOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
 
         BulkRequestBody indexBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setIndex(indexOp).build())
@@ -697,7 +697,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
                     .setUpsert(ByteString.copyFromUtf8("{\"upsert_field\":\"upsert_value\"}"))
                     .setDocAsUpsert(true)
                     .setDetectNoop(false)
-                    .setUnderscoreSource(org.opensearch.protobufs.SourceConfig.newBuilder().setFetch(false).build())
+                    .setXSource(org.opensearch.protobufs.SourceConfig.newBuilder().setFetch(false).build())
                     .build()
             )
             .build();

@@ -22,9 +22,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithBoolValue() {
         // Create a BulkRequest with source as boolean
-        BulkRequest request = BulkRequest.newBuilder()
-            .setUnderscoreSource(SourceConfigParam.newBuilder().setBoolValue(true).build())
-            .build();
+        BulkRequest request = BulkRequest.newBuilder().setXSource(SourceConfigParam.newBuilder().setBoolValue(true).build()).build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -39,7 +37,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
     public void testParseFromProtoRequestWithStringArray() {
         // Create a BulkRequest with source as string array
         BulkRequest request = BulkRequest.newBuilder()
-            .setUnderscoreSource(
+            .setXSource(
                 SourceConfigParam.newBuilder()
                     .setStringArray(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
                     .build()
@@ -58,7 +56,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithSourceIncludes() {
         // Create a BulkRequest with source includes
-        BulkRequest request = BulkRequest.newBuilder().addUnderscoreSourceIncludes("field1").addUnderscoreSourceIncludes("field2").build();
+        BulkRequest request = BulkRequest.newBuilder().addXSourceIncludes("field1").addXSourceIncludes("field2").build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -72,7 +70,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithSourceExcludes() {
         // Create a BulkRequest with source excludes
-        BulkRequest request = BulkRequest.newBuilder().addUnderscoreSourceExcludes("field1").addUnderscoreSourceExcludes("field2").build();
+        BulkRequest request = BulkRequest.newBuilder().addXSourceExcludes("field1").addXSourceExcludes("field2").build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -87,10 +85,10 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
     public void testParseFromProtoRequestWithBothIncludesAndExcludes() {
         // Create a BulkRequest with both source includes and excludes
         BulkRequest request = BulkRequest.newBuilder()
-            .addUnderscoreSourceIncludes("include1")
-            .addUnderscoreSourceIncludes("include2")
-            .addUnderscoreSourceExcludes("exclude1")
-            .addUnderscoreSourceExcludes("exclude2")
+            .addXSourceIncludes("include1")
+            .addXSourceIncludes("include2")
+            .addXSourceExcludes("exclude1")
+            .addXSourceExcludes("exclude2")
             .build();
 
         // Parse the request
@@ -183,9 +181,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithSearchRequestBoolValue() {
         // Create a SearchRequest with source as boolean
-        SearchRequest request = SearchRequest.newBuilder()
-            .setUnderscoreSource(SourceConfigParam.newBuilder().setBoolValue(true).build())
-            .build();
+        SearchRequest request = SearchRequest.newBuilder().setXSource(SourceConfigParam.newBuilder().setBoolValue(true).build()).build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -200,7 +196,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
     public void testParseFromProtoRequestWithSearchRequestStringArray() {
         // Create a SearchRequest with source as string array
         SearchRequest request = SearchRequest.newBuilder()
-            .setUnderscoreSource(
+            .setXSource(
                 SourceConfigParam.newBuilder()
                     .setStringArray(StringArray.newBuilder().addStringArray("field1").addStringArray("field2").build())
                     .build()
@@ -219,10 +215,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithSearchRequestSourceIncludes() {
         // Create a SearchRequest with source includes
-        SearchRequest request = SearchRequest.newBuilder()
-            .addUnderscoreSourceIncludes("field1")
-            .addUnderscoreSourceIncludes("field2")
-            .build();
+        SearchRequest request = SearchRequest.newBuilder().addXSourceIncludes("field1").addXSourceIncludes("field2").build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -236,10 +229,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithSearchRequestSourceExcludes() {
         // Create a SearchRequest with source excludes
-        SearchRequest request = SearchRequest.newBuilder()
-            .addUnderscoreSourceExcludes("field1")
-            .addUnderscoreSourceExcludes("field2")
-            .build();
+        SearchRequest request = SearchRequest.newBuilder().addXSourceExcludes("field1").addXSourceExcludes("field2").build();
 
         // Parse the request
         FetchSourceContext context = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
@@ -254,10 +244,10 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
     public void testParseFromProtoRequestWithSearchRequestBothIncludesAndExcludes() {
         // Create a SearchRequest with both source includes and excludes
         SearchRequest request = SearchRequest.newBuilder()
-            .addUnderscoreSourceIncludes("include1")
-            .addUnderscoreSourceIncludes("include2")
-            .addUnderscoreSourceExcludes("exclude1")
-            .addUnderscoreSourceExcludes("exclude2")
+            .addXSourceIncludes("include1")
+            .addXSourceIncludes("include2")
+            .addXSourceExcludes("exclude1")
+            .addXSourceExcludes("exclude2")
             .build();
 
         // Parse the request

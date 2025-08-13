@@ -104,8 +104,8 @@ public class SearchHitProtoUtils {
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (hit.getExplanation() != null && hit.getShard() != null) {
-            hitBuilder.setUnderscoreShard(String.valueOf(hit.getShard().getShardId().id()));
-            hitBuilder.setUnderscoreNode(hit.getShard().getNodeIdText().string());
+            hitBuilder.setXShard(String.valueOf(hit.getShard().getShardId().id()));
+            hitBuilder.setXNode(hit.getShard().getNodeIdText().string());
         }
     }
 
@@ -118,28 +118,28 @@ public class SearchHitProtoUtils {
     private static void processBasicInfo(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         // Set index if available
         if (hit.getIndex() != null) {
-            hitBuilder.setUnderscoreIndex(RemoteClusterAware.buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex()));
+            hitBuilder.setXIndex(RemoteClusterAware.buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex()));
         }
 
         // Set ID if available
         if (hit.getId() != null) {
-            hitBuilder.setUnderscoreId(hit.getId());
+            hitBuilder.setXId(hit.getId());
         }
 
         // Set nested identity if available
         if (hit.getNestedIdentity() != null) {
-            hitBuilder.setUnderscoreNested(NestedIdentityProtoUtils.toProto(hit.getNestedIdentity()));
+            hitBuilder.setXNested(NestedIdentityProtoUtils.toProto(hit.getNestedIdentity()));
         }
 
         // Set version if available
         if (hit.getVersion() != -1) {
-            hitBuilder.setUnderscoreVersion(hit.getVersion());
+            hitBuilder.setXVersion(hit.getVersion());
         }
 
         // Set sequence number and primary term if available
         if (hit.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            hitBuilder.setUnderscoreSeqNo(hit.getSeqNo());
-            hitBuilder.setUnderscorePrimaryTerm(hit.getPrimaryTerm());
+            hitBuilder.setXSeqNo(hit.getSeqNo());
+            hitBuilder.setXPrimaryTerm(hit.getPrimaryTerm());
         }
     }
 
@@ -194,7 +194,7 @@ public class SearchHitProtoUtils {
      */
     private static void processSource(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         if (hit.getSourceRef() != null) {
-            hitBuilder.setUnderscoreSource(ByteString.copyFrom(BytesReference.toBytes(hit.getSourceRef())));
+            hitBuilder.setXSource(ByteString.copyFrom(BytesReference.toBytes(hit.getSourceRef())));
         }
     }
 
@@ -370,7 +370,7 @@ public class SearchHitProtoUtils {
             if (nestedIdentity.getChild() != null) {
                 NestedIdentity.Builder childBuilder = NestedIdentity.newBuilder();
                 toProto(nestedIdentity.getChild(), childBuilder);
-                nestedIdentityBuilder.setUnderscoreNested(childBuilder.build());
+                nestedIdentityBuilder.setXNested(childBuilder.build());
             }
         }
     }

@@ -42,8 +42,8 @@ public class TermQueryBuilderProtoUtils {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         boolean caseInsensitive = TermQueryBuilder.DEFAULT_CASE_INSENSITIVITY;
 
-        if (termQueryProto.hasUnderscoreName()) {
-            queryName = termQueryProto.getUnderscoreName();
+        if (termQueryProto.hasXName()) {
+            queryName = termQueryProto.getXName();
         }
         if (termQueryProto.hasBoost()) {
             boost = termQueryProto.getBoost();

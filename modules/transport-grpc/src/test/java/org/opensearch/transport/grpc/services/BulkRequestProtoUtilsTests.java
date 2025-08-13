@@ -111,7 +111,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
     // Helper methods to create test requests
 
     private BulkRequest createBulkRequestWithIndexOperation() {
-        IndexOperation indexOp = IndexOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        IndexOperation indexOp = IndexOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setIndex(indexOp).build())
             .build();
@@ -124,7 +124,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     private BulkRequest createBulkRequestWithCreateOperation() {
-        WriteOperation writeOp = WriteOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        WriteOperation writeOp = WriteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setCreate(writeOp).build())
             .build();
@@ -133,7 +133,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     private BulkRequest createBulkRequestWithDeleteOperation() {
-        DeleteOperation deleteOp = DeleteOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        DeleteOperation deleteOp = DeleteOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setDelete(deleteOp).build())
             .build();
@@ -142,7 +142,7 @@ public class BulkRequestProtoUtilsTests extends OpenSearchTestCase {
     }
 
     private BulkRequest createBulkRequestWithUpdateOperation() {
-        UpdateOperation updateOp = UpdateOperation.newBuilder().setUnderscoreIndex("test-index").setUnderscoreId("test-id").build();
+        UpdateOperation updateOp = UpdateOperation.newBuilder().setXIndex("test-index").setXId("test-id").build();
         BulkRequestBody requestBody = BulkRequestBody.newBuilder()
             .setOperationContainer(OperationContainer.newBuilder().setUpdate(updateOp).build())
             .build();

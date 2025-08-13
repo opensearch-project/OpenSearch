@@ -55,7 +55,7 @@ public class SearchResponseProtoUtils {
 
         // Set optional fields only if they exist
         if (response.getScrollId() != null) {
-            searchResponseBodyProtoBuilder.setUnderscoreScrollId(response.getScrollId());
+            searchResponseBodyProtoBuilder.setXScrollId(response.getScrollId());
         }
         if (response.pointInTimeId() != null) {
             searchResponseBodyProtoBuilder.setPitId(response.pointInTimeId());
@@ -197,7 +197,7 @@ public class SearchResponseProtoUtils {
                     .setSkipped(clusters.getSkipped());
 
                 // Set the clusters field in the response builder
-                protoResponseBuilder.setUnderscoreClusters(clusterStatistics.build());
+                protoResponseBuilder.setXClusters(clusterStatistics.build());
             }
         }
     }

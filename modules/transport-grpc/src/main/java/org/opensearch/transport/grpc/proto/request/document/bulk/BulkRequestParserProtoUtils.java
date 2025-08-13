@@ -225,8 +225,8 @@ public class BulkRequestParserProtoUtils {
         long ifPrimaryTerm,
         boolean requireAlias
     ) {
-        index = createOperation.hasUnderscoreIndex() ? createOperation.getUnderscoreIndex() : index;
-        id = createOperation.hasUnderscoreId() ? createOperation.getUnderscoreId() : id;
+        index = createOperation.hasXIndex() ? createOperation.getXIndex() : index;
+        id = createOperation.hasXId() ? createOperation.getXId() : id;
         routing = createOperation.hasRouting() ? createOperation.getRouting() : routing;
         pipeline = createOperation.hasPipeline() ? createOperation.getPipeline() : pipeline;
         requireAlias = createOperation.hasRequireAlias() ? createOperation.getRequireAlias() : requireAlias;
@@ -276,8 +276,8 @@ public class BulkRequestParserProtoUtils {
         boolean requireAlias
     ) {
         opType = indexOperation.hasOpType() ? indexOperation.getOpType() : opType;
-        index = indexOperation.hasUnderscoreIndex() ? indexOperation.getUnderscoreIndex() : index;
-        id = indexOperation.hasUnderscoreId() ? indexOperation.getUnderscoreId() : id;
+        index = indexOperation.hasXIndex() ? indexOperation.getXIndex() : index;
+        id = indexOperation.hasXId() ? indexOperation.getXId() : id;
         routing = indexOperation.hasRouting() ? indexOperation.getRouting() : routing;
         version = indexOperation.hasVersion() ? indexOperation.getVersion() : version;
         if (indexOperation.hasVersionType()) {
@@ -345,11 +345,11 @@ public class BulkRequestParserProtoUtils {
         long ifPrimaryTerm,
         boolean requireAlias
     ) {
-        index = updateOperation.hasUnderscoreIndex() ? updateOperation.getUnderscoreIndex() : index;
-        id = updateOperation.hasUnderscoreId() ? updateOperation.getUnderscoreId() : id;
+        index = updateOperation.hasXIndex() ? updateOperation.getXIndex() : index;
+        id = updateOperation.hasXId() ? updateOperation.getXId() : id;
         routing = updateOperation.hasRouting() ? updateOperation.getRouting() : routing;
-        fetchSourceContext = bulkRequestBody.hasUpdateAction() && bulkRequestBody.getUpdateAction().hasUnderscoreSource()
-            ? FetchSourceContextProtoUtils.fromProto(bulkRequestBody.getUpdateAction().getUnderscoreSource())
+        fetchSourceContext = bulkRequestBody.hasUpdateAction() && bulkRequestBody.getUpdateAction().hasXSource()
+            ? FetchSourceContextProtoUtils.fromProto(bulkRequestBody.getUpdateAction().getXSource())
             : fetchSourceContext;
         retryOnConflict = updateOperation.hasRetryOnConflict() ? updateOperation.getRetryOnConflict() : retryOnConflict;
         ifSeqNo = updateOperation.hasIfSeqNo() ? updateOperation.getIfSeqNo() : ifSeqNo;
@@ -419,8 +419,8 @@ public class BulkRequestParserProtoUtils {
                 updateRequest.detectNoop(updateAction.getDetectNoop());
             }
 
-            if (updateAction.hasUnderscoreSource()) {
-                updateRequest.fetchSource(FetchSourceContextProtoUtils.fromProto(updateAction.getUnderscoreSource()));
+            if (updateAction.hasXSource()) {
+                updateRequest.fetchSource(FetchSourceContextProtoUtils.fromProto(updateAction.getXSource()));
             }
         }
 
@@ -460,8 +460,8 @@ public class BulkRequestParserProtoUtils {
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
-        index = deleteOperation.hasUnderscoreIndex() ? deleteOperation.getUnderscoreIndex() : index;
-        id = deleteOperation.hasUnderscoreId() ? deleteOperation.getUnderscoreId() : id;
+        index = deleteOperation.hasXIndex() ? deleteOperation.getXIndex() : index;
+        id = deleteOperation.hasXId() ? deleteOperation.getXId() : id;
         routing = deleteOperation.hasRouting() ? deleteOperation.getRouting() : routing;
         version = deleteOperation.hasVersion() ? deleteOperation.getVersion() : version;
         if (deleteOperation.hasVersionType()) {

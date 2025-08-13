@@ -256,7 +256,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
             .putTerms("test_field", termsQueryField)
             .setBoost(2.0f)
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .build();
 
         TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(termsQuery);
@@ -317,7 +317,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
             .putTerms("lookup_field", termsQueryField)
             .setBoost(1.5f)
-            .setUnderscoreName("lookup_query")
+            .setXName("lookup_query")
             .build();
 
         TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(termsQuery);

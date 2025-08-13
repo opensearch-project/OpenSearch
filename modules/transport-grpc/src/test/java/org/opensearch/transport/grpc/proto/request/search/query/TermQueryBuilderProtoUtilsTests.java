@@ -19,7 +19,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with string value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setString("test_value").build())
             .build();
@@ -39,7 +39,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with number value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(
                 FieldValue.newBuilder().setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setFloatValue(10.5f)).build()
@@ -61,7 +61,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with boolean value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setBool(true).build())
             .build();
@@ -92,7 +92,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setObjectMap(objectMapBuilder.build()).build())
             .build();
@@ -155,7 +155,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with int32 value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(
                 FieldValue.newBuilder().setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setFloatValue(42.0f)).build()
@@ -177,7 +177,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with int64 value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(
                 FieldValue.newBuilder()
@@ -201,7 +201,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with double value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(
                 FieldValue.newBuilder()
@@ -225,7 +225,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with case insensitive flag
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setString("test_value").build())
             .setCaseInsensitive(true)

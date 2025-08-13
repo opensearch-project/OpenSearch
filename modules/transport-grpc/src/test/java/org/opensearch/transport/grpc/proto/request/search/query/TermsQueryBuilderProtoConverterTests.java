@@ -94,7 +94,7 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
         TermsQuery termsQuery = TermsQuery.newBuilder()
             .putTerms("test_field", termsQueryField)
             .setBoost(2.5f)
-            .setUnderscoreName("test_query_name")
+            .setXName("test_query_name")
             .build();
 
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
@@ -150,7 +150,7 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
         TermsQuery termsQuery = TermsQuery.newBuilder()
             .putTerms("lookup_field", termsQueryField)
             .setBoost(1.5f)
-            .setUnderscoreName("lookup_query")
+            .setXName("lookup_query")
             .build();
 
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();

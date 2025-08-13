@@ -36,7 +36,7 @@ public class TermQueryBuilderProtoConverterTests extends OpenSearchTestCase {
             .setField("test-field")
             .setValue(fieldValue)
             .setBoost(2.0f)
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setCaseInsensitive(true)
             .build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();

@@ -47,11 +47,11 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertEquals("Index should match", "test_index", hit.getUnderscoreIndex());
-        assertEquals("ID should match", "test_id", hit.getUnderscoreId());
-        assertEquals("Version should match", 3, hit.getUnderscoreVersion());
-        assertEquals("SeqNo should match", 4, hit.getUnderscoreSeqNo());
-        assertEquals("PrimaryTerm should match", 5, hit.getUnderscorePrimaryTerm());
+        assertEquals("Index should match", "test_index", hit.getXIndex());
+        assertEquals("ID should match", "test_id", hit.getXId());
+        assertEquals("Version should match", 3, hit.getXVersion());
+        assertEquals("SeqNo should match", 4, hit.getXSeqNo());
+        assertEquals("PrimaryTerm should match", 5, hit.getXPrimaryTerm());
 
         // Verify the new HitUnderscoreScore structure
         assertTrue("Score should be set", hit.hasScore());
@@ -89,8 +89,8 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Source should not be empty", hit.getUnderscoreSource().size() > 0);
-        assertArrayEquals("Source bytes should match", sourceBytes, hit.getUnderscoreSource().toByteArray());
+        assertTrue("Source should not be empty", hit.getXSource().size() > 0);
+        assertArrayEquals("Source bytes should match", sourceBytes, hit.getXSource().toByteArray());
     }
 
     public void testToProtoWithClusterAlias() throws IOException {
@@ -103,7 +103,7 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertEquals("Index with cluster alias should match", "test_cluster:test_index", hit.getUnderscoreIndex());
+        assertEquals("Index with cluster alias should match", "test_cluster:test_index", hit.getXIndex());
     }
 
     public void testToProtoWithUnassignedSeqNo() throws IOException {
@@ -116,8 +116,8 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertFalse("SeqNo should not be set", hit.hasUnderscoreSeqNo());
-        assertFalse("PrimaryTerm should not be set", hit.hasUnderscorePrimaryTerm());
+        assertFalse("SeqNo should not be set", hit.hasXSeqNo());
+        assertFalse("PrimaryTerm should not be set", hit.hasXPrimaryTerm());
     }
 
     public void testToProtoWithNullFields() throws IOException {
@@ -130,12 +130,12 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertEquals("Index should not be set", "", hit.getUnderscoreIndex());
-        assertEquals("ID should not be set", "", hit.getUnderscoreId());
-        assertFalse("Version should not be set", hit.hasUnderscoreVersion());
-        assertFalse("SeqNo should not be set", hit.hasUnderscoreSeqNo());
-        assertFalse("PrimaryTerm should not be set", hit.hasUnderscorePrimaryTerm());
-        assertFalse("Source should not be set", hit.hasUnderscoreSource());
+        assertEquals("Index should not be set", "", hit.getXIndex());
+        assertEquals("ID should not be set", "", hit.getXId());
+        assertFalse("Version should not be set", hit.hasXVersion());
+        assertFalse("SeqNo should not be set", hit.hasXSeqNo());
+        assertFalse("PrimaryTerm should not be set", hit.hasXPrimaryTerm());
+        assertFalse("Source should not be set", hit.hasXSource());
     }
 
     public void testToProtoWithDocumentFields() throws IOException {
@@ -243,7 +243,7 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Should have 1 inner hit", 1, hit.getInnerHitsCount());
         assertTrue("Inner hit should exist", hit.containsInnerHits("inner_hit"));
         assertEquals("Inner hit should have 1 hit", 1, hit.getInnerHitsOrThrow("inner_hit").getHits().getHitsCount());
-        assertEquals("Inner hit ID should match", "inner_id", hit.getInnerHitsOrThrow("inner_hit").getHits().getHits(0).getUnderscoreId());
+        assertEquals("Inner hit ID should match", "inner_id", hit.getInnerHitsOrThrow("inner_hit").getHits().getHits(0).getXId());
     }
 
     public void testToProtoWithNestedIdentity() throws Exception {
@@ -256,9 +256,9 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Nested identity should be set", hit.hasUnderscoreNested());
-        assertEquals("Nested field should match", "parent_field", hit.getUnderscoreNested().getField());
-        assertEquals("Nested offset should match", 5, hit.getUnderscoreNested().getOffset());
+        assertTrue("Nested identity should be set", hit.hasXNested());
+        assertEquals("Nested field should match", "parent_field", hit.getXNested().getField());
+        assertEquals("Nested offset should match", 5, hit.getXNested().getOffset());
     }
 
     public void testToProtoWithHitUnderscoreScoreStructure() throws IOException {

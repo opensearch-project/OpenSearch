@@ -43,25 +43,25 @@ public class FetchSourceContextProtoUtils {
         String[] sourceIncludes = null;
 
         // Set up source context if source parameters are provided
-        if (request.hasUnderscoreSource()) {
-            switch (request.getUnderscoreSource().getSourceConfigParamCase()) {
+        if (request.hasXSource()) {
+            switch (request.getXSource().getSourceConfigParamCase()) {
                 case BOOL_VALUE:
-                    fetchSource = request.getUnderscoreSource().getBoolValue();
+                    fetchSource = request.getXSource().getBoolValue();
                     break;
                 case STRING_ARRAY:
-                    sourceIncludes = request.getUnderscoreSource().getStringArray().getStringArrayList().toArray(new String[0]);
+                    sourceIncludes = request.getXSource().getStringArray().getStringArrayList().toArray(new String[0]);
                     break;
                 default:
                     throw new UnsupportedOperationException("Invalid sourceConfig provided.");
             }
         }
 
-        if (request.getUnderscoreSourceIncludesCount() > 0) {
-            sourceIncludes = request.getUnderscoreSourceIncludesList().toArray(new String[0]);
+        if (request.getXSourceIncludesCount() > 0) {
+            sourceIncludes = request.getXSourceIncludesList().toArray(new String[0]);
         }
 
-        if (request.getUnderscoreSourceExcludesCount() > 0) {
-            sourceExcludes = request.getUnderscoreSourceExcludesList().toArray(new String[0]);
+        if (request.getXSourceExcludesCount() > 0) {
+            sourceExcludes = request.getXSourceExcludesList().toArray(new String[0]);
         }
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
             return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
@@ -81,8 +81,8 @@ public class FetchSourceContextProtoUtils {
         String[] sourceExcludes = null;
         String[] sourceIncludes = null;
 
-        if (request.hasUnderscoreSource()) {
-            SourceConfigParam source = request.getUnderscoreSource();
+        if (request.hasXSource()) {
+            SourceConfigParam source = request.getXSource();
 
             if (source.hasBoolValue()) {
                 fetchSource = source.getBoolValue();
@@ -91,12 +91,12 @@ public class FetchSourceContextProtoUtils {
             }
         }
 
-        if (request.getUnderscoreSourceIncludesCount() > 0) {
-            sourceIncludes = request.getUnderscoreSourceIncludesList().toArray(new String[0]);
+        if (request.getXSourceIncludesCount() > 0) {
+            sourceIncludes = request.getXSourceIncludesList().toArray(new String[0]);
         }
 
-        if (request.getUnderscoreSourceExcludesCount() > 0) {
-            sourceExcludes = request.getUnderscoreSourceExcludesList().toArray(new String[0]);
+        if (request.getXSourceExcludesCount() > 0) {
+            sourceExcludes = request.getXSourceExcludesList().toArray(new String[0]);
         }
 
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
