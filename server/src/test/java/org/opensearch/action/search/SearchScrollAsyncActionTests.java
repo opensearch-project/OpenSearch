@@ -298,7 +298,10 @@ public class SearchScrollAsyncActionTests extends OpenSearchTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(1, shardSearchFailures.length);
-        assertEquals("IllegalArgumentException[scroll_id references node [node2] which was not found in the cluster]", shardSearchFailures[0].reason());
+        assertEquals(
+            "IllegalArgumentException[scroll_id references node [node2] which was not found in the cluster]",
+            shardSearchFailures[0].reason()
+        );
 
         SearchContextIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
