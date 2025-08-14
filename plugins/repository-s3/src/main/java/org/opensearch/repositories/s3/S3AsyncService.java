@@ -159,17 +159,24 @@ class S3AsyncService implements Closeable {
                 return existingClient;
             }
 
+            // If the client reference is not found in cache. Let's create it.
             final AmazonAsyncS3Reference newClientReference = new AmazonAsyncS3Reference(
                 buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder, asyncHttpClientType)
             );
             newClientReference.incRef();
-            Map<S3ClientSettings, AmazonAsyncS3Reference> clientsCacheForType = s3HttpClientTypesClientsCache.get(asyncHttpClientType);
-            if (clientsCacheForType == null) {
-                clientsCacheForType = emptyMap();
-            }
-            clientsCacheForType = MapBuilder.newMapBuilder(clientsCacheForType).put(clientSettings, newClientReference).immutableMap();
+
+            // Get or create new client cache map for the HTTP client type
+            Map<S3ClientSettings, AmazonAsyncS3Reference> clientsCacheForType = s3HttpClientTypesClientsCache.getOrDefault(
+                asyncHttpClientType,
+                emptyMap()
+            );
+
+            // Update both cache levels atomically
             s3HttpClientTypesClientsCache = MapBuilder.newMapBuilder(s3HttpClientTypesClientsCache)
-                .put(asyncHttpClientType, clientsCacheForType)
+                .put(
+                    asyncHttpClientType,
+                    MapBuilder.newMapBuilder(clientsCacheForType).put(clientSettings, newClientReference).immutableMap()
+                )
                 .immutableMap();
             return newClientReference;
         }
