@@ -458,11 +458,11 @@ public class RemoteDirectory extends Directory {
         });
 
         completionListener = ActionListener.runAfter(completionListener, () -> {
-           try {
-               indexInput.close();
-           } catch(IOException e) {
-               logger.warn("Error occurred while closing index input", e);
-           }
+            try {
+                indexInput.close();
+            } catch (IOException e) {
+                logger.warn("Error occurred while closing index input", e);
+            }
         });
 
         WriteContext writeContext = remoteTransferContainer.createWriteContext();
