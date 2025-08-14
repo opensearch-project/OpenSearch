@@ -1,3 +1,5 @@
+import org.opensearch.gradle.info.BuildParams
+
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -32,3 +34,10 @@ testClusters.all {
 
 test.enabled = false
 jarHell.enabled = false
+
+yamlRestTest {
+  if (BuildParams.inFipsJvm) {
+    systemProperty 'tests.rest.denylist', ['nodes.reload_secure_settings/11_no_password/*']
+        .join(",")
+  }
+}

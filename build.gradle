@@ -419,7 +419,11 @@ gradle.projectsEvaluated {
           jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
         if (BuildParams.inFipsJvm) {
-          task.jvmArgs += ["-Dorg.bouncycastle.fips.approved_only=true"]
+          def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')
+          task.jvmArgs += [
+              "-Dorg.bouncycastle.fips.approved_only=true",
+              "-Djava.security.properties=${fipsSecurityFile}"
+          ]
         }
       }
     }

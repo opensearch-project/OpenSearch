@@ -20,6 +20,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.fips.KeyManagerFipsAwareTestCase;
+import org.opensearch.fips.TrustManagerFipsAwareTestCase;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -40,22 +42,18 @@ import org.opensearch.transport.netty4.Netty4TcpChannel;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.SocketChannel;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 import java.util.Collections;
 import java.util.Optional;
 
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -64,7 +62,50 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase {
+public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase
+    implements
+        TrustManagerFipsAwareTestCase,
+        KeyManagerFipsAwareTestCase {
+
+    private static final char[] PASSWORD = "password".toCharArray();
+
+    private final KeyManagerFactory serverKeyManagersFactory = createKeyManagerFactory();
+    private final TrustManagerFactory clientTrustManagerFactory = createTrustManagerFactory();
+
+    @Override
+    public KeyManagerFactory createKeyManagerFactory(String keyStoreType, String fileExtension, String jcaProvider, String jsseProvider) {
+        try {
+            var keyStore = KeyStore.getInstance(keyStoreType, jcaProvider);
+            keyStore.load(SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-server-keystore" + fileExtension), PASSWORD);
+            var keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm(), jsseProvider);
+            keyManagerFactory.init(keyStore, PASSWORD);
+            return keyManagerFactory;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public TrustManagerFactory createTrustManagerFactory(
+        String keyStoreType,
+        String fileExtension,
+        String jcaProvider,
+        String jsseProvider
+    ) {
+        try {
+            final KeyStore trustStore = KeyStore.getInstance(keyStoreType, jcaProvider);
+            trustStore.load(
+                SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-client-truststore" + fileExtension),
+                PASSWORD
+            );
+            var trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), jsseProvider);
+            trustManagerFactory.init(trustStore);
+            return trustManagerFactory;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -76,27 +117,12 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
 
             @Override
             public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException {
-                try {
-                    final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                    keyStore.load(
-                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure.jks"),
-                        "password".toCharArray()
-                    );
-
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-                    keyManagerFactory.init(keyStore, "password".toCharArray());
-
-                    SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
+                return Optional.of(
+                    SslContextBuilder.forServer(serverKeyManagersFactory)
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
-                        .newEngine(NettyAllocator.getAllocator());
-                    return Optional.of(engine);
-                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException
-                    | CertificateException ex) {
-                    throw new SSLException(ex);
-                }
-
+                        .newEngine(NettyAllocator.getAllocator())
+                );
             }
 
             @Override
@@ -104,7 +130,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                 return Optional.of(
                     SslContextBuilder.forClient()
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                        .trustManager(clientTrustManagerFactory)
                         .build()
                         .newEngine(NettyAllocator.getAllocator())
                 );
