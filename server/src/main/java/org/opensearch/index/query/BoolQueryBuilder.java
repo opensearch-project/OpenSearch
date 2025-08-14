@@ -342,8 +342,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             query = fixNegativeQueryIfNeeded(query);
         }
 
-        // TODO: Figure out why multi-clause breaks testPhrasePrefix() in HighlighterWithAnalyzersTests.java
-        if (query instanceof BooleanQuery boolQuery) {
+        // limit approximate query construction since several mappers (prefixQuery) expect a BooleanQuery not ApproximateBooleanQuery
+        if (query instanceof BooleanQuery boolQuery
+            && (boolQuery.getClauses(Occur.FILTER).size() == boolQuery.clauses().size() || boolQuery.clauses().size() == 1)) {
             return new ApproximateScoreQuery(query, new ApproximateBooleanQuery(boolQuery));
         }
 
