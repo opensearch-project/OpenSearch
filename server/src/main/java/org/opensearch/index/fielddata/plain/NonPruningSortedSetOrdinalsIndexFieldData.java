@@ -226,7 +226,6 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
             super(sortField);
         }
 
-        
         public static Type readType(DataInput in) throws IOException {
             return SortField.readType(in);
         }
