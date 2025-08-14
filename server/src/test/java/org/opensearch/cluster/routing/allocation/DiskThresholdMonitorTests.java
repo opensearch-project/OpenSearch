@@ -132,11 +132,15 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             },
             () -> 5.0
         ) {
-
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToBlockRead, ActionListener<Void> listener, boolean readBlock) {
                 listener.onResponse(null);
             }
 
@@ -199,6 +203,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
                 assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToBlockRead, ActionListener<Void> listener, boolean readBlock) {
                 listener.onResponse(null);
             }
 
@@ -334,8 +343,10 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
     }
 
     public void testAutoReleaseIndices() {
+        AtomicReference<Set<String>> indicesToBlockRead = new AtomicReference<>();
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
         AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
-        AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
+        AtomicReference<Set<String>> indicesToReleaseReadOnlyBlock = new AtomicReference<>();
         AllocationService allocation = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
@@ -384,8 +395,13 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
-                    assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
+                    assertTrue(indicesToReleaseReadOnlyBlock.compareAndSet(null, indicesToUpdate));
                 }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
                 listener.onResponse(null);
             }
 
@@ -393,26 +409,25 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 listener.onResponse(null);
             }
-
         };
         indicesToMarkReadOnly.set(null);
-        indicesToRelease.set(null);
+        indicesToReleaseReadOnlyBlock.set(null);
         Map<String, DiskUsage> builder = new HashMap<>();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
         builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indicesToMarkReadOnly.get());
-        assertNull(indicesToRelease.get());
+        assertNull(indicesToReleaseReadOnlyBlock.get());
 
         // Reserved space is ignored when applying block
         indicesToMarkReadOnly.set(null);
-        indicesToRelease.set(null);
+        indicesToReleaseReadOnlyBlock.set(null);
         builder = new HashMap<>();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(5, 90)));
         builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(5, 90)));
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
         assertNull(indicesToMarkReadOnly.get());
-        assertNull(indicesToRelease.get());
+        assertNull(indicesToReleaseReadOnlyBlock.get());
 
         // Change cluster state so that "test_2" index is blocked (read only)
         IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2"))
@@ -447,8 +462,13 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 if (readOnly) {
                     assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 } else {
-                    assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
+                    assertTrue(indicesToReleaseReadOnlyBlock.compareAndSet(null, indicesToUpdate));
                 }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
                 listener.onResponse(null);
             }
 
@@ -459,36 +479,36 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         };
         // When free disk on any of node1 or node2 goes below 5% flood watermark, then apply index block on indices not having the block
         indicesToMarkReadOnly.set(null);
-        indicesToRelease.set(null);
+        indicesToReleaseReadOnlyBlock.set(null);
         builder = new HashMap<>();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 100)));
         builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
-        assertNull(indicesToRelease.get());
+        assertNull(indicesToReleaseReadOnlyBlock.get());
 
         // When free disk on node1 and node2 goes above 10% high watermark then release index block, ignoring reserved space
         indicesToMarkReadOnly.set(null);
-        indicesToRelease.set(null);
+        indicesToReleaseReadOnlyBlock.set(null);
         builder = new HashMap<>();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(10, 100)));
         builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(10, 100)));
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
         assertNull(indicesToMarkReadOnly.get());
-        assertThat(indicesToRelease.get(), contains("test_2"));
+        assertThat(indicesToReleaseReadOnlyBlock.get(), contains("test_2"));
 
         // When no usage information is present for node2, we don't release the block
         indicesToMarkReadOnly.set(null);
-        indicesToRelease.set(null);
+        indicesToReleaseReadOnlyBlock.set(null);
         builder = new HashMap<>();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
         monitor.onNewInfo(clusterInfo(builder));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
-        assertNull(indicesToRelease.get());
+        assertNull(indicesToReleaseReadOnlyBlock.get());
 
         // When disk usage on one node is between the high and flood-stage watermarks, nothing changes
         indicesToMarkReadOnly.set(null);
-        indicesToRelease.set(null);
+        indicesToReleaseReadOnlyBlock.set(null);
         builder = new HashMap<>();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(5, 9)));
         builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(5, 100)));
@@ -497,11 +517,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         }
         monitor.onNewInfo(clusterInfo(builder));
         assertNull(indicesToMarkReadOnly.get());
-        assertNull(indicesToRelease.get());
+        assertNull(indicesToReleaseReadOnlyBlock.get());
 
         // When disk usage on one node is missing and the other is below the high watermark, nothing changes
         indicesToMarkReadOnly.set(null);
-        indicesToRelease.set(null);
+        indicesToReleaseReadOnlyBlock.set(null);
         builder = new HashMap<>();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(5, 100)));
         if (randomBoolean()) {
@@ -509,11 +529,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         }
         monitor.onNewInfo(clusterInfo(builder));
         assertNull(indicesToMarkReadOnly.get());
-        assertNull(indicesToRelease.get());
+        assertNull(indicesToReleaseReadOnlyBlock.get());
 
         // When disk usage on one node is missing and the other is above the flood-stage watermark, affected indices are blocked
         indicesToMarkReadOnly.set(null);
-        indicesToRelease.set(null);
+        indicesToReleaseReadOnlyBlock.set(null);
         builder = new HashMap<>();
         builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
         if (randomBoolean()) {
@@ -521,7 +541,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         }
         monitor.onNewInfo(clusterInfo(builder));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
-        assertNull(indicesToRelease.get());
+        assertNull(indicesToReleaseReadOnlyBlock.get());
     }
 
     @TestLogging(value = "org.opensearch.cluster.routing.allocation.DiskThresholdMonitor:INFO", reason = "testing INFO/WARN logging")
@@ -564,6 +584,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             @Override
             long sizeOfRelocatingShards(RoutingNode routingNode, DiskUsage diskUsage, ClusterInfo info, ClusterState reroutedClusterState) {
                 return relocatingShardSizeRef.get();
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToBlockRead, ActionListener<Void> listener, boolean readBlock) {
+                listener.onResponse(null);
             }
 
             @Override
@@ -711,8 +736,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         ) {
 
             @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
-                assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
+            protected void updateIndicesReadOnly(Set<String> indicesToBlockRead, ActionListener<Void> listener, boolean readOnly) {
+                assertTrue(indices.compareAndSet(null, indicesToBlockRead));
                 assertFalse(readOnly);
                 listener.onResponse(null);
             }
@@ -796,6 +821,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             }
 
             @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToBlockRead, ActionListener<Void> listener, boolean readBlock) {
+                listener.onResponse(null);
+            }
+
+            @Override
             protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
                 if (indexCreateBlock == true) {
                     countBlocksCalled.set(countBlocksCalled.get() + 1);
@@ -867,6 +897,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             allocation
         );
 
+        AtomicReference<Set<String>> indicesToBlockRead = new AtomicReference<>();
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
         AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
         AtomicBoolean reroute = new AtomicBoolean(false);
 
@@ -887,6 +919,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
                 assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
                 listener.onResponse(null);
             }
 
@@ -948,6 +985,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             allocation
         );
 
+        AtomicReference<Set<String>> indicesToBlockRead = new AtomicReference<>();
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
         AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
         AtomicBoolean reroute = new AtomicBoolean(false);
 
@@ -968,6 +1007,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
                 assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
                 listener.onResponse(null);
             }
 
@@ -1029,6 +1073,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             allocation
         );
 
+        AtomicReference<Set<String>> indicesToBlockRead = new AtomicReference<>();
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
         AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
 
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
@@ -1044,6 +1090,11 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
                 assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
                 assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
                 listener.onResponse(null);
             }
 

@@ -65,6 +65,7 @@ import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.opensearch.cluster.routing.allocation.FileCacheThresholdSettings;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
@@ -346,6 +347,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
+                FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING,
+                FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING,
                 SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
                 ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING,
                 InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,

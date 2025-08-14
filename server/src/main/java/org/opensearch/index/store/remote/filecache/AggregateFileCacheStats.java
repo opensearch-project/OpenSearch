@@ -92,6 +92,10 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return calculatePercentage(overallFileCacheStats.getActive(), overallFileCacheStats.getUsed());
     }
 
+    public short getActivePercentFromTotalCapacity() {
+        return calculatePercentage(overallFileCacheStats.getActive(), overallFileCacheStats.getTotal());
+    }
+
     public ByteSizeValue getUsed() {
         return new ByteSizeValue(overallFileCacheStats.getUsed());
     }
