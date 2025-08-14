@@ -11,7 +11,9 @@ package org.opensearch.bootstrap;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.fips.truststore.FipsTrustStore;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,22 +40,23 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.fips.truststore.FipsTrustStore.SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE;
+
 /**
- * This class is responsible for handling and configuring trust stores from multiple providers.
- * It facilitates the interception of trust store configurations, conversion of default
- * system trust stores into desired formats, and provides utilities to manage the trust store
- * configuration in runtime environments.
- * The class supports handling PKCS#11 and BCFKS trust store types. If a custom trust store is
- * not specified, it intercepts the default "cacerts" trust store and converts it to an alternative
- * format if applicable. It uses security providers to dynamically determine and configure appropriate
- * KeyStore services.
+ * This class is responsible for handling and configuring trust stores from multiple providers
+ * in FIPS-compliant environments. It enforces explicit trust store configuration to ensure
+ * FIPS compliance and prevents accidental fallback to the non-compliant default JVM trust store.
  */
 public class MultiProviderTrustStoreHandler {
 
     private static final Logger logger = LogManager.getLogger(MultiProviderTrustStoreHandler.class);
     private static final String TEMP_TRUSTSTORE_PREFIX = "converted-truststore-";
     private static final String TEMP_TRUSTSTORE_SUFFIX = ".bcfks";
-    private static final String TRUST_STORE_PASSWORD = Security.getProperty("javax.net.ssl.trustStorePassword");
+    private static final String JAVAX_NET_SSL_TRUST_STORE = "javax.net.ssl.trustStore";
+    private static final String JAVAX_NET_SSL_TRUST_STORE_TYPE = "javax.net.ssl.trustStoreType";
+    private static final String JAVAX_NET_SSL_TRUST_STORE_PROVIDER = "javax.net.ssl.trustStoreProvider";
+    private static final String JAVAX_NET_SSL_TRUST_STORE_PASSWORD = "javax.net.ssl.trustStorePassword";
+    private static final String TRUST_STORE_PASSWORD = Security.getProperty(JAVAX_NET_SSL_TRUST_STORE_PASSWORD);
     private static final String JVM_DEFAULT_PASSWORD = Objects.requireNonNullElse(TRUST_STORE_PASSWORD, "changeit");
     private static final String SYSTEMSTORE_PASSWORD = Objects.requireNonNullElse(TRUST_STORE_PASSWORD, "");
     private static final String PKCS_11 = "PKCS11";
@@ -72,10 +75,10 @@ public class MultiProviderTrustStoreHandler {
             var writer = new PrintWriter(detailLog);
             var passwordSetStatus = trustStorePassword.isEmpty() ? "[NOT SET]" : "[SET]";
 
-            writer.printf(Locale.ROOT, "\njavax.net.ssl.trustStore: " + trustStorePath);
-            writer.printf(Locale.ROOT, "\njavax.net.ssl.trustStoreType: " + trustStoreType);
-            writer.printf(Locale.ROOT, "\njavax.net.ssl.trustStoreProvider: " + trustStoreProvider);
-            writer.printf(Locale.ROOT, "\njavax.net.ssl.trustStorePassword: " + passwordSetStatus);
+            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE + ": " + trustStorePath);
+            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_TYPE + ": " + trustStoreType);
+            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_PROVIDER + ": " + trustStoreProvider);
+            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_PASSWORD + ": " + passwordSetStatus);
             writer.flush();
 
             logger.info("\nChanged TrustStore configuration: {}", detailLog);
@@ -83,34 +86,56 @@ public class MultiProviderTrustStoreHandler {
     }
 
     /**
-     * Configures the Java TrustStore by setting up appropriate truststore properties.
-     * If a custom TrustStore path is provided, it will use it directly;
-     * otherwise, it will dynamically configure a TrustStore using a suitable provider.
+     * <p>The method follows a strict 2-step resolution process:
+     * <ol>
+     *   <li><strong>JVM Parameters:</strong> Checks for explicitly configured trust stores
+     *       via JVM system properties (e.g., {@code javax.net.ssl.trustStore})</li>
+     *   <li><strong>Cluster Settings:</strong> Falls back to cluster-defined trust store settings
+     *       if no JVM configuration is found</li>
+     * </ol>
      *
+     * <p>Supported trust store formats include:
+     * <ul>
+     *   <li>PKCS#11 (for NSS-backed hardware security)</li>
+     *   <li>BCFKS (BouncyCastle FIPS KeyStore for software-based FIPS compliance)</li>
+     * </ul>
+     *
+     * <p><strong>Important:</strong> If neither JVM parameters nor cluster settings define a trust store,
+     * this method throws an exception. There is no automatic conversion or fallback to default
+     * JDK trust stores, as this would compromise FIPS compliance.
+     *
+     * @param settings        used to look up cluster-defined trust store setting
      * @param tmpDir          the directory to store temporary TrustStore files
      * @param javaHome        the path to the Java Home, used for accessing default system TrustStore
      */
-    public static void configureTrustStore(Path tmpDir, Path javaHome) {
-        var existingTrustStorePath = existingTrustStorePath();
-        if (existingTrustStorePath != null) {
-            logger.info("Custom truststore already specified: {}", existingTrustStorePath);
-            return;
+    public static void configureTrustStore(Settings settings, Path tmpDir, Path javaHome) {
+        var fipsTrustStoreSetting = FipsTrustStore.TrustStoreSource.parse(settings.get(SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE));
+        if (fipsTrustStoreSetting == null) {
+            var existingTrustStorePath = existingTrustStorePath();
+            if (existingTrustStorePath != null) {
+                logger.info("Custom truststore already specified: {}", existingTrustStorePath);
+                return;
+            }
+            throw new IllegalStateException(
+                ("In FIPS JVM it is required for default TrustStore to be configured " + "by '%s' JVM parameter or by '%s' cluster setting")
+                    .formatted(JAVAX_NET_SSL_TRUST_STORE, SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE)
+            );
         }
 
-        logger.info("No custom truststore specified - intercepting default cacerts usage");
-        var pkcs11ProviderService = findPKCS11ProviderService();
-        var properties = pkcs11ProviderService.map(MultiProviderTrustStoreHandler::configurePKCS11TrustStore)
-            .orElseGet(() -> MultiProviderTrustStoreHandler.configureBCFKSTrustStore(javaHome, tmpDir));
+        var properties = switch (fipsTrustStoreSetting) {
+            case SYSTEM_TRUST -> findPKCS11ProviderService().map(MultiProviderTrustStoreHandler::configurePKCS11TrustStore)
+                .orElseThrow(() -> new IllegalStateException("No PKCS11 provider found, check java.security configuration for FIPS."));
+            case GENERATED -> MultiProviderTrustStoreHandler.configureBCFKSTrustStore(javaHome, tmpDir);
+        };
 
         setProperties(properties);
-        logger.info("Converted system truststore to {} format", properties.trustStoreProvider);
         properties.logout();
         printCurrentConfiguration(Level.TRACE);
     }
 
     @SuppressForbidden(reason = "check system properties for TrustStore configuration")
     private static Path existingTrustStorePath() {
-        var property = Optional.ofNullable(System.getProperty("javax.net.ssl.trustStore"));
+        var property = Optional.ofNullable(System.getProperty(JAVAX_NET_SSL_TRUST_STORE));
         if (property.isPresent() && Path.of(property.get()).toFile().exists()) {
             return Path.of(property.get());
         }
@@ -119,10 +144,10 @@ public class MultiProviderTrustStoreHandler {
 
     @SuppressForbidden(reason = "sets system properties for TrustStore configuration")
     protected static void setProperties(TrustStoreProperties properties) {
-        System.setProperty("javax.net.ssl.trustStore", properties.trustStorePath());
-        System.setProperty("javax.net.ssl.trustStorePassword", properties.trustStorePassword());
-        System.setProperty("javax.net.ssl.trustStoreType", properties.trustStoreType());
-        System.setProperty("javax.net.ssl.trustStoreProvider", properties.trustStoreProvider());
+        System.setProperty(JAVAX_NET_SSL_TRUST_STORE, properties.trustStorePath());
+        System.setProperty(JAVAX_NET_SSL_TRUST_STORE_PASSWORD, properties.trustStorePassword());
+        System.setProperty(JAVAX_NET_SSL_TRUST_STORE_TYPE, properties.trustStoreType());
+        System.setProperty(JAVAX_NET_SSL_TRUST_STORE_PROVIDER, properties.trustStoreProvider());
     }
 
     private static TrustStoreProperties configurePKCS11TrustStore(Provider.Service pkcs11ProviderService) {

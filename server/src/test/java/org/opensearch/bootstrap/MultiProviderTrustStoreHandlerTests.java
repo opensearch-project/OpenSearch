@@ -9,6 +9,7 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.fips.FipsMode;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -45,7 +46,7 @@ public class MultiProviderTrustStoreHandlerTests extends OpenSearchTestCase {
         System.setProperty("javax.net.ssl.trustStore", trust.toString());
 
         // when
-        MultiProviderTrustStoreHandler.configureTrustStore(createTempDir(), JAVA_HOME);
+        MultiProviderTrustStoreHandler.configureTrustStore(Settings.builder().build(), createTempDir(), JAVA_HOME);
 
         // then
         assertEquals(System.getProperty("javax.net.ssl.trustStore"), trust.toString());
@@ -59,9 +60,10 @@ public class MultiProviderTrustStoreHandlerTests extends OpenSearchTestCase {
         var pkcs11ProviderService = MultiProviderTrustStoreHandler.findPKCS11ProviderService();
         assumeTrue("Should only run when PKCS11 provider is installed.", pkcs11ProviderService.isPresent());
         var trustStoreProviderName = pkcs11ProviderService.get().getProvider().getName();
+        var settings = Settings.builder().put("cluster.fips.truststore.source", "SYSTEM_TRUST").build();
 
         // when
-        MultiProviderTrustStoreHandler.configureTrustStore(createTempDir(), JAVA_HOME);
+        MultiProviderTrustStoreHandler.configureTrustStore(settings, createTempDir(), JAVA_HOME);
 
         // then
         assertEquals("NONE", System.getProperty("javax.net.ssl.trustStore"));
@@ -83,9 +85,10 @@ public class MultiProviderTrustStoreHandlerTests extends OpenSearchTestCase {
             pkcs11ProviderService.isPresent()
         );
         var tmpDir = createTempDir();
+        var settings = Settings.builder().put("cluster.fips.truststore.source", "GENERATED").build();
 
         // when
-        MultiProviderTrustStoreHandler.configureTrustStore(tmpDir, JAVA_HOME);
+        MultiProviderTrustStoreHandler.configureTrustStore(settings, tmpDir, JAVA_HOME);
 
         // then
         assertTrue(System.getProperty("javax.net.ssl.trustStore").endsWith(".bcfks"));
