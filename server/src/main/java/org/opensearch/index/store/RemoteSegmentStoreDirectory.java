@@ -600,7 +600,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         try {
             final String remoteFileName = getNewRemoteSegmentFilename(src);
             boolean uploaded = false;
-            if(src.startsWith("segments_") == false) {
+            if (src.startsWith("segments_") == false) {
                 uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
                     try {
                         postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
