@@ -32,15 +32,24 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -49,6 +58,7 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Objects;
 
 /**
  * This merge policy drops id field postings for all delete documents this can be
@@ -62,9 +72,11 @@ import java.util.Iterator;
  *
  * @opensearch.internal
  */
-final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
+final class PrunePostingsAndKnnMergePolicy extends OneMergeWrappingMergePolicy {
 
-    PrunePostingsMergePolicy(MergePolicy in, String idField) {
+    public static final String KNN_FIELD = "knn_field";
+
+    PrunePostingsAndKnnMergePolicy(MergePolicy in, String idField) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
@@ -157,6 +169,65 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
             }
 
             @Override
+            public DocValuesProducer getDocValuesReader() {
+                DocValuesProducer docValuesProducer = super.getDocValuesReader();
+                if (docValuesProducer == null) {
+                    return null;
+                }
+
+                return new DocValuesProducer() {
+                    @Override
+                    public NumericDocValues getNumeric(FieldInfo fieldInfo) throws IOException {
+                        return docValuesProducer.getNumeric(fieldInfo);
+                    }
+
+                    @Override
+                    public BinaryDocValues getBinary(FieldInfo fieldInfo) throws IOException {
+                        BinaryDocValues binaryDocValues = docValuesProducer.getBinary(fieldInfo);
+                        if (binaryDocValues != null && fieldInfo.attributes().containsKey(KNN_FIELD)) {
+                            return new MergeFilterBinaryDocValues(binaryDocValues, liveDocs);
+                        }
+                        return binaryDocValues;
+                    }
+
+                    @Override
+                    public SortedDocValues getSorted(FieldInfo fieldInfo) throws IOException {
+                        return docValuesProducer.getSorted(fieldInfo);
+                    }
+
+                    @Override
+                    public SortedNumericDocValues getSortedNumeric(FieldInfo fieldInfo) throws IOException {
+                        return docValuesProducer.getSortedNumeric(fieldInfo);
+                    }
+
+                    @Override
+                    public SortedSetDocValues getSortedSet(FieldInfo fieldInfo) throws IOException {
+                        return docValuesProducer.getSortedSet(fieldInfo);
+                    }
+
+                    @Override
+                    public DocValuesSkipper getSkipper(FieldInfo fieldInfo) throws IOException {
+                        return docValuesProducer.getSkipper(fieldInfo);
+                    }
+
+                    @Override
+                    public void checkIntegrity() throws IOException {
+                        docValuesProducer.checkIntegrity();
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        docValuesProducer.close();
+                    }
+                };
+            }
+
+            @Override
+            public KnnVectorsReader getVectorReader() {
+                return super.getVectorReader();
+            }
+
+            @Override
             public CacheHelper getCoreCacheHelper() {
                 return null;
             }
@@ -234,6 +305,46 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         @Override
         public BytesRef getPayload() throws IOException {
             return in.getPayload();
+        }
+    }
+
+    private static final class MergeFilterBinaryDocValues extends BinaryDocValues {
+
+        protected final BinaryDocValues in;
+        protected final Bits liveDocs;
+
+        protected MergeFilterBinaryDocValues(BinaryDocValues in, Bits liveDocs) {
+            Objects.requireNonNull(in);
+            this.in = in;
+            this.liveDocs = liveDocs;
+        }
+
+        public int docID() {
+            return this.in.docID();
+        }
+
+        public int nextDoc() throws IOException {
+            int docId;
+            do {
+                docId = in.nextDoc();
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS && liveDocs.get(docId) == false);
+            return docId;
+        }
+
+        public int advance(int target) throws IOException {
+            return this.in.advance(target);
+        }
+
+        public boolean advanceExact(int target) throws IOException {
+            return this.in.advanceExact(target);
+        }
+
+        public long cost() {
+            return this.in.cost();
+        }
+
+        public BytesRef binaryValue() throws IOException {
+            return this.in.binaryValue();
         }
     }
 }
