@@ -113,9 +113,7 @@ public abstract class ValuesSource {
         return false;
     }
 
-    public String getIndexFieldName() {
-        return null;
-    }
+    public abstract String getIndexFieldName();
 
     /**
      * Range type
