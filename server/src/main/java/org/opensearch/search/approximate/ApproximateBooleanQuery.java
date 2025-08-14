@@ -49,6 +49,11 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     }
 
     @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        return super.rewrite(indexSearcher);
+    }
+
+    @Override
     protected boolean canApproximate(SearchContext context) {
         if (context == null) {
             return false;
@@ -64,6 +69,11 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             return false;
         }
 
+        // Don't approximate if highlighting is enabled
+        if (context.highlight() != null) {
+            return false;
+        }
+
         // For single clause boolean queries, check if the clause can be approximated
         if (clauses.size() == 1 && clauses.get(0).occur() != BooleanClause.Occur.MUST_NOT) {
             // If the clause is already an ApproximateScoreQuery, we can approximate + set context
@@ -76,8 +86,19 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             return false;
         }
 
-        // return clauses.size() > 1 && clauses.stream().allMatch(clause -> clause.occur() == BooleanClause.Occur.FILTER);
-        return clauses.stream().allMatch(clause -> clause.occur() == BooleanClause.Occur.FILTER);
+        // multi clause case - we might want to consider strategies for nested cases, for now limit to just top level
+        for (BooleanClause clause : clauses) {
+            if (clause.occur() != BooleanClause.Occur.FILTER) {
+                return false;
+            } else {
+                if (clause.query() instanceof ApproximateScoreQuery appxScore
+                    && appxScore.getApproximationQuery() instanceof ApproximateBooleanQuery) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     @Override
