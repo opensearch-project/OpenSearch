@@ -249,7 +249,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testIncDecRef() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
             fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(8 * MEGA_BYTES));
         }
@@ -316,7 +316,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testPrune() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
             putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
         }
@@ -329,7 +329,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testPruneWithPredicate() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
             putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
         }
@@ -348,7 +348,7 @@ public class FileCacheTests extends OpenSearchTestCase {
 
     public void testUsage() {
         FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-            16 * MEGA_BYTES,
+            32 * MEGA_BYTES,
             1,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         );
@@ -356,6 +356,44 @@ public class FileCacheTests extends OpenSearchTestCase {
 
         long expectedCacheUsage = 16 * MEGA_BYTES;
         long expectedActiveCacheUsage = 0;
+        long realCacheUsage = fileCache.usage();
+        long realActiveCacheUsage = fileCache.activeUsage();
+
+        assertEquals(expectedCacheUsage, realCacheUsage);
+        assertEquals(expectedActiveCacheUsage, realActiveCacheUsage);
+    }
+
+    public void testUsageAtFullActiveCapacity() throws IOException {
+        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
+            16 * MEGA_BYTES,
+            1,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+        );
+        // Add some entries to cache
+        int numEntries = 2;
+        Path tempDir = createTempDir();
+        Path path1 = tempDir.resolve("test1.tmp");
+        Path path2 = tempDir.resolve("test2.tmp");
+        Path path3 = tempDir.resolve("test3.tmp");
+
+        // Create the files
+        Files.createFile(path1);
+        Files.createFile(path2);
+        Files.createFile(path3);
+
+        try {
+            fileCache.put(path1, new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(path2, new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(path3, new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.decRef(path1); // Decrease reference count
+        } finally {
+            Files.deleteIfExists(path1);
+            Files.deleteIfExists(path2);
+            Files.deleteIfExists(path3);
+        }
+
+        long expectedCacheUsage = 16 * MEGA_BYTES;
+        long expectedActiveCacheUsage = 16 * MEGA_BYTES;
         long realCacheUsage = fileCache.usage();
         long realActiveCacheUsage = fileCache.activeUsage();
 
