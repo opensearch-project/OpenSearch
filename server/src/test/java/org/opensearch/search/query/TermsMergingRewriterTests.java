@@ -24,24 +24,36 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
     private final TermsMergingRewriter rewriter = new TermsMergingRewriter();
     private final QueryShardContext context = mock(QueryShardContext.class);
 
-    public void testSimpleTermMerging() {
-        // Multiple term queries on same field should be merged
+    public void testSimpleTermMergingBelowThreshold() {
+        // Few term queries on same field should NOT be merged (below threshold)
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery("status", "active"))
             .filter(QueryBuilders.termQuery("status", "pending"))
             .filter(QueryBuilders.termQuery("status", "approved"));
 
         QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertSame(query, rewritten); // No changes expected
+    }
+
+    public void testTermMergingAboveThreshold() {
+        // Many term queries on same field should be merged (above threshold of 16)
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        // Add 20 term queries for the same field
+        for (int i = 0; i < 20; i++) {
+            query.filter(QueryBuilders.termQuery("category", "cat_" + i));
+        }
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // Should have one terms query instead of three term queries
+        // Should have one terms query instead of 20 term queries
         assertThat(rewrittenBool.filter().size(), equalTo(1));
         assertThat(rewrittenBool.filter().get(0), instanceOf(TermsQueryBuilder.class));
 
         TermsQueryBuilder termsQuery = (TermsQueryBuilder) rewrittenBool.filter().get(0);
-        assertThat(termsQuery.fieldName(), equalTo("status"));
-        assertThat(termsQuery.values().size(), equalTo(3));
+        assertThat(termsQuery.fieldName(), equalTo("category"));
+        assertThat(termsQuery.values().size(), equalTo(20));
     }
 
     public void testMustClauseNoMerging() {
@@ -59,13 +71,31 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
         assertThat(rewrittenBool.must().size(), equalTo(3));
     }
 
-    public void testShouldClauseMerging() {
-        // Should clauses should be merged independently
+    public void testShouldClauseMergingBelowThreshold() {
+        // Should clauses with few terms should NOT be merged
         QueryBuilder query = QueryBuilders.boolQuery()
             .should(QueryBuilders.termQuery("color", "red"))
             .should(QueryBuilders.termQuery("color", "blue"))
             .should(QueryBuilders.termQuery("size", "large"))
             .should(QueryBuilders.termQuery("size", "medium"));
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertSame(query, rewritten); // No changes expected
+    }
+
+    public void testShouldClauseMergingAboveThreshold() {
+        // Should clauses with many terms should be merged
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+
+        // Add 20 color terms
+        for (int i = 0; i < 20; i++) {
+            query.should(QueryBuilders.termQuery("color", "color_" + i));
+        }
+
+        // Add 18 size terms
+        for (int i = 0; i < 18; i++) {
+            query.should(QueryBuilders.termQuery("size", "size_" + i));
+        }
 
         QueryBuilder rewritten = rewriter.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
@@ -88,11 +118,29 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
         assertSame(query, rewritten); // No changes expected
     }
 
-    public void testExistingTermsQueryExpansion() {
-        // Existing terms query should be expanded with additional term queries
+    public void testExistingTermsQueryExpansionBelowThreshold() {
+        // Existing terms query with few additional terms should NOT be expanded (below threshold)
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termsQuery("status", "active", "pending"))
             .filter(QueryBuilders.termQuery("status", "approved"));
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertSame(query, rewritten); // No changes expected
+    }
+
+    public void testExistingTermsQueryExpansionAboveThreshold() {
+        // Existing terms query should be expanded when total terms exceed threshold
+        String[] initialTerms = new String[14];
+        for (int i = 0; i < 14; i++) {
+            initialTerms[i] = "status_" + i;
+        }
+
+        BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termsQuery("status", initialTerms));
+
+        // Add 5 more term queries to exceed threshold
+        for (int i = 14; i < 19; i++) {
+            query.filter(QueryBuilders.termQuery("status", "status_" + i));
+        }
 
         QueryBuilder rewritten = rewriter.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
@@ -101,7 +149,7 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
         // Should have one terms query with all values
         assertThat(rewrittenBool.filter().size(), equalTo(1));
         TermsQueryBuilder termsQuery = (TermsQueryBuilder) rewrittenBool.filter().get(0);
-        assertThat(termsQuery.values().size(), equalTo(3));
+        assertThat(termsQuery.values().size(), equalTo(19));
     }
 
     public void testSingleTermQuery() {
@@ -123,10 +171,12 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
     }
 
     public void testNestedBooleanQuery() {
-        // Should handle nested boolean queries
-        QueryBuilder nested = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery("status", "active"))
-            .filter(QueryBuilders.termQuery("status", "pending"));
+        // Should handle nested boolean queries with many terms
+        BoolQueryBuilder nested = QueryBuilders.boolQuery();
+        // Add 20 term queries to exceed threshold
+        for (int i = 0; i < 20; i++) {
+            nested.filter(QueryBuilders.termQuery("status", "status_" + i));
+        }
 
         QueryBuilder query = QueryBuilders.boolQuery().must(nested).filter(QueryBuilders.termQuery("type", "product"));
 
@@ -139,6 +189,9 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
         BoolQueryBuilder nestedRewritten = (BoolQueryBuilder) rewrittenBool.must().get(0);
         assertThat(nestedRewritten.filter().size(), equalTo(1));
         assertThat(nestedRewritten.filter().get(0), instanceOf(TermsQueryBuilder.class));
+
+        TermsQueryBuilder termsQuery = (TermsQueryBuilder) nestedRewritten.filter().get(0);
+        assertThat(termsQuery.values().size(), equalTo(20));
     }
 
     public void testEmptyBooleanQuery() {
@@ -156,17 +209,22 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
     }
 
     public void testBoostPreservation() {
-        // Boost values should be preserved when merging
-        QueryBuilder query = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery("status", "active").boost(2.0f))
-            .filter(QueryBuilders.termQuery("status", "pending").boost(2.0f));
+        // Boost values should be preserved when merging many terms
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+
+        // Add 20 terms with same boost
+        for (int i = 0; i < 20; i++) {
+            query.filter(QueryBuilders.termQuery("status", "status_" + i).boost(2.0f));
+        }
 
         QueryBuilder rewritten = rewriter.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
+        assertThat(rewrittenBool.filter().size(), equalTo(1));
         TermsQueryBuilder termsQuery = (TermsQueryBuilder) rewrittenBool.filter().get(0);
         assertThat(termsQuery.boost(), equalTo(2.0f));
+        assertThat(termsQuery.values().size(), equalTo(20));
     }
 
     public void testMixedBoostNoMerging() {
@@ -195,13 +253,31 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
         assertThat(terms.values().size(), equalTo(50));
     }
 
-    public void testMixedTermsAndTermQueries() {
-        // Mix of existing terms queries and term queries
+    public void testMixedTermsAndTermQueriesBelowThreshold() {
+        // Mix of existing terms queries and term queries with few values
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termsQuery("field", "v1", "v2"))
             .filter(QueryBuilders.termQuery("field", "v3"))
             .filter(QueryBuilders.termsQuery("field", "v4", "v5"))
             .filter(QueryBuilders.termQuery("field", "v6"));
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertSame(query, rewritten); // No changes expected (total 6 values < 16)
+    }
+
+    public void testMixedTermsAndTermQueriesAboveThreshold() {
+        // Mix of existing terms queries and term queries with many values
+        String[] initialValues = new String[10];
+        for (int i = 0; i < 10; i++) {
+            initialValues[i] = "v" + i;
+        }
+
+        BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termsQuery("field", initialValues));
+
+        // Add more term queries to exceed threshold
+        for (int i = 10; i < 20; i++) {
+            query.filter(QueryBuilders.termQuery("field", "v" + i));
+        }
 
         QueryBuilder rewritten = rewriter.rewrite(query, context);
         BoolQueryBuilder result = (BoolQueryBuilder) rewritten;
@@ -210,6 +286,6 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
         assertThat(result.filter().size(), equalTo(1));
         assertThat(result.filter().get(0), instanceOf(TermsQueryBuilder.class));
         TermsQueryBuilder merged = (TermsQueryBuilder) result.filter().get(0);
-        assertThat(merged.values().size(), equalTo(6));
+        assertThat(merged.values().size(), equalTo(20));
     }
 }

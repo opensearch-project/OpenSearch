@@ -26,6 +26,11 @@ import java.util.List;
  * {"bool": {"filter": [{"term": {"field": "value"}}]}}
  * </pre>
  *
+ * Note: While Lucene's BooleanQuery does flatten pure disjunctions (SHOULD-only clauses)
+ * for WAND optimization, it does NOT flatten other nested structures like filter-in-filter
+ * or must-in-must. This rewriter handles those additional patterns that are common in
+ * user-generated and template-based queries but not optimized by Lucene.
+ *
  * @opensearch.internal
  */
 public class BooleanFlatteningRewriter implements QueryRewriter {

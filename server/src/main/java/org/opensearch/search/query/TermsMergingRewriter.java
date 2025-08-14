@@ -37,9 +37,21 @@ import java.util.Map;
  * ]}}
  * </pre>
  *
+ * Note: Terms are only merged when there are enough terms to benefit from
+ * the terms query's bit set optimization (default threshold: 16 terms).
+ * This avoids performance regressions for small numbers of terms where
+ * individual term queries may perform better.
+ *
  * @opensearch.internal
  */
 public class TermsMergingRewriter implements QueryRewriter {
+
+    /**
+     * Minimum number of terms to merge. Below this threshold, individual
+     * term queries may perform better than a terms query.
+     * Based on Lucene's TermInSetQuery optimization characteristics.
+     */
+    private static final int MINIMUM_TERMS_TO_MERGE = 16;
 
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
@@ -92,7 +104,7 @@ public class TermsMergingRewriter implements QueryRewriter {
                 fieldBoosts.computeIfAbsent(field, k -> new ArrayList<>()).add(boost);
 
                 List<Float> boosts = fieldBoosts.get(field);
-                if (boosts.size() > 1) {
+                if (boosts.size() >= MINIMUM_TERMS_TO_MERGE) {
                     // Check if all boosts are the same
                     float firstBoost = boosts.get(0);
                     boolean sameBoost = boosts.stream().allMatch(b -> b == firstBoost);
@@ -101,17 +113,23 @@ public class TermsMergingRewriter implements QueryRewriter {
                     }
                 }
             } else if (clause instanceof TermsQueryBuilder) {
-                // Check if there are term queries that can be merged with this terms query
+                // Check if there are enough term queries that can be merged with this terms query
                 TermsQueryBuilder termsQuery = (TermsQueryBuilder) clause;
                 String field = termsQuery.fieldName();
+                int additionalTerms = 0;
 
                 for (QueryBuilder other : clauses) {
                     if (other != clause && other instanceof TermQueryBuilder) {
                         TermQueryBuilder termQuery = (TermQueryBuilder) other;
                         if (field.equals(termQuery.fieldName()) && termsQuery.boost() == termQuery.boost()) {
-                            return true;
+                            additionalTerms++;
                         }
                     }
+                }
+
+                // Only worth merging if the combined size would meet the threshold
+                if (termsQuery.values().size() + additionalTerms >= MINIMUM_TERMS_TO_MERGE) {
+                    return true;
                 }
             }
         }
@@ -197,13 +215,22 @@ public class TermsMergingRewriter implements QueryRewriter {
                     termQuery.boost(info.boost);
                 }
                 adder.addClause(termQuery);
-            } else {
-                // Multiple values, create terms query
+            } else if (info.values.size() >= MINIMUM_TERMS_TO_MERGE) {
+                // Many values, merge into terms query for better performance
                 TermsQueryBuilder termsQuery = new TermsQueryBuilder(field, info.values);
                 if (info.boost != 1.0f) {
                     termsQuery.boost(info.boost);
                 }
                 adder.addClause(termsQuery);
+            } else {
+                // Few values, keep as individual term queries for better performance
+                for (Object value : info.values) {
+                    TermQueryBuilder termQuery = new TermQueryBuilder(field, value);
+                    if (info.boost != 1.0f) {
+                        termQuery.boost(info.boost);
+                    }
+                    adder.addClause(termQuery);
+                }
             }
         }
 
