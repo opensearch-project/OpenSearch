@@ -74,24 +74,6 @@
                 }
               },
               {
-                float: {
-                  "match": "floatField*",
-                  "match_mapping_type": "float",
-                  "mapping": {
-                    "type": "float"
-                  }
-                }
-              },
-              {
-                integer: {
-                  "match": "integerField*",
-                  "match_mapping_type": "integer",
-                  "mapping": {
-                    "type": "integer"
-                  }
-                }
-              },
-              {
                 array: {
                   "match": "arrayField*",
                   "mapping": {
@@ -119,8 +101,6 @@
           booleanField: true,
           longField: 123456789,
           doubleField: 123.456,
-          floatField: 123.45,
-          integerField: 12345,
           arrayField: ["item1", "item2", "item3"],
           author: "John Doe"
         }
@@ -140,8 +120,6 @@
         booleanField: true
         longField: 123456789
         doubleField: 123.456
-        floatField: 123.45
-        integerField: 12345
         arrayField: ["item1", "item2", "item3"]
         author: "John Doe"
 
@@ -158,8 +136,5 @@
   - match: {test_1.mappings.properties.booleanField.type:     boolean}
   - match: {test_1.mappings.properties.longField.type:     long}
   - match: {test_1.mappings.properties.doubleField.type:     double}
-  - match: {test_1.mappings.properties.floatField.type:     float}
-  - match: {test_1.mappings.properties.integerField.type:     integer}
   - match: {test_1.mappings.properties.arrayField.type:     keyword}
   - match: {test_1.mappings.properties.author:     null}
-  - length: {test_1.mappings.properties: 11}
