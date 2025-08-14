@@ -32,13 +32,16 @@
 
 package org.opensearch.threadpool;
 
+import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -328,6 +331,111 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         int result = pool.invoke(task);
         assertEquals(123, result);
         threadPool.shutdown();
+    }
+
+    public void testValidateSettingSkipsForkJoinPool() {
+        // Setup minimal settings with node name
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings);
+
+        // ForkJoinPool does not support any config, but we still add dummy settings to trigger validateSetting
+        Settings forkJoinSettings = Settings.builder().put("fork_join.size", "10").build();
+
+        // Should NOT throw, because validateSetting skips ForkJoinPool types
+        threadPool.setThreadPool(forkJoinSettings);
+
+        // Clean up
+        terminate(threadPool);
+    }
+
+    public void testExecutorHolderAcceptsForkJoinPool() {
+        ForkJoinPool pool = new ForkJoinPool(1);
+        ThreadPool.Info info = new ThreadPool.Info("fork_join", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+        ThreadPool.ExecutorHolder holder = new ThreadPool.ExecutorHolder(pool, info);
+        assertTrue(holder.executor() instanceof ForkJoinPool);
+        assertEquals(info, holder.info);
+        pool.shutdown();
+    }
+
+    public void testThreadPoolInfoWriteToForkJoinLegacyVersion() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("fork_join", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+
+        // Stub StreamOutput that sets legacy version and implements required methods
+        StreamOutput out = new StreamOutput() {
+            private Version version = Version.V_3_1_0;
+
+            @Override
+            public void writeByte(byte b) {}
+
+            @Override
+            public void writeBytes(byte[] b, int offset, int length) {}
+
+            @Override
+            public void writeBytes(byte[] b) {}
+
+            @Override
+            public void setVersion(Version v) {
+                this.version = v;
+            }
+
+            @Override
+            public Version getVersion() {
+                return version;
+            }
+
+            @Override
+            public void flush() throws IOException {} // required by abstract base class
+
+            @Override
+            public void reset() throws IOException {} // required by abstract base class
+
+            @Override
+            public void close() throws IOException {} // required by abstract base class
+        };
+        out.setVersion(Version.V_3_1_0);
+
+        // This will exercise the fallback logic for ForkJoinPool and legacy version
+        info.writeTo(out);
+    }
+
+    public void testThreadPoolInfoWriteToForkJoinCurrentVersion() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("fork_join", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+
+        StreamOutput out = new StreamOutput() {
+            private Version version = Version.CURRENT;
+
+            @Override
+            public void writeByte(byte b) {}
+
+            @Override
+            public void writeBytes(byte[] b, int offset, int length) {}
+
+            @Override
+            public void writeBytes(byte[] b) {}
+
+            @Override
+            public void setVersion(Version v) {
+                this.version = v;
+            }
+
+            @Override
+            public Version getVersion() {
+                return version;
+            }
+
+            @Override
+            public void flush() throws IOException {} // required by abstract base class
+
+            @Override
+            public void reset() throws IOException {} // required by abstract base class
+
+            @Override
+            public void close() throws IOException {} // required by abstract base class
+        };
+        out.setVersion(Version.CURRENT);
+
+        // This will exercise the normal serialization logic for ForkJoinPool and current version
+        info.writeTo(out);
     }
 
     // public void testForkJoinPoolTypeNotSupportedYet() {
