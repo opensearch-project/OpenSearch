@@ -53,6 +53,21 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
         return super.rewrite(indexSearcher);
     }
 
+    public static Query boolRewrite(Query query, IndexSearcher indexSearcher) {
+        if (query instanceof BooleanQuery boolQuery) {
+            return (boolQuery.clauses().size() == 1) ? boolRewrite(boolQuery.clauses().get(0).query(), indexSearcher) : query;
+        } else if (query instanceof ApproximateBooleanQuery appxBool) {
+            return (appxBool.getBooleanQuery().clauses().size() == 1)
+                ? boolRewrite(appxBool.boolQuery.clauses().get(0).query(), indexSearcher)
+                : query;
+        }
+        try {
+            return query.rewrite(indexSearcher);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     protected boolean canApproximate(SearchContext context) {
         if (context == null) {
@@ -86,19 +101,25 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
             return false;
         }
 
+        boolean hasApproximate = false;
+
         // multi clause case - we might want to consider strategies for nested cases, for now limit to just top level
         for (BooleanClause clause : clauses) {
             if (clause.occur() != BooleanClause.Occur.FILTER) {
                 return false;
             } else {
-                if (clause.query() instanceof ApproximateScoreQuery appxScore
-                    && appxScore.getApproximationQuery() instanceof ApproximateBooleanQuery) {
-                    return false;
+                if (clause.query() instanceof ApproximateScoreQuery appxScore) {
+                    if (appxScore.getApproximationQuery() instanceof ApproximatePointRangeQuery) {
+                        hasApproximate = true;
+                    }
+                    if (appxScore.getApproximationQuery() instanceof ApproximateBooleanQuery || clause.query() instanceof BooleanQuery) {
+                        return false;
+                    }
                 }
             }
         }
 
-        return true;
+        return hasApproximate;
     }
 
     @Override
