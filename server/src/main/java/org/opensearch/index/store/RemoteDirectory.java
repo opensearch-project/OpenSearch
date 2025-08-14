@@ -397,22 +397,22 @@ public class RemoteDirectory extends Directory {
         assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
-        try (IndexInput indexInput = from.openInput(src, ioContext)) {
-            contentLength = indexInput.length();
-        }
+        IndexInput indexInput = from.openInput(src, ioContext);
+        contentLength = indexInput.length();
         boolean remoteIntegrityEnabled = false;
         if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
         }
         lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
         RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
+
         if (lowPriorityUpload) {
             offsetRangeInputStreamSupplier = (size, position) -> lowPriorityUploadRateLimiter.apply(
-                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
+                new OffsetRangeIndexInputStream(indexInput.clone(), size, position)
             );
         } else {
             offsetRangeInputStreamSupplier = (size, position) -> uploadRateLimiter.apply(
-                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
+                new OffsetRangeIndexInputStream(indexInput.clone(), size, position)
             );
         }
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
@@ -455,6 +455,14 @@ public class RemoteDirectory extends Directory {
             } catch (Exception e) {
                 logger.warn("Error occurred while closing streams", e);
             }
+        });
+
+        completionListener = ActionListener.runAfter(completionListener, () -> {
+           try {
+               indexInput.close();
+           } catch(IOException e) {
+               logger.warn("Error occurred while closing index input", e);
+           }
         });
 
         WriteContext writeContext = remoteTransferContainer.createWriteContext();
