@@ -50,6 +50,7 @@ public final class ApproximateScoreQuery extends Query {
         }
         Query rewritten = resolvedQuery.rewrite(indexSearcher);
         if (rewritten != resolvedQuery) {
+            // To make sure that query goes through entire rewrite process
             resolvedQuery = rewritten;
         }
         return this;
@@ -57,7 +58,14 @@ public final class ApproximateScoreQuery extends Query {
 
     public void setContext(SearchContext context) {
         resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
-    };
+        if (resolvedQuery instanceof ApproximateBooleanQuery appxBool) {
+            for (BooleanClause boolClause : appxBool.boolQuery.clauses()) {
+                if (boolClause.query() instanceof ApproximateScoreQuery apprxQuery) {
+                    apprxQuery.setContext(context);
+                }
+            }
+        }
+    }
 
     @Override
     public String toString(String s) {

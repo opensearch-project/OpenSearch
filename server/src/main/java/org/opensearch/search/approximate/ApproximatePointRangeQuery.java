@@ -173,7 +173,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                     @Override
                     public void visit(int docID) {
-                        // it is possible that size < 1024 and docCount < size but we will continue to count through all the 1024 docs
                         adder.add(docID);
                         docCount[0]++;
                     }
@@ -242,7 +241,8 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
             private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, long[] docCount)
                 throws IOException {
-                intersectLeft(visitor, pointTree, docCount);
+                intersectLeft(visitor, pointTree, docCount); // Top-level call
+                // Only assert for complete traversals (top-level calls)
                 assert pointTree.moveToParent() == false;
             }
 
@@ -297,6 +297,51 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     intersectLeft(visitor, rightChild, docCount);
                 }
                 pointTree.moveToParent();
+            }
+
+            public void intersectLeftIterative(
+                PointValues.IntersectVisitor visitor,
+                PointValues.PointTree pointTree,
+                long[] docCount,
+                BKDState state
+            ) throws IOException {
+
+                while (true) {
+                    PointValues.Relation compare = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+                    if (compare == PointValues.Relation.CELL_INSIDE_QUERY) {
+                        // Check if processing this entire subtree would exceed our limit
+                        long subtreeSize = pointTree.size();
+                        if (docCount[0] + subtreeSize > size) {
+                            // Too big - need to process children individually
+                            if (pointTree.moveToChild()) {
+                                continue; // Process children one by one
+                            }
+                        }
+                        // Safe to process entire subtree
+                        pointTree.visitDocIDs(visitor);
+                    } else if (compare == PointValues.Relation.CELL_CROSSES_QUERY) {
+                        // The cell crosses the shape boundary, or the cell fully contains the query, so we fall
+                        // through and do full filtering:
+                        if (pointTree.moveToChild()) {
+                            continue;
+                        }
+                        // Leaf node; scan and filter all points in this block:
+                        pointTree.visitDocValues(visitor);
+                    }
+                    // position ourself to next place
+                    while (pointTree.moveToSibling() == false) {
+                        if (pointTree.moveToParent() == false) {
+                            // Reached true root - entire BKD tree traversal is complete
+                            state.setExhausted(true);
+                            return;
+                        }
+                    }
+                    // if (docCount[0] >= size) {
+                    // state.setPointTree(pointTree);
+                    // state.setInProgress(true);
+                    // return;
+                    // }
+                }
             }
 
             // custom intersect visitor to walk the right of tree (from rightmost leaf going left)
@@ -360,15 +405,44 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
-                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
+                            // Keep a visitor for cost estimation only
+                            DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
+                            PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
                             @Override
                             public Scorer get(long leadCost) throws IOException {
-                                intersectLeft(values.getPointTree(), visitor, docCount);
-                                DocIdSetIterator iterator = result.build().iterator();
-                                return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                if (!context.isTopLevel) {
+                                    // Use leadCost as dynamic size if it's reasonable, otherwise use original size
+                                    int dynamicSize = (leadCost > 0 && leadCost < Integer.MAX_VALUE) ? (int) leadCost : size;
+                                    return getWithSize(dynamicSize);
+                                } else {
+                                    // For top-level queries, use standard approach
+                                    return getWithSize(size);
+                                }
+                            }
+
+                            public Scorer getWithSize(int dynamicSize) throws IOException {
+                                // Temporarily update size for this call
+                                int originalSize = size;
+                                size = dynamicSize;
+
+                                try {
+
+                                    // For windowed approach, create fresh iterator without ResumableDISI state
+                                    DocIdSetBuilder freshResult = new DocIdSetBuilder(reader.maxDoc(), values);
+                                    long[] freshDocCount = new long[1];
+                                    PointValues.IntersectVisitor freshVisitor = getIntersectVisitor(freshResult, freshDocCount);
+
+                                    // Always start fresh traversal from root
+                                    intersectLeft(values.getPointTree(), freshVisitor, freshDocCount);
+
+                                    DocIdSetIterator iterator = freshResult.build().iterator();
+                                    return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                } finally {
+                                    // Restore original size
+                                    size = originalSize;
+                                }
                             }
 
                             @Override
@@ -519,5 +593,39 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         sb.append(")");
 
         return sb.toString();
+    }
+
+    /**
+     * Class to track the state of BKD tree traversal.
+     */
+    public static class BKDState {
+        private PointValues.PointTree currentTree;
+        private boolean isExhausted = false;
+        private boolean inProgress = false;
+
+        public PointValues.PointTree getPointTree() {
+            return currentTree;
+        }
+
+        public void setPointTree(PointValues.PointTree tree) {
+            this.currentTree = tree;
+        }
+
+        public boolean isExhausted() {
+            return this.isExhausted;
+        }
+
+        public void setExhausted(boolean exhausted) {
+            this.isExhausted = exhausted;
+        }
+
+        public boolean isInProgress() {
+            return this.inProgress;
+        }
+
+        public void setInProgress(boolean inProgress) {
+            this.inProgress = inProgress;
+        }
+
     }
 }
