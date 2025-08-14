@@ -77,30 +77,10 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         // Check concurrently clearing multiple indices from the FD cache correctly removes all expected keys.
         int numIndices = 10;
         String indexPrefix = "test";
-        for (int i = 0; i < numIndices; i++) {
-            String index = indexPrefix + i;
-            assertAcked(
-                prepareCreate(index).setMapping(
-                    jsonBuilder().startObject()
-                        .startObject("properties")
-                        .startObject("name")
-                        .field("type", "text")
-                        .field("fielddata", true)
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
-            );
-            client().prepareIndex(index).setId("1").setSource("name", "name").get();
-            client().admin().indices().prepareRefresh(index).get();
-            // Search on each index to fill the cache
-            client().prepareSearch(index).setQuery(new MatchAllQueryBuilder()).addSort("name", SortOrder.ASC).get();
-        }
-        ensureGreen();
+        createAndSearchIndices(numIndices, 1, indexPrefix, "field");
         // TODO: Should be 1 entry per field per index in cache, but cannot check this directly until we add the items count stat in a
         // future PR
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertTrue(response.getIndicesStats().getFieldData().getMemorySizeInBytes() > 0L);
+
 
         // Concurrently clear multiple indices from FD cache
         Thread[] threads = new Thread[numIndices];
@@ -126,7 +106,7 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         countDownLatch.await();
 
         // Cache size should be 0
-        response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertEquals(0, response.getIndicesStats().getFieldData().getMemorySizeInBytes());
     }
 
@@ -136,29 +116,7 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         int numFieldsPerIndex = 5;
         String indexPrefix = "test";
         String fieldPrefix = "field";
-        for (int i = 0; i < numIndices; i++) {
-            String index = indexPrefix + i;
-            XContentBuilder req = jsonBuilder().startObject().startObject("properties");
-            for (int j = 0; j < numFieldsPerIndex; j++) {
-                req.startObject(fieldPrefix + j).field("type", "text").field("fielddata", true).endObject();
-            }
-            req.endObject().endObject();
-            assertAcked(prepareCreate(index).setMapping(req));
-            Map<String, String> source = new HashMap<>();
-            for (int j = 0; j < numFieldsPerIndex; j++) {
-                source.put(fieldPrefix + j, "value");
-            }
-            client().prepareIndex(index).setId("1").setSource(source).get();
-            client().admin().indices().prepareRefresh(index).get();
-            // Search on each index to fill the cache
-            for (int j = 0; j < numFieldsPerIndex; j++) {
-                client().prepareSearch(index).setQuery(new MatchAllQueryBuilder()).addSort(fieldPrefix + j, SortOrder.ASC).get();
-            }
-        }
-        ensureGreen();
-
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertTrue(response.getIndicesStats().getFieldData().getMemorySizeInBytes() > 0L);
+        createAndSearchIndices(numIndices, numFieldsPerIndex, indexPrefix, fieldPrefix);
 
         // Concurrently clear multiple indices+fields from FD cache
         Thread[] threads = new Thread[numIndices * numFieldsPerIndex];
@@ -188,9 +146,33 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         countDownLatch.await();
 
         // Cache size should be 0
-        response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertEquals(0, response.getIndicesStats().getFieldData().getMemorySizeInBytes());
+    }
 
+    private void createAndSearchIndices(int numIndices, int numFieldsPerIndex, String indexPrefix, String fieldPrefix) throws Exception {
+        for (int i = 0; i < numIndices; i++) {
+            String index = indexPrefix + i;
+            XContentBuilder req = jsonBuilder().startObject().startObject("properties");
+            for (int j = 0; j < numFieldsPerIndex; j++) {
+                req.startObject(fieldPrefix + j).field("type", "text").field("fielddata", true).endObject();
+            }
+            req.endObject().endObject();
+            assertAcked(prepareCreate(index).setMapping(req));
+            Map<String, String> source = new HashMap<>();
+            for (int j = 0; j < numFieldsPerIndex; j++) {
+                source.put(fieldPrefix + j, "value");
+            }
+            client().prepareIndex(index).setId("1").setSource(source).get();
+            client().admin().indices().prepareRefresh(index).get();
+            // Search on each index to fill the cache
+            for (int j = 0; j < numFieldsPerIndex; j++) {
+                client().prepareSearch(index).setQuery(new MatchAllQueryBuilder()).addSort(fieldPrefix + j, SortOrder.ASC).get();
+            }
+        }
+        ensureGreen();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertTrue(response.getIndicesStats().getFieldData().getMemorySizeInBytes() > 0L);
     }
 
 }

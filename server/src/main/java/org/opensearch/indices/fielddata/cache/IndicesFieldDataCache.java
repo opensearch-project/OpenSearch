@@ -132,7 +132,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
      * @param index The index to clear
      */
     public void clear(Index index) {
-        // TODO: This is for testing only - this should get moved to a markForCleanup type method after i see if tests pass
+        // TODO: In a future PR, this method will instead the index for cleanup and a scheduled thread will actually invalidate
         for (Key key : cache.keys()) {
             if (key.indexCache.index.equals(index)) {
                 cache.invalidate(key);
@@ -148,7 +148,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
      * @param field The field to clear
      */
     public void clear(Index index, String field) {
-        // TODO: This is for testing only - this should get moved to a markForCleanup type method after i see if tests pass
+        // TODO: In a future PR, this method will instead the index+field for cleanup and a scheduled thread will actually invalidate
         for (Key key : cache.keys()) {
             if (key.indexCache.index.equals(index)) {
                 if (key.indexCache.fieldName.equals(field)) {
@@ -255,19 +255,19 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         public void onClose(CacheKey key) throws IOException {
-            nodeLevelCache.cache.invalidate(new Key(this, key, null)); // TODO: Not sure on this
+            nodeLevelCache.cache.invalidate(new Key(this, key, null));
             // don't call cache.cleanUp here as it would have bad performance implications
         }
 
         @Override
         public void clear() {
-            // TODO: We need this method to work because of the interface, but we won't use it directly in the actual cache clear path.
+            // This method must work to support the interface, but we don't use it directly in the actual cache clear path
             nodeLevelCache.clear(index);
         }
 
         @Override
         public void clear(String fieldName) {
-            // TODO: We need this method to work because of the interface, but we won't use it directly in the actual cache clear path.
+            // This method must work to support the interface, but we don't use it directly in the actual cache clear path
             nodeLevelCache.clear(index, fieldName);
         }
     }

@@ -79,7 +79,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
     private final IndicesFieldDataCache indicesFieldDataCache;
     // the below map needs to be modified under a lock
-    // TODO: If we change this to ConcurrentHashMap, we can prob remove synchronized blocks, tho I'm not 100% sure.
     private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
         @Override
@@ -107,8 +106,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         // IndicesFieldDataCache.
         indicesFieldDataCache.clear(index());
         fieldDataCaches.clear();
-        // TODO: Exception handling? Dont think we need it now as the purpose is to rethrow several exceptions as one runtime exception, but
-        // we can just have it thrown as normal.
     }
 
     public synchronized void clearField(final String fieldName) {
