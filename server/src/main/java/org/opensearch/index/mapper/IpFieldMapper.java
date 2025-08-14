@@ -237,7 +237,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             return CONTENT_TYPE;
         }
 
-        public static InetAddress parse(Object value) {
+        private static InetAddress parse(Object value) {
             if (value instanceof InetAddress) {
                 return (InetAddress) value;
             } else {
