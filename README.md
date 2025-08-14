@@ -5,8 +5,6 @@
 [![Code Coverage](https://codecov.io/gh/opensearch-project/OpenSearch/branch/main/graph/badge.svg)](https://codecov.io/gh/opensearch-project/OpenSearch)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/opensearch-project/OpenSearch?sort=semver)
 
-
-
 - [Welcome!](#welcome)
 - [Project Resources](#project-resources)
 - [Code of Conduct](#code-of-conduct)
@@ -17,7 +15,7 @@
 
 ## Welcome!
 
-**OpenSearch** is [a community-driven, open source fork](https://aws.amazon.com/blogs/opensource/introducing-opensearch/) of [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch) and [Kibana](https://en.wikipedia.org/wiki/Kibana) following the [license change](https://blog.opensource.org/the-sspl-is-not-an-open-source-license/) in early 2021. We're looking to sustain (and evolve!) a search and analytics suite for the multitude of businesses who are dependent on the rights granted by the original, [Apache v2.0 License](LICENSE.txt).
+OpenSearch is an open-source, enterprise-grade search and observability suite that brings order to unstructured data at scale.
 
 ## Project Resources
 
@@ -49,6 +47,6 @@ Copyright OpenSearch Contributors. See [NOTICE](NOTICE.txt) for details.
 
 ## Trademark
 
-OpenSearch is a registered trademark of Amazon Web Services.
+OpenSearch is a registered trademark of LF Projects, LLC.
 
 OpenSearch includes certain Apache-licensed Elasticsearch code from Elasticsearch B.V. and other source code. Elasticsearch B.V. is not the source of that other source code. ELASTICSEARCH is a registered trademark of Elasticsearch B.V.
