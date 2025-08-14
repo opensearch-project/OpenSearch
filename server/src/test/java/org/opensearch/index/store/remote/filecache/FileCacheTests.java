@@ -249,7 +249,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testIncDecRef() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
             fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(8 * MEGA_BYTES));
         }
@@ -316,7 +316,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testPrune() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
             putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
         }
@@ -329,7 +329,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testPruneWithPredicate() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
             putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
         }
@@ -348,7 +348,7 @@ public class FileCacheTests extends OpenSearchTestCase {
 
     public void testUsage() {
         FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-            16 * MEGA_BYTES,
+            32 * MEGA_BYTES,
             1,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         );
