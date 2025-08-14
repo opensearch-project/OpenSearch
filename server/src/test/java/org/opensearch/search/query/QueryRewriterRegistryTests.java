@@ -13,7 +13,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -49,8 +48,9 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         assertThat(rewrittenBool.must().get(0), instanceOf(TermQueryBuilder.class));
         assertThat(rewrittenBool.must().get(1), instanceOf(TermQueryBuilder.class));
 
-        assertThat(rewrittenBool.filter().size(), equalTo(1)); // terms query for type
-        assertThat(rewrittenBool.filter().get(0), instanceOf(TermsQueryBuilder.class));
+        assertThat(rewrittenBool.filter().size(), equalTo(2)); // two term queries for type (below threshold)
+        assertThat(rewrittenBool.filter().get(0), instanceOf(TermQueryBuilder.class));
+        assertThat(rewrittenBool.filter().get(1), instanceOf(TermQueryBuilder.class));
     }
 
     public void testDisabledRewriting() {

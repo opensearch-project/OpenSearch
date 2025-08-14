@@ -136,6 +136,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.QueryRewriterRegistry;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
@@ -279,6 +280,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
         "search.query_rewriting.enabled",
         true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Integer> QUERY_REWRITING_TERMS_THRESHOLD_SETTING = Setting.intSetting(
+        "search.query_rewriting.terms_threshold",
+        16,
+        2,  // minimum value
         Property.Dynamic,
         Property.NodeScope
     );
@@ -1499,7 +1508,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             // Apply query rewriting optimizations if enabled
             if (QUERY_REWRITING_ENABLED_SETTING.get(clusterService.getSettings())) {
-                query = org.opensearch.search.query.QueryRewriterRegistry.rewrite(query, queryShardContext, true);
+                int termsThreshold = QUERY_REWRITING_TERMS_THRESHOLD_SETTING.get(clusterService.getSettings());
+                query = QueryRewriterRegistry.rewrite(query, queryShardContext, true, termsThreshold);
             }
 
             InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);

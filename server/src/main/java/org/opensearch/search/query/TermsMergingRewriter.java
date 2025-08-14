@@ -47,11 +47,32 @@ import java.util.Map;
 public class TermsMergingRewriter implements QueryRewriter {
 
     /**
-     * Minimum number of terms to merge. Below this threshold, individual
+     * Default minimum number of terms to merge. Below this threshold, individual
      * term queries may perform better than a terms query.
      * Based on Lucene's TermInSetQuery optimization characteristics.
      */
-    private static final int MINIMUM_TERMS_TO_MERGE = 16;
+    private static final int DEFAULT_MINIMUM_TERMS_TO_MERGE = 16;
+
+    /**
+     * The minimum number of terms to merge for this instance.
+     */
+    private final int minimumTermsToMerge;
+
+    /**
+     * Creates a new rewriter with the default threshold.
+     */
+    public TermsMergingRewriter() {
+        this(DEFAULT_MINIMUM_TERMS_TO_MERGE);
+    }
+
+    /**
+     * Creates a new rewriter with a custom threshold.
+     *
+     * @param minimumTermsToMerge The minimum number of terms to merge
+     */
+    public TermsMergingRewriter(int minimumTermsToMerge) {
+        this.minimumTermsToMerge = minimumTermsToMerge;
+    }
 
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
@@ -104,7 +125,7 @@ public class TermsMergingRewriter implements QueryRewriter {
                 fieldBoosts.computeIfAbsent(field, k -> new ArrayList<>()).add(boost);
 
                 List<Float> boosts = fieldBoosts.get(field);
-                if (boosts.size() >= MINIMUM_TERMS_TO_MERGE) {
+                if (boosts.size() >= minimumTermsToMerge) {
                     // Check if all boosts are the same
                     float firstBoost = boosts.get(0);
                     boolean sameBoost = boosts.stream().allMatch(b -> b == firstBoost);
@@ -128,7 +149,7 @@ public class TermsMergingRewriter implements QueryRewriter {
                 }
 
                 // Only worth merging if the combined size would meet the threshold
-                if (termsQuery.values().size() + additionalTerms >= MINIMUM_TERMS_TO_MERGE) {
+                if (termsQuery.values().size() + additionalTerms >= minimumTermsToMerge) {
                     return true;
                 }
             }
@@ -215,7 +236,7 @@ public class TermsMergingRewriter implements QueryRewriter {
                     termQuery.boost(info.boost);
                 }
                 adder.addClause(termQuery);
-            } else if (info.values.size() >= MINIMUM_TERMS_TO_MERGE) {
+            } else if (info.values.size() >= minimumTermsToMerge) {
                 // Many values, merge into terms query for better performance
                 TermsQueryBuilder termsQuery = new TermsQueryBuilder(field, info.values);
                 if (info.boost != 1.0f) {

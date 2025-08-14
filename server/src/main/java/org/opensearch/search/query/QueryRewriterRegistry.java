@@ -25,24 +25,41 @@ import java.util.List;
 public final class QueryRewriterRegistry {
 
     private static final Logger logger = LogManager.getLogger(QueryRewriterRegistry.class);
-    private static final List<QueryRewriter> REWRITERS = new ArrayList<>();
+    private static volatile List<QueryRewriter> rewriters;
 
     static {
-        REWRITERS.add(new BooleanFlatteningRewriter());
-        REWRITERS.add(new TermsMergingRewriter());
-        REWRITERS.add(new MatchAllRemovalRewriter());
-        REWRITERS.sort(Comparator.comparingInt(QueryRewriter::priority));
+        initializeDefaultRewriters();
+    }
+
+    private static void initializeDefaultRewriters() {
+        List<QueryRewriter> defaultRewriters = new ArrayList<>();
+        defaultRewriters.add(new BooleanFlatteningRewriter());
+        defaultRewriters.add(new TermsMergingRewriter());
+        defaultRewriters.add(new MatchAllRemovalRewriter());
+        defaultRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
+        rewriters = defaultRewriters;
     }
 
     private QueryRewriterRegistry() {}
 
     public static QueryBuilder rewrite(QueryBuilder query, QueryShardContext context, boolean enabled) {
+        return rewrite(query, context, enabled, 16);
+    }
+
+    public static QueryBuilder rewrite(QueryBuilder query, QueryShardContext context, boolean enabled, int termsThreshold) {
         if (!enabled || query == null) {
             return query;
         }
 
+        // Create rewriters with the current threshold
+        List<QueryRewriter> currentRewriters = new ArrayList<>();
+        currentRewriters.add(new BooleanFlatteningRewriter());
+        currentRewriters.add(new TermsMergingRewriter(termsThreshold));
+        currentRewriters.add(new MatchAllRemovalRewriter());
+        currentRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
+
         QueryBuilder current = query;
-        for (QueryRewriter rewriter : REWRITERS) {
+        for (QueryRewriter rewriter : currentRewriters) {
             try {
                 QueryBuilder rewritten = rewriter.rewrite(current, context);
                 if (rewritten != current) {
