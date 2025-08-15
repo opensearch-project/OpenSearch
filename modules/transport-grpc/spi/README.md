@@ -112,6 +112,44 @@ In your `plugin-descriptor.properties`, declare that your plugin extends transpo
 extended.plugins=transport-grpc
 ```
 
+### 4. Accessing the Registry (For Complex Queries)
+
+If your converter needs to handle nested queries (like k-NN's filter clause), you'll need access to the registry to convert other query types:
+
+```java
+public class MyCustomQueryConverter implements QueryBuilderProtoConverter {
+
+    // Create your own registry instance to access other converters
+    private static final QueryBuilderProtoConverterSpiRegistry registry =
+        new QueryBuilderProtoConverterSpiRegistry();
+
+    @Override
+    public QueryBuilder fromProto(QueryContainer queryContainer) {
+        MyCustomQuery customQuery = queryContainer.getMyCustomQuery();
+
+        MyCustomQueryBuilder builder = new MyCustomQueryBuilder(
+            customQuery.getField(),
+            customQuery.getValue()
+        );
+
+        // Handle nested queries using the registry
+        if (customQuery.hasFilter()) {
+            QueryContainer filterContainer = customQuery.getFilter();
+            QueryBuilder filterQuery = registry.fromProto(filterContainer);
+            builder.filter(filterQuery);
+        }
+
+        return builder;
+    }
+}
+```
+
+**Why a separate registry instance is needed**
+- `createComponents()` is called before dependency injection is available (line 1067 in Node.java)
+- The main injector is created later (line 1680 in Node.java)
+- Each plugin that needs to convert nested queries creates its own registry instance
+- The registry automatically includes all built-in converters (MatchAll, Term, Terms, etc.) plus any discovered external converters
+
 
 ## Testing
 
@@ -145,3 +183,63 @@ public void testCustomQueryConverter() {
     assertEquals("test_value", customQuery.value());
 }
 ```
+
+## Real-World Example: k-NN Plugin
+See the k-NN plugin https://github.com/opensearch-project/k-NN/pull/2833/files for an example on how to use this SPI, including handling nested queries.
+
+**1. Dependency in build.gradle:**
+```gradle
+compileOnly "org.opensearch.plugin:transport-grpc-spi:${opensearch.version}"
+compileOnly "org.opensearch:protobufs:0.8.0"
+```
+
+**2. Converter Implementation with Registry Access:**
+```java
+public class KNNQueryBuilderProtoConverter implements QueryBuilderProtoConverter {
+
+    // Create own registry instance to access other converters
+    private static QueryBuilderProtoConverterSpiRegistry REGISTRY =
+        new QueryBuilderProtoConverterSpiRegistry();
+
+    @Override
+    public QueryContainer.QueryContainerCase getHandledQueryCase() {
+        return QueryContainer.QueryContainerCase.KNN;
+    }
+
+    @Override
+    public QueryBuilder fromProto(QueryContainer queryContainer) {
+        KnnQuery knnQuery = queryContainer.getKnn();
+
+        KNNQueryBuilder builder = new KNNQueryBuilder(
+            knnQuery.getField(),
+            knnQuery.getVectorList().toArray(new Float[0]),
+            knnQuery.getK()
+        );
+
+        // Handle nested filter query using registry
+        if (knnQuery.hasFilter()) {
+            QueryContainer filterContainer = knnQuery.getFilter();
+            QueryBuilder filterQuery = REGISTRY.fromProto(filterContainer);
+            builder.filter(filterQuery);
+        }
+
+        return builder;
+    }
+}
+```
+
+**3. Plugin Registration:**
+```java
+// In KNNPlugin.createComponents()
+KNNQueryBuilderProtoConverter knnQueryConverter = new KNNQueryBuilderProtoConverter();
+return ImmutableList.of(knnStats, knnQueryConverter);
+```
+
+**4. SPI File:**
+```
+# src/main/resources/META-INF/services/org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverter
+org.opensearch.knn.grpc.proto.request.search.query.KNNQueryBuilderProtoConverter
+```
+
+**Why k-NN needs the registry:**
+The k-NN query's `filter` field is a `QueryContainer` protobuf type that can contain any query type (MatchAll, Term, Terms, etc.). The k-NN converter needs access to the registry to convert these nested queries to their corresponding QueryBuilder objects.
