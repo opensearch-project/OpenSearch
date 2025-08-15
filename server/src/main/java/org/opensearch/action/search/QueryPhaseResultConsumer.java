@@ -42,6 +42,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContextBuilder;
@@ -57,6 +58,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -86,6 +88,30 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
+    private final BooleanSupplier isTaskCancelled;
+
+    public QueryPhaseResultConsumer(
+        SearchRequest request,
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchPhaseController controller,
+        SearchProgressListener progressListener,
+        NamedWriteableRegistry namedWriteableRegistry,
+        int expectedResultSize,
+        Consumer<Exception> onPartialMergeFailure
+    ) {
+        this(
+            request,
+            executor,
+            circuitBreaker,
+            controller,
+            progressListener,
+            namedWriteableRegistry,
+            expectedResultSize,
+            onPartialMergeFailure,
+            () -> false
+        );
+    }
 
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
@@ -99,7 +125,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchProgressListener progressListener,
         NamedWriteableRegistry namedWriteableRegistry,
         int expectedResultSize,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled
     ) {
         super(expectedResultSize);
         this.executor = executor;
@@ -117,6 +144,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = getBatchReduceSize(request.getBatchedReduceSize(), expectedResultSize);
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
+        this.isTaskCancelled = isTaskCancelled;
     }
 
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
@@ -133,6 +161,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex());
+        checkCancellation();
         pendingMerges.consume(querySearchResult, next);
     }
 
@@ -143,6 +172,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         } else if (pendingMerges.hasFailure()) {
             throw pendingMerges.getFailure();
         }
+        checkCancellation();
 
         // ensure consistent ordering
         pendingMerges.sortBuffer();
@@ -186,6 +216,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         MergeResult lastMerge,
         int numReducePhases
     ) {
+        checkCancellation();
         // ensure consistent ordering
         Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
 
@@ -245,6 +276,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         // size as an estimate of the memory used by the newly reduced aggregations.
         long serializedSize = hasAggs ? newAggs.getSerializedSize() : 0;
         return new MergeResult(processedShards, newTopDocs, newAggs, hasAggs ? serializedSize : 0);
+    }
+
+    private void checkCancellation() {
+        if (isTaskCancelled.getAsBoolean()) {
+            pendingMerges.resetCircuitBreakerForCurrentRequest();
+            // This check is to ensure that we are not masking the actual reason for cancellation i,e; CircuitBreakingException
+            if (!pendingMerges.hasFailure()) {
+                pendingMerges.failure.set(new TaskCancelledException("request has been terminated"));
+            }
+        }
     }
 
     public int getNumReducePhases() {
@@ -347,9 +388,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return Math.round(1.5d * size - size);
         }
 
-        public void consume(QuerySearchResult result, Runnable next) {
+        public void consume(QuerySearchResult result, Runnable next) throws CircuitBreakingException {
             boolean executeNextImmediately = true;
             synchronized (this) {
+                checkCircuitBreaker(next);
                 if (hasFailure() || result.isNull()) {
                     result.consumeAll();
                     if (result.isNull()) {
@@ -383,17 +425,32 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
         }
 
+        /**
+         * This method is needed to prevent OOM when the buffered results are too large
+         *
+         */
+        private void checkCircuitBreaker(Runnable next) throws CircuitBreakingException {
+            try {
+                // force the CircuitBreaker eval to ensure during buffering we did not hit the circuit breaker limit
+                addEstimateAndMaybeBreak(0);
+            } catch (CircuitBreakingException e) {
+                resetCircuitBreakerForCurrentRequest();
+                // onPartialMergeFailure should only be invoked once since this is responsible for cancelling the
+                // search task
+                if (!hasFailure()) {
+                    failure.set(e);
+                    onPartialMergeFailure.accept(e);
+                }
+            }
+        }
+
         private synchronized void onMergeFailure(Exception exc) {
             if (hasFailure()) {
                 assert circuitBreakerBytes == 0;
                 return;
             }
             assert circuitBreakerBytes >= 0;
-            if (circuitBreakerBytes > 0) {
-                // make sure that we reset the circuit breaker
-                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-                circuitBreakerBytes = 0;
-            }
+            resetCircuitBreakerForCurrentRequest();
             failure.compareAndSet(null, exc);
             MergeTask task = runningTask.get();
             runningTask.compareAndSet(task, null);
@@ -407,6 +464,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             mergeResult = null;
             for (MergeTask toCancel : toCancels) {
                 toCancel.cancel();
+            }
+        }
+
+        private void resetCircuitBreakerForCurrentRequest() {
+            if (circuitBreakerBytes > 0) {
+                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+                circuitBreakerBytes = 0;
             }
         }
 
