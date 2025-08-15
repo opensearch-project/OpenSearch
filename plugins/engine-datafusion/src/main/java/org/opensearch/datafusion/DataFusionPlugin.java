@@ -11,8 +11,6 @@ package org.opensearch.datafusion;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.AbstractModule;
-import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -24,29 +22,29 @@ import org.opensearch.datafusion.action.NodesDataFusionInfoAction;
 import org.opensearch.datafusion.action.TransportNodesDataFusionInfoAction;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.engine.SearchExecutionEngine;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.DataSourceAwarePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
+import org.opensearch.vectorized.execution.spi.DataSourceCodec;
 import org.opensearch.watcher.ResourceWatcherService;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
  * Main plugin class for OpenSearch DataFusion integration.
  *
  */
-public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEnginePlugin {
+public class DataFusionPlugin extends Plugin implements ActionPlugin, DataSourceAwarePlugin {
 
     private DataFusionService dataFusionService;
     private final boolean isDataFusionEnabled;
@@ -56,18 +54,9 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
      * @param settings The settings for the DataFusionPlugin.
      */
     public DataFusionPlugin(Settings settings) {
-        // DataFusion can be disabled for integration tests or if native library is not available
-        this.isDataFusionEnabled = Boolean.parseBoolean(System.getProperty("opensearch.experimental.feature.datafusion.enabled", "true"));
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(new AbstractModule() {
-            @Override
-            protected void configure() {
-                bind(SearchEnginePlugin.class).toInstance(DataFusionPlugin.this);
-            }
-        });
+        // For now, DataFusion is always enabled if the plugin is loaded
+        // In the future, this could be controlled by a feature flag
+        this.isDataFusionEnabled = true;
     }
 
     /**
@@ -97,13 +86,14 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Map<String, DataSourceCodec> dataSourceCodecs
     ) {
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-
-        dataFusionService = new DataFusionService(environment);
+        dataFusionService = new DataFusionService(dataSourceCodecs);
+        // return Collections.emptyList();
         return Collections.singletonList(dataFusionService);
     }
 
@@ -147,7 +137,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     }
 
     @Override
-    public SearchExecutionEngine createEngine() throws IOException {
-        return new DatafusionEngine(dataFusionService);
+    public void registerDataSources(Map<String, DataSourceCodec> dataSourceCodecs) {
+        dataFusionService = new DataFusionService(dataSourceCodecs);
     }
 }

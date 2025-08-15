@@ -16,6 +16,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Utility class for loading the data source JNI library.
@@ -26,6 +29,13 @@ public class JniLibraryLoader {
     private static volatile boolean libraryLoaded = false;
 
     private static final String LIBRARY_NAME = "opensearch_datafusion_csv_jni";
+
+    /**
+     * Private constructor to prevent instantiation of utility class.
+     */
+    private JniLibraryLoader() {
+        // Utility class
+    }
 
     /**
      * Loads the DataFusion JNI library. This method is thread-safe and will only
@@ -68,8 +78,8 @@ public class JniLibraryLoader {
      * @return Path to the extracted library file, or null if extraction failed
      */
     private static String extractLibraryFromJar() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        String osArch = System.getProperty("os.arch").toLowerCase();
+        String osName = System.getProperty("os.name").toLowerCase(Locale.ROOT);
+        String osArch = System.getProperty("os.arch").toLowerCase(Locale.ROOT);
 
         logger.debug("Detecting platform: OS={}, Arch={}", osName, osArch);
 
@@ -88,21 +98,31 @@ public class JniLibraryLoader {
                 return null;
             }
 
-            // Create temporary file
-            Path tempDir = Files.createTempDirectory("datafusion-jni");
+            // Create temporary file in system temp directory
+            Path tempDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "datafusion-jni");
             Path tempLibrary = tempDir.resolve(libraryFileName);
 
             // Extract library to temporary file
             Files.copy(inputStream, tempLibrary, StandardCopyOption.REPLACE_EXISTING);
 
-            // Make executable on Unix-like systems
+            // Make executable on Unix-like systems using NIO
             if (!osName.contains("windows")) {
-                tempLibrary.toFile().setExecutable(true);
+                Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(tempLibrary);
+                permissions.add(PosixFilePermission.OWNER_EXECUTE);
+                permissions.add(PosixFilePermission.GROUP_EXECUTE);
+                permissions.add(PosixFilePermission.OTHERS_EXECUTE);
+                Files.setPosixFilePermissions(tempLibrary, permissions);
             }
 
-            // Schedule cleanup on JVM shutdown
-            tempLibrary.toFile().deleteOnExit();
-            tempDir.toFile().deleteOnExit();
+            // Register for cleanup on JVM shutdown using NIO
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    Files.deleteIfExists(tempLibrary);
+                    Files.deleteIfExists(tempDir);
+                } catch (IOException e) {
+                    logger.debug("Failed to cleanup temporary files", e);
+                }
+            }));
 
             String libraryPath = tempLibrary.toAbsolutePath().toString();
             logger.debug("Extracted library to: {}", libraryPath);
@@ -138,6 +158,7 @@ public class JniLibraryLoader {
         }
 
         return prefix + LIBRARY_NAME + extension;
+
     }
 
     /**

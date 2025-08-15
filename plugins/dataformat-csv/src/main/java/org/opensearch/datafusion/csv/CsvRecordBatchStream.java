@@ -10,12 +10,12 @@ package org.opensearch.datafusion.csv;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.datafusion.spi.RecordBatchStream;
+import org.opensearch.vectorized.execution.spi.RecordBatchStream;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
- * TODO : this need not be here - nothing specific to CSV
+ * TODO : this need not be here - nothing specific to CSV - move to LIB ?
  * Native implementation of RecordBatchStream that wraps a JNI stream pointer.
  * This class provides a Java interface over native DataFusion record batches.
  */

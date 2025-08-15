@@ -218,6 +218,8 @@ import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.CryptoPlugin;
+import org.opensearch.plugins.DataSourceAwarePlugin;
+import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
@@ -294,6 +296,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
+import org.opensearch.vectorized.execution.spi.DataSourceCodec;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
@@ -1111,10 +1114,38 @@ public class Node implements Closeable {
                     ).stream()
                 )
                 .collect(Collectors.toList());
-
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
 
+            Map<String, DataSourceCodec> dataSourceCodecMap = new HashMap<>();
+            for (DataSourcePlugin dataSourcePlugin : pluginsService.filterPlugins(DataSourcePlugin.class)) {
+                if (dataSourcePlugin.getDataSourceCodecs().isPresent()) {
+                    dataSourceCodecMap.putAll(dataSourcePlugin.getDataSourceCodecs().get());
+                }
+            }
+
+            Collection<Object> dataSourceAwareComponents = pluginsService.filterPlugins(DataSourceAwarePlugin.class)
+                .stream()
+                .flatMap(
+                    p -> p.createComponents(
+                        client,
+                        clusterService,
+                        threadPool,
+                        resourceWatcherService,
+                        scriptService,
+                        xContentRegistry,
+                        environment,
+                        nodeEnvironment,
+                        namedWriteableRegistry,
+                        clusterModule.getIndexNameExpressionResolver(),
+                        repositoriesServiceReference::get,
+                        dataSourceCodecMap
+                    ).stream()
+                )
+                .collect(Collectors.toList());
+
+            // Add all dataSourceAwarePlugin components to the existing pluginComponents
+            pluginComponents.addAll(dataSourceAwareComponents);
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
