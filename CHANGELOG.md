@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update OpenTelemetry to 1.53.0 and OpenTelemetry SemConv to 1.34.0 ([#19068](https://github.com/opensearch-project/OpenSearch/pull/19068))
 
 ### Deprecated
+- Add deprecation warning for `_cat/snapshots` in favor of `_cat/snapshots/<repository>` ([#9345](https://github.com/opensearch-project/OpenSearch/pull/9345))
 
 ### Removed
 - Enable backward compatibility tests on Mac ([#18983](https://github.com/opensearch-project/OpenSearch/pull/18983))
