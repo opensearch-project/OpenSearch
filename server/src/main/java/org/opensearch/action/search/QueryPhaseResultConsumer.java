@@ -275,7 +275,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private void checkCancellation() {
         if (isTaskCancelled.getAsBoolean()) {
-            throw new TaskCancelledException("request has been terminated");
+            pendingMerges.resetCircuitBreakerForCurrentRequest();
+            // This check is to ensure that we are not masking the actual reason for cancellation i,e; CircuitBreakingException
+            if (!pendingMerges.hasFailure()) {
+                pendingMerges.failure.set(new TaskCancelledException("request has been terminated"));
+            }
         }
     }
 
@@ -432,8 +436,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     failure.set(e);
                     onPartialMergeFailure.accept(e);
                 }
-                next.run();
-                throw e;
             }
         }
 
