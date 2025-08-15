@@ -91,3 +91,6 @@ ${error.file}
 # prevent issues like "leaked" maps or performance degradation. A value of 1 effectively
 # disables the shared Arena pooling and uses a confined Arena for each MMapDirectory
 -Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1
+
+# See please https://github.com/netty/netty/issues/1563
+-Dio.netty.allocator.type=pooled
