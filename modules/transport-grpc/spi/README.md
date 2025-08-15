@@ -24,7 +24,18 @@ public interface QueryBuilderProtoConverter {
 
 ### QueryBuilderProtoConverterSpiRegistry
 
-Registry that manages and discovers all available query converters. External plugins can register their custom converters through this registry.
+Registry that manages and discovers all available query converters. External plugins can register their custom converters through OpenSearch's ExtensiblePlugin mechanism.
+
+
+## How It Works
+
+The transport-grpc SPI uses OpenSearch's **ExtensiblePlugin mechanism**, which internally uses Java's **ServiceLoader**:
+
+1. **Plugin Declaration**: The external plugin declares `extended.plugins=transport-grpc` in its descriptor
+2. **SPI Registration**: The converter is listed in `META-INF/services/...QueryBuilderProtoConverter`
+3. **Component Creation**: Your plugin returns the converter from `createComponents()`
+4. **Discovery**: OpenSearch's `ExtensiblePlugin` mechanism discovers the external converter via ServiceLoader
+5. **Registration**: The transport-grpc module automatically registers your converter
 
 ## Usage for Plugin Developers
 
@@ -60,10 +71,12 @@ public class MyCustomQueryConverter implements QueryBuilderProtoConverter {
 
 ### 3. Register Your Converter
 
-In your plugin's main class, register the converter:
+**Step 3a: Return Converter from createComponents()**
+
+In your plugin's main class, create and return the converter:
 
 ```java
-public class MyPlugin extends Plugin implements ExtensiblePlugin {
+public class MyPlugin extends Plugin {
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService,
@@ -74,15 +87,31 @@ public class MyPlugin extends Plugin implements ExtensiblePlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<RepositoriesService> repositoriesServiceSupplier) {
 
-        // Get the registry and register your converter
-        QueryBuilderProtoConverterSpiRegistry registry =
-            // Obtain registry from OpenSearch's dependency injection
-        registry.registerConverter(new MyCustomQueryConverter());
+        // Create your converter
+        MyCustomQueryConverter converter = new MyCustomQueryConverter();
 
-        return Collections.emptyList();
+        // Return it - OpenSearch will automatically register it with gRPC transport
+        return List.of(converter);
     }
 }
 ```
+
+**Step 3b: Create SPI Registration File**
+
+Create a file at `src/main/resources/META-INF/services/org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverter`:
+
+```
+org.opensearch.mypackage.MyCustomQueryConverter
+```
+
+**Step 3c: Declare Extension in Plugin Descriptor**
+
+In your `plugin-descriptor.properties`, declare that your plugin extends transport-grpc:
+
+```properties
+extended.plugins=transport-grpc
+```
+
 
 ## Testing
 
