@@ -57,6 +57,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -91,6 +92,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
 
@@ -588,8 +590,10 @@ public class Lucene {
             out.writeString(sortField.getField());
         }
         if (sortField.getComparatorSource() != null) {
-            writeSortType(out, sortField.getComparatorSource().reducedType());
-            writeMissingValue(out, sortField.getComparatorSource().missingValue(sortField.getReverse()));
+            FieldComparatorSource fieldComparatorSource = sortField.getComparatorSource();
+            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) fieldComparatorSource;
+            writeSortType(out, comparatorSource.reducedType());
+            writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
         } else {
             writeSortType(out, sortField.getType());
             writeMissingValue(out, sortField.getMissingValue());
