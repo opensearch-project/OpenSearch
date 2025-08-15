@@ -1774,7 +1774,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
         // making sure circuit breaker trips first
         circuitBreaker.shouldBreak.set(true);
-        AtomicInteger cancelAfterRequest = new AtomicInteger(expectedNumResults+1);
+        AtomicInteger cancelAfterRequest = new AtomicInteger(expectedNumResults + 1);
 
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
@@ -1793,7 +1793,6 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         assertThrows(CircuitBreakingException.class, () -> consumer.reduce());
     }
 
-
     private static SearchRequest getAggregationSearchRequestWithBatchedReduceSize(int batchedReduceSize) {
         SearchRequest request = new SearchRequest();
 
@@ -1802,7 +1801,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         return request;
     }
 
-    private static void consumeShardLevelQueryPhaseResultsAsync(int expectedNumResults, QueryPhaseResultConsumer consumer) throws InterruptedException {
+    private static void consumeShardLevelQueryPhaseResultsAsync(int expectedNumResults, QueryPhaseResultConsumer consumer)
+        throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(expectedNumResults);
         Thread[] threads = new Thread[expectedNumResults];
         for (int i = 0; i < expectedNumResults; i++) {
