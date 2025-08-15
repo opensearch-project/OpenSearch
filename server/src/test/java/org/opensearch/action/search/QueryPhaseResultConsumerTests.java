@@ -181,7 +181,8 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
         testCircuitBreaker.startBreaking();
         QuerySearchResult querySearchResult = getQuerySearchResult(7);
         querySearchResult.aggregations(InternalAggregations.from(List.of(new InternalMax("test", 23, DocValueFormat.RAW, null))));
-        assertThrows(CircuitBreakingException.class, () -> queryPhaseResultConsumer.consumeResult(querySearchResult, () -> {}));
+        queryPhaseResultConsumer.consumeResult(querySearchResult, () -> {});
+        assertThrows(CircuitBreakingException.class, queryPhaseResultConsumer::reduce);
     }
 
     private static QuerySearchResult getQuerySearchResult(int i) {
