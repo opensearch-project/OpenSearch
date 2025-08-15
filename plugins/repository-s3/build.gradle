@@ -99,6 +99,8 @@ dependencies {
   api "io.netty:netty-codec:${versions.netty}"
   api "io.netty:netty-codec-http:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-codec-base:${versions.netty}"
+  api "io.netty:netty-codec-compression:${versions.netty}"
   api "io.netty:netty-common:${versions.netty}"
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
@@ -468,9 +470,6 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
-    'com.google.protobuf.nano.CodedOutputByteBufferNano',
-    'com.google.protobuf.nano.MessageNano',
-
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
     'com.ning.compress.lzf.ChunkEncoder',
@@ -514,29 +513,6 @@ thirdPartyAudit {
     'org.conscrypt.Conscrypt',
     'org.conscrypt.HandshakeListener',
 
-    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
-    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
-    'org.eclipse.jetty.alpn.ALPN',
-
-    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
-    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
-    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
-    'org.eclipse.jetty.npn.NextProtoNego',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
-    'org.jboss.marshalling.ByteInput',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
-    'org.jboss.marshalling.ByteOutput',
-
-    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
-    'org.jboss.marshalling.Marshaller',
-
-    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
-    'org.jboss.marshalling.MarshallerFactory',
-    'org.jboss.marshalling.MarshallingConfiguration',
-    'org.jboss.marshalling.Unmarshaller',
-
     'org.slf4j.ext.EventData',
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
@@ -548,23 +524,19 @@ thirdPartyAudit {
     'software.amazon.awssdk.arns.ArnResource',
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
-    'software.amazon.eventstream.MessageDecoder'
+    'software.amazon.eventstream.MessageDecoder',
+
+    'io.netty.pkitesting.CertificateBuilder',
+    'io.netty.pkitesting.CertificateBuilder$Algorithm',
+    'io.netty.pkitesting.X509Bundle'
   )
 
   ignoreViolations (
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
-
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$4',
-    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.PlatformDependent0$5',
 
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
@@ -583,6 +555,18 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.netty.buffer.AbstractAllocatorEvent',
+    'io.netty.buffer.AbstractBufferEvent',
+    'io.netty.buffer.AbstractChunkEvent',
+    'io.netty.buffer.AdaptivePoolingAllocator$AdaptiveByteBuf',
+    'io.netty.buffer.AdaptivePoolingAllocator$Chunk',
+    'io.netty.buffer.AllocateBufferEvent',
+    'io.netty.buffer.AllocateChunkEvent',
+    'io.netty.buffer.FreeBufferEvent',
+    'io.netty.buffer.FreeChunkEvent',
+    'io.netty.buffer.PooledByteBufAllocator',
+    'io.netty.buffer.ReallocateBufferEvent',
+    'io.netty.buffer.ReturnChunkEvent'
   )
 }
 
