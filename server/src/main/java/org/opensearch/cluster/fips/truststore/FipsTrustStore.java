@@ -21,17 +21,19 @@ public class FipsTrustStore {
     /**
      * This enumeration provides distinct options for configuring the trust store behavior:
      * <ul>
+     *   <li>PREDEFINED: Expects trust store to be setup via JVM parameters.</li>
      *   <li>SYSTEM_TRUST: Uses the system’s PKCS#11 provider for the trust store.</li>
      *   <li>GENERATED: Dynamically generates a BCFKS (BouncyCastle FIPS KeyStore) instance.</li>
      * </ul>
      */
     public enum TrustStoreSource {
+        PREDEFINED,
         SYSTEM_TRUST,
         GENERATED;
 
         public static TrustStoreSource parse(String strValue) {
-            if (strValue == null) {
-                return null;
+            if (strValue == null || strValue.isBlank()) {
+                return PREDEFINED;
             } else {
                 strValue = strValue.toUpperCase(Locale.ROOT);
                 try {

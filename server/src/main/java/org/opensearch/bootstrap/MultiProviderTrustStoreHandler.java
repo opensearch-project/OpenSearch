@@ -40,6 +40,8 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import reactor.util.annotation.NonNull;
+
 import static org.opensearch.cluster.fips.truststore.FipsTrustStore.SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE;
 
 /**
@@ -108,21 +110,22 @@ public class MultiProviderTrustStoreHandler {
      * @param tmpDir          the directory to store temporary TrustStore files
      * @param javaHome        the path to the Java Home, used for accessing default system TrustStore
      */
-    public static void configureTrustStore(Settings settings, Path tmpDir, Path javaHome) {
-        var fipsTrustStoreSetting = FipsTrustStore.TrustStoreSource.parse(settings.get(SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE));
-        if (fipsTrustStoreSetting == null) {
-            var existingTrustStorePath = existingTrustStorePath();
-            if (existingTrustStorePath != null) {
-                logger.info("Custom truststore already specified: {}", existingTrustStorePath);
-                return;
-            }
-            throw new IllegalStateException(
-                ("In FIPS JVM it is required for default TrustStore to be configured " + "by '%s' JVM parameter or by '%s' cluster setting")
-                    .formatted(JAVAX_NET_SSL_TRUST_STORE, SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE)
-            );
+    public static void configureTrustStore(@NonNull Settings settings, @NonNull Path tmpDir, @NonNull Path javaHome) {
+        var existingTrustStorePath = existingTrustStorePath();
+        if (existingTrustStorePath != null) {
+            logger.info("Custom truststore already specified: {}", existingTrustStorePath);
+            return;
         }
 
+        var fipsTrustStoreSetting = FipsTrustStore.TrustStoreSource.parse(settings.get(SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE));
         var properties = switch (fipsTrustStoreSetting) {
+            case PREDEFINED -> throw new IllegalArgumentException(
+                "In FIPS JVM it is required for default TrustStore to be configured "
+                    + "by '%s' JVM parameter or by '%s' cluster setting".formatted(
+                        JAVAX_NET_SSL_TRUST_STORE,
+                        SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE
+                    )
+            );
             case SYSTEM_TRUST -> findPKCS11ProviderService().map(MultiProviderTrustStoreHandler::configurePKCS11TrustStore)
                 .orElseThrow(() -> new IllegalStateException("No PKCS11 provider found, check java.security configuration for FIPS."));
             case GENERATED -> MultiProviderTrustStoreHandler.configureBCFKSTrustStore(javaHome, tmpDir);
@@ -172,7 +175,7 @@ public class MultiProviderTrustStoreHandler {
 
     private static KeyStore loadSystemDefaultTrustStore(Path javaHome) {
         var cacertsPath = javaHome.resolve("lib").resolve("security").resolve("cacerts");
-        if (!Files.exists(cacertsPath) && Files.isReadable(cacertsPath)) {
+        if (!Files.exists(cacertsPath) || !Files.isReadable(cacertsPath)) {
             throw new IllegalStateException("System cacerts not found at: " + cacertsPath);
         }
 
@@ -191,6 +194,7 @@ public class MultiProviderTrustStoreHandler {
                 break;
             } catch (Exception e) {
                 logger.info("Failed to load cacerts as {}: {}", type, e.getMessage());
+                systemKs = null;
                 // continue
             }
         }
