@@ -8,18 +8,28 @@
 
 package org.opensearch.datafusion.core;
 
-import static org.opensearch.datafusion.DataFusionJNI.closeGlobalRuntime;
-import static org.opensearch.datafusion.DataFusionJNI.createGlobalRuntime;
+import static org.opensearch.datafusion.DataFusionQueryJNI.closeGlobalRuntime;
+import static org.opensearch.datafusion.DataFusionQueryJNI.createGlobalRuntime;
 
-public class GlobalRuntimeEnv implements AutoCloseable{
+/**
+ * Global runtime environment for DataFusion operations.
+ * Manages the lifecycle of the native DataFusion runtime.
+ */
+public class GlobalRuntimeEnv implements AutoCloseable {
     // ptr to runtime environment in df
     private final long ptr;
 
-
+    /**
+     * Creates a new global runtime environment.
+     */
     public GlobalRuntimeEnv() {
         this.ptr = createGlobalRuntime();
     }
 
+    /**
+     * Gets the native pointer to the runtime environment.
+     * @return the native pointer
+     */
     public long getPointer() {
         return ptr;
     }

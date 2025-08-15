@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.datafusion.spi;
+package org.opensearch.vectorized.execution.spi;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -23,7 +23,12 @@ public interface RecordBatchStream extends AutoCloseable {
      */
     boolean hasNext();
 
+    /**
+     * Get the schema of the record batches in this stream.
+     * @return the schema object
+     */
     Object getSchema();
+
     /**
      * Get the next record batch from the stream.
      *

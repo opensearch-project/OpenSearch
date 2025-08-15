@@ -101,6 +101,7 @@ public class TransportNodesDataFusionInfoAction extends TransportNodesAction<
     @Override
     protected NodeDataFusionInfo nodeOperation(NodesDataFusionInfoRequest.NodeDataFusionInfoRequest request) {
         try {
+            System.out.println(this.dataFusionService.getVersion());
             return new NodeDataFusionInfo(clusterService.localNode(), dataFusionService.getVersion());
         } catch (Exception e) {
             return new NodeDataFusionInfo(clusterService.localNode(), "unknown");

@@ -72,6 +72,7 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
+  api project(':libs:opensearch-vectorized-exec-spi')
 
   compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')
@@ -114,6 +115,7 @@ dependencies {
   // protobuf
   api libs.protobuf
   api libs.jakartaannotation
+
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
