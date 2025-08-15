@@ -529,10 +529,7 @@ public abstract class Rounding implements Writeable {
                     0,
                     0
                 );
-                case DAY_OF_MONTH -> {
-                    LocalDate localDate = localDateTime.query(TemporalQueries.localDate());
-                    yield localDate.atStartOfDay();
-                }
+                case DAY_OF_MONTH -> localDateTime.query(TemporalQueries.localDate()).atStartOfDay();
                 case WEEK_OF_WEEKYEAR -> LocalDateTime.of(localDateTime.toLocalDate(), LocalTime.MIDNIGHT).with(ChronoField.DAY_OF_WEEK, 1);
                 case MONTH_OF_YEAR -> LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonthValue(), 1, 0, 0);
                 case QUARTER_OF_YEAR -> LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonth().firstMonthOfQuarter(), 1, 0, 0);
@@ -663,6 +660,7 @@ public abstract class Rounding implements Writeable {
 
         private class FixedToMidnightRounding extends TimeUnitPreparedRounding {
             private final LocalTimeOffset offset;
+            private final JavaTimeToMidnightRounding MIDNIGHT_ROUNDING = new JavaTimeToMidnightRounding();
 
             FixedToMidnightRounding(LocalTimeOffset offset) {
                 this.offset = offset;
@@ -675,8 +673,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // TODO this is used in date range's collect so we should optimize it too
-                return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
+                return MIDNIGHT_ROUNDING.nextRoundingValue(utcMillis);
             }
         }
 
@@ -703,6 +700,8 @@ public abstract class Rounding implements Writeable {
         private class ToMidnightRounding extends TimeUnitPreparedRounding implements LocalTimeOffset.Strategy {
             private final LocalTimeOffset.Lookup lookup;
 
+            private final JavaTimeToMidnightRounding MIDNIGHT_ROUNDING = new JavaTimeToMidnightRounding();
+
             ToMidnightRounding(LocalTimeOffset.Lookup lookup) {
                 this.lookup = lookup;
             }
@@ -715,8 +714,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // TODO this is actually used date range's collect so we should optimize it
-                return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
+                return MIDNIGHT_ROUNDING.nextRoundingValue(utcMillis);
             }
 
             @Override
@@ -887,14 +885,11 @@ public abstract class Rounding implements Writeable {
                             return result;
                         }
                     }
-
                     assert false : "rounded time not found for " + instant + " with " + this;
-                    return null;
-                } else {
-                    // The chosen local time didn't happen. This means we were given a time in an hour (or a minute) whose start
-                    // is missing due to an offset transition, so the time cannot be truncated.
-                    return null;
                 }
+                // The chosen local time didn't happen. This means we were given a time in an hour (or a minute) whose start
+                // is missing due to an offset transition, so the time cannot be truncated.
+                return null;
             }
         }
 
@@ -1050,6 +1045,7 @@ public abstract class Rounding implements Writeable {
          */
         private class FixedRounding extends TimeIntervalPreparedRounding {
             private final LocalTimeOffset offset;
+            private final JavaTimeRounding ROUNDING = new JavaTimeRounding();
 
             FixedRounding(LocalTimeOffset offset) {
                 this.offset = offset;
@@ -1062,8 +1058,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // TODO this is used in date range's collect so we should optimize it too
-                return new JavaTimeRounding().nextRoundingValue(utcMillis);
+                return ROUNDING.nextRoundingValue(utcMillis);
             }
         }
 
@@ -1079,6 +1074,7 @@ public abstract class Rounding implements Writeable {
          */
         private class VariableRounding extends TimeIntervalPreparedRounding implements LocalTimeOffset.Strategy {
             private final LocalTimeOffset.Lookup lookup;
+            private final JavaTimeRounding ROUNDING = new JavaTimeRounding();
 
             VariableRounding(LocalTimeOffset.Lookup lookup) {
                 this.lookup = lookup;
@@ -1092,8 +1088,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // TODO this is used in date range's collect so we should optimize it too
-                return new JavaTimeRounding().nextRoundingValue(utcMillis);
+                return ROUNDING.nextRoundingValue(utcMillis);
             }
 
             @Override
