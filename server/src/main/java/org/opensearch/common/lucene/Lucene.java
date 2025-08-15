@@ -91,7 +91,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
-import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
 
@@ -589,10 +588,8 @@ public class Lucene {
             out.writeString(sortField.getField());
         }
         if (sortField.getComparatorSource() != null) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) (sortField
-                .getComparatorSource());
-            writeSortType(out, comparatorSource.reducedType());
-            writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
+            writeSortType(out, sortField.getComparatorSource().reducedType());
+            writeMissingValue(out, sortField.getComparatorSource().missingValue(sortField.getReverse()));
         } else {
             writeSortType(out, sortField.getType());
             writeMissingValue(out, sortField.getMissingValue());
