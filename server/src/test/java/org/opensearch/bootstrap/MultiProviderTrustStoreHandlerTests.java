@@ -166,7 +166,6 @@ public class MultiProviderTrustStoreHandlerTests extends OpenSearchTestCase {
 
         try {
             MultiProviderTrustStoreHandler.printCurrentConfiguration(Level.TRACE);
-
             String logOutput = output.toString();
             assertTrue(logOutput.contains("Available Security Providers:"));
             assertTrue(logOutput.contains("KeyStore"));
@@ -177,22 +176,17 @@ public class MultiProviderTrustStoreHandlerTests extends OpenSearchTestCase {
 
     private Path createJavaHomePathWithInvalidTrustStore() throws Exception {
         var javaHome = createEmptyJavaHomePath();
-
         var cacertsFile = javaHome.resolve("lib").resolve("security").resolve("cacerts");
         Files.createFile(cacertsFile);
-
-        Files.write(cacertsFile, "dummy cacerts content".getBytes());
-
+        Files.writeString(cacertsFile, "dummy cacerts content");
         return javaHome;
     }
 
     private Path createEmptyJavaHomePath() throws Exception {
         var javaHome = createTempDir();
-
         var libDir = javaHome.resolve("lib");
         var securityDir = libDir.resolve("security");
         Files.createDirectories(securityDir);
-
         return javaHome;
     }
 }
