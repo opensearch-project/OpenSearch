@@ -61,6 +61,7 @@ import org.apache.lucene.util.RoaringDocIdSet;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.IndexSortConfig;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -72,6 +73,7 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.filterrewrite.CompositeAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
@@ -80,6 +82,7 @@ import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -402,6 +405,16 @@ public final class CompositeAggregator extends BucketsAggregator {
                 // we have no clue whether the field is multivalued or not so we assume it is.
                 return true;
         }
+    }
+
+    protected boolean tryStarTreePrecompute(LeafReaderContext ctx) throws IOException {
+        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+            return true;
+        }
+        return false;
     }
 
     /**
