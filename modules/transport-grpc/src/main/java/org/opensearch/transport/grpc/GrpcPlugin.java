@@ -31,10 +31,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
-import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverter;
-import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistry;
+import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
 import org.opensearch.transport.grpc.services.SearchServiceImpl;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -71,7 +71,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
     private Client client;
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
-    private QueryBuilderProtoConverterRegistry queryRegistry;
+    private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
 
     /**
@@ -277,23 +277,29 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         this.client = client;
 
         // Create the registry
-        this.queryRegistry = new QueryBuilderProtoConverterRegistry();
+        this.queryRegistry = new QueryBuilderProtoConverterRegistryImpl();
 
         // Create the query utils instance
         this.queryUtils = new AbstractQueryBuilderProtoUtils(queryRegistry);
 
-        // Register external converters
+        // Inject registry into external converters and register them
         if (!queryConverters.isEmpty()) {
-            logger.info("Registering {} external QueryBuilderProtoConverter(s) with the registry", queryConverters.size());
+            logger.info("Injecting registry and registering {} external QueryBuilderProtoConverter(s)", queryConverters.size());
             for (QueryBuilderProtoConverter converter : queryConverters) {
                 logger.info(
-                    "Registering external converter: {} (handles: {})",
+                    "Processing external converter: {} (handles: {})",
                     converter.getClass().getName(),
                     converter.getHandledQueryCase()
                 );
+
+                // Inject the populated registry into the converter
+                converter.setRegistry(queryRegistry);
+                logger.info("Injected registry into converter: {}", converter.getClass().getName());
+
+                // Register the converter
                 queryRegistry.registerConverter(converter);
             }
-            logger.info("Successfully registered all {} external converters", queryConverters.size());
+            logger.info("Successfully injected registry and registered all {} external converters", queryConverters.size());
         } else {
             logger.info("No external QueryBuilderProtoConverter(s) to register");
         }

@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.transport.grpc.proto.request.search.query;
+package org.opensearch.transport.grpc.spi;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,9 +28,9 @@ public class QueryBuilderProtoConverterSpiRegistry {
     private final Map<QueryContainer.QueryContainerCase, QueryBuilderProtoConverter> converterMap = new HashMap<>();
 
     /**
-     * Creates a new registry. External converters will be registered
-     * via the OpenSearch ExtensiblePlugin mechanism.
-     */
+    * Creates a new registry. External converters will be registered
+    * via the OpenSearch ExtensiblePlugin mechanism.
+    */
     @Inject
     public QueryBuilderProtoConverterSpiRegistry() {
         // External converters are loaded via OpenSearch's ExtensiblePlugin mechanism

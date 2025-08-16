@@ -13,22 +13,25 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Singleton;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterSpiRegistry;
 
 /**
  * Registry for QueryBuilderProtoConverter implementations.
  * This class wraps the SPI registry and adds built-in converters for the transport-grpc module.
  */
 @Singleton
-public class QueryBuilderProtoConverterRegistry {
+public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProtoConverterRegistry {
 
-    private static final Logger logger = LogManager.getLogger(QueryBuilderProtoConverterRegistry.class);
+    private static final Logger logger = LogManager.getLogger(QueryBuilderProtoConverterRegistryImpl.class);
     private final QueryBuilderProtoConverterSpiRegistry delegate;
 
     /**
      * Creates a new registry and loads all available converters.
      */
     @Inject
-    public QueryBuilderProtoConverterRegistry() {
+    public QueryBuilderProtoConverterRegistryImpl() {
         // Create the SPI registry which loads external converters
         this.delegate = new QueryBuilderProtoConverterSpiRegistry();
 

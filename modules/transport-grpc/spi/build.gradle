@@ -16,7 +16,7 @@ base {
 
 dependencies {
   api project(":server")
-  api "org.opensearch:protobufs:0.6.0"
+  api "org.opensearch:protobufs:${versions.opensearchprotobufs}"
 
   testImplementation project(":test:framework")
 }

@@ -20,7 +20,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
-import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverter;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.junit.Before;
 
@@ -330,5 +330,8 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // 2. In createComponents() for logging
         // 3. In QueryBuilderProtoConverterSpiRegistry.registerConverter() for registration
         Mockito.verify(mockConverter, Mockito.times(3)).getHandledQueryCase();
+
+        // Verify that setRegistry was called to inject the registry
+        Mockito.verify(mockConverter, Mockito.times(1)).setRegistry(Mockito.any());
     }
 }
