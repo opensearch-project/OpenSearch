@@ -100,10 +100,7 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         map.put("boolean", true);
 
         // Maps are not supported in FieldValue protobuf, should throw exception
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> FieldValueProtoUtils.toProto(map)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> FieldValueProtoUtils.toProto(map));
 
         assertTrue(
             "Exception message should mention cannot convert map",

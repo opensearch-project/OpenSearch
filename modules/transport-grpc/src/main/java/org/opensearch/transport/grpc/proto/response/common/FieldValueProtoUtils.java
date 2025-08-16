@@ -9,8 +9,6 @@ package org.opensearch.transport.grpc.proto.response.common;
 
 import org.opensearch.protobufs.FieldValue;
 
-import java.util.Map;
-
 import static org.opensearch.index.query.AbstractQueryBuilder.maybeConvertToBytesRef;
 
 /**
