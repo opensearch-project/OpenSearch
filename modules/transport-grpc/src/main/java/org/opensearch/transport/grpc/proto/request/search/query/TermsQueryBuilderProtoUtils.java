@@ -12,15 +12,13 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
-import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.TermsQueryField;
 import org.opensearch.protobufs.ValueType;
+import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-
-import static org.opensearch.index.query.AbstractQueryBuilder.maybeConvertToBytesRef;
 
 /**
  * Utility class for converting Terms query Protocol Buffers to OpenSearch objects.
@@ -229,7 +227,7 @@ public class TermsQueryBuilderProtoUtils {
 
         List<Object> values = new ArrayList<>();
         for (org.opensearch.protobufs.FieldValue fieldValue : fieldValueArray.getFieldValueArrayList()) {
-            Object convertedValue = parseFieldValue(fieldValue);
+            Object convertedValue = FieldValueProtoUtils.fromProto(fieldValue);
             if (convertedValue == null) {
                 throw new IllegalArgumentException("No value specified for terms query");
             }
@@ -252,40 +250,5 @@ public class TermsQueryBuilderProtoUtils {
             tl.routing(lookup.getRouting());
         }
         return tl;
-    }
-
-    /**
-     * Converts a protobuf FieldValue to an Object, using maybeConvertToBytesRef for consistency with OpenSearch
-     * @param fieldValue the Protocol Buffer FieldValue to convert
-     * @return converted Object
-     */
-    private static Object parseFieldValue(FieldValue fieldValue) {
-        if (fieldValue == null) {
-            return null;
-        }
-
-        if (fieldValue.hasGeneralNumber()) {
-            org.opensearch.protobufs.GeneralNumber generalNumber = fieldValue.getGeneralNumber();
-            switch (generalNumber.getValueCase()) {
-                case INT32_VALUE:
-                    return generalNumber.getInt32Value();
-                case INT64_VALUE:
-                    return generalNumber.getInt64Value();
-                case FLOAT_VALUE:
-                    return generalNumber.getFloatValue();
-                case DOUBLE_VALUE:
-                    return generalNumber.getDoubleValue();
-                default:
-                    throw new IllegalArgumentException("Unsupported general number type: " + generalNumber.getValueCase());
-            }
-        } else if (fieldValue.hasString()) {
-            return maybeConvertToBytesRef(fieldValue.getString());
-        } else if (fieldValue.hasBool()) {
-            return fieldValue.getBool();
-        } else if (fieldValue.hasNullValue()) {
-            return null;
-        } else {
-            throw new IllegalArgumentException("FieldValue type not recognized");
-        }
     }
 }

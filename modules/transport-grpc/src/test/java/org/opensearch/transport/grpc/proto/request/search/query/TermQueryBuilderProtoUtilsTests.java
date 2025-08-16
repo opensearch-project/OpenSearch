@@ -147,7 +147,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         assertTrue(
             "Exception message should mention field value not recognized",
-            exception.getMessage().contains("field value not recognized")
+            exception.getMessage().contains("FieldValue type not recognized")
         );
     }
 
@@ -260,7 +260,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         assertTrue(
             "Exception message should mention field value not recognized",
-            exception.getMessage().contains("TermQuery field value not recognized")
+            exception.getMessage().contains("FieldValue type not recognized")
         );
     }
 }

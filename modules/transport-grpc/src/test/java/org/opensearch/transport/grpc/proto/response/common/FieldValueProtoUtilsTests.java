@@ -99,13 +99,16 @@ public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
         map.put("integer", 42);
         map.put("boolean", true);
 
-        FieldValue fieldValue = FieldValueProtoUtils.toProto(map);
+        // Maps are not supported in FieldValue protobuf, should throw exception
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> FieldValueProtoUtils.toProto(map)
+        );
 
-        assertNotNull("FieldValue should not be null", fieldValue);
-        // In the simplified FieldValue structure, maps are converted to string representations
-        assertTrue("FieldValue should have string value", fieldValue.hasString());
-        assertTrue("String should contain map representation", fieldValue.getString().contains("string"));
-        assertTrue("String should contain map representation", fieldValue.getString().contains("value"));
+        assertTrue(
+            "Exception message should mention cannot convert map",
+            exception.getMessage().contains("Cannot convert") && exception.getMessage().contains("to FieldValue")
+        );
     }
 
     // TODO: ObjectMap functionality removed in protobufs 0.8.0 - FieldValue now only supports basic types

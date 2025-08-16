@@ -79,8 +79,8 @@ public class InnerHitsBuilderProtoUtils {
             }
             if (innerHit.getFieldsCount() > 0) {
                 List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
+                // TODO: this is not correct, we need to use FieldAndFormatProtoUtils.fromProto() and fix the protobufs in 0.11.0
                 for (String fieldName : innerHit.getFieldsList()) {
-                    // Convert string field names to FieldAndFormat objects
                     fieldAndFormatList.add(new FieldAndFormat(fieldName, null));
                 }
                 innerHitBuilder.setFetchFields(fieldAndFormatList);

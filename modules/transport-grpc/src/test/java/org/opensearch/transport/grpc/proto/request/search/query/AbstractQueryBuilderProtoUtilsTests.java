@@ -91,40 +91,6 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Value should match", "test-value", termQueryBuilder.value());
     }
 
-    // TODO: TermsQuery structure changed in protobufs 0.8.0
-    /*
-    public void testParseInnerQueryBuilderProtoWithTerms() {
-        // Create a QueryContainer with Terms query using the correct protobuf classes
-        StringArray stringArray = StringArray.newBuilder().addStringArray("value1").addStringArray("value2").build();
-
-        TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
-            .setStringArray(stringArray)
-            .build();
-
-        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
-        termsLookupFieldStringArrayMapMap.put("test-field", termsLookupFieldStringArrayMap);
-
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder()
-            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
-            .build();
-
-        // Create a QueryContainer with Terms query
-        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
-
-        // Call parseInnerQueryBuilderProto using instance method
-        QueryBuilder queryBuilder = queryUtils.parseInnerQueryBuilderProto(queryContainer);
-
-        // Verify the result
-        assertNotNull("QueryBuilder should not be null", queryBuilder);
-        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
-        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
-        assertEquals("Field name should match", "test-field", termsQueryBuilder.fieldName());
-        assertEquals("Values size should match", 2, termsQueryBuilder.values().size());
-        assertEquals("First value should match", "value1", termsQueryBuilder.values().get(0));
-        assertEquals("Second value should match", "value2", termsQueryBuilder.values().get(1));
-    }
-    */
-
     public void testParseInnerQueryBuilderProtoWithUnsupportedQuery() {
         // Create an empty QueryContainer (no query type specified)
         QueryContainer queryContainer = QueryContainer.newBuilder().build();

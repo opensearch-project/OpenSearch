@@ -12,6 +12,7 @@ import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.TermQuery;
+import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 /**
  * Utility class for converting TermQuery Protocol Buffers to OpenSearch objects.
@@ -50,27 +51,7 @@ public class TermQueryBuilderProtoUtils {
         }
 
         FieldValue fieldValue = termQueryProto.getValue();
-
-        if (fieldValue.hasGeneralNumber()) {
-            org.opensearch.protobufs.GeneralNumber number = fieldValue.getGeneralNumber();
-            if (number.hasDoubleValue()) {
-                value = number.getDoubleValue();
-            } else if (number.hasFloatValue()) {
-                value = number.getFloatValue();
-            } else if (number.hasInt64Value()) {
-                value = number.getInt64Value();
-            } else if (number.hasInt32Value()) {
-                value = number.getInt32Value();
-            }
-        } else if (fieldValue.hasString()) {
-            value = fieldValue.getString();
-        } else if (fieldValue.hasBool()) {
-            value = fieldValue.getBool();
-        } else if (fieldValue.hasNullValue()) {
-            value = null;
-        } else {
-            throw new IllegalArgumentException("TermQuery field value not recognized");
-        }
+        value = FieldValueProtoUtils.fromProto(fieldValue, false);
 
         if (termQueryProto.hasCaseInsensitive()) {
             caseInsensitive = termQueryProto.getCaseInsensitive();
