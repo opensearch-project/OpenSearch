@@ -59,6 +59,7 @@ import org.opensearch.cluster.coordination.LagDetector;
 import org.opensearch.cluster.coordination.LeaderChecker;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.coordination.Reconfigurator;
+import org.opensearch.cluster.fips.truststore.FipsTrustStore;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.OperationRouting;
@@ -848,7 +849,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
-                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING
+                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
+
+                FipsTrustStore.CLUSTER_FIPS_TRUSTSTORE_SOURCE_SETTING
             )
         )
     );
