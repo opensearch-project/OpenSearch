@@ -268,6 +268,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.GeoDistanceSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.ScriptSortBuilder;
+import org.opensearch.search.sort.ShardDocSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortValue;
 import org.opensearch.search.suggest.Suggest;
@@ -1202,6 +1203,7 @@ public class SearchModule {
         );
         registerSort(new SortSpec<>(ScoreSortBuilder.NAME, ScoreSortBuilder::new, ScoreSortBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getSorts, this::registerSort);
+        registerSort(new SortSpec<>(ShardDocSortBuilder.NAME, ShardDocSortBuilder::new, ShardDocSortBuilder::fromXContent));
     }
 
     private void registerIntervalsSourceProviders() {
