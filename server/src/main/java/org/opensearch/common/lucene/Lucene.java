@@ -57,6 +57,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -92,6 +93,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
 
 import java.io.IOException;
@@ -578,7 +580,7 @@ public class Lucene {
             sortField = newSortField;
         }
 
-        if (sortField.getClass() != SortField.class) {
+        if (sortField.getClass() != SortField.class && sortField.getClass() != NonPruningSortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
         if (sortField.getField() == null) {
@@ -587,9 +589,9 @@ public class Lucene {
             out.writeBoolean(true);
             out.writeString(sortField.getField());
         }
-        if (sortField.getComparatorSource() != null) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField
-                .getComparatorSource();
+        if (sortField.getComparatorSource() != null && (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource)) {
+            FieldComparatorSource fieldComparatorSource = sortField.getComparatorSource();
+            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) fieldComparatorSource;
             writeSortType(out, comparatorSource.reducedType());
             writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
         } else {
