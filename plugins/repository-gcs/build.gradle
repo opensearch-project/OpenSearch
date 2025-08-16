@@ -43,6 +43,10 @@ import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
+ext {
+  guava_version = "33.4.0-jre"
+}
+
 opensearchplugin {
   description = 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
   classname = 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
@@ -55,7 +59,7 @@ dependencies {
   implementation "com.google.cloud:google-cloud-core:2.59.0"
   implementation "com.google.cloud:google-cloud-core-http:2.59.0"
 
-  runtimeOnly "com.google.guava:guava:33.4.0-jre"
+  runtimeOnly "com.google.guava:guava:${guava_version}"
   runtimeOnly "com.google.guava:failureaccess:1.0.2"
   compileOnly "com.google.errorprone:error_prone_annotations:2.38.0"
 
@@ -95,7 +99,7 @@ dependencies {
 
 compileJava {
   configurations.runtimeClasspath.files.forEach {
-    if (it.name.contains("33.4.0-jre")) {
+    if (it.name.contains(guava_version)) {
       classpath += files(it.toString())
     }
   }
@@ -103,7 +107,7 @@ compileJava {
 
 compileTestJava {
   configurations.runtimeClasspath.files.forEach {
-    if (it.name.contains("33.4.0-jre")) {
+    if (it.name.contains(guava_version)) {
       classpath += files(it.toString())
     }
   }
@@ -111,7 +115,7 @@ compileTestJava {
 
 javadoc {
   configurations.runtimeClasspath.files.forEach {
-    if (it.name.contains("33.4.0-jre")) {
+    if (it.name.contains(guava_version)) {
       classpath += files(it.toString())
     }
   }
