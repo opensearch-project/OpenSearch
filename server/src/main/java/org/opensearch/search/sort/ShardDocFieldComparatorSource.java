@@ -21,19 +21,19 @@ import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.BucketedSort.ExtraData;
 
 /**
- * A pseudo‑field (_shard_doc) comparator that tiebreaks by  {@code (shardOrd << 32) | globalDocId}
+ * A pseudo‑field (_shard_doc) comparator that tiebreaks by  {@code (shardId << 32) | globalDocId}
  */
 public class ShardDocFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {
     public static final String NAME = "_shard_doc";
 
-    private final int shardId;
+    private final long shardKeyPrefix;
 
     /**
-     * @param shardId the ordinal of this shard within the coordinating node’s shard list
+     * @param shardId the shard ID of this shard
      */
     public ShardDocFieldComparatorSource(int shardId) {
         super(null, MultiValueMode.MIN, null);
-        this.shardId = shardId;
+        shardKeyPrefix = ((long) shardId) << 32;
     }
 
     @Override
@@ -55,8 +55,6 @@ public class ShardDocFieldComparatorSource extends IndexFieldData.XFieldComparat
 
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) {
-                // derive a stable shard ordinal per-segment
-                long shardOrd = shardId;
                 final int docBase = context.docBase;
 
                 return new LeafFieldComparator() {
@@ -74,20 +72,21 @@ public class ShardDocFieldComparatorSource extends IndexFieldData.XFieldComparat
 
                     @Override
                     public int compareBottom(int doc) {
-                        long key = ((long) shardId << 32) | (docBase + doc);
-                        return Long.compare(bottom, key);
+                        return Long.compare(bottom, computeGlobalDocKey(doc));
                     }
 
                     @Override
                     public void copy(int slot, int doc) {
-                        long key = ((long) shardId << 32) | (docBase + doc);
-                        values[slot] = key;
+                        values[slot] = computeGlobalDocKey(doc);
                     }
 
                     @Override
                     public int compareTop(int doc) {
-                        long key = ((long) shardId << 32) | (docBase + doc);
-                        return Long.compare(topValue, key);
+                        return Long.compare(topValue, computeGlobalDocKey(doc));
+                    }
+
+                    private long computeGlobalDocKey(int doc) {
+                        return  shardKeyPrefix | (docBase + doc);
                     }
                 };
             }
