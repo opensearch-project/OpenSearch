@@ -148,6 +148,26 @@ public class BootstrapForTesting {
                 Security.addClasspathPermissions(perms);
                 // java.io.tmpdir
                 FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete", false);
+                String jacocoDir = System.getProperty("jacoco.dir");
+                if (jacocoDir != null) {
+                    FilePermissionUtils.addDirectoryPath(
+                        perms,
+                        "jacoco.dir",
+                        PathUtils.get(jacocoDir),
+                        "read,readlink,write,delete",
+                        false
+                    );
+                }
+                String testclustersDir = System.getProperty("testclusters.dir");
+                if (testclustersDir != null) {
+                    FilePermissionUtils.addDirectoryPath(
+                        perms,
+                        "testclusters.dir",
+                        PathUtils.get(testclustersDir),
+                        "read,readlink,write,delete",
+                        false
+                    );
+                }
                 // custom test config file
                 String testConfigFile = System.getProperty("tests.config");
                 if (Strings.hasLength(testConfigFile)) {

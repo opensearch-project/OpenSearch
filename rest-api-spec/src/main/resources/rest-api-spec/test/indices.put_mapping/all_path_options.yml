@@ -190,3 +190,34 @@ setup:
 
   - match: {test_index1.mappings.dynamic:     strict_allow_templates}
   - match: {test_index1.mappings.properties.test1.type:     text}
+
+---
+"post a mapping with setting dynamic to false_allow_templates":
+  - skip:
+      version: " - 3.2.99"
+      reason: "introduced in 3.3.0"
+  - do:
+      indices.put_mapping:
+        index: test_index1
+        body:
+          dynamic: false_allow_templates
+          dynamic_templates: [
+            {
+              strings: {
+                "match": "foo*",
+                "match_mapping_type": "string",
+                "mapping": {
+                  "type": "keyword"
+                }
+              }
+            }
+          ]
+          properties:
+            test1:
+              type: text
+
+  - do:
+      indices.get_mapping: {}
+
+  - match: {test_index1.mappings.dynamic:     false_allow_templates}
+  - match: {test_index1.mappings.properties.test1.type:     text}
