@@ -43,6 +43,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -69,6 +70,8 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_7_0;
+import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG;
+import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -447,6 +450,37 @@ public final class IndexSettings {
         true,
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Specifies if the index should be context aware enabled
+     */
+    public static final Setting<Boolean> INDEX_CONTEXT_AWARE_ENABLED_SETTING = Setting.boolSetting(
+        "index.context_aware.enabled",
+        false,
+        value -> {
+            if (FeatureFlags.isEnabled(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG) == false && value == true) {
+                throw new IllegalArgumentException(
+                    "FeatureFlag " + CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG + " must be enabled to set this property to true"
+                );
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Maximum number of indexing request retries in case LookupMapLockAcquisitionException is encountered for
+     * context aware indexes.
+     *
+     */
+    public static final Setting<Integer> INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION = Setting.intSetting(
+        "index.context_aware.max_retry_on_lookup_map_acquisition_exception",
+        15,
+        5,
+        100,
+        Setting.Property.IndexScope,
+        Property.Dynamic
     );
 
     /**
@@ -851,6 +885,8 @@ public final class IndexSettings {
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
+    private final boolean contextAwareEnabled;
+    private int maxRetryOnLookupMapAcquisitionException;
     private volatile long softDeleteRetentionOperations;
 
     private volatile long retentionLeaseMillis;
@@ -1063,6 +1099,8 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        contextAwareEnabled = scopedSettings.get(INDEX_CONTEXT_AWARE_ENABLED_SETTING);
+        maxRetryOnLookupMapAcquisitionException = scopedSettings.get(INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION);
         assert softDeleteEnabled || version.before(Version.V_2_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
@@ -1229,6 +1267,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_PIPELINE, this::setDefaultSearchPipeline);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION,
+            this::setMaxRetryOnLookupMapAcquisitionException
+        );
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
             this::setRemoteTranslogUploadBufferInterval
@@ -1998,6 +2040,18 @@ public final class IndexSettings {
      */
     public boolean isSoftDeleteEnabled() {
         return softDeleteEnabled;
+    }
+
+    public boolean isContextAwareEnabled() {
+        return contextAwareEnabled && FeatureFlags.isEnabled(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING);
+    }
+
+    private void setMaxRetryOnLookupMapAcquisitionException(int maxRetryOnLookupMapAcquisitionException) {
+        this.maxRetryOnLookupMapAcquisitionException = maxRetryOnLookupMapAcquisitionException;
+    }
+
+    public int getMaxRetryOnLookupMapAcquisitionException() {
+        return maxRetryOnLookupMapAcquisitionException;
     }
 
     private void setSoftDeleteRetentionOperations(long ops) {
