@@ -1747,7 +1747,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
         SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
         AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
-        AtomicInteger cancelAfterRequest = new AtomicInteger(expectedNumResults / 2);
+        AtomicInteger checkCount = new AtomicInteger(0);
+        int cancelAfter = expectedNumResults / 2;
 
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
@@ -1757,7 +1758,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             expectedNumResults,
             exc -> {},
             () -> {
-                return cancelAfterRequest.decrementAndGet() <= 0;
+                return checkCount.incrementAndGet() > cancelAfter;
             }
         );
 
@@ -1774,7 +1775,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
         // making sure circuit breaker trips first
         circuitBreaker.shouldBreak.set(true);
-        AtomicInteger cancelAfterRequest = new AtomicInteger(expectedNumResults + 1);
+        AtomicInteger checkCount = new AtomicInteger(0);
+        int cancelAfter = expectedNumResults + 1;
 
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
@@ -1784,7 +1786,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             expectedNumResults,
             exc -> {},
             () -> {
-                return cancelAfterRequest.decrementAndGet() <= 0;
+                return checkCount.incrementAndGet() > cancelAfter;
             }
         );
 
