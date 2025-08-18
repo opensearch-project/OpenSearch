@@ -1000,8 +1000,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 // to avoid serialization/de-serization issue between nodes with different OpenSearch version
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else if (type == ThreadPoolType.FORK_JOIN && out.getVersion().before(Version.V_3_2_0)) {
-                // Opensearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED (or SCALING, or
-                // another safe fallback)
+                // Opensearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else {
                 out.writeString(type.getType());
