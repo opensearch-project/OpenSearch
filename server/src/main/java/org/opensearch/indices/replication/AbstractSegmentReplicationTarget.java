@@ -176,6 +176,7 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
                 );
                 return;
             }
+
             updateCheckpoint(checkpointInfo.getCheckpoint(), checkpointUpdater);
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);

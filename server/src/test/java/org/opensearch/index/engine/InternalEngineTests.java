@@ -805,6 +805,8 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             segments = engine.segments(true);
+            // This works for regular scenario because merges are triggered by preparePointInTimeMerge by refresh, which is a blocking merge.
+            // In context aware scenario, addIndexes triggers a non blocking merge before refresh triggers it, so this test case fails
             assertThat(segments.size(), equalTo(1));
         }
     }
@@ -1029,7 +1031,7 @@ public class InternalEngineTests extends EngineTestCase {
             recoveringEngine = new InternalEngine(initialEngine.config()) {
 
                 @Override
-                protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
+                protected void commitIndexWriter(CompositeIndexWriter writer, String translogUUID) throws IOException {
                     committed.set(true);
                     super.commitIndexWriter(writer, translogUUID);
                 }
@@ -3616,7 +3618,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             @Override
             public void eval(MockDirectoryWrapper dir) throws IOException {
-                if (callStackContainsAnyOf("mergeTerms")) {
+                if (callStackContainsAnyOf("mergeWithLogging")) {
                     throw new IOException("No space left on device");
                 }
             }
@@ -3964,7 +3966,7 @@ public class InternalEngineTests extends EngineTestCase {
                 ) {
 
                     @Override
-                    protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
+                    protected void commitIndexWriter(CompositeIndexWriter writer, String translogUUID) throws IOException {
                         super.commitIndexWriter(writer, translogUUID);
                         if (throwErrorOnCommit.get()) {
                             throw new RuntimeException("power's out");
@@ -6295,7 +6297,7 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong lastSyncedGlobalCheckpointBeforeCommit = new AtomicLong(Translog.readGlobalCheckpoint(translogPath, translogUUID));
         try (InternalEngine engine = new InternalEngine(engineConfig) {
             @Override
-            protected void commitIndexWriter(IndexWriter writer, String translogUUID) throws IOException {
+            protected void commitIndexWriter(CompositeIndexWriter writer, String translogUUID) throws IOException {
                 lastSyncedGlobalCheckpointBeforeCommit.set(Translog.readGlobalCheckpoint(translogPath, translogUUID));
                 // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
                 // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.
@@ -7014,7 +7016,8 @@ public class InternalEngineTests extends EngineTestCase {
                     Engine.IndexResult indexResult = engine.index((Engine.Index) op);
                     assertThat(indexResult.getFailure(), nullValue());
                     expectedSeqNos.add(indexResult.getSeqNo());
-                } else {
+                }
+                else {
                     Engine.DeleteResult deleteResult = engine.delete((Engine.Delete) op);
                     assertThat(deleteResult.getFailure(), nullValue());
                     expectedSeqNos.add(deleteResult.getSeqNo());
@@ -8527,6 +8530,131 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             } finally {
                 IOUtils.close(engine, store);
+            }
+        }
+    }
+
+    private static class AddIndexesFailingIndexWriter extends IndexWriter {
+
+        private AtomicReference<Supplier<Exception>> failureToThrow = new AtomicReference<>();
+
+        /**
+         * Constructs a new IndexWriter per the settings given in <code>conf</code>. If you want to make
+         * "live" changes to this writer instance, use {@link #getConfig()}.
+         *
+         * <p><b>NOTE:</b> after ths writer is created, the given configuration instance cannot be passed
+         * to another writer.
+         *
+         * @param d    the index directory. The index is either created or appended according <code>
+         *             conf.getOpenMode()</code>.
+         * @param conf the configuration settings according to which IndexWriter should be initialized.
+         * @throws IOException if the directory cannot be read/written to, or if it does not exist and
+         *                     <code>conf.getOpenMode()</code> is <code>OpenMode.APPEND</code> or if there is any other
+         *                     low-level IO error
+         */
+        public AddIndexesFailingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
+            super(d, conf);
+        }
+
+        @Override
+        public long addIndexes(Directory... dirs) throws IOException {
+            maybeThrowFailure();
+            return super.addIndexes(dirs);
+        }
+
+        private void maybeThrowFailure() throws IOException {
+            if (failureToThrow.get() != null) {
+                Exception failure = failureToThrow.get().get();
+                clearFailure(); // one shot
+                if (failure instanceof RuntimeException) {
+                    throw (RuntimeException) failure;
+                } else if (failure instanceof IOException) {
+                    throw (IOException) failure;
+                } else {
+                    assert false : "unsupported failure class: " + failure.getClass().getCanonicalName();
+                }
+            }
+        }
+
+        public void setThrowFailure(Supplier<Exception> failureSupplier) {
+            failureToThrow.set(failureSupplier);
+        }
+
+        public void clearFailure() {
+            failureToThrow.set(null);
+        }
+    }
+
+    public void testShardFailsForCompositeIndexWriterInCaseAddIndexesThrewExceptionWithAppend() throws IOException, InterruptedException {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final Path translogPath = createTempDir("testFailEngineOnRandomIO");
+        try (Store store = createStore(wrapper)) {
+            final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_1, null);
+
+            AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
+            try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
+                throwingIndexWriter.set(new AddIndexesFailingIndexWriter(directory, iwc));
+                return throwingIndexWriter.get();
+            })){
+                // test document failure while indexing
+                if (randomBoolean()) {
+                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
+                } else {
+                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
+                }
+                // test index with document failure
+                engine.index(indexForDoc(doc1));
+                engine.index(indexForDoc(doc2));
+                engine.index(indexForDoc(doc3));
+                try {
+                    engine.refresh("testing");
+                    fail();
+                } catch (AlreadyClosedException ex) {
+                    if (ex.getCause() != null) {
+                        assertTrue(ex.toString(), ex.getCause() instanceof MockDirectoryWrapper.FakeIOException);
+                    }
+                } catch (RefreshFailedEngineException ex) {
+                    // fine
+                }
+            }
+        }
+    }
+
+    public void testShardFailsForCompositeIndexWriterInCaseAddIndexesThrewExceptionWithUpdate() throws IOException, InterruptedException {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final Path translogPath = createTempDir("testFailEngineOnRandomIO");
+        try (Store store = createStore(wrapper)) {
+            final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+
+            AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
+            try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
+                throwingIndexWriter.set(new AddIndexesFailingIndexWriter(directory, iwc));
+                return throwingIndexWriter.get();
+            })){
+                // test document failure while indexing
+                if (randomBoolean()) {
+                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
+                } else {
+                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
+                }
+                // test index with document failure
+                engine.index(indexForDoc(doc1));
+                engine.index(indexForDoc(doc2));
+                engine.index(indexForDoc(doc3));
+                try {
+                    engine.refresh("testing");
+                    fail();
+                } catch (AlreadyClosedException ex) {
+                    if (ex.getCause() != null) {
+                        assertTrue(ex.toString(), ex.getCause() instanceof MockDirectoryWrapper.FakeIOException);
+                    }
+                } catch (RefreshFailedEngineException ex) {
+                    // fine
+                }
             }
         }
     }

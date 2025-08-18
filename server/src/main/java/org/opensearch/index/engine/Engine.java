@@ -148,7 +148,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final CounterMetric totalUnreferencedFileCleanUpsPerformed = new CounterMetric();
-    private final CountDownLatch closedLatch = new CountDownLatch(1);
+    protected final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -2028,7 +2028,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         awaitPendingClose();
     }
 
-    private void awaitPendingClose() {
+    protected void awaitPendingClose() {
         try {
             closedLatch.await();
         } catch (InterruptedException e) {
