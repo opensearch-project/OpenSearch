@@ -198,6 +198,10 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                         approxQuery.setSize(windowSize);
                         try {
                             Scorer scorer = supplier.get(windowSize);
+                            if (scorer == null) {
+                                // Clause is fully traversed, end entire conjunction
+                                return null;
+                            }
                             newIterators.add(scorer.iterator());
                         } finally {
                             // Restore original size
@@ -222,6 +226,10 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
                     // Rebuild iterators with new window size
                     List<DocIdSetIterator> newIterators = rebuildIteratorsWithWindowSize(currentWindowSize);
+                    if (newIterators == null) {
+                        // A clause is fully traversed, end conjunction
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
                     globalConjunction = ConjunctionUtils.intersectIterators(newIterators);
 
                     // Return first docID from new conjunction (could be < min)
@@ -276,6 +284,10 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
                         try {
                             List<DocIdSetIterator> newIterators = rebuildIteratorsWithWindowSize(currentWindowSize);
+                            if (newIterators == null) {
+                                // A clause is fully traversed, end conjunction
+                                return DocIdSetIterator.NO_MORE_DOCS;
+                            }
                             globalConjunction = ConjunctionUtils.intersectIterators(newIterators);
 
                             int firstDoc = globalConjunction.nextDoc();

@@ -400,7 +400,29 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 }
                 // values.size(): total points indexed, In most cases: values.size() ≈ number of documents (assuming single-valued fields)
                 if (size > values.size()) {
-                    return pointRangeQueryWeight.scorerSupplier(context);
+                    ScorerSupplier luceneSupplier = pointRangeQueryWeight.scorerSupplier(context);
+                    return new ScorerSupplier() {
+                        boolean alreadyFullyTraversed = false;
+
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return getWithSize(size);
+                        }
+
+                        public Scorer getWithSize(int dynamicSize) throws IOException {
+                            if (alreadyFullyTraversed) {
+                                return null; // Signal end of conjunction
+                            }
+
+                            alreadyFullyTraversed = true;
+                            return luceneSupplier.get(Long.MAX_VALUE);
+                        }
+
+                        @Override
+                        public long cost() {
+                            return luceneSupplier.cost();
+                        }
+                    };
                 } else {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
