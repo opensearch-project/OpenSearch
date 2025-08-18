@@ -886,9 +886,6 @@ final class DocumentParser {
             if (builder != null) {
                 return builder;
             }
-            if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES) {
-                return null;
-            }
         }
         // TODO how do we identify dynamically that its a binary value?
         throw new IllegalStateException(
