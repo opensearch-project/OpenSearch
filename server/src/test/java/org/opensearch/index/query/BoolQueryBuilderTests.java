@@ -517,6 +517,9 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     }
 
+    // Note: Must-not-to-should optimization is now handled by MustNotToShouldRewriter in the query rewriting infrastructure
+    // This test is disabled as the functionality has been moved out of BoolQueryBuilder
+    /*
     public void testOneMustNotRangeRewritten() throws Exception {
         int from = 10;
         int to = 20;
@@ -548,7 +551,11 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
         IOUtils.close(w, reader, dir);
     }
+    */
 
+    // Note: Must-not-to-should optimization is now handled by MustNotToShouldRewriter in the query rewriting infrastructure
+    // This test is disabled as the functionality has been moved out of BoolQueryBuilder
+    /*
     public void testOneSingleEndedMustNotRangeRewritten() throws Exception {
         // Test a must_not range query with only one endpoint is rewritten correctly
         int from = 10;
@@ -573,6 +580,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         IOUtils.close(w, reader, dir);
     }
+    */
 
     public void testMultipleComplementAwareOnSameFieldNotRewritten() throws Exception {
         Directory dir = newDirectory();
@@ -641,6 +649,9 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         IOUtils.close(w, reader, dir);
     }
 
+    // Note: Must-not-to-should optimization is now handled by MustNotToShouldRewriter in the query rewriting infrastructure
+    // This test is disabled as the functionality has been moved out of BoolQueryBuilder
+    /*
     public void testOneMustNotNumericMatchQueryRewritten() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
@@ -675,20 +686,22 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         IOUtils.close(w, reader, dir);
     }
+    */
 
+    // Note: The must-to-filter optimization has been moved to MustToFilterRewriter in the query rewriting infrastructure
+    // This test is kept but modified to verify that the optimization no longer happens at this level
     public void testMustClausesRewritten() throws Exception {
         BoolQueryBuilder qb = new BoolQueryBuilder();
 
-        // Should be moved
+        // Previously these would be moved, but now they stay in must
         QueryBuilder intTermQuery = new TermQueryBuilder(INT_FIELD_NAME, 200);
         QueryBuilder rangeQuery = new RangeQueryBuilder(INT_FIELD_NAME).gt(10).lt(20);
-        // Should be moved to filter clause, the boost applies equally to all matched docs
         QueryBuilder rangeQueryWithBoost = new RangeQueryBuilder(DATE_FIELD_NAME).gt(10).lt(20).boost(2);
         QueryBuilder intTermsQuery = new TermsQueryBuilder(INT_FIELD_NAME, new int[] { 1, 4, 100 });
         QueryBuilder boundingBoxQuery = new GeoBoundingBoxQueryBuilder(GEO_POINT_FIELD_NAME);
         QueryBuilder doubleMatchQuery = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 5.5);
 
-        // Should not be moved
+        // Text queries
         QueryBuilder textTermQuery = new TermQueryBuilder(TEXT_FIELD_NAME, "bar");
         QueryBuilder textTermsQuery = new TermsQueryBuilder(TEXT_FIELD_NAME, "foo", "bar");
         QueryBuilder textMatchQuery = new MatchQueryBuilder(TEXT_FIELD_NAME, "baz");
@@ -705,31 +718,39 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         qb.must(textMatchQuery);
 
         BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext());
+
+        // Verify that the must-to-filter optimization no longer happens at this level
+        // All clauses should remain in must
         for (QueryBuilder clause : List.of(
             intTermQuery,
             rangeQuery,
             rangeQueryWithBoost,
             intTermsQuery,
             boundingBoxQuery,
-            doubleMatchQuery
+            doubleMatchQuery,
+            textTermQuery,
+            textTermsQuery,
+            textMatchQuery
         )) {
-            assertFalse(rewritten.must().contains(clause));
-            assertTrue(rewritten.filter().contains(clause));
-        }
-        for (QueryBuilder clause : List.of(textTermQuery, textTermsQuery, textMatchQuery)) {
             assertTrue(rewritten.must().contains(clause));
             assertFalse(rewritten.filter().contains(clause));
         }
 
-        // If we have null QueryShardContext, match/term/terms queries should not be moved as we can't determine if they're numeric.
+        // Same behavior with null context - all clauses remain in must
         QueryRewriteContext nullContext = mock(QueryRewriteContext.class);
         when(nullContext.convertToShardContext()).thenReturn(null);
         rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, nullContext);
-        for (QueryBuilder clause : List.of(rangeQuery, rangeQueryWithBoost, boundingBoxQuery)) {
-            assertFalse(rewritten.must().contains(clause));
-            assertTrue(rewritten.filter().contains(clause));
-        }
-        for (QueryBuilder clause : List.of(textTermQuery, textTermsQuery, textMatchQuery, intTermQuery, intTermsQuery, doubleMatchQuery)) {
+        for (QueryBuilder clause : List.of(
+            rangeQuery,
+            rangeQueryWithBoost,
+            boundingBoxQuery,
+            textTermQuery,
+            textTermsQuery,
+            textMatchQuery,
+            intTermQuery,
+            intTermsQuery,
+            doubleMatchQuery
+        )) {
             assertTrue(rewritten.must().contains(clause));
             assertFalse(rewritten.filter().contains(clause));
         }

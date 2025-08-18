@@ -49,8 +49,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -402,8 +400,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return any.get();
         }
 
-        changed |= rewriteMustNotRangeClausesToShould(newBuilder, queryRewriteContext);
-        changed |= rewriteMustClausesToFilter(newBuilder, queryRewriteContext);
+        // Note: must-not-to-should optimization is now handled by MustNotToShouldRewriter in the query rewriting infrastructure
+        // changed |= rewriteMustNotRangeClausesToShould(newBuilder, queryRewriteContext);
+        // Note: must-to-filter optimization is now handled by MustToFilterRewriter in the query rewriting infrastructure
+        // changed |= rewriteMustClausesToFilter(newBuilder, queryRewriteContext);
 
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
@@ -560,6 +560,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return true;
     }
 
+    // Note: The must-to-filter optimization logic has been moved to MustToFilterRewriter in the query rewriting infrastructure
+    // The following methods are kept for reference but are no longer used:
+    /*
     private boolean rewriteMustClausesToFilter(BoolQueryBuilder newBuilder, QueryRewriteContext queryRewriteContext) {
         // If we have must clauses which return the same score for all matching documents, like numeric term queries or ranges,
         // moving them from must clauses to filter clauses improves performance in some cases.
@@ -608,4 +611,5 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         if (clause instanceof TermsQueryBuilder) return true;
         return false;
     }
+    */
 }

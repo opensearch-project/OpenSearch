@@ -13,6 +13,7 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -121,13 +122,25 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         // - match_all should be removed
         // - term queries should be merged into terms query
         // - The filter bool with brand terms should be preserved
+        // - The range query should be moved from must to filter by MustToFilterRewriter
 
-        // Check must clauses (should have terms query for category and range query)
-        assertThat(rewrittenBool.must().size(), equalTo(2));
+        // Check must clauses (should have terms query for category only - range moved to filter)
+        assertThat(rewrittenBool.must().size(), equalTo(1));
 
-        // Check filter clauses (should have the brand bool query)
-        assertThat(rewrittenBool.filter().size(), equalTo(1));
-        assertThat(rewrittenBool.filter().get(0), instanceOf(BoolQueryBuilder.class));
+        // Check filter clauses (should have the brand bool query AND the range query)
+        assertThat(rewrittenBool.filter().size(), equalTo(2));
+        // One should be the brand bool query
+        boolean hasBoolFilter = false;
+        boolean hasRangeFilter = false;
+        for (QueryBuilder filter : rewrittenBool.filter()) {
+            if (filter instanceof BoolQueryBuilder) {
+                hasBoolFilter = true;
+            } else if (filter instanceof RangeQueryBuilder) {
+                hasRangeFilter = true;
+            }
+        }
+        assertTrue(hasBoolFilter);
+        assertTrue(hasRangeFilter);
 
         // Must not should be preserved
         assertThat(rewrittenBool.mustNot().size(), equalTo(1));

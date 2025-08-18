@@ -34,6 +34,8 @@ public final class QueryRewriterRegistry {
     private static void initializeDefaultRewriters() {
         List<QueryRewriter> defaultRewriters = new ArrayList<>();
         defaultRewriters.add(new BooleanFlatteningRewriter());
+        defaultRewriters.add(new MustToFilterRewriter());
+        defaultRewriters.add(new MustNotToShouldRewriter());
         defaultRewriters.add(new TermsMergingRewriter());
         defaultRewriters.add(new MatchAllRemovalRewriter());
         defaultRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
@@ -54,6 +56,8 @@ public final class QueryRewriterRegistry {
         // Create rewriters with the current threshold
         List<QueryRewriter> currentRewriters = new ArrayList<>();
         currentRewriters.add(new BooleanFlatteningRewriter());
+        currentRewriters.add(new MustToFilterRewriter());
+        currentRewriters.add(new MustNotToShouldRewriter());
         currentRewriters.add(new TermsMergingRewriter(termsThreshold));
         currentRewriters.add(new MatchAllRemovalRewriter());
         currentRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
