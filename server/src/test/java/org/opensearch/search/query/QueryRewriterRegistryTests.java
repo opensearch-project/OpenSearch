@@ -9,6 +9,7 @@
 package org.opensearch.search.query;
 
 import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
@@ -84,10 +85,13 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // Should be flattened first, match_all removed, but terms NOT merged in must context
-        assertThat(rewrittenBool.must().size(), equalTo(2));
-        assertThat(rewrittenBool.must().get(0), instanceOf(TermQueryBuilder.class));
-        assertThat(rewrittenBool.must().get(1), instanceOf(TermQueryBuilder.class));
+        // Should be flattened first, match_all kept in must (scoring context), but terms NOT merged in must context
+        assertThat(rewrittenBool.must().size(), equalTo(3)); // match_all + 2 term queries
+        // Check that we have one match_all and two term queries (order may vary)
+        long matchAllCount = rewrittenBool.must().stream().filter(q -> q instanceof MatchAllQueryBuilder).count();
+        long termCount = rewrittenBool.must().stream().filter(q -> q instanceof TermQueryBuilder).count();
+        assertThat(matchAllCount, equalTo(1L));
+        assertThat(termCount, equalTo(2L));
     }
 
     public void testComplexRealWorldQuery() {

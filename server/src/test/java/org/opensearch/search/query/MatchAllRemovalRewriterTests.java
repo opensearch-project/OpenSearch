@@ -24,16 +24,15 @@ public class MatchAllRemovalRewriterTests extends OpenSearchTestCase {
     private final QueryShardContext context = mock(QueryShardContext.class);
 
     public void testRemoveMatchAllFromMust() {
-        // match_all in must clause should be removed
+        // match_all in must clause should NOT be removed in scoring context
         QueryBuilder query = QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).must(QueryBuilders.termQuery("field", "value"));
 
         QueryBuilder rewritten = rewriter.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // match_all should be removed, leaving only the term query
-        assertThat(rewrittenBool.must().size(), equalTo(1));
-        assertThat(rewrittenBool.must().get(0), instanceOf(QueryBuilders.termQuery("field", "value").getClass()));
+        // match_all should be kept in scoring context
+        assertThat(rewrittenBool.must().size(), equalTo(2));
     }
 
     public void testRemoveMatchAllFromFilter() {
@@ -92,8 +91,9 @@ public class MatchAllRemovalRewriterTests extends OpenSearchTestCase {
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // All match_all queries should be removed
-        assertThat(rewrittenBool.must().size(), equalTo(1));
+        // With filter clause present, this is not a pure scoring context
+        // Since there are non-match_all queries in must, match_all should be removed
+        assertThat(rewrittenBool.must().size(), equalTo(1)); // only term query remains
         assertThat(rewrittenBool.filter().size(), equalTo(0));
     }
 
@@ -109,17 +109,22 @@ public class MatchAllRemovalRewriterTests extends OpenSearchTestCase {
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // Nested bool should also be rewritten
+        // Nested bool keeps match_all in scoring context
         BoolQueryBuilder nestedRewritten = (BoolQueryBuilder) rewrittenBool.must().get(0);
-        assertThat(nestedRewritten.must().size(), equalTo(1));
+        assertThat(nestedRewritten.must().size(), equalTo(2)); // match_all + term
     }
 
     public void testEmptyBoolAfterRemoval() {
-        // If removing match_all leaves empty bool, convert to match_all
+        // Bool with only match_all in must/filter - keeps match_all in must in scoring context
         QueryBuilder query = QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).filter(QueryBuilders.matchAllQuery());
 
         QueryBuilder rewritten = rewriter.rewrite(query, context);
-        assertThat(rewritten, instanceOf(QueryBuilders.matchAllQuery().getClass()));
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+
+        // match_all in must is kept in scoring context, match_all in filter is removed
+        assertThat(rewrittenBool.must().size(), equalTo(1));
+        assertThat(rewrittenBool.filter().size(), equalTo(0));
     }
 
     public void testBoolWithOnlyMustNotAfterRemoval() {
@@ -132,8 +137,8 @@ public class MatchAllRemovalRewriterTests extends OpenSearchTestCase {
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // must clause should be empty, must_not preserved
-        assertThat(rewrittenBool.must().size(), equalTo(0));
+        // must clause keeps match_all in scoring context, must_not preserved
+        assertThat(rewrittenBool.must().size(), equalTo(1));
         assertThat(rewrittenBool.mustNot().size(), equalTo(1));
     }
 

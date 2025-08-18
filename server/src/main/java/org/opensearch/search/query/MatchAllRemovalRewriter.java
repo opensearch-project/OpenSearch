@@ -9,6 +9,7 @@
 package org.opensearch.search.query;
 
 import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -35,10 +36,16 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
         if (original.should().isEmpty() && original.mustNot().isEmpty()) {
             boolean onlyMatchAll = true;
             int matchAllCount = 0;
+            int matchAllInMust = 0;
 
             for (QueryBuilder q : original.must()) {
                 if (q instanceof MatchAllQueryBuilder) {
                     matchAllCount++;
+                    matchAllInMust++;
+                } else if (q instanceof ConstantScoreQueryBuilder) {
+                    // Don't treat constant score queries as match_all even if they contain match_all
+                    onlyMatchAll = false;
+                    break;
                 } else {
                     onlyMatchAll = false;
                     break;
@@ -56,7 +63,9 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
                 }
             }
 
-            if (onlyMatchAll && matchAllCount > 0) {
+            // Only convert to single match_all if there are no must clauses
+            // (to preserve scoring) or if there's only one match_all total
+            if (onlyMatchAll && matchAllCount > 0 && (matchAllInMust == 0 || matchAllCount == 1)) {
                 // Convert to single match_all, preserving boost
                 MatchAllQueryBuilder matchAll = new MatchAllQueryBuilder();
                 if (original.boost() != 1.0f) {
@@ -81,7 +90,8 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
         rewritten.adjustPureNegative(original.adjustPureNegative());
 
         // Process all clauses
-        processClauses(original.must(), rewritten::must, true, original);
+        // For must clauses, only remove match_all if there are other non-match_all queries
+        processClausesWithContext(original.must(), rewritten::must, true, original, true);
         processClauses(original.filter(), rewritten::filter, true, original);
         processClauses(original.should(), rewritten::should, false, original);
         processClauses(original.mustNot(), rewritten::mustNot, false, original);
@@ -130,6 +140,36 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
             }
         }
         return false;
+    }
+
+    private void processClausesWithContext(
+        List<QueryBuilder> clauses,
+        ClauseAdder adder,
+        boolean removeMatchAll,
+        BoolQueryBuilder original,
+        boolean isMustClause
+    ) {
+        if (!removeMatchAll) {
+            processClauses(clauses, adder, false, original);
+            return;
+        }
+
+        // For must clauses, only remove match_all if there are other non-match_all queries
+        if (isMustClause) {
+            boolean hasNonMatchAll = clauses.stream().anyMatch(q -> !(q instanceof MatchAllQueryBuilder));
+
+            // Also check if we're in a scoring context (no filter/should/mustNot clauses)
+            boolean isScoringContext = original.filter().isEmpty() && original.should().isEmpty() && original.mustNot().isEmpty();
+
+            if (!hasNonMatchAll || isScoringContext) {
+                // All queries are match_all or we're in a scoring context, don't remove any to preserve scoring
+                processClauses(clauses, adder, false, original);
+                return;
+            }
+        }
+
+        // Otherwise, use normal processing
+        processClauses(clauses, adder, removeMatchAll, original);
     }
 
     private void processClauses(List<QueryBuilder> clauses, ClauseAdder adder, boolean removeMatchAll, BoolQueryBuilder original) {
