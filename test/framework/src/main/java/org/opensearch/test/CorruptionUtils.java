@@ -64,12 +64,16 @@ public final class CorruptionUtils {
 
     public static void corruptIndex(Random random, Path indexPath, boolean corruptSegments) throws IOException {
         // corrupt files
+        // TODO: Till the time we remove sub directories during refresh, we also filter out tem directories files here as
+        // them will not make sense.
         final Path[] filesToCorrupt = Files.walk(indexPath).filter(p -> {
             final String name = p.getFileName().toString();
             boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
             return Files.isRegularFile(p)
                 && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
+                && !p.toAbsolutePath().getParent().toString().contains("temp_")
                 && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
+
                 && (corruptSegments ? segmentFile : segmentFile == false);
         }).toArray(Path[]::new);
         corruptFile(random, filesToCorrupt);

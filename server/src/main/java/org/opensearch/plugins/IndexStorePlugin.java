@@ -33,6 +33,7 @@
 package org.opensearch.plugins;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
@@ -43,6 +44,7 @@ import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -60,7 +62,6 @@ public interface IndexStorePlugin {
      *
      * @opensearch.api
      */
-    @FunctionalInterface
     @PublicApi(since = "1.0.0")
     interface DirectoryFactory {
         /**
@@ -71,6 +72,8 @@ public interface IndexStorePlugin {
          * @throws IOException if an IOException occurs while opening the directory
          */
         Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+
+        Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException;
     }
 
     /**

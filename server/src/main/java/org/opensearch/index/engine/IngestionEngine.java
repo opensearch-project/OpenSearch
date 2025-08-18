@@ -10,6 +10,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -80,7 +81,7 @@ public class IngestionEngine extends InternalEngine {
             engineConfig.getShardId().getId()
         );
         logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
-        Map<String, String> commitData = commitDataAsMap(indexWriter);
+        Map<String, String> commitData = commitDataAsMap(compositeIndexWriter);
         StreamPoller.ResetState resetState = ingestionSource.getPointerInitReset().getType();
         IngestionShardPointer startPointer = null;
         Set<IngestionShardPointer> persistedPointers = new HashSet<>();
@@ -149,15 +150,15 @@ public class IngestionEngine extends InternalEngine {
 
     private IndexResult indexIntoLucene(Index index) throws IOException {
         // todo: handle updates
-        addDocs(index.docs(), indexWriter);
+        addDocs(index.docs(), compositeIndexWriter, index.uid());
         return new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), true);
     }
 
-    private void addDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void addDocs(final List<ParseContext.Document> docs, final CompositeIndexWriter indexWriter, Term uid) throws IOException {
         if (docs.size() > 1) {
-            indexWriter.addDocuments(docs);
+            indexWriter.addDocuments(docs, uid);
         } else {
-            indexWriter.addDocument(docs.get(0));
+            indexWriter.addDocument(docs.get(0), uid);
         }
     }
 
@@ -194,7 +195,7 @@ public class IngestionEngine extends InternalEngine {
      * source.
      */
     @Override
-    protected void commitIndexWriter(final IndexWriter writer, final String translogUUID) throws IOException {
+    protected void commitIndexWriter(final CompositeIndexWriter writer, final String translogUUID) throws IOException {
         try {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             writer.setLiveCommitData(() -> {
@@ -297,7 +298,7 @@ public class IngestionEngine extends InternalEngine {
     }
 
     protected Map<String, String> commitDataAsMap() {
-        return commitDataAsMap(indexWriter);
+        return commitDataAsMap(compositeIndexWriter);
     }
 
     @Override
