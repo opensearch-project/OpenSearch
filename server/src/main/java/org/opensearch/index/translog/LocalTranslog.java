@@ -116,6 +116,30 @@ public class LocalTranslog extends Translog {
     }
 
     /**
+     * Secondary constructor that does not accept ChannelFactory parameter.
+     */
+    public LocalTranslog(
+        final TranslogConfig config,
+        final String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final TranslogOperationHelper translogOperationHelper
+    ) throws IOException {
+        this(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            translogOperationHelper,
+            null
+        );
+    }
+
+    /**
      * Ensures that the given location has be synced / written to the underlying storage.
      *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
