@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -600,7 +601,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         try {
             final String remoteFileName = getNewRemoteSegmentFilename(src);
             boolean uploaded = false;
-            if (src.startsWith("segments_") == false) {
+            if (src.startsWith(IndexFileNames.SEGMENTS) == false) {
                 uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
                     try {
                         postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
