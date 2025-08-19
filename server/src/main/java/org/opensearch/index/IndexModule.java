@@ -311,7 +311,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
-        this.storeFactories = storeFactories == null ? Collections.emptyMap() : Collections.unmodifiableMap(storeFactories);
+        this.storeFactories = storeFactories;
         this.fileCache = fileCache;
         this.compositeIndexSettings = compositeIndexSettings;
     }
@@ -880,14 +880,14 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.StoreFactory> storeFactories
     ) {
         final String key = indexSettings.getValue(INDEX_STORE_FACTORY_SETTING);
-        if (key != null && key.isEmpty() == false) {
-            final IndexStorePlugin.StoreFactory factory = storeFactories.get(key);
-            if (factory == null) {
-                throw new IllegalArgumentException("Unknown store factory [" + key + "]");
-            }
-            return factory;
+        if (key == null || key.isEmpty()) {
+            return Store::new;
         }
-        return Store::new;
+        final IndexStorePlugin.StoreFactory factory = storeFactories.get(key);
+        if (factory == null) {
+            throw new IllegalArgumentException("Unknown store factory [" + key + "]");
+        }
+        return factory;
     }
 
     /**

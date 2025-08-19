@@ -1082,7 +1082,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          *
          * @opensearch.api
          */
-        @PublicApi(since = "3.1.0")
+        @PublicApi(since = "3.2.0")
         public static class LoadedMetadata {
             public final Map<String, StoreFileMetadata> fileMetadata;
             public final Map<String, String> userData;
@@ -1735,7 +1735,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @opensearch.api
      */
-    @PublicApi(since = "3.1.0")
+    @PublicApi(since = "3.2.0")
     public interface OnClose extends Consumer<ShardLock> {
         OnClose EMPTY = new OnClose() {
             /**
