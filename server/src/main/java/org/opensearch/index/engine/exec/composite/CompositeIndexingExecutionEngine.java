@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.composite;
 
+import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
