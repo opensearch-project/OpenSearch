@@ -20,27 +20,9 @@ import java.util.Map;
 @ExperimentalApi
 public class CatalogSnapshot extends AbstractRefCounted {
 
-    // shard1  - r1 -  f1, f2 -> refresh -> f1,f2
-    // f1 - 1
-    // f2 - 1
-    // search1 - take searcher -> r1 ->
-    // f1 - 2
-    // f2 - 2
-    // shard1 - r2 -> f2, f3 -> refresh ->
-    // decref
-    // f1  - 1
-    // f2 - 1
-    // incref
-    // f2 - 2
-    // f3 - 1
-    // search1 is complete
-    // f1 - 0
-    // f2 - 1
-    // f3 - 1
-
-
     private Map<String, Collection<FileMetadata>> dfGroupedSearchableFiles = new HashMap<>();
     private final long id;
+
 
     public CatalogSnapshot(RefreshResult refreshResult, long id) {
         super("catalog_snapshot");
