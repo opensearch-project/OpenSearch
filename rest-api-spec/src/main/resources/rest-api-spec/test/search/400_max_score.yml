@@ -33,33 +33,35 @@ teardown:
 ---
 "Test max score with sorting on score firstly":
   - skip:
-      version: " - 3.2.0"
+      version: " - 3.1.99"
       reason: Fixed in 3.2.0
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query: { term: { foo: bar} }
           sort: [{ _score: desc }, { _doc: desc }]
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { max_score: 1.0 }
+  - match: { hits.max_score: 1.0 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query: { term: { foo: bar} }
           sort: [{ _score: asc }, { _doc: desc }]
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { max_score: null }
+  - match: { hits.max_score: null }
 
 ---
 "Test max score with sorting on score firstly with concurrent segment search enabled":
   - skip:
-      version: " - 3.2.0"
+      version: " - 3.1.99"
       reason: Fixed in 3.2.0
 
   - do:
@@ -70,20 +72,22 @@ teardown:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query: { term: { foo: bar} }
           sort: [{ _score: desc }, { _doc: desc }]
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { max_score: 1.0 }
+  - match: { hits.max_score: 1.0 }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body:
           query: { term: { foo: bar} }
           sort: [{ _score: asc }, { _doc: desc }]
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { max_score: null }
+  - match: { hits.max_score: null }
