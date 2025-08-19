@@ -47,6 +47,7 @@ import io.grpc.BindableService;
 
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_KEEPALIVE_TIMEOUT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS;
@@ -220,6 +221,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             SETTING_GRPC_PUBLISH_HOST,
             SETTING_GRPC_BIND_HOST,
             SETTING_GRPC_WORKER_COUNT,
+            SETTING_GRPC_EXECUTOR_COUNT,
             SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS,
             SETTING_GRPC_MAX_MSG_SIZE,
             SETTING_GRPC_MAX_CONNECTION_AGE,
