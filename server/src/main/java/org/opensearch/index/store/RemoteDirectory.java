@@ -468,7 +468,7 @@ public class RemoteDirectory extends Directory {
 
             WriteContext writeContext = remoteTransferContainer.createWriteContext();
             ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(writeContext, completionListener);
-        } catch(Exception e) {
+        } catch (Exception e) {
             logger.warn("Exception while calling asyncBlobUpload, closing IndexInput to avoid leak");
             indexInput.close();
             throw e;
