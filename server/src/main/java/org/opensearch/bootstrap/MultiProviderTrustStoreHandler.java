@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import reactor.util.annotation.NonNull;
@@ -67,27 +68,6 @@ public class MultiProviderTrustStoreHandler {
     private static final List<String> KNOWN_JDK_TRUSTSTORE_TYPES = List.of("PKCS12", "JKS");
 
     /**
-     * Encapsulates properties related to a TrustStore configuration. Is primarily used to manage and
-     * log details of TrustStore configurations within the system.
-     */
-    protected record TrustStoreProperties(String trustStorePath, String trustStoreType, String trustStorePassword,
-        String trustStoreProvider) {
-        void logout() {
-            var detailLog = new StringWriter();
-            var writer = new PrintWriter(detailLog);
-            var passwordSetStatus = trustStorePassword.isEmpty() ? "[NOT SET]" : "[SET]";
-
-            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE + ": " + trustStorePath);
-            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_TYPE + ": " + trustStoreType);
-            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_PROVIDER + ": " + trustStoreProvider);
-            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_PASSWORD + ": " + passwordSetStatus);
-            writer.flush();
-
-            logger.info("\nChanged TrustStore configuration: {}", detailLog);
-        }
-    }
-
-    /**
      * <p>The method follows a strict 2-step resolution process:
      * <ol>
      *   <li><strong>JVM Parameters:</strong> Checks for explicitly configured trust stores
@@ -113,7 +93,7 @@ public class MultiProviderTrustStoreHandler {
     public static void configureTrustStore(@NonNull Settings settings, @NonNull Path tmpDir, @NonNull Path javaHome) {
         var existingTrustStorePath = existingTrustStorePath();
         if (existingTrustStorePath != null) {
-            logger.info("Custom truststore already specified: {}", existingTrustStorePath);
+            logger.info("Custom truststore is specified: {}", existingTrustStorePath);
             return;
         }
 
@@ -128,12 +108,47 @@ public class MultiProviderTrustStoreHandler {
             );
             case SYSTEM_TRUST -> findPKCS11ProviderService().map(MultiProviderTrustStoreHandler::configurePKCS11TrustStore)
                 .orElseThrow(() -> new IllegalStateException("No PKCS11 provider found, check java.security configuration for FIPS."));
-            case GENERATED -> MultiProviderTrustStoreHandler.configureBCFKSTrustStore(javaHome, tmpDir);
+            case GENERATED -> Function.<Path>identity()
+                .andThen(MultiProviderTrustStoreHandler::loadJvmDefaultTrustStore)
+                .andThen(trustStore -> convertToBCFKS(trustStore, tmpDir))
+                .andThen(MultiProviderTrustStoreHandler::configureBCFKSTrustStore)
+                .apply(javaHome);
         };
 
         setProperties(properties);
         properties.logout();
         printCurrentConfiguration(Level.TRACE);
+    }
+
+    /**
+     * Utility method to check the current configuration.
+     */
+    public static void printCurrentConfiguration(Level logLevel) {
+        if (logger.isEnabled(logLevel)) {
+            var detailLog = new StringWriter();
+            var writer = new PrintWriter(detailLog);
+            var counter = new AtomicInteger();
+            Arrays.stream(Security.getProviders())
+                .peek(
+                    provider -> writer.printf(
+                        Locale.ROOT,
+                        "  %d. %s (version %s)\n".formatted(counter.incrementAndGet(), provider.getName(), provider.getVersionStr())
+                    )
+                )
+                .flatMap(provider -> provider.getServices().stream().filter(service -> "KeyStore".equals(service.getType())))
+                .forEach(service -> writer.printf(Locale.ROOT, "\t\tKeyStore.%s\n".formatted(service.getAlgorithm())));
+
+            writer.flush();
+            logger.log(logLevel, "\nAvailable Security Providers: \n{}", detailLog);
+        }
+    }
+
+    public static Optional<Provider.Service> findPKCS11ProviderService() {
+        return Arrays.stream(Security.getProviders())
+            .filter(it -> it.getName().toUpperCase(Locale.ROOT).contains(PKCS_11))
+            .map(it -> it.getService("KeyStore", PKCS_11))
+            .filter(Objects::nonNull)
+            .findFirst();
     }
 
     @SuppressForbidden(reason = "check system properties for TrustStore configuration")
@@ -146,7 +161,7 @@ public class MultiProviderTrustStoreHandler {
     }
 
     @SuppressForbidden(reason = "sets system properties for TrustStore configuration")
-    protected static void setProperties(TrustStoreProperties properties) {
+    private static void setProperties(TrustStoreProperties properties) {
         System.setProperty(JAVAX_NET_SSL_TRUST_STORE, properties.trustStorePath());
         System.setProperty(JAVAX_NET_SSL_TRUST_STORE_PASSWORD, properties.trustStorePassword());
         System.setProperty(JAVAX_NET_SSL_TRUST_STORE_TYPE, properties.trustStoreType());
@@ -154,26 +169,14 @@ public class MultiProviderTrustStoreHandler {
     }
 
     private static TrustStoreProperties configurePKCS11TrustStore(Provider.Service pkcs11ProviderService) {
-        logger.info("Configuring PKCS11 truststore...");
         return new TrustStoreProperties("NONE", PKCS_11, SYSTEMSTORE_PASSWORD, pkcs11ProviderService.getProvider().getName());
     }
 
-    private static TrustStoreProperties configureBCFKSTrustStore(Path javaHome, Path tmpDir) {
-        logger.info("No PKCS11 provider found - converting system truststore to BCFKS...");
-        var systemTrustStore = loadSystemDefaultTrustStore(javaHome);
-        var bcfksTrustStore = convertToBCFKS(systemTrustStore, tmpDir);
-        return new TrustStoreProperties(bcfksTrustStore.toAbsolutePath().toString(), BCFKS, JVM_DEFAULT_PASSWORD, BCFIPS);
+    private static TrustStoreProperties configureBCFKSTrustStore(Path bcfksPath) {
+        return new TrustStoreProperties(bcfksPath.toAbsolutePath().toString(), BCFKS, JVM_DEFAULT_PASSWORD, BCFIPS);
     }
 
-    public static Optional<Provider.Service> findPKCS11ProviderService() {
-        return Arrays.stream(Security.getProviders())
-            .filter(it -> it.getName().toUpperCase(Locale.ROOT).contains(PKCS_11))
-            .map(it -> it.getService("KeyStore", PKCS_11))
-            .filter(Objects::nonNull)
-            .findFirst();
-    }
-
-    private static KeyStore loadSystemDefaultTrustStore(Path javaHome) {
+    private static KeyStore loadJvmDefaultTrustStore(Path javaHome) {
         var cacertsPath = javaHome.resolve("lib").resolve("security").resolve("cacerts");
         if (!Files.exists(cacertsPath) || !Files.isReadable(cacertsPath)) {
             throw new IllegalStateException("System cacerts not found at: " + cacertsPath);
@@ -193,7 +196,7 @@ public class MultiProviderTrustStoreHandler {
                 logger.info("Successfully loaded cacerts as {} format", type);
                 break;
             } catch (Exception e) {
-                logger.info("Failed to load cacerts as {}: {}", type, e.getMessage());
+                logger.warn("Failed to load cacerts as {}: {}", type, e.getMessage());
                 systemKs = null;
                 // continue
             }
@@ -240,14 +243,14 @@ public class MultiProviderTrustStoreHandler {
             }
         }));
 
-        logger.info("Converting to BCFKS format: {}", tempBcfksFile.toAbsolutePath());
+        logger.trace("Converting to BCFKS format: {} ...", tempBcfksFile.toAbsolutePath());
 
         // Create new BCFKS keystore
         int copiedCount = 0;
         KeyStore bcfksKeyStore;
         try {
             bcfksKeyStore = KeyStore.getInstance(BCFKS, BCFIPS);
-            bcfksKeyStore.load(null, null);
+            bcfksKeyStore.load(null, JVM_DEFAULT_PASSWORD.toCharArray());
 
             // Copy all certificates from source to BCFKS
             Enumeration<String> aliases = sourceKeyStore.aliases();
@@ -262,7 +265,7 @@ public class MultiProviderTrustStoreHandler {
                             bcfksKeyStore.setCertificateEntry(alias, cert);
                             copiedCount++;
                         } catch (Exception e) {
-                            logger.warn("Failed to copy certificate '{}': {}", alias, e.getMessage());
+                            logger.trace("Failed to copy certificate '{}': {}", alias, e.getMessage());
                             // Continue with other certificates
                         }
                     }
@@ -275,34 +278,40 @@ public class MultiProviderTrustStoreHandler {
         // Save BCFKS keystore to file using NIO.2
         try (var file = Files.newOutputStream(tempBcfksFile)) {
             bcfksKeyStore.store(file, JVM_DEFAULT_PASSWORD.toCharArray());
-            logger.info("Successfully converted {} certificates to BCFKS format", copiedCount);
+            logger.info(
+                "Successfully converted {} certificates to BCFKS format out of {} given certificates.",
+                copiedCount,
+                sourceKeyStore.size()
+            );
+
+            if (sourceKeyStore.size() > copiedCount) {
+                logger.warn("{} certificates could not be converted to BCFKS format.", sourceKeyStore.size() - copiedCount);
+            }
         } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
-            throw new IllegalStateException("Failed to write BCFKS keystore", e);
+            throw new IllegalStateException("Failed to write BCFKS keystore: " + e.getMessage(), e);
         }
 
         return tempBcfksFile;
     }
 
     /**
-     * Utility method to check the current configuration.
+     * Encapsulates properties related to a TrustStore configuration. Is primarily used to manage and
+     * log details of TrustStore configurations within the system.
      */
-    public static void printCurrentConfiguration(Level logLevel) {
-        if (logger.isEnabled(logLevel)) {
+    private record TrustStoreProperties(String trustStorePath, String trustStoreType, String trustStorePassword,
+        String trustStoreProvider) {
+        void logout() {
             var detailLog = new StringWriter();
             var writer = new PrintWriter(detailLog);
-            var counter = new AtomicInteger();
-            Arrays.stream(Security.getProviders())
-                .peek(
-                    provider -> writer.printf(
-                        Locale.ROOT,
-                        "  %d. %s (version %s)\n".formatted(counter.incrementAndGet(), provider.getName(), provider.getVersionStr())
-                    )
-                )
-                .flatMap(provider -> provider.getServices().stream().filter(service -> "KeyStore".equals(service.getType())))
-                .forEach(service -> writer.printf(Locale.ROOT, "\t\tKeyStore.%s\n".formatted(service.getAlgorithm())));
+            var passwordSetStatus = trustStorePassword.isEmpty() ? "[NOT SET]" : "[SET]";
 
+            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE + ": " + trustStorePath);
+            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_TYPE + ": " + trustStoreType);
+            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_PROVIDER + ": " + trustStoreProvider);
+            writer.printf(Locale.ROOT, "\n" + JAVAX_NET_SSL_TRUST_STORE_PASSWORD + ": " + passwordSetStatus);
             writer.flush();
-            logger.log(logLevel, "\nAvailable Security Providers: \n{}", detailLog);
+
+            logger.info("\nChanged TrustStore configuration: {}", detailLog);
         }
     }
 }

@@ -1,0 +1,5 @@
+services:
+  opensearch:
+    environment:
+      KEYSTORE_PASSWORD: notarealpasswordphrase
+      cluster.fips.truststore.source: GENERATED

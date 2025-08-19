@@ -34,6 +34,7 @@ afterEvaluate {
     // configure cluster to start in FIPS JVM
     javaRestTest {
       keystorePassword 'notarealpasswordphrase'
+      setting 'cluster.fips.truststore.source', 'GENERATED'
       configurations.bcFips.resolve().each { jarFile ->
         extraJarFile jarFile
       }
