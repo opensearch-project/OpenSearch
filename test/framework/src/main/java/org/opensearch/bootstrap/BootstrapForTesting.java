@@ -163,6 +163,16 @@ public class BootstrapForTesting {
                         false
                     );
                 }
+                String testclustersDir = System.getProperty("testclusters.dir");
+                if (testclustersDir != null) {
+                    FilePermissionUtils.addDirectoryPath(
+                        perms,
+                        "testclusters.dir",
+                        PathUtils.get(testclustersDir),
+                        "read,readlink,write,delete",
+                        false
+                    );
+                }
                 // custom test config file
                 String testConfigFile = System.getProperty("tests.config");
                 if (Strings.hasLength(testConfigFile)) {
