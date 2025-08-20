@@ -188,7 +188,18 @@ public class CompositeDirectory extends FilterDirectory {
                         logger.debug("The file [{}] exists in local but not part of FileCache, deleting it from local", blockFile);
                         localDirectory.deleteFile(blockFile);
                     } else {
-                        fileCache.remove(getFilePath(blockFile));
+                        // here the file is to be deleted both from FileCache and the local directory.
+                        Path blockFilePath = getFilePath(blockFile);
+                        try {
+                            fileCache.remove(blockFilePath);
+                        }catch(Exception e){
+                            if (e.getCause() instanceof AccessDeniedException) {
+                                localDirectory.deleteFile(blockFile);
+                            } else {
+                                logger.error("Exception while removing file [{}] from FileCache. Exception:", blockFilePath, e);
+                                throw e;
+                            }
+                        }
                     }
                 }
             }
