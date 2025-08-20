@@ -511,7 +511,7 @@ setup:
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }
 
 ---
-"Test field collapsing with sorting":
+"Test field collapsing with sort":
   - skip:
       version: " - 3.2.99"
       reason: Fixed in 3.3.0
@@ -559,7 +559,7 @@ setup:
   - match: { hits.hits.1._source.marker: 'doc2' }
 
 ---
-"Test field collapsing with sorting when concurrent segment search enabled":
+"Test field collapsing with sort when concurrent segment search enabled":
   - skip:
       version: " - 3.2.99"
       reason: Fixed in 3.3.0
