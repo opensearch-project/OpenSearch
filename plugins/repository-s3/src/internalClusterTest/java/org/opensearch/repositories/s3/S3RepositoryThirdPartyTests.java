@@ -110,7 +110,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "s3", settings);
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, "s3", settings);
     }
 
     @Override
