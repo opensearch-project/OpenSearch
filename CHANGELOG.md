@@ -37,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `1password/load-secrets-action` from 2 to 3 ([#19100](https://github.com/opensearch-project/OpenSearch/pull/19100))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.3 to 10.4.2 ([#19099](https://github.com/opensearch-project/OpenSearch/pull/19099), [#19101](https://github.com/opensearch-project/OpenSearch/pull/19101))
 - Bump netty from 4.1.121.Final to 4.1.124.Final ([#19103](https://github.com/opensearch-project/OpenSearch/pull/19103))
+- Bump google cloud storage from 1.113.1 to 2.55.0 ([#4547](https://github.com/opensearch-project/OpenSearch/pull/4547))
 
 ### Deprecated
 
