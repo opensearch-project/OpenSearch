@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -599,13 +600,16 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
         try {
             final String remoteFileName = getNewRemoteSegmentFilename(src);
-            boolean uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
-                try {
-                    postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
-                } catch (IOException e) {
-                    throw new RuntimeException("Exception in segment postUpload for file " + src, e);
-                }
-            }, listener, lowPriorityUpload);
+            boolean uploaded = false;
+            if (src.startsWith(IndexFileNames.SEGMENTS) == false) {
+                uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
+                    try {
+                        postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
+                    } catch (IOException e) {
+                        throw new RuntimeException("Exception in segment postUpload for file " + src, e);
+                    }
+                }, listener, lowPriorityUpload);
+            }
             if (uploaded == false) {
                 copyFrom(from, src, src, context);
                 listener.onResponse(null);

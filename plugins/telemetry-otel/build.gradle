@@ -22,6 +22,7 @@ opensearchplugin {
 dependencies {
   api project(":libs:opensearch-telemetry")
   api "io.opentelemetry:opentelemetry-api:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-common:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-context:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-sdk:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-sdk-common:${versions.opentelemetry}"
@@ -61,6 +62,7 @@ thirdPartyAudit {
     'android.util.Log',
     'com.google.common.io.ByteStreams',
     'com.google.common.util.concurrent.ListenableFuture',
+    'com.fasterxml.jackson.databind.ObjectMapper',
     'io.grpc.CallOptions',
     'io.grpc.Channel',
     'io.grpc.Drainable',
@@ -88,8 +90,7 @@ thirdPartyAudit {
     'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.internal.AutoConfigureListener',
     'io.opentelemetry.sdk.autoconfigure.spi.internal.ComponentProvider',
-    'io.opentelemetry.sdk.autoconfigure.spi.internal.DefaultConfigProperties',
-    'io.opentelemetry.sdk.autoconfigure.spi.internal.StructuredConfigProperties'
+    'io.opentelemetry.sdk.autoconfigure.spi.internal.DefaultConfigProperties'
   )
 }
 

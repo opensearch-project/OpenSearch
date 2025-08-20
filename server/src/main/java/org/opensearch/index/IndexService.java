@@ -206,6 +206,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Object refreshMutex = new Object();
     private volatile TimeValue refreshInterval;
     private volatile boolean shardLevelRefreshEnabled;
+    private final IndexStorePlugin.StoreFactory storeFactory;
 
     @InternalApi
     public IndexService(
@@ -228,6 +229,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.DirectoryFactory directoryFactory,
         IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.StoreFactory storeFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
@@ -253,6 +255,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) {
         super(indexSettings);
+        this.storeFactory = storeFactory;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
@@ -372,6 +375,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.StoreFactory storeFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
@@ -412,6 +416,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             directoryFactory,
             null,
             remoteDirectoryFactory,
+            storeFactory,
             eventListener,
             wrapperFactory,
             mapperRegistry,
@@ -736,7 +741,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } else {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
-            store = new Store(
+            store = storeFactory.newStore(
                 shardId,
                 this.indexSettings,
                 directory,
