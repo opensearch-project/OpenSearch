@@ -81,7 +81,6 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         // TODO: Should be 1 entry per field per index in cache, but cannot check this directly until we add the items count stat in a
         // future PR
 
-
         // Concurrently clear multiple indices from FD cache
         Thread[] threads = new Thread[numIndices];
         Phaser phaser = new Phaser(numIndices + 1);
