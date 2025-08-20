@@ -81,7 +81,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         Property.NodeScope
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
-    final Cache<Key, Accountable> cache;
+    private final Cache<Key, Accountable> cache;
 
     public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
@@ -206,7 +206,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
             // noinspection unchecked
-            final Accountable accountable = nodeLevelCache.cache.computeIfAbsent(key, k -> {
+            final Accountable accountable = nodeLevelCache.getCache().computeIfAbsent(key, k -> {
                 cacheHelper.addClosedListener(IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
                 final LeafFieldData fieldData = indexFieldData.loadDirect(context);
@@ -236,7 +236,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
             // noinspection unchecked
-            final Accountable accountable = nodeLevelCache.cache.computeIfAbsent(key, k -> {
+            final Accountable accountable = nodeLevelCache.getCache().computeIfAbsent(key, k -> {
                 OpenSearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
                 final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
@@ -255,7 +255,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         public void onClose(CacheKey key) throws IOException {
-            nodeLevelCache.cache.invalidate(new Key(this, key, null));
+            nodeLevelCache.getCache().invalidate(new Key(this, key, null));
             // don't call cache.cleanUp here as it would have bad performance implications
         }
 

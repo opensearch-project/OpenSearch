@@ -40,6 +40,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.threadpool.ThreadPool;
@@ -80,6 +81,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     private final IndicesFieldDataCache indicesFieldDataCache;
     // the below map needs to be modified under a lock
     private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
+    private final MapperService mapperService;
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
         @Override
         public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {}
@@ -93,11 +95,13 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         IndexSettings indexSettings,
         IndicesFieldDataCache indicesFieldDataCache,
         CircuitBreakerService circuitBreakerService,
+        MapperService mapperService,
         ThreadPool threadPool
     ) {
         super(indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
+        this.mapperService = mapperService;
         this.threadPool = threadPool;
     }
 
