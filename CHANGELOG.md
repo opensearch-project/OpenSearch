@@ -49,6 +49,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Migrate builder workflows from [(#930)](https://github.com/wazuh/wazuh-indexer/pull/930)
 - Rename bumper workflow file [(#986)](https://github.com/wazuh/wazuh-indexer/pull/986)
 - Update previous version in debian workflow test [(#1041)](https://github.com/wazuh/wazuh-indexer/pull/1041)
+- Disable multi-tenancy by default [(#1081)](https://github.com/wazuh/wazuh-indexer/pull/1081)
 
 ### Deprecated
 -
