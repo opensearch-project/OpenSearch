@@ -25,12 +25,14 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class ScaledFloatDerivedSourceIT extends OpenSearchIntegTestCase {
 
+    private static final String INDEX_NAME = "test";
+
     public void testScaledFloatDerivedSource() throws Exception {
         Settings.Builder settings = Settings.builder();
         settings.put(indexSettings());
         settings.put("index.derived_source.enabled", "true");
 
-        prepareCreate("test").setSettings(settings)
+        prepareCreate(INDEX_NAME).setSettings(settings)
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
@@ -43,21 +45,28 @@ public class ScaledFloatDerivedSourceIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        ensureGreen("test");
+        ensureGreen(INDEX_NAME);
 
-        assertEquals(DocWriteResponse.Result.CREATED, prepareIndex("one_doc", 1.2123422f).get().getResult());
+        String docId = "one_doc";
+        assertEquals(DocWriteResponse.Result.CREATED, prepareIndex(docId, 1.2123422f).get().getResult());
 
-        RefreshResponse refreshResponse = refresh("test");
+        RefreshResponse refreshResponse = refresh(INDEX_NAME);
         assertEquals(RestStatus.OK, refreshResponse.getStatus());
         assertEquals(0, refreshResponse.getFailedShards());
         assertEquals(INDEX_NUMBER_OF_SHARDS_SETTING.get(settings.build()).intValue(), refreshResponse.getSuccessfulShards());
 
-        GetResponse getResponse = client().prepareGet().setFetchSource(true).setId("one_doc").setIndex("test").get(TimeValue.timeValueMinutes(1));
+        GetResponse getResponse = client().prepareGet()
+            .setFetchSource(true)
+            .setId(docId)
+            .setIndex(INDEX_NAME)
+            .get(TimeValue.timeValueMinutes(1));
         assertTrue(getResponse.isExists());
         assertEquals(1.21d, getResponse.getSourceAsMap().get("foo"));
     }
 
     private IndexRequestBuilder prepareIndex(String id, float number) throws IOException {
-        return client().prepareIndex("test").setId(id).setSource(jsonBuilder().startObject().field("foo", number).endObject().toString(), XContentType.JSON);
+        return client().prepareIndex(INDEX_NAME)
+            .setId(id)
+            .setSource(jsonBuilder().startObject().field("foo", number).endObject().toString(), XContentType.JSON);
     }
 }
