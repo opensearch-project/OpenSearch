@@ -18,6 +18,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.AliasFilter;
@@ -57,7 +58,8 @@ public class StreamTransportSearchAction extends TransportSearchAction {
         MetricsRegistry metricsRegistry,
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
         Tracer tracer,
-        TaskResourceTrackingService taskResourceTrackingService
+        TaskResourceTrackingService taskResourceTrackingService,
+        IndicesService indicesService
     ) {
         super(
             client,
@@ -75,7 +77,8 @@ public class StreamTransportSearchAction extends TransportSearchAction {
             metricsRegistry,
             searchRequestOperationsCompositeListenerFactory,
             tracer,
-            taskResourceTrackingService
+            taskResourceTrackingService,
+            indicesService
         );
     }
 
