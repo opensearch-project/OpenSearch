@@ -8,8 +8,17 @@
 
 package org.opensearch.benchmark.search.sort;
 
-
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Random;
@@ -30,13 +39,13 @@ import java.util.concurrent.TimeUnit;
 
 public class ShardDocComparatorBenchmark {
 
-    @Param({"1", "4", "16"})
+    @Param({ "1", "4", "16" })
     public int segments;
 
-    @Param({"50000"})
+    @Param({ "50000" })
     public int docsPerSegment;
 
-    @Param({"7"})
+    @Param({ "7" })
     public int shardId;
 
     private long shardKeyPrefix;
@@ -45,7 +54,7 @@ public class ShardDocComparatorBenchmark {
     private long[] keys;    // precomputed composite keys
 
     // per-doc global doc (docBase + doc) for doc-only baseline
-    private int[]  globalDocs;
+    private int[] globalDocs;
 
     @Setup
     public void setup() {
@@ -69,7 +78,7 @@ public class ShardDocComparatorBenchmark {
                 int doc = r.nextInt(docsPerSegment);
                 docs[pos] = doc;
                 keys[pos] = computeGlobalDocKey(base, doc);
-                globalDocs[pos]   = base + doc;
+                globalDocs[pos] = base + doc;
                 pos++;
             }
         }
