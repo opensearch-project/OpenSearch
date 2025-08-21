@@ -91,7 +91,7 @@ final class TikaImpl {
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {
         // documents
-        new org.apache.tika.parser.html.HtmlParser(),
+        new org.apache.tika.parser.html.JSoupParser(),
         new org.apache.tika.parser.pdf.PDFParser(),
         new org.apache.tika.parser.txt.TXTParser(),
         new org.apache.tika.parser.microsoft.rtf.RTFParser(),
