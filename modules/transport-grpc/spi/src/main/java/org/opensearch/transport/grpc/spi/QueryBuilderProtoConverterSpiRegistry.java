@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.transport.grpc.proto.request.search.query;
+package org.opensearch.transport.grpc.spi;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,69 +15,26 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.ServiceLoader;
 
 /**
  * Registry for QueryBuilderProtoConverter implementations.
  * This class discovers and manages all available converters.
  */
 @Singleton
-public class QueryBuilderProtoConverterRegistry {
+public class QueryBuilderProtoConverterSpiRegistry {
 
-    private static final Logger logger = LogManager.getLogger(QueryBuilderProtoConverterRegistry.class);
+    private static final Logger logger = LogManager.getLogger(QueryBuilderProtoConverterSpiRegistry.class);
     private final Map<QueryContainer.QueryContainerCase, QueryBuilderProtoConverter> converterMap = new HashMap<>();
 
     /**
-     * Creates a new registry and loads all available converters.
-     */
+    * Creates a new registry. External converters will be registered
+    * via the OpenSearch ExtensiblePlugin mechanism.
+    */
     @Inject
-    public QueryBuilderProtoConverterRegistry() {
-        // Load built-in converters
-        registerBuiltInConverters();
-
-        // Discover converters from other plugins using Java's ServiceLoader
-        loadExternalConverters();
-    }
-
-    /**
-     * Registers the built-in converters.
-     * Protected for testing purposes.
-     */
-    protected void registerBuiltInConverters() {
-        // Add built-in converters
-        registerConverter(new MatchAllQueryBuilderProtoConverter());
-        registerConverter(new MatchNoneQueryBuilderProtoConverter());
-        registerConverter(new TermQueryBuilderProtoConverter());
-        registerConverter(new TermsQueryBuilderProtoConverter());
-
-        logger.info("Registered {} built-in query converters", converterMap.size());
-    }
-
-    /**
-     * Loads external converters using Java's ServiceLoader mechanism.
-     * Protected for testing purposes.
-     */
-    protected void loadExternalConverters() {
-        ServiceLoader<QueryBuilderProtoConverter> serviceLoader = ServiceLoader.load(QueryBuilderProtoConverter.class);
-        Iterator<QueryBuilderProtoConverter> iterator = serviceLoader.iterator();
-
-        int count = 0;
-        int failedCount = 0;
-        while (iterator.hasNext()) {
-            try {
-                QueryBuilderProtoConverter converter = iterator.next();
-                registerConverter(converter);
-                count++;
-                logger.info("Loaded external query converter for {}: {}", converter.getHandledQueryCase(), converter.getClass().getName());
-            } catch (Exception e) {
-                failedCount++;
-                logger.error("Failed to load external query converter", e);
-            }
-        }
-
-        logger.info("Loaded {} external query converters ({} failed)", count, failedCount);
+    public QueryBuilderProtoConverterSpiRegistry() {
+        // External converters are loaded via OpenSearch's ExtensiblePlugin mechanism
+        // and registered manually via registerConverter() calls
     }
 
     /**
@@ -102,6 +59,15 @@ public class QueryBuilderProtoConverterRegistry {
         }
 
         throw new IllegalArgumentException("Unsupported query type in container: " + queryContainer + " (case: " + queryCase + ")");
+    }
+
+    /**
+     * Gets the number of registered converters.
+     *
+     * @return The number of registered converters
+     */
+    public int size() {
+        return converterMap.size();
     }
 
     /**
@@ -137,6 +103,6 @@ public class QueryBuilderProtoConverterRegistry {
             );
         }
 
-        logger.debug("Registered query converter for {}: {}", queryCase, converter.getClass().getName());
+        logger.info("Registered query converter for {}: {}", queryCase, converter.getClass().getName());
     }
 }
