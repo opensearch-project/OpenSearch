@@ -31,6 +31,7 @@
 
 package org.opensearch.search.collapse;
 
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.opensearch.common.annotation.PublicApi;
@@ -75,11 +76,11 @@ public class CollapseContext {
         return innerHits;
     }
 
-    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN) {
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, FieldDoc searchAfter) {
         if (fieldType != null && fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN);
+            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN, searchAfter);
         } else if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
-            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN);
+            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN, searchAfter);
         } else {
             throw new IllegalStateException("unknown type for collapse field " + fieldName + ", only keywords and numbers are accepted");
         }
