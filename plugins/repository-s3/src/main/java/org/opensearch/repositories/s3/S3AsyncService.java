@@ -129,11 +129,12 @@ class S3AsyncService implements Closeable {
                 clientsSettings.get(entrySet.getKey())
             );
         }
+
         staticClientSettings = defaultBuilder.immutableMap();
         derivedClientSettings = emptyMap();
-        assert !this.staticClientSettings.containsKey(buildClientName("default", S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE))
+        assert this.staticClientSettings.containsKey(buildClientName("default", S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE))
             : "Static Client Settings should contain default Netty client";
-        assert !this.staticClientSettings.containsKey(buildClientName("default", S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE))
+        assert this.staticClientSettings.containsKey(buildClientName("default", S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE))
             : "Static Client Settings should contain default CRT client";
         // clients are built lazily by {@link client}
     }
