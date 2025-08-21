@@ -104,7 +104,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      * Without passing the information of the levels to the constructor, we return the Node-level aggregated stats as
      * {@link CommonStats} along with a hash-map containing Index to List of Shard Stats.
      */
-    @Deprecated(since="3.3.0")
+    @Deprecated(since = "3.3.0")
     public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, SearchRequestStats searchRequestStats) {
         this.statsByShard = statsByShard;
 
@@ -219,7 +219,6 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         this.statusCounterStats = statusCounterStats;
-
 
         if (level != null) {
             switch (level) {
