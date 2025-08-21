@@ -12,6 +12,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable.WriteableRegistry;
+import org.opensearch.search.aggregations.metrics.ScriptedAvg;
 
 /**
  * This utility class registers generic types for streaming over the wire using
@@ -45,6 +46,12 @@ public final class Streamables {
             o.writeByte((byte) 22);
             ((GeoPoint) v).writeTo(o);
         });
+
+        WriteableRegistry.registerWriter(ScriptedAvg.class, (o, v) -> {
+            o.writeByte((byte) 28);
+            ((ScriptedAvg) v).writeTo(o);
+        });
+
     }
 
     /**
@@ -55,5 +62,6 @@ public final class Streamables {
     private static void registerReaders() {
         /* {@link GeoPoint} */
         WriteableRegistry.registerReader(Byte.valueOf((byte) 22), GeoPoint::new);
+        WriteableRegistry.registerReader(Byte.valueOf((byte) 28), ScriptedAvg::new);
     }
 }
