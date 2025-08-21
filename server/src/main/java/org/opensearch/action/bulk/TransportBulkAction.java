@@ -680,7 +680,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 }
 
-                indicesService.addDocStatusStats(stats);
+                indicesService.addNewDocStatusStats(stats);
                 listener.onResponse(new BulkResponse(response, tookMillis));
                 return;
             }
@@ -755,7 +755,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
 
                             private void finishHim() {
-                                indicesService.addDocStatusStats(docStatusStats);
+                                indicesService.addNewDocStatusStats(docStatusStats);
                                 listener.onResponse(
                                     new BulkResponse(
                                         responses.toArray(new BulkItemResponse[responses.length()]),

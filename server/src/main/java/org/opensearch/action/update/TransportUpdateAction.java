@@ -355,7 +355,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 DocStatusStats stats = new DocStatusStats();
                 stats.inc(RestStatus.OK);
 
-                indicesService.addDocStatusStats(stats);
+                indicesService.addNewDocStatusStats(stats);
                 listener.onResponse(update);
 
                 break;
@@ -392,6 +392,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private void incDocStatusStats(final Exception e) {
         DocStatusStats stats = new DocStatusStats();
         stats.inc(ExceptionsHelper.status(e));
-        indicesService.addDocStatusStats(stats);
+        indicesService.addNewDocStatusStats(stats);
     }
 }
