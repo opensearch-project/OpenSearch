@@ -34,8 +34,10 @@ package org.opensearch.index.fielddata;
 
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -49,6 +51,15 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
+
+    // To shorten runtimes, set cluster setting INDICES_CACHE_CLEAN_INTERVAL_SETTING to a lower value.
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s")
+            .build();
+    }
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
         assertAcked(
@@ -71,6 +82,13 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
+
+        // Ensure cache cleared before other tests in the suite begin
+        client().admin().indices().clearCache(new ClearIndicesCacheRequest().fieldDataCache(true)).actionGet();
+        assertBusy(() -> {
+            ClusterStatsResponse clearedResponse = client().admin().cluster().prepareClusterStats().get();
+            assertEquals(0, clearedResponse.getIndicesStats().getFieldData().getMemorySizeInBytes());
+        });
     }
 
     public void testFieldDataCacheClearConcurrentIndices() throws Exception {
@@ -105,8 +123,10 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         countDownLatch.await();
 
         // Cache size should be 0
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertEquals(0, response.getIndicesStats().getFieldData().getMemorySizeInBytes());
+        assertBusy(() -> {
+            ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+            assertEquals(0, response.getIndicesStats().getFieldData().getMemorySizeInBytes());
+        });
     }
 
     public void testFieldDataCacheClearConcurrentFields() throws Exception {
@@ -145,8 +165,10 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         countDownLatch.await();
 
         // Cache size should be 0
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertEquals(0, response.getIndicesStats().getFieldData().getMemorySizeInBytes());
+        assertBusy(() -> {
+            ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+            assertEquals(0, response.getIndicesStats().getFieldData().getMemorySizeInBytes());
+        });
     }
 
     private void createAndSearchIndices(int numIndices, int numFieldsPerIndex, String indexPrefix, String fieldPrefix) throws Exception {
@@ -173,5 +195,4 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertTrue(response.getIndicesStats().getFieldData().getMemorySizeInBytes() > 0L);
     }
-
 }

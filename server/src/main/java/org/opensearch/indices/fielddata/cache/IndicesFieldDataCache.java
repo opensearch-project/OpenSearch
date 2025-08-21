@@ -51,6 +51,7 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -62,7 +63,11 @@ import org.opensearch.index.shard.ShardUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -82,6 +87,8 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
+    private Set<Index> indicesToClear;
+    private Map<Index, Set<String>> fieldsToClear;
 
     public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
@@ -91,6 +98,8 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
         cache = cacheBuilder.build();
+        this.indicesToClear = ConcurrentCollections.newConcurrentSet();
+        this.fieldsToClear = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -128,37 +137,42 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     /**
-     * Clear all keys in the node-level cache which match the given index.
+     * Mark all keys in the node-level cache which match the given index for cleanup.
      * @param index The index to clear
      */
     public void clear(Index index) {
-        // TODO: In a future PR, this method will instead the index for cleanup and a scheduled thread will actually invalidate
-        for (Key key : cache.keys()) {
-            if (key.indexCache.index.equals(index)) {
-                cache.invalidate(key);
-            }
-        }
-        // force eviction
-        cache.refresh();
+        indicesToClear.add(index);
     }
 
     /**
-     * Clear all keys in the node-level cache which match the given index and field.
+     * Mark all keys in the node-level cache which match the given index and field for cleanup.
      * @param index The index to clear
      * @param field The field to clear
      */
     public void clear(Index index, String field) {
-        // TODO: In a future PR, this method will instead the index+field for cleanup and a scheduled thread will actually invalidate
-        for (Key key : cache.keys()) {
-            if (key.indexCache.index.equals(index)) {
-                if (key.indexCache.fieldName.equals(field)) {
-                    cache.invalidate(key);
-                }
+        Set<String> fieldsOfIndex = fieldsToClear.computeIfAbsent(index, (idx) -> { return ConcurrentCollections.newConcurrentSet(); });
+        fieldsOfIndex.add(field);
+    }
+
+    // This method can stay synchronized to avoid having multiple simultaneous cache iterators removing keys.
+    // This shouldn't cause performance impact as it's called only from the scheduled cache clear thread
+    // and is not blocking search traffic.
+    public synchronized void clearMarkedKeys() {
+        if (indicesToClear.isEmpty() && fieldsToClear.isEmpty()) return;
+
+        for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
+            Key key = iterator.next();
+            if (indicesToClear.contains(key.indexCache.index)) {
+                iterator.remove();
+                continue;
+            }
+            Set<String> fieldsOfIndexToClear = fieldsToClear.get(key.indexCache.index);
+            if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
+                iterator.remove();
             }
         }
-        // we call refresh because this is a manual operation, should happen
-        // rarely and probably means the user wants to see memory returned as
-        // soon as possible
+        indicesToClear.clear();
+        fieldsToClear.clear();
         cache.refresh();
     }
 
@@ -308,5 +322,4 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             return result;
         }
     }
-
 }

@@ -82,6 +82,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -128,6 +132,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedNumericIndexFieldData);
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testIndexFieldDataCacheIsClearedAfterIndexRemoval() throws IOException, InterruptedException {
@@ -185,6 +191,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         loadField1.close();
         loadField2.close();
         writer.close();
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testGetForFieldRuntimeField() {
@@ -210,6 +218,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         SearchLookup searchLookup = new SearchLookup(null, null, shardId);
         ifdService.getForField(ft, "qualified", () -> searchLookup);
         assertSame(searchLookup, searchLookupSetOnce.get().get());
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testClearField() throws Exception {
@@ -262,23 +272,25 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         ifdService.clearField("field_1");
 
         assertEquals(2, onCacheCalled.get());
-        assertEquals(1, onRemovalCalled.get());
+        waitUntil(() -> onRemovalCalled.get() == 1);
 
         ifdService.clearField("field_1");
 
         assertEquals(2, onCacheCalled.get());
-        assertEquals(1, onRemovalCalled.get());
+        waitUntil(() -> onRemovalCalled.get() == 1);
 
         ifdService.clearField("field_2");
 
         assertEquals(2, onCacheCalled.get());
-        assertEquals(2, onRemovalCalled.get());
+        waitUntil(() -> onRemovalCalled.get() == 2);
 
         reader.close();
         loadField1.close();
         loadField2.close();
         writer.close();
         ifdService.clear();
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testFieldDataCacheListener() throws Exception {
@@ -338,6 +350,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1, onCacheCalled.get());
         assertEquals(1, onRemovalCalled.get());
         ifdService.clear();
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testSetCacheListenerTwice() {
@@ -379,6 +393,8 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         } catch (IllegalStateException ex) {
             // all well
         }
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     private void doTestRequireDocValues(MappedFieldType ft) {
