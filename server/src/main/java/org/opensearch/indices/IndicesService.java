@@ -392,6 +392,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
@@ -445,6 +446,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        Map<String, IndexStorePlugin.StoreFactory> storeFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         SearchRequestStats searchRequestStats,
@@ -509,6 +511,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.directoryFactories = directoryFactories;
         this.compositeDirectoryFactories = compositeDirectoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.storeFactories = storeFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
@@ -643,6 +646,7 @@ public class IndicesService extends AbstractLifecycleComponent
             Collections.emptyMap(),
             valuesSourceRegistry,
             recoveryStateFactories,
+            Collections.emptyMap(),
             remoteDirectoryFactory,
             repositoriesServiceSupplier,
             searchRequestStats,
@@ -1060,6 +1064,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
+            storeFactories,
             fileCache,
             compositeIndexSettings
         );
@@ -1179,6 +1184,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
+            storeFactories,
             fileCache,
             compositeIndexSettings
         );
