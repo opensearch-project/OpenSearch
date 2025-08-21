@@ -88,17 +88,19 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
         for (InternalAggregation aggregation : aggregations) {
             if (aggregation instanceof InternalScriptedMetric) {
                 // If using InternalScriptedMetric in place of InternalValueCount
-                Object value = ((InternalScriptedMetric) aggregation).aggregation();
-                if (value instanceof Number) {
-                    valueCount += ((Number) value).longValue();
-                } else {
-                    throw new IllegalArgumentException(
-                        "Invalid ScriptedMetric result for ["
-                            + getName()
-                            + "] valueCount aggregation. Expected numeric value from ScriptedMetric aggregation but got ["
-                            + (value == null ? "null" : value.getClass().getName())
-                            + "]"
-                    );
+                List<Object> aggList = ((InternalScriptedMetric) aggregation).aggregationsList();
+                for (Object value : aggList) {
+                    if (value instanceof Number) {
+                        valueCount += ((Number) value).longValue();
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Invalid ScriptedMetric result for ["
+                                + getName()
+                                + "] valueCount aggregation. Expected numeric value from ScriptedMetric aggregation but got ["
+                                + (value == null ? "null" : value.getClass().getName())
+                                + "]"
+                        );
+                    }
                 }
             } else {
                 // Original handling for InternalValueCount
