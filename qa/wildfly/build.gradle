@@ -86,10 +86,11 @@ preProcessFixture {
 }
 
 dockerCompose {
-  useComposeFiles = ['docker-compose.yml']
+  def composeFiles = ['docker-compose.yml']
   if (BuildParams.inFipsJvm) {
-    environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
+    composeFiles.add('docker-compose.fips.yml')
   }
+  useComposeFiles = composeFiles
 }
 
 tasks.register("integTest", TestTask) {
