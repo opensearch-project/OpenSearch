@@ -432,8 +432,9 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         // "node" level
         builder.startObject(StatsLevel.INDICES.getRestName());
         stats.toXContent(builder, params);
-
-        statusCounterStats.toXContent(builder, params);
+        if (statusCounterStats != null) {
+            statusCounterStats.toXContent(builder, params);
+        }
 
         if (StatsLevel.INDICES.getRestName().equals(level)) {
             assert statsByIndex != null || statsByShard != null : "Expected shard stats or index stats in response for generating ["
