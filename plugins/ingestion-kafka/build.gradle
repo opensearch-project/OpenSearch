@@ -41,6 +41,7 @@ dependencies {
   testImplementation "org.testcontainers:kafka:${versions.testcontainers}"
   testImplementation "org.rnorth.duct-tape:duct-tape:${versions.ducttape}"
   testImplementation "org.apache.commons:commons-compress:${versions.commonscompress}"
+  testImplementation "org.apache.commons:commons-lang3:${versions.commonslang}"
   testImplementation "commons-io:commons-io:${versions.commonsio}"
   testImplementation 'org.awaitility:awaitility:4.2.0'
 }
