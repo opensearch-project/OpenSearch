@@ -264,10 +264,10 @@ public class SearchRequestProtoUtils {
         }
 
         if (request.hasTrackTotalHits()) {
-            if (request.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.BOOL_VALUE) {
-                searchSourceBuilder.trackTotalHits(request.getTrackTotalHits().getBoolValue());
-            } else if (request.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.INT32_VALUE) {
-                searchSourceBuilder.trackTotalHitsUpTo(request.getTrackTotalHits().getInt32Value());
+            if (request.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.ENABLED) {
+                searchSourceBuilder.trackTotalHits(request.getTrackTotalHits().getEnabled());
+            } else if (request.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.COUNT) {
+                searchSourceBuilder.trackTotalHitsUpTo(request.getTrackTotalHits().getCount());
             }
         }
 
@@ -301,7 +301,7 @@ public class SearchRequestProtoUtils {
             String suggestField = request.getSuggestField();
             String suggestText = request.hasSuggestText() ? request.getSuggestText() : request.getQ();
             int suggestSize = request.hasSuggestSize() ? request.getSuggestSize() : 5;
-            SearchRequest.SuggestMode suggestMode = request.getSuggestMode();
+            org.opensearch.protobufs.SuggestMode suggestMode = request.getSuggestMode();
             searchSourceBuilder.suggest(
                 new SuggestBuilder().addSuggestion(
                     suggestField,

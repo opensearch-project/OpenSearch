@@ -25,7 +25,7 @@ public class SearchHitNestedIdentityProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("NestedIdentity should not be null", protoNestedIdentity);
         assertEquals("Field should match", "parent_field", protoNestedIdentity.getField());
         assertEquals("Offset should match", 5, protoNestedIdentity.getOffset());
-        assertFalse("Nested field should not be set", protoNestedIdentity.hasNested());
+        assertFalse("Nested field should not be set", protoNestedIdentity.hasXNested());
     }
 
     public void testToProtoWithNestedNestedIdentity() throws Exception {
@@ -40,14 +40,14 @@ public class SearchHitNestedIdentityProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("NestedIdentity should not be null", protoNestedIdentity);
         assertEquals("Field should match", "parent_field", protoNestedIdentity.getField());
         assertEquals("Offset should match", 5, protoNestedIdentity.getOffset());
-        assertTrue("Nested field should be set", protoNestedIdentity.hasNested());
+        assertTrue("Nested field should be set", protoNestedIdentity.hasXNested());
 
         // Verify the nested identity
-        NestedIdentity nestedProtoNestedIdentity = protoNestedIdentity.getNested();
+        NestedIdentity nestedProtoNestedIdentity = protoNestedIdentity.getXNested();
         assertNotNull("Nested NestedIdentity should not be null", nestedProtoNestedIdentity);
         assertEquals("Nested field should match", "child_field", nestedProtoNestedIdentity.getField());
         assertEquals("Nested offset should match", 2, nestedProtoNestedIdentity.getOffset());
-        assertFalse("Nested nested field should not be set", nestedProtoNestedIdentity.hasNested());
+        assertFalse("Nested nested field should not be set", nestedProtoNestedIdentity.hasXNested());
     }
 
     public void testToProtoWithDeeplyNestedNestedIdentity() throws Exception {
@@ -63,21 +63,21 @@ public class SearchHitNestedIdentityProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("NestedIdentity should not be null", protoNestedIdentity);
         assertEquals("Field should match", "parent_field", protoNestedIdentity.getField());
         assertEquals("Offset should match", 5, protoNestedIdentity.getOffset());
-        assertTrue("Nested field should be set", protoNestedIdentity.hasNested());
+        assertTrue("Nested field should be set", protoNestedIdentity.hasXNested());
 
         // Verify the child nested identity
-        NestedIdentity childProtoNestedIdentity = protoNestedIdentity.getNested();
+        NestedIdentity childProtoNestedIdentity = protoNestedIdentity.getXNested();
         assertNotNull("Child NestedIdentity should not be null", childProtoNestedIdentity);
         assertEquals("Child field should match", "child_field", childProtoNestedIdentity.getField());
         assertEquals("Child offset should match", 2, childProtoNestedIdentity.getOffset());
-        assertTrue("Child nested field should be set", childProtoNestedIdentity.hasNested());
+        assertTrue("Child nested field should be set", childProtoNestedIdentity.hasXNested());
 
         // Verify the grandchild nested identity
-        NestedIdentity grandchildProtoNestedIdentity = childProtoNestedIdentity.getNested();
+        NestedIdentity grandchildProtoNestedIdentity = childProtoNestedIdentity.getXNested();
         assertNotNull("Grandchild NestedIdentity should not be null", grandchildProtoNestedIdentity);
         assertEquals("Grandchild field should match", "grandchild_field", grandchildProtoNestedIdentity.getField());
         assertEquals("Grandchild offset should match", 1, grandchildProtoNestedIdentity.getOffset());
-        assertFalse("Grandchild nested field should not be set", grandchildProtoNestedIdentity.hasNested());
+        assertFalse("Grandchild nested field should not be set", grandchildProtoNestedIdentity.hasXNested());
     }
 
     public void testToProtoWithNegativeOffset() throws Exception {
@@ -91,6 +91,6 @@ public class SearchHitNestedIdentityProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("NestedIdentity should not be null", protoNestedIdentity);
         assertEquals("Field should match", "field", protoNestedIdentity.getField());
         assertEquals("Offset should not be set", 0, protoNestedIdentity.getOffset());
-        assertFalse("Nested field should not be set", protoNestedIdentity.hasNested());
+        assertFalse("Nested field should not be set", protoNestedIdentity.hasXNested());
     }
 }

@@ -34,7 +34,7 @@ public class MatchAllQueryBuilderProtoConverterTests extends OpenSearchTestCase 
 
     public void testFromProto() {
         // Create a QueryContainer with MatchAllQuery
-        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().setBoost(2.0f).setUnderscoreName("test_query").build();
+        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().setBoost(2.0f).setXName("test_query").build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
 
         // Convert the query

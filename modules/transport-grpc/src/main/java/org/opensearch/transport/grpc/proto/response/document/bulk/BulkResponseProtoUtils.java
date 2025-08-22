@@ -55,7 +55,26 @@ public class BulkResponseProtoUtils {
 
         // Add individual item responses for each operation in the bulk request
         for (BulkItemResponse bulkItemResponse : response.getItems()) {
-            bulkResponseBody.addItems(BulkItemResponseProtoUtils.toProto(bulkItemResponse));
+            org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+            org.opensearch.protobufs.Item.Builder itemBuilder = org.opensearch.protobufs.Item.newBuilder();
+
+            // Wrap ResponseItem in Item based on operation type
+            switch (bulkItemResponse.getOpType()) {
+                case CREATE:
+                    itemBuilder.setCreate(responseItem);
+                    break;
+                case DELETE:
+                    itemBuilder.setDelete(responseItem);
+                    break;
+                case INDEX:
+                    itemBuilder.setIndex(responseItem);
+                    break;
+                case UPDATE:
+                    itemBuilder.setUpdate(responseItem);
+                    break;
+            }
+
+            bulkResponseBody.addItems(itemBuilder.build());
         }
 
         // Set the bulk response body and build the final response
