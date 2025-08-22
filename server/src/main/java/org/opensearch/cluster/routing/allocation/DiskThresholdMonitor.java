@@ -186,29 +186,25 @@ public class DiskThresholdMonitor {
 
             if (isWarmNode) {
                 AggregateFileCacheStats aggregateFileCacheStats = info.getNodeFileCacheStats().getOrDefault(usage.getNodeId(), null);
-                if (aggregateFileCacheStats != null && fileCacheEvaluator.isNodeExceedingHighWatermark(aggregateFileCacheStats)) {
-                    if (routingNode != null) {
-                        for (ShardRouting routing : routingNode) {
-                            String indexName = routing.index().getName();
-                            indicesToMarkReadOnly.add(indexName);
-                        }
+                if (aggregateFileCacheStats != null && fileCacheEvaluator.isNodeExceedingIndexingThreshold(aggregateFileCacheStats)) {
+                    for (ShardRouting routing : routingNode) {
+                        String indexName = routing.index().getName();
+                        indicesToMarkReadOnly.add(indexName);
                     }
-                    logger.info(
-                        "high file cache watermark [{}] exceeded on {}, indices on this node are marked read only.",
-                        fileCacheThresholdSettings.describeHighThreshold(),
+                    logger.warn(
+                        "index file cache threshold [{}] exceeded on {}, indices on this node are marked read only.",
+                        fileCacheThresholdSettings.describeIndexThreshold(),
                         usage
                     );
                 }
-                if (aggregateFileCacheStats != null && fileCacheEvaluator.isNodeExceedingFloodStageWatermark(aggregateFileCacheStats)) {
-                    if (routingNode != null) {
-                        for (ShardRouting routing : routingNode) {
-                            String indexName = routing.index().getName();
-                            indicesToBlockRead.add(indexName);
-                        }
+                if (aggregateFileCacheStats != null && fileCacheEvaluator.isNodeExceedingSearchThreshold(aggregateFileCacheStats)) {
+                    for (ShardRouting routing : routingNode) {
+                        String indexName = routing.index().getName();
+                        indicesToBlockRead.add(indexName);
                     }
-                    logger.info(
-                        "flood stage file cache watermark [{}] exceeded on {}, read block applied on indices on this node",
-                        fileCacheThresholdSettings.describeFloodStageThreshold(),
+                    logger.warn(
+                        "search file cache threshold [{}] exceeded on {}, read block applied on indices on this node",
+                        fileCacheThresholdSettings.describeSearchThreshold(),
                         usage
                     );
                 }
@@ -498,7 +494,11 @@ public class DiskThresholdMonitor {
         final Set<String> indicesToReleaseReadBlock = StreamSupport.stream(
             Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
             false
-        ).map(Map.Entry::getKey).filter(index -> indicesToBlockRead.contains(index) == false).collect(Collectors.toSet());
+        )
+            .map(Map.Entry::getKey)
+            .filter(index -> indicesToBlockRead.contains(index) == false)
+            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
+            .collect(Collectors.toSet());
 
         if (indicesToReleaseReadBlock.isEmpty() == false) {
             updateIndicesReadBlock(indicesToReleaseReadBlock, listener, false);

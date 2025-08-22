@@ -23,13 +23,12 @@ public class FileCacheEvaluator implements FileCacheThresholdEvaluator {
     }
 
     @Override
-    public boolean isNodeExceedingHighWatermark(AggregateFileCacheStats aggregateFileCacheStats) {
-        return aggregateFileCacheStats.getActivePercentFromTotalCapacity() >= fileCacheThresholdSettings.getFreeFileCacheThresholdHigh();
+    public boolean isNodeExceedingIndexingThreshold(AggregateFileCacheStats aggregateFileCacheStats) {
+        return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFreeFileCacheIndexThreshold();
     }
 
     @Override
-    public boolean isNodeExceedingFloodStageWatermark(AggregateFileCacheStats aggregateFileCacheStats) {
-        return aggregateFileCacheStats.getActivePercentFromTotalCapacity() >= fileCacheThresholdSettings
-            .getFreeFileCacheThresholdFloodStage();
+    public boolean isNodeExceedingSearchThreshold(AggregateFileCacheStats aggregateFileCacheStats) {
+        return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFreeFileCacheSearchThreshold();
     }
 }
