@@ -182,8 +182,8 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
         assertEquals(1, response.getIndices().get(INDEX_NAME).getShards().values().size());
     }
 
-    // Construct a case with redundant pending merge segments in replica shard, and finally delete these files
-    public void testCleanupRedundantPendingMergeFile() throws Exception {
+    // Construct a case with redundant merge segments in replica shard, and finally delete these files
+    public void testCleanupReplicaRedundantMergedSegment() throws Exception {
         final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(
             INDEX_NAME,
@@ -227,13 +227,13 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
         }
 
         IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
-        assertBusy(() -> assertFalse(replicaShard.getPendingMergedSegmentCheckpoints().isEmpty()));
+        assertBusy(() -> assertFalse(replicaShard.getReplicaMergedSegmentCheckpoints().isEmpty()));
 
         client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1)).get();
         forceMergeComplete.set(true);
 
         // Verify replica shard has pending merged segments
-        assertBusy(() -> { assertFalse(replicaShard.getPendingMergedSegmentCheckpoints().isEmpty()); }, 1, TimeUnit.MINUTES);
+        assertBusy(() -> { assertFalse(replicaShard.getReplicaMergedSegmentCheckpoints().isEmpty()); }, 1, TimeUnit.MINUTES);
 
         waitForSegmentCount(INDEX_NAME, 1, logger);
         primaryTransportService.clearAllRules();
@@ -245,20 +245,86 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
                 .setSettings(
                     Settings.builder()
                         .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                        .put(IndexSettings.INDEX_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
                 )
         );
 
+        waitForSameFilesInPrimaryAndReplica(INDEX_NAME, primaryNode, replicaNode);
+        assertBusy(() -> assertTrue(replicaShard.getReplicaMergedSegmentCheckpoints().isEmpty()));
+    }
+
+    // Construct a case with redundant merged segment checkpoint in the primary shard and delete it based on the expiration time
+    public void testPrimaryMergedSegmentCheckpointRetentionTimeout() throws Exception {
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        // close auto refresh
+        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build());
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        // generate segment _0.si
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").get();
+        refresh(INDEX_NAME);
+        // generate segment _1.si
+        client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").get();
+        refresh(INDEX_NAME);
+        // generate segment _2.si
+        client().prepareIndex(INDEX_NAME).setId("3").setSource("abc", "def").get();
+        refresh(INDEX_NAME);
+
+        // force merge 3 segments to 2 segments, generate segment _3.si
+        // specify parameter flush as false to prevent triggering the refresh operation
+        logger.info("force merge segments to 2");
+        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).flush(false).maxNumSegments(2)).get();
+        // since the refresh operation has not been performed, _3.si will remain in primaryMergedSegmentCheckpoints
+        waitForSameFilesInPrimaryAndReplica(INDEX_NAME, primaryNode, replicaNode);
+
+        // force merge 2 segments to 1 segment, generate segment _4.si
+        // use the default value (true) of parameter flush to trigger the refresh operation
+        logger.info("force merge segments to 1");
+        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1)).get();
+        refresh(INDEX_NAME);
+        // since the refresh operation has been performed, _4.si will be removed from primaryMergedSegmentCheckpoints
+        waitForSegmentCount(INDEX_NAME, 1, logger);
+
+        // Verify that primary shard and replica shard have non-empty merged segment checkpoints
+        IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+        assertBusy(() -> assertFalse(primaryShard.getPrimaryMergedSegmentCheckpoints().isEmpty()));
+
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+        assertBusy(() -> assertFalse(replicaShard.getReplicaMergedSegmentCheckpoints().isEmpty()));
+
+        // update the configuration to expire _3.si, and then remove it from primaryMergedSegmentCheckpoints
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                        .put(IndexSettings.INDEX_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(1))
+                )
+        );
+
+        waitForSameFilesInPrimaryAndReplica(INDEX_NAME, primaryNode, replicaNode);
+
+        // Verify that primary shard and replica shard have empty merged segment checkpoints
+        assertBusy(() -> assertTrue(primaryShard.getPrimaryMergedSegmentCheckpoints().isEmpty()));
+        assertBusy(() -> assertTrue(replicaShard.getReplicaMergedSegmentCheckpoints().isEmpty()));
+    }
+
+    public void waitForSameFilesInPrimaryAndReplica(String indexName, String primaryNode, String replicaNode) throws Exception {
         assertBusy(() -> {
-            IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+            IndexShard primaryShard = getIndexShard(primaryNode, indexName);
             Directory primaryDirectory = primaryShard.store().directory();
             Set<String> primaryFiles = Sets.newHashSet(primaryDirectory.listAll());
             primaryFiles.removeIf(f -> f.startsWith("segment"));
+            IndexShard replicaShard = getIndexShard(replicaNode, indexName);
             Directory replicaDirectory = replicaShard.store().directory();
             Set<String> replicaFiles = Sets.newHashSet(replicaDirectory.listAll());
             replicaFiles.removeIf(f -> f.startsWith("segment"));
-            // Verify replica shard does not have pending merged segments
-            assertEquals(0, replicaShard.getPendingMergedSegmentCheckpoints().size());
             // Verify that primary shard and replica shard have the same file list
+            logger.info("primary files: {}, replica files: {}", primaryFiles, replicaFiles);
             assertEquals(primaryFiles, replicaFiles);
         }, 1, TimeUnit.MINUTES);
     }

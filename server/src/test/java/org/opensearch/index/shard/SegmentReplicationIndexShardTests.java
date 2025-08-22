@@ -209,7 +209,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
-    public void testCleanupRedundantPendingMergeSegment() throws Exception {
+    public void testCleanupReplicaRedundantMergedSegment() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
@@ -241,16 +241,51 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // verify primary segment count and replica pending merge segment count
             assertEquals(1, primaryShard.segments(false).size());
-            assertEquals(2, replicaShard.getPendingMergedSegmentCheckpoints().size());
+            assertEquals(2, replicaShard.getReplicaMergedSegmentCheckpoints().size());
 
             // after segment replication, _4.si is removed from pending merge segments
             replicateSegments(primaryShard, List.of(replicaShard));
-            assertEquals(1, replicaShard.getPendingMergedSegmentCheckpoints().size());
+            assertEquals(1, replicaShard.getReplicaMergedSegmentCheckpoints().size());
 
             // after cleanup redundant pending merge segment, _2.si is removed from pending merge segments
             ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint = primaryShard.computeReferencedSegmentsCheckpoint();
             replicaShard.cleanupRedundantPendingMergeSegment(referencedSegmentsCheckpoint);
-            assertEquals(0, replicaShard.getPendingMergedSegmentCheckpoints().size());
+            assertEquals(0, replicaShard.getReplicaMergedSegmentCheckpoints().size());
+        }
+    }
+
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    public void testPrimaryMergedSegmentCheckpointRetentionTimeout() throws Exception {
+        // close auto refresh
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexSettings.INDEX_MERGED_SEGMENT_CHECKPOINT_RETENTION_TIME.getKey(), TimeValue.timeValueSeconds(0))
+            .put("index.refresh_interval", -1)
+            .build();
+        try (ReplicationGroup shards = createGroup(1, indexSettings, indexMapping, new NRTReplicationEngineFactory());) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // generate segment _0.si and _1.si
+            int numDocs = 1;
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            // generate pending merge segment _2.si
+            // specify parameter flush as false to prevent triggering the refresh operation
+            primaryShard.forceMerge(new ForceMergeRequest("test").flush(false).maxNumSegments(1));
+            assertEquals(1, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+            primaryShard.removeExpiredPrimaryMergedSegmentCheckpoints();
+            assertEquals(0, primaryShard.getPrimaryMergedSegmentCheckpoints().size());
+
+            primaryShard.refresh("test");
+            replicateSegments(primaryShard, List.of(replicaShard));
         }
     }
 
