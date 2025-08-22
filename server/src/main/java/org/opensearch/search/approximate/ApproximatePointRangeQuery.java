@@ -58,6 +58,8 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
     public PointRangeQuery pointRangeQuery;
     private final Function<byte[], String> valueToString;
 
+    private boolean hasBeenFullyTraversed = false;
+
     public ApproximatePointRangeQuery(
         String field,
         byte[] lowerPoint,
@@ -102,6 +104,10 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
     public void setSortOrder(SortOrder sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public boolean getFullyTraversed() {
+        return hasBeenFullyTraversed;
     }
 
     @Override
@@ -391,6 +397,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                hasBeenFullyTraversed = false;
                 LeafReader reader = context.reader();
                 long[] docCount = { 0 };
 
@@ -398,39 +405,18 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 if (checkValidPointValues(values) == false) {
                     return null;
                 }
+
                 // values.size(): total points indexed, In most cases: values.size() ≈ number of documents (assuming single-valued fields)
-                if (size > values.size()) {
-                    ScorerSupplier luceneSupplier = pointRangeQueryWeight.scorerSupplier(context);
-                    return new ScorerSupplier() {
-                        boolean alreadyFullyTraversed = false;
-
-                        @Override
-                        public Scorer get(long leadCost) throws IOException {
-                            return getWithSize(size);
-                        }
-
-                        public Scorer getWithSize(int dynamicSize) throws IOException {
-                            if (alreadyFullyTraversed) {
-                                return null; // Signal end of conjunction
-                            }
-
-                            alreadyFullyTraversed = true;
-                            return luceneSupplier.get(Long.MAX_VALUE);
-                        }
-
-                        @Override
-                        public long cost() {
-                            return luceneSupplier.cost();
-                        }
-                    };
+                if (size > values.size() && context.isTopLevel) {
+                    return pointRangeQueryWeight.scorerSupplier(context);
                 } else {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
-
                             // Keep a visitor for cost estimation only
                             DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
+                            long lastDoc = -1;
 
                             @Override
                             public Scorer get(long leadCost) throws IOException {
@@ -450,7 +436,9 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                                 size = dynamicSize;
 
                                 try {
-
+                                    if (size > values.size()) {
+                                        hasBeenFullyTraversed = true;
+                                    }
                                     // For windowed approach, create fresh iterator without ResumableDISI state
                                     DocIdSetBuilder freshResult = new DocIdSetBuilder(reader.maxDoc(), values);
                                     long[] freshDocCount = new long[1];
@@ -460,6 +448,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                                     intersectLeft(values.getPointTree(), freshVisitor, freshDocCount);
 
                                     DocIdSetIterator iterator = freshResult.build().iterator();
+                                    lastDoc = iterator.docIDRunEnd();
                                     return new ConstantScoreScorer(score(), scoreMode, iterator);
                                 } finally {
                                     // Restore original size
@@ -470,12 +459,21 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                             @Override
                             public long cost() {
                                 if (cost == -1) {
-                                    // Computing the cost may be expensive, so only do it if necessary
-                                    cost = values.estimateDocCount(visitor);
-                                    assert cost >= 0;
+                                    if (context.isTopLevel) {
+                                        // Computing the cost may be expensive, so only do it if necessary
+                                        cost = values.estimateDocCount(visitor);
+                                        assert cost >= 0;
+                                    } else {
+                                        return lastDoc != -1 ? lastDoc : values.estimateDocCount(visitor);
+                                    }
                                 }
                                 return cost;
                             }
+
+                            public int getBKDSize() throws IOException {
+                                return reader.getPointValues(pointRangeQuery.getField()).getDocCount();
+                            }
+
                         };
                     } else {
                         // we need to fetch size + deleted docs since the collector will prune away deleted docs resulting in fewer results
