@@ -130,7 +130,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(fd instanceof SortedNumericIndexFieldData);
     }
 
-    public void testIndexFieldDataCacheIsCleredAfterIndexRemoval() throws IOException, InterruptedException {
+    public void testIndexFieldDataCacheIsClearedAfterIndexRemoval() throws IOException, InterruptedException {
         final IndexService indexService = createIndex("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         // copy the ifdService since we can set the listener only once.
