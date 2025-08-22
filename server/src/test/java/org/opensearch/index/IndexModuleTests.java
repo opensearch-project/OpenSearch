@@ -96,6 +96,7 @@ import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -649,6 +650,98 @@ public class IndexModuleTests extends OpenSearchTestCase {
         indexService.close("closing", false);
     }
 
+    public void testStoreFactory() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "test_store")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final TestStoreFactory testStoreFactory = new TestStoreFactory();
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories = singletonMap("test_store", testStoreFactory);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new InternalEngineFactory(),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            storeFactories,
+            null,
+            null
+        );
+
+        // Test that IndexService can be created successfully with valid store factory
+        final IndexService indexService = newIndexService(module);
+        assertNotNull(indexService);
+        indexService.close("closing", false);
+    }
+
+    public void testStoreFactoryWithEmptySetting() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final TestStoreFactory testStoreFactory = new TestStoreFactory();
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories = singletonMap("test_store", testStoreFactory);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new InternalEngineFactory(),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            storeFactories,
+            null,
+            null
+        );
+
+        // Test that IndexService uses default store when setting is empty
+        final IndexService indexService = newIndexService(module);
+        assertNotNull(indexService);
+        indexService.close("closing", false);
+    }
+
+    public void testUnknownStoreFactory() {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "unknown_store")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new InternalEngineFactory(),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            null,
+            null
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
+        assertThat(exception.getMessage(), containsString("Unknown store factory [unknown_store]"));
+    }
+
     private ShardRouting createInitializedShardRouting() {
         ShardRouting shard = ShardRouting.newUnassigned(
             new ShardId("test", "_na_", 0),
@@ -734,6 +827,20 @@ public class IndexModuleTests extends OpenSearchTestCase {
         @Override
         public DirectoryReader apply(DirectoryReader reader) {
             return null;
+        }
+    }
+
+    public static final class TestStoreFactory implements IndexStorePlugin.StoreFactory {
+        @Override
+        public Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath
+        ) throws IOException {
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
         }
     }
 }
