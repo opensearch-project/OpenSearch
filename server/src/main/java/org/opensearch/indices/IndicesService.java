@@ -1367,14 +1367,14 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * @param stats Instance storing {@link DocStatusStats}
      */
-    /*@Deprecated(since = "3.3.0")
+    @Deprecated(since = "3.3.0")
     public void addDocStatusStats(final org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats stats) {
         oldShardsStats.indexingStats.getTotal().getDocStatusStats().add(stats);
-    }*/
+    }
 
     /**
      * Accumulate stats from the passed Object. Use this instead of
-     * after
+     * {@link #addDocStatusStats(org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats)} after
      * Version 3.3.0
      *
      * @param stats Instance storing {@link DocStatusStats}
