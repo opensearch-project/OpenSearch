@@ -118,6 +118,10 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
             )
         );
 
+        // Set isTopLevel to false since these are nested in boolean query
+        ((ApproximatePointRangeQuery) approxQuery1.getApproximationQuery()).setTopLevel(false);
+        ((ApproximatePointRangeQuery) approxQuery2.getApproximationQuery()).setTopLevel(false);
+
         BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
             .add(approxQuery2, BooleanClause.Occur.FILTER)
             .build();
@@ -181,9 +185,9 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                     // Test cost estimation
                     assertTrue(supplier.cost() > 0);
 
-                    // Test scorer creation
+                    // Test scorer creation, scorer should be null since nested ApproximateBooleanQueries shouldn't exist
                     Scorer scorer = supplier.get(1000);
-                    assertNotNull(scorer);
+                    assertNull(scorer);
                 }
             }
         }
@@ -219,6 +223,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
+                    approxQuery1.setTopLevel(false);
                     ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
                         "field2",
                         IntPoint.pack(new int[] { lower2 }).bytes,
@@ -226,6 +231,8 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
+
+                    approxQuery2.setTopLevel(false);
 
                     BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
                         .add(approxQuery2, BooleanClause.Occur.FILTER)
@@ -263,6 +270,8 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
             1,
             ApproximatePointRangeQuery.LONG_FORMAT
         );
+        pointQuery.setTopLevel(false); // Set as non-top-level since it's nested
+
         ApproximateScoreQuery scoreQuery = new ApproximateScoreQuery(IntPoint.newRangeQuery("field", 1, 100), pointQuery);
 
         BooleanQuery boolQuery = new BooleanQuery.Builder().add(scoreQuery, BooleanClause.Occur.MUST).build();
@@ -314,6 +323,11 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
             )
         );
 
+        // Set isTopLevel to false since these are nested in boolean query
+        ((ApproximatePointRangeQuery) approxQuery1.getApproximationQuery()).setTopLevel(false);
+        ((ApproximatePointRangeQuery) approxQuery2.getApproximationQuery()).setTopLevel(false);
+        ((ApproximatePointRangeQuery) approxQuery3.getApproximationQuery()).setTopLevel(false);
+
         BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
             .add(approxQuery2, BooleanClause.Occur.FILTER)
             .add(approxQuery3, BooleanClause.Occur.FILTER)
@@ -343,6 +357,9 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                 ApproximatePointRangeQuery.INT_FORMAT
             )
         );
+
+        // Set isTopLevel to false since it's nested in boolean query
+        ((ApproximatePointRangeQuery) approxQuery.getApproximationQuery()).setTopLevel(false);
 
         BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery, BooleanClause.Occur.MUST).build();
         ApproximateBooleanQuery query = new ApproximateBooleanQuery(boolQuery);
@@ -413,6 +430,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
             1,
             ApproximatePointRangeQuery.LONG_FORMAT
         );
+        approxQuery.setTopLevel(false);
         ApproximateScoreQuery scoreQuery = new ApproximateScoreQuery(IntPoint.newRangeQuery("field", 1, 100), approxQuery);
 
         // Test all single clause types (MUST, SHOULD, FILTER) - all should work
@@ -442,6 +460,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
             1,
             ApproximatePointRangeQuery.LONG_FORMAT
         );
+        approxQuery.setTopLevel(false);
         ApproximateScoreQuery scoreQuery = new ApproximateScoreQuery(IntPoint.newRangeQuery("field", 1, 100), approxQuery);
 
         BooleanQuery boolQuery = new BooleanQuery.Builder().add(scoreQuery, BooleanClause.Occur.MUST_NOT).build();
@@ -465,6 +484,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
             1,
             ApproximatePointRangeQuery.INT_FORMAT
         );
+        innerApproxQuery.setTopLevel(false);
         ApproximateScoreQuery innerScoreQuery = new ApproximateScoreQuery(IntPoint.newRangeQuery("inner_field", 50, 150), innerApproxQuery);
 
         // Inner boolean query (single clause)
@@ -481,6 +501,9 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
         when(mockContext.trackTotalHitsUpTo()).thenReturn(10000);
         when(mockContext.aggregations()).thenReturn(null);
         when(mockContext.highlight()).thenReturn(null);
+
+        outerScoreQuery.setContext(mockContext);
+        innerScoreQuery.setContext(mockContext);
 
         // Should delegate to nested ApproximateBooleanQuery
         boolean result = outerQuery.canApproximate(mockContext);
@@ -715,6 +738,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
+                    approxQuery1.setTopLevel(false);
                     ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
                         "field2",
                         IntPoint.pack(new int[] { 100 }).bytes,
@@ -722,6 +746,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
+                    approxQuery2.setTopLevel(false);
 
                     BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
                         .add(approxQuery2, BooleanClause.Occur.FILTER)
@@ -802,6 +827,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
+                    approxQuery1.setTopLevel(false);
                     ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
                         "field2",
                         IntPoint.pack(new int[] { lower2 }).bytes,
@@ -809,6 +835,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
+                    approxQuery2.setTopLevel(false);
 
                     BooleanQuery approximateBoolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
                         .add(approxQuery2, BooleanClause.Occur.FILTER)
@@ -897,6 +924,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
+                    approxQuery1.setTopLevel(false);
                     ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
                         "field2",
                         IntPoint.pack(new int[] { 200 }).bytes,
@@ -904,6 +932,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                         1,
                         ApproximatePointRangeQuery.INT_FORMAT
                     );
+                    approxQuery2.setTopLevel(false);
 
                     BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
                         .add(approxQuery2, BooleanClause.Occur.FILTER)
@@ -1010,6 +1039,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
             1,
             ApproximatePointRangeQuery.INT_FORMAT
         );
+        approxQuery1.setTopLevel(false);
         ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
             field2,
             IntPoint.pack(new int[] { lower2 }).bytes,
@@ -1017,6 +1047,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
             1,
             ApproximatePointRangeQuery.INT_FORMAT
         );
+        approxQuery2.setTopLevel(false);
 
         BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
             .add(approxQuery2, BooleanClause.Occur.FILTER)

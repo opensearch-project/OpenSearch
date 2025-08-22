@@ -59,15 +59,22 @@ public final class ApproximateScoreQuery extends Query {
 
     public void setContext(SearchContext context) {
         resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
+
+        if ((resolvedQuery instanceof BooleanQuery) || (resolvedQuery instanceof ApproximateBooleanQuery)) {
+            resolvedQuery = ApproximateBooleanQuery.boolRewrite(resolvedQuery, context.searcher());
+        }
+
         if (resolvedQuery instanceof ApproximateBooleanQuery appxBool) {
             for (BooleanClause boolClause : appxBool.boolQuery.clauses()) {
                 if (boolClause.query() instanceof ApproximateScoreQuery apprxQuery) {
+                    if (apprxQuery.resolvedQuery instanceof ApproximateBooleanQuery boolQuery) {
+                        boolQuery.setTopLevel(false);
+                    } else if (apprxQuery.resolvedQuery instanceof ApproximatePointRangeQuery pointQuery) {
+                        pointQuery.setTopLevel(false);
+                    }
                     apprxQuery.setContext(context);
                 }
             }
-        }
-        if ((resolvedQuery instanceof BooleanQuery) || (resolvedQuery instanceof ApproximateBooleanQuery)) {
-            resolvedQuery = ApproximateBooleanQuery.boolRewrite(resolvedQuery, context.searcher());
         }
     }
 

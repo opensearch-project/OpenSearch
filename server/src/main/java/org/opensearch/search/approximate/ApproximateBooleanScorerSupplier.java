@@ -82,42 +82,8 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
      */
     @Override
     public Scorer get(long leadCost) throws IOException {
-        if (clauseWeights.isEmpty()) {
-            return null;
-        }
-
-        // Create appropriate iterators for each clause
-        List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
-        for (int i = 0; i < clauseWeights.size(); i++) {
-            // Use regular DocIdSetIterator for non-approximatable queries
-            clauseIterators.add(cachedSuppliers.get(i).get(leadCost).iterator());
-        }
-
-        // Use Lucene's ConjunctionUtils to create the conjunction
-        DocIdSetIterator conjunctionDISI = ConjunctionUtils.intersectIterators(clauseIterators);
-
-        // Create a simple scorer that wraps the conjunction
-        return new Scorer() {
-            @Override
-            public DocIdSetIterator iterator() {
-                return conjunctionDISI;
-            }
-
-            @Override
-            public float score() throws IOException {
-                return 0.0f;
-            }
-
-            @Override
-            public float getMaxScore(int upTo) throws IOException {
-                return 0.0f;
-            }
-
-            @Override
-            public int docID() {
-                return conjunctionDISI.docID();
-            }
-        };
+        // should not get called in a non-top level query
+        return null;
     }
 
     /**
