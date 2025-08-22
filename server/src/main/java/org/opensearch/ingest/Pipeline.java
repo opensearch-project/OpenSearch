@@ -42,7 +42,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -183,8 +182,8 @@ public final class Pipeline {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metrics.before();
         compoundProcessor.execute(ingestDocument, (result, e) -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metrics.after(ingestTimeInMillis);
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metrics.after(ingestTimeInNanos);
             if (e != null) {
                 metrics.failed();
             }
@@ -269,8 +268,8 @@ public final class Pipeline {
         int size = ingestDocumentWrappers.size();
         metrics.beforeN(size);
         compoundProcessor.batchExecute(ingestDocumentWrappers, results -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metrics.afterN(results.size(), ingestTimeInMillis);
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metrics.afterN(results.size(), ingestTimeInNanos);
 
             int failedCount = (int) results.stream().filter(t -> t.getException() != null).count();
             metrics.failedN(failedCount);

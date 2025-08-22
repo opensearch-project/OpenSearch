@@ -2499,7 +2499,7 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(stats.getCount(), equalTo(count));
         assertThat(stats.getCurrent(), equalTo(0L));
         assertThat(stats.getFailedCount(), equalTo(failed));
-        assertThat(stats.getTotalTimeInMillis(), greaterThanOrEqualTo(time));
+        assertThat(stats.getTotalTime(), greaterThanOrEqualTo(time));
     }
 
     private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
