@@ -333,7 +333,18 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
     }
 
     public void testSingleClauseMustCanApproximate() {
-        BooleanQuery boolQuery = new BooleanQuery.Builder().add(IntPoint.newRangeQuery("field", 1, 100), BooleanClause.Occur.MUST).build();
+        ApproximateScoreQuery approxQuery = new ApproximateScoreQuery(
+            IntPoint.newRangeQuery("field", 1, 100),
+            new ApproximatePointRangeQuery(
+                "field",
+                IntPoint.pack(new int[] { 1 }).bytes,
+                IntPoint.pack(new int[] { 100 }).bytes,
+                1,
+                ApproximatePointRangeQuery.INT_FORMAT
+            )
+        );
+
+        BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery, BooleanClause.Occur.MUST).build();
         ApproximateBooleanQuery query = new ApproximateBooleanQuery(boolQuery);
 
         SearchContext mockContext = mock(SearchContext.class);
@@ -341,8 +352,10 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
         when(mockContext.aggregations()).thenReturn(null);
         when(mockContext.highlight()).thenReturn(null);
 
+        approxQuery.setContext(mockContext);
+
         // Single clause with MUST should return false (not handled by current logic)
-        assertFalse("Single MUST clause should not be approximatable", query.canApproximate(mockContext));
+        assertTrue("Single MUST clause should be approximatable", query.canApproximate(mockContext));
     }
 
     public void testSingleClauseShouldCanApproximate() {
@@ -366,8 +379,17 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
     }
 
     public void testSingleClauseFilterCanApproximate() {
-        BooleanQuery boolQuery = new BooleanQuery.Builder().add(IntPoint.newRangeQuery("field", 1, 100), BooleanClause.Occur.FILTER)
-            .build();
+        ApproximateScoreQuery approxQuery = new ApproximateScoreQuery(
+            IntPoint.newRangeQuery("field", 1, 100),
+            new ApproximatePointRangeQuery(
+                "field",
+                IntPoint.pack(new int[] { 1 }).bytes,
+                IntPoint.pack(new int[] { 100 }).bytes,
+                1,
+                ApproximatePointRangeQuery.INT_FORMAT
+            )
+        );
+        BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery, BooleanClause.Occur.FILTER).build();
         ApproximateBooleanQuery query = new ApproximateBooleanQuery(boolQuery);
 
         SearchContext mockContext = mock(SearchContext.class);
@@ -375,8 +397,10 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
         when(mockContext.aggregations()).thenReturn(null);
         when(mockContext.highlight()).thenReturn(null);
 
-        // Single clause with FILTER should return false (not MUST_NOT, but not handled)
-        assertFalse("Single FILTER clause should not be approximatable", query.canApproximate(mockContext));
+        approxQuery.setContext(mockContext);
+
+        // Single clause with FILTER should approximate
+        assertTrue("Single FILTER clause should be approximatable", query.canApproximate(mockContext));
     }
 
     // Test BoolQueryBuilder pattern: Single clause WITH ApproximateScoreQuery wrapper
@@ -518,7 +542,6 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
         when(mockContext.aggregations()).thenReturn(null);
         when(mockContext.highlight()).thenReturn(null);
 
-        // Should delegate to nested ApproximateBooleanQuery and return true
         assertFalse("Nested multi-FILTER clause should not be approximatable", outerQuery.canApproximate(mockContext));
     }
 
