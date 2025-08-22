@@ -1373,7 +1373,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }*/
 
     /**
-     * Accumulate stats from the passed Object. Use instead of 
+     * Accumulate stats from the passed Object. Use instead of
      * {@link #addDocStatusStats(org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats)} after
      * Version 3.3.0
      *
