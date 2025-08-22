@@ -22,6 +22,7 @@ import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 
 /**
@@ -35,6 +36,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
     private final float boost;
     private final int size;
     private long cost = -1;
+    private int scalingFactor = 3;
 
     /**
      * Creates a new ApproximateBooleanScorerSupplier.
@@ -69,6 +71,10 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
         }
     }
 
+    public void setScalingWindowFactor(int factor) {
+        scalingFactor = factor;
+    }
+
     /**
      * Get the {@link Scorer}. This may not return {@code null} and must be called at most once.
      *
@@ -80,7 +86,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
             return null;
         }
 
-        // Create appropriate iterators for each clause - ResumableDISI only for approximatable queries
+        // Create appropriate iterators for each clause
         List<DocIdSetIterator> clauseIterators = new ArrayList<>(clauseWeights.size());
         for (int i = 0; i < clauseWeights.size(); i++) {
             // Use regular DocIdSetIterator for non-approximatable queries
@@ -179,6 +185,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
         // Create a simple bulk scorer that wraps the conjunction
         return new BulkScorer() {
             private int totalCollected = 0;
+            private BitSet collectedDocs = new BitSet();  // Track collected documents
 
             // Windowed approach state
             private int currentWindowSize = initialWindowSize;
@@ -186,6 +193,8 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
             private List<DocIdSetIterator> rebuildIteratorsWithWindowSize(int windowSize) throws IOException {
                 List<DocIdSetIterator> newIterators = new ArrayList<>();
+                boolean allClausesFullyTraversed = true;
+
                 for (int i = 0; i < clauseWeights.size(); i++) {
                     Weight weight = clauseWeights.get(i);
                     ScorerSupplier supplier = cachedSuppliers.get(i); // Use cached supplier
@@ -196,6 +205,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                         // Temporarily set the size
                         int originalSize = approxQuery.getSize();
                         approxQuery.setSize(windowSize);
+
                         try {
                             Scorer scorer = supplier.get(windowSize);
                             if (scorer == null) {
@@ -203,16 +213,25 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                                 return null;
                             }
                             newIterators.add(scorer.iterator());
+
+                            // Check if this clause has been fully traversed
+                            if (!approxQuery.getFullyTraversed()) {
+                                allClausesFullyTraversed = false;
+                            }
                         } finally {
                             // Restore original size
                             approxQuery.setSize(originalSize);
                         }
                     } else {
-                        // Regular queries use full cost
+                        // Regular queries use full cost - always fully traversed
                         Scorer scorer = supplier.get(supplier.cost());
                         newIterators.add(scorer.iterator());
                     }
                 }
+
+                // If all approximatable clauses are fully traversed, we still have valid scorers
+                // Don't return null - we have valid scorers that contain all the data
+
                 return newIterators;
             }
 
@@ -222,7 +241,7 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
 
                 // Check if we need to expand window
                 if (totalCollected < size && (globalConjunction == null || globalConjunction.docID() == DocIdSetIterator.NO_MORE_DOCS)) {
-                    currentWindowSize *= 3;
+                    currentWindowSize *= scalingFactor;
 
                     // Rebuild iterators with new window size
                     List<DocIdSetIterator> newIterators = rebuildIteratorsWithWindowSize(currentWindowSize);
@@ -232,11 +251,11 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                     }
                     globalConjunction = ConjunctionUtils.intersectIterators(newIterators);
 
-                    // Return first docID from new conjunction (could be < min)
+                    // Return first docID from new conjunction to reset min
                     int firstDoc = globalConjunction.nextDoc();
                     if (firstDoc != DocIdSetIterator.NO_MORE_DOCS) {
                         return firstDoc;  // CancellableBulkScorer will use this as new min
-                    } else {}
+                    }
                 }
 
                 // Score existing conjunction within [min, max) range
@@ -268,38 +287,47 @@ public class ApproximateBooleanScorerSupplier extends ScorerSupplier {
                         return DocIdSetIterator.NO_MORE_DOCS; // Early termination
                     }
 
-                    if (acceptDocs == null || acceptDocs.get(doc)) {
+                    // BitSet duplicate detection - only collect if not already collected
+                    if (!collectedDocs.get(doc) && (acceptDocs == null || acceptDocs.get(doc))) {
+                        collectedDocs.set(doc);  // Mark as collected
                         collector.collect(doc);
                         collected++;
                         totalCollected++;
+                    } else if (collectedDocs.get(doc)) {
                     }
                 }
 
                 // Check if conjunction exhausted
                 if (globalConjunction.docID() == DocIdSetIterator.NO_MORE_DOCS) {
-
                     // If we need more hits, expand immediately
                     if (totalCollected < size) {
-                        currentWindowSize *= 3;
+                        int oldWindowSize = currentWindowSize;
+                        currentWindowSize *= scalingFactor;
 
                         try {
                             List<DocIdSetIterator> newIterators = rebuildIteratorsWithWindowSize(currentWindowSize);
                             if (newIterators == null) {
-                                // A clause is fully traversed, end conjunction
+                                // A clause is fully traversed, restore window size and end conjunction
+                                currentWindowSize = oldWindowSize;
                                 return DocIdSetIterator.NO_MORE_DOCS;
                             }
+
+                            // Expansion succeeded
                             globalConjunction = ConjunctionUtils.intersectIterators(newIterators);
 
+                            // Start fresh from beginning of new conjunction
                             int firstDoc = globalConjunction.nextDoc();
                             if (firstDoc != DocIdSetIterator.NO_MORE_DOCS) {
-                                return firstDoc; // Return new starting point
+                                return firstDoc; // Return new starting point to reset min
                             }
+                            return firstDoc; // Return new starting point
+
                         } catch (IOException e) {}
                     }
-
                 }
 
                 return globalConjunction.docID();
+
             }
 
             @Override
