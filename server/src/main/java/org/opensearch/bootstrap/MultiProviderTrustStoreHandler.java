@@ -29,10 +29,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.security.Provider;
 import java.security.Security;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -176,7 +174,7 @@ public class MultiProviderTrustStoreHandler {
         return new TrustStoreProperties(bcfksPath.toAbsolutePath().toString(), BCFKS, JVM_DEFAULT_PASSWORD, BCFIPS);
     }
 
-    private static KeyStore loadJvmDefaultTrustStore(Path javaHome) {
+    protected static KeyStore loadJvmDefaultTrustStore(Path javaHome) {
         var cacertsPath = javaHome.resolve("lib").resolve("security").resolve("cacerts");
         if (!Files.exists(cacertsPath) || !Files.isReadable(cacertsPath)) {
             throw new IllegalStateException("System cacerts not found at: " + cacertsPath);
@@ -184,36 +182,36 @@ public class MultiProviderTrustStoreHandler {
 
         logger.info("Loading system truststore from: {}", cacertsPath);
 
-        KeyStore systemKs = null;
+        KeyStore jvmKeyStore = null;
         for (var type : KNOWN_JDK_TRUSTSTORE_TYPES) {
             try {
-                systemKs = KeyStore.getInstance(type);
-                try (var is = readFileWithPriviledges(cacertsPath)) {
-                    systemKs.load(is, JVM_DEFAULT_PASSWORD.toCharArray());
+                jvmKeyStore = KeyStore.getInstance(type);
+                try (var is = readFileWithPrivilege(cacertsPath)) {
+                    jvmKeyStore.load(is, JVM_DEFAULT_PASSWORD.toCharArray());
                 }
-                int certCount = systemKs.size();
+                int certCount = jvmKeyStore.size();
                 logger.info("Loaded {} certificates from system truststore", certCount);
                 logger.info("Successfully loaded cacerts as {} format", type);
                 break;
             } catch (Exception e) {
                 logger.warn("Failed to load cacerts as {}: {}", type, e.getMessage());
-                systemKs = null;
+                jvmKeyStore = null;
                 // continue
             }
         }
 
-        if (systemKs == null) {
+        if (jvmKeyStore == null) {
             throw new IllegalStateException(
                 "Could not load system cacerts in any known format"
                     + KNOWN_JDK_TRUSTSTORE_TYPES.stream().collect(Collectors.joining(", ", "[", "]"))
             );
         }
 
-        return systemKs;
+        return jvmKeyStore;
     }
 
     @SuppressWarnings("removal")
-    private static InputStream readFileWithPriviledges(Path path) {
+    protected static InputStream readFileWithPrivilege(Path path) {
         return AccessController.doPrivileged((PrivilegedAction<InputStream>) () -> {
             try {
                 return Files.newInputStream(path);
@@ -226,12 +224,12 @@ public class MultiProviderTrustStoreHandler {
     /**
      * Creates a temporary BCFKS formatted trustStore
      */
-    private static Path convertToBCFKS(KeyStore sourceKeyStore, Path tmpDir) {
+    protected static Path convertToBCFKS(KeyStore sourceKeyStore, Path tmpDir) {
         Path tempBcfksFile;
         try {
             tempBcfksFile = Files.createTempFile(tmpDir, TEMP_TRUSTSTORE_PREFIX, TEMP_TRUSTSTORE_SUFFIX);
         } catch (IOException ex) {
-            throw new IllegalStateException("Could not create temporary truststore file", ex);
+            throw new IllegalStateException("Could not create temporary truststore file in [%s]".formatted(tmpDir), ex);
         }
 
         // Register for deletion on JVM exit
@@ -252,46 +250,48 @@ public class MultiProviderTrustStoreHandler {
             bcfksKeyStore = KeyStore.getInstance(BCFKS, BCFIPS);
             bcfksKeyStore.load(null, JVM_DEFAULT_PASSWORD.toCharArray());
 
-            // Copy all certificates from source to BCFKS
-            Enumeration<String> aliases = sourceKeyStore.aliases();
+            copyCerts(sourceKeyStore, bcfksKeyStore, copiedCount);
+            writeBCFKSKeyStoreToFile(bcfksKeyStore, tempBcfksFile);
 
-            while (aliases.hasMoreElements()) {
-                String alias = aliases.nextElement();
+            logger.info("Successfully converted {}/{} certificates to BCFKS format.", bcfksKeyStore.size(), sourceKeyStore.size());
 
-                if (sourceKeyStore.isCertificateEntry(alias)) {
-                    Certificate cert = sourceKeyStore.getCertificate(alias);
-                    if (cert != null) {
-                        try {
-                            bcfksKeyStore.setCertificateEntry(alias, cert);
-                            copiedCount++;
-                        } catch (Exception e) {
-                            logger.trace("Failed to copy certificate '{}': {}", alias, e.getMessage());
-                            // Continue with other certificates
-                        }
-                    }
-                }
+            if (sourceKeyStore.size() > bcfksKeyStore.size()) {
+                logger.warn("{} certificates could not be converted to BCFKS format.", sourceKeyStore.size() - bcfksKeyStore.size());
             }
         } catch (GeneralSecurityException | IOException e) {
             throw new SecurityException(e);
         }
 
-        // Save BCFKS keystore to file using NIO.2
-        try (var file = Files.newOutputStream(tempBcfksFile)) {
-            bcfksKeyStore.store(file, JVM_DEFAULT_PASSWORD.toCharArray());
-            logger.info(
-                "Successfully converted {} certificates to BCFKS format out of {} given certificates.",
-                copiedCount,
-                sourceKeyStore.size()
-            );
-
-            if (sourceKeyStore.size() > copiedCount) {
-                logger.warn("{} certificates could not be converted to BCFKS format.", sourceKeyStore.size() - copiedCount);
-            }
-        } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
-            throw new IllegalStateException("Failed to write BCFKS keystore: " + e.getMessage(), e);
-        }
-
         return tempBcfksFile;
+    }
+
+    private static void copyCerts(KeyStore source, KeyStore target, int copiedCount) throws KeyStoreException {
+        var aliases = source.aliases();
+
+        while (aliases.hasMoreElements()) {
+            var alias = aliases.nextElement();
+
+            if (source.isCertificateEntry(alias)) {
+                var cert = source.getCertificate(alias);
+                if (cert != null) {
+                    try {
+                        target.setCertificateEntry(alias, cert);
+                        copiedCount++;
+                    } catch (Exception e) {
+                        logger.trace("Failed to copy certificate '{}': {}", alias, e.getMessage());
+                        // Continue with other certificates
+                    }
+                }
+            }
+        }
+    }
+
+    protected static void writeBCFKSKeyStoreToFile(KeyStore bcfksKeyStore, Path tempBcfksFile) {
+        try (var outputStream = Files.newOutputStream(tempBcfksFile)) {
+            bcfksKeyStore.store(outputStream, JVM_DEFAULT_PASSWORD.toCharArray());
+        } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException e) {
+            throw new IllegalStateException("Failed to write BCFKS keystore to [%s]: ".formatted(tempBcfksFile) + e.getMessage(), e);
+        }
     }
 
     /**

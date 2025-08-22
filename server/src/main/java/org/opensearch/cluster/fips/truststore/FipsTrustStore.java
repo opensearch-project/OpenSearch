@@ -35,7 +35,7 @@ public class FipsTrustStore {
             if (strValue == null || strValue.isBlank()) {
                 return PREDEFINED;
             } else {
-                strValue = strValue.toUpperCase(Locale.ROOT);
+                strValue = strValue.trim().toUpperCase(Locale.ROOT);
                 try {
                     return TrustStoreSource.valueOf(strValue);
                 } catch (IllegalArgumentException e) {
