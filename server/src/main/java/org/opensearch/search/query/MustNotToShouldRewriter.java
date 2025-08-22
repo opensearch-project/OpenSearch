@@ -206,7 +206,20 @@ public class MustNotToShouldRewriter implements QueryRewriter {
                 if (pointValues != null) {
                     int docCount = pointValues.getDocCount();
                     long valueCount = pointValues.size();
+                    // Check if all documents have exactly one value
                     if (docCount != valueCount) {
+                        return false;
+                    }
+                    // Also check if all documents in the segment have a value for this field
+                    // If some documents are missing the field, we can't do the optimization
+                    // because the semantics change (missing values won't match positive queries)
+                    int maxDoc = leafReaderContext.reader().maxDoc();
+                    if (docCount != maxDoc) {
+                        return false;
+                    }
+                } else {
+                    // If there are no point values but there are documents, some docs are missing the field
+                    if (leafReaderContext.reader().maxDoc() > 0) {
                         return false;
                     }
                 }
