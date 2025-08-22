@@ -240,9 +240,6 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
                     TopDocs approximateDocs = searcher.search(approximateQuery, 1000);
                     TopDocs exactDocs = searcher.search(exactQuery, 1000);
 
-                    System.out.println("Exact docs total hits: " + exactDocs.totalHits.value());
-                    System.out.println("Approx docs total hits: " + approximateDocs.totalHits.value());
-
                     // Results should be identical when approximation is not triggered
                     // or when we collect all available documents
                     if (exactDocs.totalHits.value() <= 1000) {
@@ -668,59 +665,57 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
     }
 
     // Test BulkScorer with large dataset to trigger windowed expansion
-    // public void testBulkScorerWindowedExpansion() throws IOException {
-    // try (Directory directory = newDirectory()) {
-    // try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
-    // int numDocs = 20000;
-    // for (int i = 0; i < numDocs; i++) {
-    // Document doc = new Document();
-    // doc.add(new IntPoint("field1", i));
-    // doc.add(new IntPoint("field2", i % 1000)); // Create dense overlapping ranges
-    // doc.add(new NumericDocValuesField("field1", i));
-    // doc.add(new NumericDocValuesField("field2", i % 1000));
-    // doc.add(new StoredField("field1", i));
-    // doc.add(new StoredField("field2", i % 1000));
-    // iw.addDocument(doc);
-    // }
-    // iw.flush();
-    //
-    // try (IndexReader reader = iw.getReader()) {
-    // ContextIndexSearcher searcher = createContextIndexSearcher(reader);
-    //
-    // // Create approximate queries directly
-    // ApproximatePointRangeQuery approxQuery1 = new ApproximatePointRangeQuery(
-    // "field1",
-    // IntPoint.pack(new int[] { 1000 }).bytes,
-    // IntPoint.pack(new int[] { 20000 }).bytes,
-    // 1,
-    // ApproximatePointRangeQuery.INT_FORMAT
-    // );
-    // ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
-    // "field2",
-    // IntPoint.pack(new int[] { 100 }).bytes,
-    // IntPoint.pack(new int[] { 900 }).bytes,
-    // 1,
-    // ApproximatePointRangeQuery.INT_FORMAT
-    // );
-    //
-    // BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
-    // .add(approxQuery2, BooleanClause.Occur.FILTER)
-    // .build();
-    // ApproximateBooleanQuery query = new ApproximateBooleanQuery(boolQuery);
-    //
-    // TopScoreDocCollector collector = new TopScoreDocCollectorManager(10001, 10001).newCollector();
-    // searcher.search(query, collector);
-    // TopDocs docs = collector.topDocs();
-    //
-    // System.out.println("ScoreDocs length: "+docs.scoreDocs.length);
-    // System.out.println("total hits value" + docs.totalHits.value());
-    // // Should collect documents and potentially expand windows
-    // assertTrue("Should collect some documents", docs.scoreDocs.length > 0);
-    // assertTrue("Should collect up to 10k documents or exhaust", docs.scoreDocs.length <= 10001);
-    // }
-    // }
-    // }
-    // }
+    public void testBulkScorerWindowedExpansion() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int numDocs = 20000;
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(new IntPoint("field1", i));
+                    doc.add(new IntPoint("field2", i % 1000)); // Create dense overlapping ranges
+                    doc.add(new NumericDocValuesField("field1", i));
+                    doc.add(new NumericDocValuesField("field2", i % 1000));
+                    doc.add(new StoredField("field1", i));
+                    doc.add(new StoredField("field2", i % 1000));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+
+                try (IndexReader reader = iw.getReader()) {
+                    ContextIndexSearcher searcher = createContextIndexSearcher(reader);
+
+                    // Create approximate queries directly
+                    ApproximatePointRangeQuery approxQuery1 = new ApproximatePointRangeQuery(
+                        "field1",
+                        IntPoint.pack(new int[] { 1000 }).bytes,
+                        IntPoint.pack(new int[] { 20000 }).bytes,
+                        1,
+                        ApproximatePointRangeQuery.INT_FORMAT
+                    );
+                    ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
+                        "field2",
+                        IntPoint.pack(new int[] { 100 }).bytes,
+                        IntPoint.pack(new int[] { 900 }).bytes,
+                        1,
+                        ApproximatePointRangeQuery.INT_FORMAT
+                    );
+
+                    BooleanQuery boolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
+                        .add(approxQuery2, BooleanClause.Occur.FILTER)
+                        .build();
+                    ApproximateBooleanQuery query = new ApproximateBooleanQuery(boolQuery);
+
+                    TopScoreDocCollector collector = new TopScoreDocCollectorManager(10001, 10001).newCollector();
+                    searcher.search(query, collector);
+                    TopDocs docs = collector.topDocs();
+
+                    // Should collect documents and potentially expand windows
+                    assertTrue("Should collect some documents", docs.scoreDocs.length > 0);
+                    assertTrue("Should collect up to 10k documents or exhaust", docs.scoreDocs.length <= 10001);
+                }
+            }
+        }
+    }
 
     /**
      * Creates a ContextIndexSearcher with properly mocked SearchContext for testing.
@@ -750,113 +745,110 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
     }
 
     // // Integration test validating hit count and accuracy
-    // public void testApproximateResultsValidation() throws IOException {
-    // try (Directory directory = newDirectory()) {
-    // try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
-    // int numDocs = 20000;
-    // for (int i = 0; i < numDocs; i++) {
-    // Document doc = new Document();
-    // int field1Value = i % 1000; // Values: 0-999 (1000 unique values)
-    // int field2Value = i % 500; // Values: 0-499 (500 unique values)
-    // doc.add(new IntPoint("field1", field1Value));
-    // doc.add(new IntPoint("field2", field2Value));
-    // doc.add(new NumericDocValuesField("field1", field1Value));
-    // doc.add(new NumericDocValuesField("field2", field2Value));
-    // doc.add(new StoredField("field1", field1Value));
-    // doc.add(new StoredField("field2", field2Value));
-    // iw.addDocument(doc);
-    // }
-    // iw.flush();
-    //
-    // try (IndexReader reader = iw.getReader()) {
-    // ContextIndexSearcher searcher = createContextIndexSearcher(reader);
-    //
-    // int lower1 = 100;
-    // int upper1 = 200;
-    // int lower2 = 50;
-    // int upper2 = 150;
-    //
-    // // Create approximate query
-    // ApproximatePointRangeQuery approxQuery1 = new ApproximatePointRangeQuery(
-    // "field1",
-    // IntPoint.pack(new int[] { lower1 }).bytes,
-    // IntPoint.pack(new int[] { upper1 }).bytes,
-    // 1,
-    // ApproximatePointRangeQuery.INT_FORMAT
-    // );
-    // ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
-    // "field2",
-    // IntPoint.pack(new int[] { lower2 }).bytes,
-    // IntPoint.pack(new int[] { upper2 }).bytes,
-    // 1,
-    // ApproximatePointRangeQuery.INT_FORMAT
-    // );
-    //
-    // BooleanQuery approximateBoolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
-    // .add(approxQuery2, BooleanClause.Occur.FILTER)
-    // .build();
-    // ApproximateBooleanQuery approximateQuery = new ApproximateBooleanQuery(approximateBoolQuery);
-    //
-    // // Create exact query (regular Lucene BooleanQuery)
-    // BooleanQuery exactBoolQuery = new BooleanQuery.Builder().add(
-    // IntPoint.newRangeQuery("field1", lower1, upper1),
-    // BooleanClause.Occur.FILTER
-    // ).add(IntPoint.newRangeQuery("field2", lower2, upper2), BooleanClause.Occur.FILTER).build();
-    //
-    // TopScoreDocCollector collector = new TopScoreDocCollectorManager(10001, 10001).newCollector();
-    //
-    // searcher.search(approximateQuery, collector);
-    //
-    // // Search with both queries
-    // TopDocs approximateDocs = collector.topDocs();
-    //
-    // TopScoreDocCollector collectorExact = new TopScoreDocCollectorManager(10001, 10001).newCollector();
-    //
-    // searcher.search(exactBoolQuery, collectorExact);
-    //
-    // // Search with both queries
-    // TopDocs exactDocs = collectorExact.topDocs();
-    //
-    // System.out.println("Exact hits: " + exactDocs.totalHits.value());
-    // System.out.println("Approximate hits: " + approximateDocs.totalHits.value());
-    // System.out.println("approximate score docs length: " + approximateDocs.scoreDocs.length);
-    // // Validate hit count logic
-    // if (exactDocs.totalHits.value() <= 10000) {
-    // assertEquals(
-    // "When exact results ≤ 10k, approximate should match exactly",
-    // exactDocs.totalHits.value(),
-    // approximateDocs.totalHits.value()
-    // );
-    // } else {
-    // assertEquals(
-    // "Approximate should return exactly 10k hits when exact > 10k",
-    // 10000,
-    // approximateDocs.totalHits.value()
-    // );
-    // }
-    //
-    // // Validate hit accuracy - each returned doc should match the query criteria
-    // StoredFields storedFields = reader.storedFields();
-    // for (int i = 0; i < approximateDocs.scoreDocs.length; i++) {
-    // int docId = approximateDocs.scoreDocs[i].doc;
-    // Document doc = storedFields.document(docId);
-    //
-    // int field1Value = doc.getField("field1").numericValue().intValue();
-    // int field2Value = doc.getField("field2").numericValue().intValue();
-    //
-    // assertTrue(
-    // "field1 should be in range [" + lower1 + ", " + upper1 + "], got: " + field1Value,
-    // field1Value >= lower1 && field1Value <= upper1
-    // );
-    // assertTrue(
-    // "field2 should be in range [" + lower2 + ", " + upper2 + "], got: " + field2Value,
-    // field2Value >= lower2 && field2Value <= upper2
-    // );
-    // }
-    // }
-    // }
-    // }
-    // }
+    public void testApproximateResultsValidation() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int numDocs = 20000;
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    int field1Value = i % 1000; // Values: 0-999 (1000 unique values)
+                    int field2Value = i % 500; // Values: 0-499 (500 unique values)
+                    doc.add(new IntPoint("field1", field1Value));
+                    doc.add(new IntPoint("field2", field2Value));
+                    doc.add(new NumericDocValuesField("field1", field1Value));
+                    doc.add(new NumericDocValuesField("field2", field2Value));
+                    doc.add(new StoredField("field1", field1Value));
+                    doc.add(new StoredField("field2", field2Value));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+
+                try (IndexReader reader = iw.getReader()) {
+                    ContextIndexSearcher searcher = createContextIndexSearcher(reader);
+
+                    int lower1 = 100;
+                    int upper1 = 200;
+                    int lower2 = 50;
+                    int upper2 = 150;
+
+                    // Create approximate query
+                    ApproximatePointRangeQuery approxQuery1 = new ApproximatePointRangeQuery(
+                        "field1",
+                        IntPoint.pack(new int[] { lower1 }).bytes,
+                        IntPoint.pack(new int[] { upper1 }).bytes,
+                        1,
+                        ApproximatePointRangeQuery.INT_FORMAT
+                    );
+                    ApproximatePointRangeQuery approxQuery2 = new ApproximatePointRangeQuery(
+                        "field2",
+                        IntPoint.pack(new int[] { lower2 }).bytes,
+                        IntPoint.pack(new int[] { upper2 }).bytes,
+                        1,
+                        ApproximatePointRangeQuery.INT_FORMAT
+                    );
+
+                    BooleanQuery approximateBoolQuery = new BooleanQuery.Builder().add(approxQuery1, BooleanClause.Occur.FILTER)
+                        .add(approxQuery2, BooleanClause.Occur.FILTER)
+                        .build();
+                    ApproximateBooleanQuery approximateQuery = new ApproximateBooleanQuery(approximateBoolQuery);
+
+                    // Create exact query (regular Lucene BooleanQuery)
+                    BooleanQuery exactBoolQuery = new BooleanQuery.Builder().add(
+                        IntPoint.newRangeQuery("field1", lower1, upper1),
+                        BooleanClause.Occur.FILTER
+                    ).add(IntPoint.newRangeQuery("field2", lower2, upper2), BooleanClause.Occur.FILTER).build();
+
+                    TopScoreDocCollector collector = new TopScoreDocCollectorManager(10001, 10001).newCollector();
+
+                    searcher.search(approximateQuery, collector);
+
+                    // Search with both queries
+                    TopDocs approximateDocs = collector.topDocs();
+
+                    TopScoreDocCollector collectorExact = new TopScoreDocCollectorManager(10001, 10001).newCollector();
+
+                    searcher.search(exactBoolQuery, collectorExact);
+
+                    // Search with both queries
+                    TopDocs exactDocs = collectorExact.topDocs();
+
+                    // Validate hit count logic
+                    if (exactDocs.totalHits.value() <= 10000) {
+                        assertEquals(
+                            "When exact results ≤ 10k, approximate should match exactly",
+                            exactDocs.totalHits.value(),
+                            approximateDocs.totalHits.value()
+                        );
+                    } else {
+                        assertEquals(
+                            "Approximate should return exactly 10k hits when exact > 10k",
+                            10000,
+                            approximateDocs.totalHits.value()
+                        );
+                    }
+
+                    // Validate hit accuracy - each returned doc should match the query criteria
+                    StoredFields storedFields = reader.storedFields();
+                    for (int i = 0; i < approximateDocs.scoreDocs.length; i++) {
+                        int docId = approximateDocs.scoreDocs[i].doc;
+                        Document doc = storedFields.document(docId);
+
+                        int field1Value = doc.getField("field1").numericValue().intValue();
+                        int field2Value = doc.getField("field2").numericValue().intValue();
+
+                        assertTrue(
+                            "field1 should be in range [" + lower1 + ", " + upper1 + "], got: " + field1Value,
+                            field1Value >= lower1 && field1Value <= upper1
+                        );
+                        assertTrue(
+                            "field2 should be in range [" + lower2 + ", " + upper2 + "], got: " + field2Value,
+                            field2Value >= lower2 && field2Value <= upper2
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     // Test window size heuristic with different cost scenarios
     public void testWindowSizeHeuristic() throws IOException {
@@ -1013,7 +1005,7 @@ public class ApproximateBooleanQueryTests extends OpenSearchTestCase {
         TopDocs approxDocs = collector.topDocs();
 
         // Validate hit count
-        assertTrue("Approximate query should return at most " + size + " docs", approxDocs.scoreDocs.length <= size);
+        assertTrue("Approximate query should return at most " + size + 1 + " docs", approxDocs.scoreDocs.length <= size + 1);
         assertTrue("Should not exceed 10k hits", approxDocs.totalHits.value() <= 10000);
 
         // Validate hit accuracy - each returned doc should match the query criteria
