@@ -33,6 +33,7 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
     public final BooleanQuery boolQuery;
     private final int size;
     private final List<BooleanClause> clauses;
+    private boolean isTopLevel = true;  // Default to true, set to false when nested in boolean query
 
     public ApproximateBooleanQuery(BooleanQuery boolQuery) {
         this(boolQuery, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
@@ -46,6 +47,14 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
     public BooleanQuery getBooleanQuery() {
         return boolQuery;
+    }
+
+    public boolean isTopLevel() {
+        return this.isTopLevel;
+    }
+
+    public void setTopLevel(boolean isTopLevel) {
+        this.isTopLevel = isTopLevel;
     }
 
     @Override
@@ -86,6 +95,10 @@ public class ApproximateBooleanQuery extends ApproximateQuery {
 
         // Don't approximate if highlighting is enabled
         if (context.highlight() != null) {
+            return false;
+        }
+
+        if (!isTopLevel) {
             return false;
         }
 
