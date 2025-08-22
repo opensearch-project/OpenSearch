@@ -37,10 +37,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.RatioValue;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -53,200 +51,174 @@ import java.util.Map;
  */
 public class FileCacheThresholdSettings {
 
-    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING = new Setting<>(
-        "cluster.routing.allocation.filecache.watermark.high",
+    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING = new Setting<>(
+        "cluster.routing.allocation.filecache.index.threshold",
         "90%",
-        (s) -> validWatermarkSetting(s, "cluster.routing.allocation.filecache.watermark.high"),
-        new HighDiskWatermarkValidator(),
+        (s) -> validThresholdSetting(s, "cluster.routing.allocation.filecache.index.threshold"),
+        new IndexThresholdBreachValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING = new Setting<>(
-        "cluster.routing.allocation.filecache.watermark.flood_stage",
+    public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING = new Setting<>(
+        "cluster.routing.allocation.filecache.search.threshold",
         "100%",
-        (s) -> validWatermarkSetting(s, "cluster.routing.allocation.filecache.watermark.flood_stage"),
-        new FloodStageValidator(),
+        (s) -> validThresholdSetting(s, "cluster.routing.allocation.filecache.search.threshold"),
+        new SearchThresholdBreachValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    private volatile Double freeFileCacheThresholdHigh;
-    private volatile ByteSizeValue freeBytesThresholdHigh;
-    private volatile Double freeFileCacheThresholdFloodStage;
-    private volatile ByteSizeValue freeBytesThresholdFloodStage;
+    private volatile Double freeFileCacheIndexThreshold;
+    private volatile Double freeFileCacheSearchThreshold;
 
     public FileCacheThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
-        final String highWatermark = CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING.get(settings);
-        final String floodStage = CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING.get(settings);
-        setHighWatermark(highWatermark);
-        setFloodStage(floodStage);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING, this::setHighWatermark);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
+        final String index = CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.get(settings);
+        final String searchStage = CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.get(settings);
+        setIndexThreshold(index);
+        setSearchThreshold(searchStage);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING, this::setIndexThreshold);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING, this::setSearchThreshold);
     }
 
     /**
-     * Validates a high file cache watermark.
+     * Validates a index file cache threshold.
      *
      * @opensearch.internal
      */
-    static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
+    static final class IndexThresholdBreachValidator implements Setting.Validator<String> {
         @Override
         public void validate(final String value) {}
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING);
-            doValidate(value, floodStageRaw);
+            final String searchThreshold = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING);
+            doValidate(value, searchThreshold);
         }
 
         @Override
         public Iterator<Setting<?>> settings() {
-            final List<Setting<?>> settings = Arrays.asList(CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING);
+            final List<Setting<?>> settings = List.of(CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING);
             return settings.iterator();
         }
     }
 
     /**
-     * Validates the flood stage.
+     * Validates the search file cache threshold.
      *
      * @opensearch.internal
      */
-    static final class FloodStageValidator implements Setting.Validator<String> {
+    static final class SearchThresholdBreachValidator implements Setting.Validator<String> {
 
         @Override
         public void validate(final String value) {}
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING);
-            doValidate(highWatermarkRaw, value);
+            final String indexThreshold = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING);
+            doValidate(indexThreshold, value);
         }
 
         @Override
         public Iterator<Setting<?>> settings() {
-            final List<Setting<?>> settings = Arrays.asList(CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING);
+            final List<Setting<?>> settings = List.of(CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING);
             return settings.iterator();
         }
     }
 
-    private static void doValidate(String high, String flood) {
+    private static void doValidate(String high, String search) {
         try {
-            doValidateAsPercentage(high, flood);
-            return; // early return so that we do not try to parse as bytes
+            doValidateAsPercentage(high, search);
+            return;
         } catch (final OpenSearchParseException e) {
             // swallow as we are now going to try to parse as bytes
         }
         try {
-            doValidateAsBytes(high, flood);
+            doValidateAsBytes(high, search);
         } catch (final OpenSearchParseException e) {
             final String message = String.format(
                 Locale.ROOT,
                 "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
-                CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING.getKey(),
+                CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.getKey(),
                 high,
-                CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
-                flood
+                CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.getKey(),
+                search
             );
             throw new IllegalArgumentException(message, e);
         }
     }
 
-    private static void doValidateAsPercentage(final String high, final String flood) {
-        final double highWatermarkThreshold = thresholdPercentageFromWatermark(high, false);
-        final double floodThreshold = thresholdPercentageFromWatermark(flood, false);
-        if (highWatermarkThreshold > floodThreshold) {
+    private static void doValidateAsPercentage(final String index, final String search) {
+        final double indexThreshold = thresholdPercentageFromValue(index, false);
+        final double searchThreshold = thresholdPercentageFromValue(search, false);
+        if (indexThreshold > searchThreshold) {
             throw new IllegalArgumentException(
-                "high file cache watermark [" + high + "] more than flood stage file cache watermark [" + flood + "]"
+                "index file cache threshold [" + index + "] more than search file cache threshold [" + search + "]"
             );
         }
     }
 
-    private static void doValidateAsBytes(final String high, final String flood) {
-        final ByteSizeValue highWatermarkBytes = thresholdBytesFromWatermark(
-            high,
-            CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING.getKey(),
+    private static void doValidateAsBytes(final String index, final String search) {
+        final ByteSizeValue indexBytes = thresholdBytesFromValue(
+            index,
+            CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.getKey(),
             false
         );
-        final ByteSizeValue floodStageBytes = thresholdBytesFromWatermark(
-            flood,
-            CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
+        final ByteSizeValue searchStageBytes = thresholdBytesFromValue(
+            search,
+            CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.getKey(),
             false
         );
-        if (highWatermarkBytes.getBytes() < floodStageBytes.getBytes()) {
+        if (indexBytes.getBytes() < searchStageBytes.getBytes()) {
             throw new IllegalArgumentException(
-                "high file cache watermark [" + high + "] less than flood stage file cache watermark [" + flood + "]"
+                "index file cache threshold [" + index + "] less than search file cache threshold [" + search + "]"
             );
         }
     }
 
-    private void setHighWatermark(String highWatermark) {
-        // Watermark is expressed in terms of used data, but we need "free" data watermark
-        this.freeFileCacheThresholdHigh = 100.0 - thresholdPercentageFromWatermark(highWatermark);
-        this.freeBytesThresholdHigh = thresholdBytesFromWatermark(
-            highWatermark,
-            CLUSTER_ROUTING_ALLOCATION_HIGH_FILECACHE_WATERMARK_SETTING.getKey()
-        );
+    private void setIndexThreshold(String index) {
+        this.freeFileCacheIndexThreshold = thresholdPercentageFromValue(index);
     }
 
-    private void setFloodStage(String floodStageRaw) {
-        // Watermark is expressed in terms of used data, but we need "free" data watermark
-        this.freeFileCacheThresholdFloodStage = 100.0 - thresholdPercentageFromWatermark(floodStageRaw);
-        this.freeBytesThresholdFloodStage = thresholdBytesFromWatermark(
-            floodStageRaw,
-            CLUSTER_ROUTING_ALLOCATION_FILECACHE_FLOOD_STAGE_WATERMARK_SETTING.getKey()
-        );
+    private void setSearchThreshold(String search) {
+        this.freeFileCacheSearchThreshold = thresholdPercentageFromValue(search);
     }
 
-    public Double getFreeFileCacheThresholdHigh() {
-        return freeFileCacheThresholdHigh;
+    public Double getFreeFileCacheIndexThreshold() {
+        return freeFileCacheIndexThreshold;
     }
 
-    public ByteSizeValue getFreeBytesThresholdHigh() {
-        return freeBytesThresholdHigh;
+    public Double getFreeFileCacheSearchThreshold() {
+        return freeFileCacheSearchThreshold;
     }
 
-    public Double getFreeFileCacheThresholdFloodStage() {
-        return freeFileCacheThresholdFloodStage;
+    String describeIndexThreshold() {
+        return freeFileCacheIndexThreshold + "%";
     }
 
-    public ByteSizeValue getFreeBytesThresholdFloodStage() {
-        return freeBytesThresholdFloodStage;
-    }
-
-    String describeHighThreshold() {
-        return freeBytesThresholdHigh.equals(ByteSizeValue.ZERO)
-            ? Strings.format1Decimals(100.0 - freeFileCacheThresholdHigh, "%")
-            : freeBytesThresholdHigh.toString();
-    }
-
-    String describeFloodStageThreshold() {
-        return freeBytesThresholdFloodStage.equals(ByteSizeValue.ZERO)
-            ? Strings.format1Decimals(100.0 - freeFileCacheThresholdFloodStage, "%")
-            : freeBytesThresholdFloodStage.toString();
+    String describeSearchThreshold() {
+        return freeFileCacheSearchThreshold + "%";
     }
 
     /**
-     * Attempts to parse the watermark into a percentage, returning 100.0% if
+     * Attempts to parse the into a percentage, returning 100.0% if
      * it cannot be parsed.
      */
-    private static double thresholdPercentageFromWatermark(String watermark) {
-        return thresholdPercentageFromWatermark(watermark, true);
+    private static double thresholdPercentageFromValue(String value) {
+        return thresholdPercentageFromValue(value, true);
     }
 
     /**
-     * Attempts to parse the watermark into a percentage, returning 100.0% if it can not be parsed and the specified lenient parameter is
+     * Attempts to parse the into a percentage, returning 100.0% if it can not be parsed and the specified lenient parameter is
      * true, otherwise throwing an {@link OpenSearchParseException}.
      *
-     * @param watermark the watermark to parse as a percentage
+     * @param value   the to parse as a percentage
      * @param lenient true if lenient parsing should be applied
      * @return the parsed percentage
      */
-    private static double thresholdPercentageFromWatermark(String watermark, boolean lenient) {
+    private static double thresholdPercentageFromValue(String value, boolean lenient) {
         try {
-            return RatioValue.parseRatioValue(watermark).getAsPercent();
+            return RatioValue.parseRatioValue(value).getAsPercent();
         } catch (OpenSearchParseException ex) {
-            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
-            // cases separately
             if (lenient) {
                 return 100.0;
             }
@@ -255,28 +227,18 @@ public class FileCacheThresholdSettings {
     }
 
     /**
-     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning
-     * a ByteSizeValue of 0 bytes if the value cannot be parsed.
-     */
-    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName) {
-        return thresholdBytesFromWatermark(watermark, settingName, true);
-    }
-
-    /**
-     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
+     * Attempts to parse the into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
      * parameter is true, otherwise throwing an {@link OpenSearchParseException}.
      *
-     * @param watermark the watermark to parse as a byte size
+     * @param value       the to parse as a byte size
      * @param settingName the name of the setting
-     * @param lenient true if lenient parsing should be applied
+     * @param lenient     true if lenient parsing should be applied
      * @return the parsed byte size value
      */
-    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName, boolean lenient) {
+    private static ByteSizeValue thresholdBytesFromValue(String value, String settingName, boolean lenient) {
         try {
-            return ByteSizeValue.parseBytesSizeValue(watermark, settingName);
+            return ByteSizeValue.parseBytesSizeValue(value, settingName);
         } catch (OpenSearchParseException ex) {
-            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
-            // cases separately
             if (lenient) {
                 return ByteSizeValue.parseBytesSizeValue("0b", settingName);
             }
@@ -285,20 +247,21 @@ public class FileCacheThresholdSettings {
     }
 
     /**
-     * Checks if a watermark string is a valid percentage or byte size value,
-     * @return the watermark value given
+     * Checks if a string is a valid percentage or byte size value,
+     *
+     * @return the value given
      */
-    private static String validWatermarkSetting(String watermark, String settingName) {
+    private static String validThresholdSetting(String value, String settingName) {
         try {
-            RatioValue.parseRatioValue(watermark);
+            RatioValue.parseRatioValue(value);
         } catch (OpenSearchParseException e) {
             try {
-                ByteSizeValue.parseBytesSizeValue(watermark, settingName);
+                ByteSizeValue.parseBytesSizeValue(value, settingName);
             } catch (OpenSearchParseException ex) {
                 ex.addSuppressed(e);
                 throw ex;
             }
         }
-        return watermark;
+        return value;
     }
 }

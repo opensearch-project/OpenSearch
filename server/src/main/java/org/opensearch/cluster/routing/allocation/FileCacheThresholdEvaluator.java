@@ -25,7 +25,7 @@ public interface FileCacheThresholdEvaluator {
      * @param aggregateFileCacheStats disk usage for the node
      * @return true if the node is exceeding the high watermark, false otherwise
      */
-    boolean isNodeExceedingHighWatermark(AggregateFileCacheStats aggregateFileCacheStats);
+    boolean isNodeExceedingIndexingThreshold(AggregateFileCacheStats aggregateFileCacheStats);
 
     /**
      * Checks if a node is exceeding the flood stage watermark threshold
@@ -33,6 +33,6 @@ public interface FileCacheThresholdEvaluator {
      * @param aggregateFileCacheStats disk usage for the node
      * @return true if the node is exceeding the flood stage watermark, false otherwise
      */
-    boolean isNodeExceedingFloodStageWatermark(AggregateFileCacheStats aggregateFileCacheStats);
+    boolean isNodeExceedingSearchThreshold(AggregateFileCacheStats aggregateFileCacheStats);
 
 }
