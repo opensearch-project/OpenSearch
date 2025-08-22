@@ -39,7 +39,7 @@ opensearchplugin {
 
 versions << [
   'tika'  : '3.2.2',
-  'pdfbox': '2.0.31',
+  'pdfbox': '3.0.5',
   'poi'   : '5.4.1',
   'mime4j': '0.8.11'
 ]
@@ -79,6 +79,7 @@ dependencies {
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
+  api "org.apache.pdfbox:pdfbox-io:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   // OpenOffice
