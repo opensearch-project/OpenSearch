@@ -650,6 +650,6 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         assertThat(stats.getCount(), equalTo(count));
         assertThat(stats.getCurrent(), equalTo(current));
         assertThat(stats.getFailedCount(), equalTo(failed));
-        assertThat(stats.getTotalTimeInMillis(), equalTo(time));
+        assertThat(stats.getTotalTime(), equalTo(time));
     }
 }
