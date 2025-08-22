@@ -810,9 +810,9 @@ public class IndicesService extends AbstractLifecycleComponent
         }
         if (flags.getIncludeIndicesStatsByLevel()) {
             NodeIndicesStats.StatsLevel statsLevel = NodeIndicesStats.getAcceptedLevel(flags.getLevels());
-            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, statsLevel);
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, statusCounterStats, statsLevel);
         } else {
-            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats);
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, statusCounterStats);
         }
     }
 
@@ -1367,10 +1367,10 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * @param stats Instance storing {@link DocStatusStats}
      */
-    /*@Deprecated(since = "3.3.0")
+    @Deprecated(since = "3.3.0")
     public void addDocStatusStats(final org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats stats) {
         oldShardsStats.indexingStats.getTotal().getDocStatusStats().add(stats);
-    }*/
+    }
 
     /**
      * Accumulate stats from the passed Object
