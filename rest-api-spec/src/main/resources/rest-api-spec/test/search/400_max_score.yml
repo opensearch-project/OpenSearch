@@ -33,7 +33,7 @@ teardown:
 ---
 "Test max score with sorting on score firstly":
   - skip:
-      version: " - 3.2.0"
+      version: " - 3.1.99"
       reason: Fixed in 3.2.0
 
   - do:
@@ -61,7 +61,7 @@ teardown:
 ---
 "Test max score with sorting on score firstly with concurrent segment search enabled":
   - skip:
-      version: " - 3.2.0"
+      version: " - 3.1.99"
       reason: Fixed in 3.2.0
 
   - do:

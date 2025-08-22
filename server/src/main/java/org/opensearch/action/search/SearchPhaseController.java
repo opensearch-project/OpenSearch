@@ -78,6 +78,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -779,6 +780,21 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
+        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, () -> false);
+    }
+
+    /**
+     * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
+     */
+    QueryPhaseResultConsumer newSearchPhaseResults(
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchProgressListener listener,
+        SearchRequest request,
+        int numShards,
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled
+    ) {
         return new QueryPhaseResultConsumer(
             request,
             executor,
@@ -787,7 +803,8 @@ public final class SearchPhaseController {
             listener,
             namedWriteableRegistry,
             numShards,
-            onPartialMergeFailure
+            onPartialMergeFailure,
+            isTaskCancelled
         );
     }
 

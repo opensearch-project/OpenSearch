@@ -109,13 +109,19 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         // "org.apache.kafka.common.serialization.StringDeserializer");
         //
         // wrap the kafka consumer creation in a privileged block to apply plugin security policies
-        return AccessController.doPrivileged(
-            (PrivilegedAction<Consumer<byte[], byte[]>>) () -> new KafkaConsumer<>(
-                consumerProp,
-                new ByteArrayDeserializer(),
-                new ByteArrayDeserializer()
-            )
-        );
+        final ClassLoader restore = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(KafkaPlugin.class.getClassLoader());
+            return AccessController.doPrivileged(
+                (PrivilegedAction<Consumer<byte[], byte[]>>) () -> new KafkaConsumer<>(
+                    consumerProp,
+                    new ByteArrayDeserializer(),
+                    new ByteArrayDeserializer()
+                )
+            );
+        } finally {
+            Thread.currentThread().setContextClassLoader(restore);
+        }
     }
 
     @Override

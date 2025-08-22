@@ -1080,21 +1080,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Metadata that is currently loaded
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
-        static class LoadedMetadata {
-            final Map<String, StoreFileMetadata> fileMetadata;
-            final Map<String, String> userData;
-            final long numDocs;
+        @PublicApi(since = "3.2.0")
+        public static class LoadedMetadata {
+            public final Map<String, StoreFileMetadata> fileMetadata;
+            public final Map<String, String> userData;
+            public final long numDocs;
 
-            LoadedMetadata(Map<String, StoreFileMetadata> fileMetadata, Map<String, String> userData, long numDocs) {
+            public LoadedMetadata(Map<String, StoreFileMetadata> fileMetadata, Map<String, String> userData, long numDocs) {
                 this.fileMetadata = fileMetadata;
                 this.userData = userData;
                 this.numDocs = numDocs;
             }
         }
 
-        static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
+        public static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 return loadMetadata(segmentCommitInfos, directory, logger);
@@ -1125,11 +1126,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         }
 
-        static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
+        public static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger) throws IOException {
             return loadMetadata(segmentInfos, directory, logger, false);
         }
 
-        static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger, boolean ignoreSegmentsFile)
+        public static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger, boolean ignoreSegmentsFile)
             throws IOException {
             long numDocs = Lucene.getNumDocs(segmentInfos);
             Map<String, String> commitUserDataBuilder = new HashMap<>();
@@ -1732,8 +1733,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A listener that is executed once the store is closed and all references to it are released
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "3.2.0")
     public interface OnClose extends Consumer<ShardLock> {
         OnClose EMPTY = new OnClose() {
             /**
