@@ -48,4 +48,28 @@ public interface BlobMetadata {
      * Gets the size of the blob in bytes.
      */
     long length();
+
+    /**
+     * Gets the version ID of this blob, if available.
+     * @return The version ID, or null if versioning is not enabled or this is not a versioned access
+     */
+    default String versionId() {
+        return null;
+    }
+
+    /**
+     * Gets the ETag of this blob, if available.
+     * @return The ETag, or null if not available
+     */
+    default String eTag() {
+        return null;
+    }
+
+    /**
+     * Gets the last modified timestamp of this blob.
+     * @return Last modified time in milliseconds since epoch, or 0 if not available
+     */
+    default long lastModified() {
+        return 0L;
+    }
 }
