@@ -1368,7 +1368,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param stats Instance storing {@link org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats}
      */
     public void addDocStatusStats(final org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats stats) {
-        
+
     }
 
     /**
