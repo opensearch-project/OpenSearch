@@ -1,7 +1,9 @@
 ---
 "Metric - blank":
   - skip:
+      version: " - 3.2.99"
       features: [arbitrary_key]
+      reason: "Status Counter was introduced in v3.3.0"
   - do:
       nodes.info: {}
   - set:
@@ -31,6 +33,8 @@
 "Metric - _all":
   - skip:
       features: [arbitrary_key]
+      version: " - 3.2.99"
+      reason: "Status Counter was introduced in v3.3.0"
   - do:
       nodes.info: {}
   - set:
@@ -60,6 +64,8 @@
 "Metric - indices _all":
   - skip:
       features: [arbitrary_key]
+      version: " - 3.2.99"
+      reason: "Status Counter was introduced in v3.3.0"
   - do:
       nodes.info: {}
   - set:
@@ -89,6 +95,8 @@
 "Metric - one":
   - skip:
       features: [arbitrary_key]
+      version: " - 3.2.99"
+      reason: "Status Counter was introduced in v3.3.0"
   - do:
       nodes.info: {}
   - set:
@@ -118,6 +126,8 @@
 "Metric - multi":
   - skip:
       features: [arbitrary_key]
+      version: " - 3.2.99"
+      reason: "Status Counter was introduced in v3.3.0"
   - do:
       nodes.info: {}
   - set:
@@ -146,8 +156,8 @@
 ---
 "Metric - indexing doc_status":
   - skip:
-      version: " - 2.10.99"
-      reason: "Doc Status Stats were introduced in v2.11.0"
+      version: " - 3.2.99"
+      reason: "Doc Status Stats were introduced in v2.11.0 and moved to Status Counter in v3.3.0"
   - do:
       nodes.info: {}
   - set:
