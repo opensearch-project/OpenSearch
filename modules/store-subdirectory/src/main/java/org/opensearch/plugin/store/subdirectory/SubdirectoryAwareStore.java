@@ -39,9 +39,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * SubdirectoryAwareStore extends Store to provide subdirectory file handling capabilities.
- * This allows files to be stored in subdirectories outside the standard Lucene index directory
- * while still integrating with OpenSearch's recovery and replication mechanisms.
+ * A store implementation that supports files organized in subdirectories.
+ *
+ * This store extends the standard OpenSearch Store to handle files that may be
+ * located in subdirectories within the shard data path. It provides full support
+ * for peer recovery operations by ensuring subdirectory files are properly
+ * transferred between nodes.
+ *
+ * The store wraps the underlying Lucene Directory with a {@link SubdirectoryAwareDirectory}
+ * that handles path resolution and file operations across subdirectories.
  */
 public class SubdirectoryAwareStore extends Store {
 
@@ -183,7 +189,11 @@ public class SubdirectoryAwareStore extends Store {
     }
 
     /**
-     * Custom Directory wrapper that handles subdirectory files
+     * A Lucene Directory implementation that handles files in subdirectories.
+     *
+     * This directory wrapper enables file operations across subdirectories within
+     * the shard data path. It resolves paths, creates necessary directory structures,
+     * and delegates actual file operations to appropriate filesystem locations.
      */
     public static class SubdirectoryAwareDirectory extends FilterDirectory {
         private final ShardPath shardPath;

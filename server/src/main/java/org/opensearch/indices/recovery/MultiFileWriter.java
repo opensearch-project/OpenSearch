@@ -64,6 +64,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
+    private static final char PATH_SEPARATOR = '/';
+
     public MultiFileWriter(Store store, ReplicationLuceneIndex indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
         super("multi_file_writer");
         this.store = store;
@@ -95,7 +97,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     /** Get a temporary name for the provided file name. */
     String getTempNameForFile(String origFile) {
         // Handle path-like filenames by adding the temp prefix to just the filename part
-        int lastSlashIndex = origFile.lastIndexOf('/');
+        int lastSlashIndex = origFile.lastIndexOf(PATH_SEPARATOR);
         if (lastSlashIndex != -1) {
             // File has a path: "path/segments_1" -> "path/recovery.xxx.segments_1"
             String directory = origFile.substring(0, lastSlashIndex + 1);
