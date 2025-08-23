@@ -94,7 +94,17 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     /** Get a temporary name for the provided file name. */
     String getTempNameForFile(String origFile) {
-        return tempFilePrefix + origFile;
+        // Handle path-like filenames by adding the temp prefix to just the filename part
+        int lastSlashIndex = origFile.lastIndexOf('/');
+        if (lastSlashIndex != -1) {
+            // File has a path: "path/segments_1" -> "path/recovery.xxx.segments_1"
+            String directory = origFile.substring(0, lastSlashIndex + 1);
+            String fileName = origFile.substring(lastSlashIndex + 1);
+            return directory + tempFilePrefix + fileName;
+        } else {
+            // Simple filename: "segments_1" -> "recovery.xxx.segments_1"
+            return tempFilePrefix + origFile;
+        }
     }
 
     public Map<String, String> getTempFileNames() {
