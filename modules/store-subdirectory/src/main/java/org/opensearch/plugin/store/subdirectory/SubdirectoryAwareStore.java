@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  * A store implementation that supports files organized in subdirectories.
  *
  * This store extends the standard OpenSearch Store to handle files that may be
- * located in subdirectories within the shard data path. It provides full support
+ * located in subdirectories within the shard data path. It provides support
  * for peer recovery operations by ensuring subdirectory files are properly
  * transferred between nodes.
  *

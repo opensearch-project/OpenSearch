@@ -10,7 +10,7 @@
  * OpenSearch plugin that provides subdirectory-aware store functionality.
  *
  * This package contains classes that enable OpenSearch stores to handle files
- * organized in subdirectories within shard data paths, with full support for
+ * organized in subdirectories within shard data paths, with support for
  * peer recovery operations.
  *
  * <h2>Key Components:</h2>

@@ -56,7 +56,7 @@ public class SubdirectoryStorePlugin extends Plugin implements IndexStorePlugin 
      * Factory for creating {@link SubdirectoryAwareStore} instances.
      *
      * This factory creates stores that can handle files organized in
-     * subdirectories within shard data paths, with full support for
+     * subdirectories within shard data paths, with support for
      * peer recovery operations.
      */
     static class SubdirectoryStoreFactory implements StoreFactory {
@@ -70,7 +70,6 @@ public class SubdirectoryStorePlugin extends Plugin implements IndexStorePlugin 
          * @param onClose callback to execute when the store is closed
          * @param shardPath the path information for the shard
          * @return a new SubdirectoryAwareStore instance
-         * @throws IOException if store creation fails
          */
         @Override
         public Store newStore(
@@ -80,7 +79,7 @@ public class SubdirectoryStorePlugin extends Plugin implements IndexStorePlugin 
             ShardLock shardLock,
             Store.OnClose onClose,
             ShardPath shardPath
-        ) throws IOException {
+        ) {
             return new SubdirectoryAwareStore(shardId, indexSettings, directory, shardLock, onClose, shardPath);
         }
     }

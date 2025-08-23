@@ -77,7 +77,7 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test_index").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
-        // Force flush and wait for completion to ensure stable state
+
         client().admin().indices().prepareFlush("test_index").get();
         client().admin().indices().prepareRefresh("test_index").get();
 
