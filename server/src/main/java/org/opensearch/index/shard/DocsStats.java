@@ -32,7 +32,6 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -49,7 +48,6 @@ import java.io.IOException;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-@DeprecatedApi(since = "3.3.0")
 public class DocsStats implements Writeable, ToXContentFragment {
 
     private long count = 0;

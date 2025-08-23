@@ -160,12 +160,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long noopUpdateCount;
         private long throttleTimeInMillis;
         private boolean isThrottled;
-        private final DocStatusStats docStatusStats;
         private long maxLastIndexRequestTimestamp;
 
-        Stats() {
-            docStatusStats = new DocStatusStats();
-        }
+        Stats() {}
 
         public Stats(StreamInput in) throws IOException {
             indexCount = in.readVLong();
@@ -183,11 +180,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             } else {
                 maxLastIndexRequestTimestamp = 0L;
             }
-            if (in.getVersion().onOrAfter(Version.V_2_11_0) && in.getVersion().onOrBefore(Version.V_3_3_0)) {
-                docStatusStats = in.readOptionalWriteable(DocStatusStats::new);
-            } else {
-                docStatusStats = null;
-            }
         }
 
         public Stats(
@@ -200,8 +192,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long deleteCurrent,
             long noopUpdateCount,
             boolean isThrottled,
-            long throttleTimeInMillis,
-            DocStatusStats docStatusStats
+            long throttleTimeInMillis
         ) {
             this(
                 indexCount,
@@ -214,7 +205,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 noopUpdateCount,
                 isThrottled,
                 throttleTimeInMillis,
-                docStatusStats,
                 0L
             );
         }
@@ -230,7 +220,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long noopUpdateCount,
             boolean isThrottled,
             long throttleTimeInMillis,
-            DocStatusStats docStatusStats,
             long maxLastIndexRequestTimestamp
         ) {
             this.indexCount = indexCount;
@@ -243,7 +232,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.noopUpdateCount = noopUpdateCount;
             this.isThrottled = isThrottled;
             this.throttleTimeInMillis = throttleTimeInMillis;
-            this.docStatusStats = docStatusStats;
             this.maxLastIndexRequestTimestamp = maxLastIndexRequestTimestamp;
         }
 
@@ -260,10 +248,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount += stats.noopUpdateCount;
             throttleTimeInMillis += stats.throttleTimeInMillis;
             isThrottled |= stats.isThrottled; // When combining if one is throttled set result to throttled.
-
-            if (getDocStatusStats() != null) {
-                getDocStatusStats().add(stats.getDocStatusStats());
-            }
 
             maxLastIndexRequestTimestamp = Math.max(maxLastIndexRequestTimestamp, stats.maxLastIndexRequestTimestamp);
         }
@@ -335,10 +319,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return noopUpdateCount;
         }
 
-        public DocStatusStats getDocStatusStats() {
-            return docStatusStats;
-        }
-
         public long getMaxLastIndexRequestTimestamp() {
             return maxLastIndexRequestTimestamp;
         }
@@ -358,9 +338,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
                 out.writeLong(maxLastIndexRequestTimestamp);
             }
-            if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
-                out.writeOptionalWriteable(docStatusStats);
-            }
         }
 
         @Override
@@ -378,10 +355,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
             builder.field(Fields.IS_THROTTLED, isThrottled);
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
-
-            if (getDocStatusStats() != null) {
-                getDocStatusStats().toXContent(builder, params);
-            }
 
             builder.field(Fields.MAX_LAST_INDEX_REQUEST_TIMESTAMP, maxLastIndexRequestTimestamp);
 
