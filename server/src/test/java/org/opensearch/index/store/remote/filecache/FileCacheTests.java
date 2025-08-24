@@ -51,10 +51,6 @@ public class FileCacheTests extends OpenSearchTestCase {
         return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL);
     }
 
-    private FileCache createCircuitBreakingFileCache(long capacity) {
-        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL);
-    }
-
     private Path createPath(String middle) {
         return path.resolve(middle).resolve(FAKE_PATH_SUFFIX);
     }
