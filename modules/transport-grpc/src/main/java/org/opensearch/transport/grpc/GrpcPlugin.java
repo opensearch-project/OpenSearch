@@ -7,6 +7,7 @@
  */
 package org.opensearch.transport.grpc;
 
+import io.grpc.ServerInterceptor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -30,6 +31,8 @@ import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.grpc.interceptor.GrpcInterceptorProvider;
+import org.opensearch.transport.grpc.interceptor.OrderedGrpcInterceptor;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
@@ -38,11 +41,7 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 import io.grpc.BindableService;
@@ -73,6 +72,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
+    private final List<ServerInterceptor> serverInterceptors = new ArrayList<>();
 
     /**
      * Creates a new GrpcPlugin instance.
@@ -102,6 +102,17 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             logger.info("Successfully loaded {} QueryBuilderProtoConverter extensions", extensions.size());
         } else {
             logger.info("No QueryBuilderProtoConverter extensions found from other plugins");
+        }
+        List<GrpcInterceptorProvider> providers = loader.loadExtensions(GrpcInterceptorProvider.class);
+        if (providers != null) {
+            List<OrderedGrpcInterceptor> orderedList = new ArrayList<>();
+            for (GrpcInterceptorProvider provider : providers) {
+                orderedList.addAll(provider.getOrderedGrpcInterceptors());
+            }
+            orderedList.sort(Comparator.comparingInt(OrderedGrpcInterceptor::getOrder));
+            for (OrderedGrpcInterceptor ordered : orderedList) {
+                serverInterceptors.add(ordered.getInterceptor());
+            }
         }
     }
 
@@ -163,7 +174,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         );
         return Collections.singletonMap(
             GRPC_TRANSPORT_SETTING_KEY,
-            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService)
+            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService, serverInterceptors)
         );
     }
 
@@ -206,7 +217,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         );
         return Collections.singletonMap(
             GRPC_SECURE_TRANSPORT_SETTING_KEY,
-            () -> new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider)
+            () -> new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider, serverInterceptors)
         );
     }
 
