@@ -35,8 +35,6 @@ package org.opensearch.monitor.fs;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
@@ -132,8 +130,7 @@ public class FsProbeTests extends OpenSearchTestCase {
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
             FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
                 gbByteSizeValue.getBytes(),
-                16,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+                16
             );
             FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);
@@ -172,8 +169,7 @@ public class FsProbeTests extends OpenSearchTestCase {
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
             FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
                 gbByteSizeValue.getBytes(),
-                16,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+                16
             );
 
             FsProbe probe = new FsProbe(env, fileCache);

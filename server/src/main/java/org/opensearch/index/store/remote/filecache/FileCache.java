@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
@@ -61,11 +59,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     private static final Logger logger = LogManager.getLogger(FileCache.class);
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 
-    private final CircuitBreaker circuitBreaker;
-
-    public FileCache(SegmentedCache<Path, CachedIndexInput> cache, CircuitBreaker circuitBreaker) {
+    public FileCache(SegmentedCache<Path, CachedIndexInput> cache) {
         this.theCache = cache;
-        this.circuitBreaker = circuitBreaker;
     }
 
     public long capacity() {
@@ -74,7 +69,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     @Override
     public CachedIndexInput put(Path filePath, CachedIndexInput indexInput) {
-        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.put(filePath, indexInput);
         return cachedIndexInput;
     }
@@ -84,7 +78,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         Path key,
         BiFunction<? super Path, ? super CachedIndexInput, ? extends CachedIndexInput> remappingFunction
     ) {
-        checkParentBreaker();
         CachedIndexInput cachedIndexInput = theCache.compute(key, remappingFunction);
         return cachedIndexInput;
     }
@@ -202,22 +195,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     // To be used only in testing framework.
     public void closeIndexInputReferences() {
         theCache.closeIndexInputReferences();
-    }
-
-    /**
-     * Ensures that the PARENT breaker is not tripped when an entry is added to the cache
-     */
-    private void checkParentBreaker() {
-        try {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(0, "filecache_entry");
-        } catch (CircuitBreakingException ex) {
-            throw new CircuitBreakingException(
-                "Unable to create file cache entries",
-                ex.getBytesWanted(),
-                ex.getByteLimit(),
-                ex.getDurability()
-            );
-        }
     }
 
     /**
