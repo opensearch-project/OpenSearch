@@ -277,11 +277,6 @@ thirdPartyAudit {
     'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
     'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
     'org.graalvm.nativeimage.hosted.RuntimeReflection',
-    //slf4j dependencies
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
-    'org.slf4j.spi.LoggingEventBuilder',
   )
 }
 
