@@ -15,7 +15,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
-import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterSpiRegistry;
 
 /**
  * Registry for QueryBuilderProtoConverter implementations.

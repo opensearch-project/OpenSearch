@@ -22,9 +22,9 @@ public interface QueryBuilderProtoConverter {
 }
 ```
 
-### QueryBuilderProtoConverterSpiRegistry
+### QueryBuilderProtoConverterRegistry
 
-Registry that manages and discovers all available query converters. External plugins can register their custom converters through this registry.
+Interface for accessing the query converter registry. This provides a clean abstraction for plugins that need to convert nested queries without exposing internal implementation details.
 
 ## Usage for Plugin Developers
 

@@ -5,12 +5,13 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.transport.grpc.spi;
+package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

@@ -9,14 +9,22 @@
 /**
  * Service Provider Interface (SPI) for extending gRPC transport query conversion capabilities.
  * <p>
- * This package provides the core interfaces and registry for implementing custom query converters
+ * This package provides a minimal, stable API for implementing custom query converters
  * that can transform protobuf query messages into OpenSearch QueryBuilder objects. External plugins
  * can implement the {@link org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter} interface
  * to add support for custom query types in gRPC requests.
  * </p>
  * <p>
- * The SPI mechanism leverages OpenSearch's {@code ExtensiblePlugin} framework, which internally
- * uses Java's {@code ServiceLoader} for discovery. Plugins must:
+ * The SPI contains only two interfaces:
+ * </p>
+ * <ul>
+ *   <li>{@link org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter} -
+ *       Interface for implementing custom query converters</li>
+ *   <li>{@link org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry} -
+ *       Interface for accessing the registry to convert nested queries</li>
+ * </ul>
+ * <p>
+ * The SPI mechanism leverages OpenSearch's {@code ExtensiblePlugin} framework. Plugins must:
  * </p>
  * <ul>
  *   <li>Implement {@link org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter}</li>
