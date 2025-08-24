@@ -8,6 +8,7 @@
 
 package org.opensearch.transport.grpc.ssl;
 
+import io.grpc.ServerInterceptor;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -74,14 +75,16 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
      * @param services the gRPC compatible services to be registered with the server.
      * @param networkService the bind/publish addresses.
      * @param secureTransportSettingsProvider TLS configuration settings.
+     * @param serverInterceptors the gRPC server interceptors to be registered with the server.
      */
     public SecureNetty4GrpcServerTransport(
         Settings settings,
         List<BindableService> services,
         NetworkService networkService,
-        SecureAuxTransportSettingsProvider secureTransportSettingsProvider
+        SecureAuxTransportSettingsProvider secureTransportSettingsProvider,
+        List<ServerInterceptor> serverInterceptors
     ) {
-        super(settings, services, networkService);
+        super(settings, services, networkService, serverInterceptors);
         this.port = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.get(settings);
         this.portSettingKey = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.getKey();
         try {
