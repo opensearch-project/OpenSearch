@@ -13,8 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
@@ -46,8 +44,7 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     protected static final int EIGHT_MB = 1024 * 1024 * 8;
     protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
         EIGHT_MB * 2,
-        1,
-        new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+        1
     );
     protected MMapDirectory directory;
     protected TransferManager transferManager;
