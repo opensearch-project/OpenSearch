@@ -128,10 +128,7 @@ public class FsProbeTests extends OpenSearchTestCase {
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ByteSizeValue gbByteSizeValue = new ByteSizeValue(1, ByteSizeUnit.GB);
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
-            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-                gbByteSizeValue.getBytes(),
-                16
-            );
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(gbByteSizeValue.getBytes(), 16);
             FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);
             assertNotNull(stats);
@@ -167,10 +164,7 @@ public class FsProbeTests extends OpenSearchTestCase {
             final long totalSpace = adjustForHugeFilesystems(env.fileCacheNodePath().fileStore.getTotalSpace());
             ByteSizeValue gbByteSizeValue = new ByteSizeValue(totalSpace, ByteSizeUnit.BYTES);
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
-            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-                gbByteSizeValue.getBytes(),
-                16
-            );
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(gbByteSizeValue.getBytes(), 16);
 
             FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);

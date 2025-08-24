@@ -309,10 +309,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testUsage() {
-        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-            16 * MEGA_BYTES,
-            1
-        );
+        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(16 * MEGA_BYTES, 1);
         putAndDecRef(fileCache, 0, 16 * MEGA_BYTES);
 
         long expectedCacheUsage = 16 * MEGA_BYTES;
