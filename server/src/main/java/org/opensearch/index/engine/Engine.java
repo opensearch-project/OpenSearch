@@ -762,6 +762,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
+                    // TODO : this should return
                     assert assertSearcherIsWarmedUp(source, scope);
                     return new Searcher(
                         source,
@@ -1439,8 +1440,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
      *
      * @opensearch.api
      */
+
     @PublicApi(since = "1.0.0")
     public static final class Searcher extends IndexSearcher implements Releasable {
+        // TODO : this extends index searcher
         private final String source;
         private final Closeable onClose;
 

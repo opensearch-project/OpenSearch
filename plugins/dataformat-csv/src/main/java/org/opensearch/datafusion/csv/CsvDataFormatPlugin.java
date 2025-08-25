@@ -8,9 +8,13 @@
 
 package org.opensearch.datafusion.csv;
 
+import org.opensearch.datafusion.csv.engine.exec.CsvDataFormat;
+import org.opensearch.datafusion.csv.engine.exec.CsvEngine;
+import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.vectorized.execution.spi.DataSourceCodec;
+import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,5 +43,15 @@ public class CsvDataFormatPlugin extends Plugin implements DataSourcePlugin {
         codecs.put("csv-v1", new CsvDataSourceCodec());
         return Optional.of(codecs);
         // return Optional.empty();
+    }
+
+    @Override
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine() {
+        return (IndexingExecutionEngine<T>) new CsvEngine();
+    }
+
+    @Override
+    public DataFormat getDataFormat() {
+        return new CsvDataFormat();
     }
 }

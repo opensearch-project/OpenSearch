@@ -14,8 +14,8 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.datafusion.core.GlobalRuntimeEnv;
-import org.opensearch.vectorized.execution.spi.DataSourceCodec;
-import org.opensearch.vectorized.execution.spi.RecordBatchStream;
+import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
 import java.util.List;
 import java.util.Map;

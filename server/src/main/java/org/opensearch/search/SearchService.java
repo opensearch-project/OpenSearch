@@ -100,6 +100,7 @@ import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.ScriptService;
@@ -424,6 +425,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final FetchPhase fetchPhase;
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
+    private final List<DataSourcePlugin> dataSourcePluginList;
 
     private volatile long defaultKeepAlive;
 
@@ -472,7 +474,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers
+        List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
+        List<DataSourcePlugin> dataSourcePluginList
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -500,7 +503,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 this::setPitKeepAlives,
                 this::validatePitKeepAlives
             );
-
+        this.dataSourcePluginList = dataSourcePluginList;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DEFAULT_KEEPALIVE_SETTING, MAX_KEEPALIVE_SETTING, this::setKeepAlives, this::validateKeepAlives);
 
@@ -1068,6 +1071,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());
+        // TODO acquire search supplier
         Engine.SearcherSupplier reader = shard.acquireSearcherSupplier();
         return createAndPutReaderContext(request, indexService, shard, reader, keepStatesInContext);
     }

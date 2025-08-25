@@ -10,4 +10,4 @@
  * Service Provider Interface (SPI) for DataFusion data source codecs.
  * Defines interfaces for implementing different data format support.
  */
-package org.opensearch.vectorized.execution.spi;
+package org.opensearch.vectorized.execution.search.spi;
