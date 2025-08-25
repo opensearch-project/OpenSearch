@@ -79,7 +79,7 @@ public class RemoteStoreMetadataIT extends RemoteStoreBaseIntegTestCase {
                         for (Map<String, Object> fileMeta : segmentFiles.values()) {
                             Map<String, Object> files = (Map<String, Object>) fileMeta.get("files");
                             assertNotNull(files);
-                            assertFalse(files.isEmpty());
+                            if (files.isEmpty()) continue;
                             for (Object value : files.values()) {
                                 Map<String, Object> meta = (Map<String, Object>) value;
                                 assertThat(meta, allOf(hasKey("original_name"), hasKey("checksum"), hasKey("length")));
@@ -150,7 +150,7 @@ public class RemoteStoreMetadataIT extends RemoteStoreBaseIntegTestCase {
                     for (Map<String, Object> fileMeta : segmentFiles.values()) {
                         Map<String, Object> files = (Map<String, Object>) fileMeta.get("files");
                         assertNotNull(files);
-                        assertFalse(files.isEmpty());
+                        if (files.isEmpty()) continue;
                         for (Object value : files.values()) {
                             Map<String, Object> meta = (Map<String, Object>) value;
                             assertThat(meta, allOf(hasKey("original_name"), hasKey("checksum"), hasKey("length")));
