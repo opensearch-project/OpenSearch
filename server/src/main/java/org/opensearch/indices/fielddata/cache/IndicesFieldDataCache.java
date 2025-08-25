@@ -160,15 +160,23 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     public synchronized void clearMarkedKeys() {
         if (indicesToClear.isEmpty() && fieldsToClear.isEmpty()) return;
 
-        for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
+        for (Iterator<Key> iterator = getCache().keys().iterator(); iterator.hasNext();) {
             Key key = iterator.next();
             if (indicesToClear.contains(key.indexCache.index)) {
-                iterator.remove();
+                try {
+                    iterator.remove();
+                } catch (Exception e) {
+                    logger.warn("Exception occurred while removing key from cache", e);
+                }
                 continue;
             }
             Set<String> fieldsOfIndexToClear = fieldsToClear.get(key.indexCache.index);
             if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
-                iterator.remove();
+                try {
+                    iterator.remove();
+                } catch (Exception e) {
+                    logger.warn("Exception occurred while removing key from cache", e);
+                }
             }
         }
         indicesToClear.clear();
