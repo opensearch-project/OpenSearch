@@ -1652,7 +1652,7 @@ public class MetadataCreateIndexService {
 
         // ensure write operations on the source index is blocked
         if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                 "index " + sourceIndex + " must block write operations to resize index. use \"index.blocks.write=true\""
             );
         }
