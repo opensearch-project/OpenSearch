@@ -50,6 +50,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
+import org.opensearch.rest.StreamingRestChannel;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -139,6 +140,11 @@ public class RestSearchAction extends BaseRestHandler {
         boolean stream = request.paramAsBoolean("stream", false);
         if (stream) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
+                // Set scoring mode if provided
+                String scoringMode = request.param("stream_scoring_mode");
+                if (scoringMode != null) {
+                    searchRequest.setStreamingScoringMode(scoringMode);
+                }
                 return channel -> {
                     RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                     cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));

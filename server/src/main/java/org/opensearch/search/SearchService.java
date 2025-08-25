@@ -779,11 +779,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
+            SearchContext context = createContext(readerContext, request, task, true, isStreamSearch || request.isStreamingSearch())
         ) {
-            if (isStreamSearch) {
-                assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
-                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
+            if (isStreamSearch || request.isStreamingSearch()) {
+                if (listener instanceof StreamSearchChannelListener) {
+                    context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
+                }
             }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {

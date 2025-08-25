@@ -475,6 +475,14 @@ public class QueryPhase {
             if (queryCollectorContextOpt.isPresent()) {
                 return queryCollectorContextOpt.get();
             } else {
+                // Check if we should use streaming scoring
+                if (StreamingScoringHelper.isStreamingEnabled(searchContext)) {
+                    try {
+                        return StreamingScoringHelper.createStreamingContext(searchContext, hasFilterCollector);
+                    } catch (IOException e) {
+                        // Fall back to regular collector
+                    }
+                }
                 return createTopDocsCollectorContext(searchContext, hasFilterCollector);
             }
         }

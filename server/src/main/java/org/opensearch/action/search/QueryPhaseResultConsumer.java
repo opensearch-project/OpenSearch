@@ -235,7 +235,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             SearchShardTarget target = result.getSearchShardTarget();
             processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
         }
-        progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        // For streaming search with TopDocs, use the new notification method
+        if (hasTopDocs && newTopDocs != null) {
+            progressListener.notifyPartialReduceWithTopDocs(processedShards, topDocsStats.getTotalHits(), newTopDocs, newAggs, numReducePhases);
+        } else {
+            progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        }
         // we leave the results un-serialized because serializing is slow but we compute the serialized
         // size as an estimate of the memory used by the newly reduced aggregations.
         long serializedSize = hasAggs ? newAggs.getSerializedSize() : 0;
