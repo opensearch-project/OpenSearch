@@ -141,7 +141,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.total_fields.limit",
-        1000L,
+        10000L,
         0,
         Property.Dynamic,
         Property.IndexScope

@@ -8,14 +8,19 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.vectorized.execution.spi.DataSourceCodec;
+import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 
 import java.util.Map;
 import java.util.Optional;
 
 public interface DataSourcePlugin {
-    // TODO : move to vectorized exec specific plugin
     default Optional<Map<String, DataSourceCodec>> getDataSourceCodecs() {
         return Optional.empty();
     }
+
+    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine();
+
+    DataFormat getDataFormat();
 }

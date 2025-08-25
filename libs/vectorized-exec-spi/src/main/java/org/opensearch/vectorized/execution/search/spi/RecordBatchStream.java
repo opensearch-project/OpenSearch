@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.vectorized.execution.spi;
+package org.opensearch.vectorized.execution.search.spi;
 
 import java.util.concurrent.CompletableFuture;
 

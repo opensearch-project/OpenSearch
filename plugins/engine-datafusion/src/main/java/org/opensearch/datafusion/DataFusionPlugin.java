@@ -31,7 +31,7 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
-import org.opensearch.vectorized.execution.spi.DataSourceCodec;
+import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;

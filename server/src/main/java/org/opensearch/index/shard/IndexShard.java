@@ -2208,6 +2208,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new OpenSearchException("failed to wrap searcher", ex);
         } finally {
             if (success == false) {
+                // TODO important
                 Releasables.close(success, searcher);
             }
         }

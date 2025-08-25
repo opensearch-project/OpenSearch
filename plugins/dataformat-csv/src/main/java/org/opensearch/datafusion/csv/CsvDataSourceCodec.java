@@ -10,8 +10,8 @@ package org.opensearch.datafusion.csv;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.vectorized.execution.spi.DataSourceCodec;
-import org.opensearch.vectorized.execution.spi.RecordBatchStream;
+import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
