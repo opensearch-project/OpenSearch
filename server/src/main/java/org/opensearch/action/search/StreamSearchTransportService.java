@@ -123,6 +123,24 @@ public class StreamSearchTransportService extends SearchTransportService {
                 ThreadPool.Names.STREAM_SEARCH
             )
         );
+
+        // Override QUERY_ACTION_NAME to enable streaming for query phase
+        transportService.registerRequestHandler(
+            QUERY_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
+            ShardSearchRequest::new,
+            (request, channel, task) -> searchService.executeQueryPhase(
+                request,
+                false,
+                (SearchShardTask) task,
+                new StreamSearchChannelListener<>(channel, QUERY_ACTION_NAME, request),
+                ThreadPool.Names.STREAM_SEARCH,
+                true  // isStreamSearch = true for streaming
+            )
+        );
     }
 
     @Override
