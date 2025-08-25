@@ -48,6 +48,8 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.transport.Transports;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -63,8 +65,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @opensearch.internal
  */
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
-
-    private static final char PATH_SEPARATOR = '/';
 
     public MultiFileWriter(Store store, ReplicationLuceneIndex indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
         super("multi_file_writer");
@@ -96,17 +96,11 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     /** Get a temporary name for the provided file name. */
     String getTempNameForFile(String origFile) {
-        // Handle path-like filenames by adding the temp prefix to just the filename part
-        int lastSlashIndex = origFile.lastIndexOf(PATH_SEPARATOR);
-        if (lastSlashIndex != -1) {
-            // File has a path: "path/segments_1" -> "path/recovery.xxx.segments_1"
-            String directory = origFile.substring(0, lastSlashIndex + 1);
-            String fileName = origFile.substring(lastSlashIndex + 1);
-            return directory + tempFilePrefix + fileName;
-        } else {
-            // Simple filename: "segments_1" -> "recovery.xxx.segments_1"
-            return tempFilePrefix + origFile;
-        }
+        Path filePath = Paths.get(origFile);
+        Path name = filePath.getFileName();
+        String prefixedName = tempFilePrefix + name;
+        Path parent = filePath.getParent();
+        return parent == null ? prefixedName : parent.resolve(prefixedName).toString();
     }
 
     public Map<String, String> getTempFileNames() {

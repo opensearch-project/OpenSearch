@@ -26,6 +26,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,7 +54,7 @@ public class SubdirectoryAwareStore extends Store {
 
     private static final Logger logger = LogManager.getLogger(SubdirectoryAwareStore.class);
 
-    private static final String PATH_SEPARATOR = "/";
+    private static final String PATH_SEPARATOR = File.separator;
     private static final String SEGMENTS_FILE_PREFIX = "segments_";
 
     private final Directory directory;
