@@ -75,10 +75,7 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
 
     private static final Logger logger = LogManager.getLogger(FileCache.class);
 
-    private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-        1024 * 1024,
-        1
-    );
+    private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024, 1);
     private final Map<ShardId, Path> files = new HashMap<>();
     private NodeEnvironment env;
     private FileCacheCleaner cleaner;

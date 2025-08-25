@@ -42,10 +42,7 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     protected static final int EIGHT_MB = 1024 * 1024 * 8;
-    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-        EIGHT_MB * 2,
-        1
-    );
+    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(EIGHT_MB * 2, 1);
     protected MMapDirectory directory;
     protected TransferManager transferManager;
     protected ThreadPool threadPool;
