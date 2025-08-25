@@ -282,8 +282,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
                 mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
                 nodeFileCacheStats = Collections.unmodifiableMap(
-                    nodesStatsResponse.getNodes()
-                        .stream()
+                    adjustNodesStats(nodesStatsResponse.getNodes()).stream()
                         .filter(nodeStats -> nodeStats.getNode().isWarmNode())
                         .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getFileCacheStats))
                 );
