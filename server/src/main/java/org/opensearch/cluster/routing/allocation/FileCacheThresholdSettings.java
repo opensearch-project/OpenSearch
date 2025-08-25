@@ -68,8 +68,8 @@ public class FileCacheThresholdSettings {
         Setting.Property.NodeScope
     );
 
-    private volatile Double freeFileCacheIndexThreshold;
-    private volatile Double freeFileCacheSearchThreshold;
+    private volatile Double fileCacheIndexThreshold;
+    private volatile Double fileCacheSearchThreshold;
 
     public FileCacheThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String index = CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.get(settings);
@@ -176,27 +176,27 @@ public class FileCacheThresholdSettings {
     }
 
     private void setIndexThreshold(String index) {
-        this.freeFileCacheIndexThreshold = thresholdPercentageFromValue(index);
+        this.fileCacheIndexThreshold = thresholdPercentageFromValue(index);
     }
 
     private void setSearchThreshold(String search) {
-        this.freeFileCacheSearchThreshold = thresholdPercentageFromValue(search);
+        this.fileCacheSearchThreshold = thresholdPercentageFromValue(search);
     }
 
-    public Double getFreeFileCacheIndexThreshold() {
-        return freeFileCacheIndexThreshold;
+    public Double getFileCacheIndexThreshold() {
+        return fileCacheIndexThreshold;
     }
 
-    public Double getFreeFileCacheSearchThreshold() {
-        return freeFileCacheSearchThreshold;
+    public Double getFileCacheSearchThreshold() {
+        return fileCacheSearchThreshold;
     }
 
     String describeIndexThreshold() {
-        return freeFileCacheIndexThreshold + "%";
+        return fileCacheIndexThreshold + "%";
     }
 
     String describeSearchThreshold() {
-        return freeFileCacheSearchThreshold + "%";
+        return fileCacheSearchThreshold + "%";
     }
 
     /**
