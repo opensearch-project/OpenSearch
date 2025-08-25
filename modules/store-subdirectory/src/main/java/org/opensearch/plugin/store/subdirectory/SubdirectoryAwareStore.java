@@ -14,10 +14,10 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLock;
@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -136,22 +137,21 @@ public class SubdirectoryAwareStore extends Store {
         throws IOException {
         // Parse the directory path from the segments file path
         // e.g., "subdir/path/segments_1" -> "subdir/path"
-        int lastSlash = segmentsFilePath.lastIndexOf(PATH_SEPARATOR);
-        if (lastSlash == -1) {
-            return 0; // Invalid path
+        Path filePath = Paths.get(segmentsFilePath);
+        Path parent = filePath.getParent();
+        if (parent == null) {
+            return 0; // Invalid path - no parent directory
         }
 
-        String subdirectoryPath = segmentsFilePath.substring(0, lastSlash);
-        String segmentsFileName = segmentsFilePath.substring(lastSlash + 1);
+        String segmentsFileName = filePath.getFileName().toString();
+        Path subdirectoryFullPath = this.shardPath().getDataPath().resolve(parent);
 
-        Path subdirectoryFullPath = this.shardPath().getDataPath().resolve(subdirectoryPath);
-
-        try (Directory subdirectory = new MMapDirectory(subdirectoryFullPath)) {
+        try (Directory subdirectory = FSDirectory.open(subdirectoryFullPath)) {
             // Read the SegmentInfos from the segments file
             SegmentInfos segmentInfos = SegmentInfos.readCommit(subdirectory, segmentsFileName);
 
             // Use the same pattern as Store.loadMetadata to extract file metadata
-            loadMetadataFromSegmentInfos(segmentInfos, subdirectory, builder, subdirectoryPath + PATH_SEPARATOR);
+            loadMetadataFromSegmentInfos(segmentInfos, subdirectory, builder, parent);
 
             // Return the number of documents in this segments file
             return Lucene.getNumDocs(segmentInfos);
@@ -165,7 +165,7 @@ public class SubdirectoryAwareStore extends Store {
         SegmentInfos segmentInfos,
         Directory directory,
         Map<String, StoreFileMetadata> builder,
-        String pathPrefix
+        Path pathPrefix
     ) throws IOException {
         // Reuse the existing Store.loadMetadata method
         Store.MetadataSnapshot.LoadedMetadata loadedMetadata = Store.MetadataSnapshot.loadMetadata(
@@ -175,9 +175,9 @@ public class SubdirectoryAwareStore extends Store {
             false
         );
 
-        // Add all files with proper path prefix
+        // Add all files with proper relative path prefix
         for (StoreFileMetadata metadata : loadedMetadata.fileMetadata.values()) {
-            String prefixedName = pathPrefix + metadata.name();
+            String prefixedName = pathPrefix.resolve(metadata.name()).toString();
             StoreFileMetadata prefixedMetadata = new StoreFileMetadata(
                 prefixedName,
                 metadata.length(),
