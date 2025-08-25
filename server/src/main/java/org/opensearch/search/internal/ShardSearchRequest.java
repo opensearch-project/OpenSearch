@@ -106,6 +106,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
+    private boolean streamingSearch = false;
 
     // these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
@@ -173,6 +174,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
+        
+        // Set streaming search flag from search request
+        this.streamingSearch = searchRequest.isStreamingScoring();
     }
 
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
@@ -395,6 +399,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public void setInboundNetworkTime(long newTime) {
         this.inboundNetworkTime = newTime;
+    }
+    
+    public boolean isStreamingSearch() {
+        return streamingSearch;
+    }
+    
+    public void setStreamingSearch(boolean streamingSearch) {
+        this.streamingSearch = streamingSearch;
     }
 
     public long getOutboundNetworkTime() {
