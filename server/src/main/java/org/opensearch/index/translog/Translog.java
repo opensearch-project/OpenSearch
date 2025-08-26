@@ -204,6 +204,30 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     /**
+     * Constructor that does not accept channelFactory parameter but accepts translogOperationHelper
+     */
+    public Translog(
+        final TranslogConfig config,
+        final String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final TranslogOperationHelper translogOperationHelper
+    ) throws IOException {
+        this(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            translogOperationHelper,
+            null
+        );
+    }
+
+    /**
      * Secondary constructor, this should only be called if index is normal and not for derived source
      */
     public Translog(
