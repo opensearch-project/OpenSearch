@@ -56,6 +56,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.sort.SortOrder;
@@ -111,6 +112,7 @@ public class CircuitBreakerServiceIT extends ParameterizedStaticSettingsOpenSear
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, randomIntBetween(1, 2))
+            .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s")
             .build();
     }
 
