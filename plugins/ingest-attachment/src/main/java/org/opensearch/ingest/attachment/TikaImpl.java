@@ -32,6 +32,16 @@
 
 package org.opensearch.ingest.attachment;
 
+import org.apache.fontbox.FontBoxFont;
+import org.apache.fontbox.ttf.TTFParser;
+import org.apache.fontbox.ttf.TrueTypeFont;
+import org.apache.pdfbox.io.RandomAccessReadBuffer;
+import org.apache.pdfbox.pdmodel.font.CIDFontMapping;
+import org.apache.pdfbox.pdmodel.font.FontMapper;
+import org.apache.pdfbox.pdmodel.font.FontMappers;
+import org.apache.pdfbox.pdmodel.font.FontMapping;
+import org.apache.pdfbox.pdmodel.font.PDCIDSystemInfo;
+import org.apache.pdfbox.pdmodel.font.PDFontDescriptor;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
@@ -47,6 +57,7 @@ import org.opensearch.common.io.PathUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
 import java.net.URISyntaxException;
@@ -74,6 +85,44 @@ import java.util.Set;
  * Do NOT make public
  */
 final class TikaImpl {
+
+    static {
+        /*
+         * Stop PDFBox from consulting the OS for fonts at all, use classpath instead with dummy fonts because font
+         * does not matter for ingestion
+         */
+        FontMappers.set(new FontMapper() {
+            @Override
+            public FontMapping<TrueTypeFont> getTrueTypeFont(String baseFont, PDFontDescriptor fd) {
+                try (InputStream in = TikaImpl.class.getResourceAsStream("/fonts/Roboto-Regular.ttf")) {
+                    if (in == null) return new FontMapping<>(null, true);
+                    byte[] bytes = in.readAllBytes();
+                    TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBuffer(bytes));
+                    return new FontMapping<>(ttf, true);
+                } catch (IOException e) {
+                    return new FontMapping<>(null, true);
+                }
+            }
+
+            @Override
+            public FontMapping<FontBoxFont> getFontBoxFont(String baseFont, PDFontDescriptor fd) {
+                try (InputStream in = TikaImpl.class.getResourceAsStream("/fonts/Roboto-Regular.ttf")) {
+                    if (in == null) return new FontMapping<>(null, true);
+                    byte[] bytes = in.readAllBytes();
+                    TrueTypeFont ttf = new TTFParser().parse(new RandomAccessReadBuffer(bytes));
+                    return new FontMapping<>(ttf, true);
+                } catch (IOException e) {
+                    return new FontMapping<>(null, true);
+                }
+            }
+
+            @Override
+            public CIDFontMapping getCIDFont(String baseFont, PDFontDescriptor fd, PDCIDSystemInfo cid) {
+                // No CID substitutions from the OS either; signal "fallback only".
+                return new CIDFontMapping(null, null, true);
+            }
+        });
+    }
 
     /** Exclude some formats */
     private static final Set<MediaType> EXCLUDES = new HashSet<>(

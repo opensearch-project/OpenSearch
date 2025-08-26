@@ -43,7 +43,4 @@ grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   // PDFBox checks for the existence of this class
   permission java.lang.RuntimePermission "accessClassInPackage.sun.java2d.cmm.kcms";
-  permission java.io.FilePermission "/System/Library/Fonts/-", "read";
-  permission java.io.FilePermission "/Library/Fonts/-", "read";
-  permission java.io.FilePermission "/usr/share/fonts/-", "read";
 };
