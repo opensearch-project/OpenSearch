@@ -122,6 +122,7 @@ forbiddenPatterns {
   exclude '**/*.pdf'
   exclude '**/*.epub'
   exclude '**/*.vsdx'
+  exclude '**/*.ttf'
 }
 
 thirdPartyAudit {
