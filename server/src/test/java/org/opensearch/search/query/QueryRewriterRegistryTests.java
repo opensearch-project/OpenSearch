@@ -216,4 +216,85 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         assertTrue(result.must().size() >= 1);
         assertTrue(result.filter().size() >= 1);
     }
+
+    public void testCustomRewriterRegistration() {
+        // Create a custom rewriter for testing
+        QueryRewriter customRewriter = new QueryRewriter() {
+            @Override
+            public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
+                if (query instanceof TermQueryBuilder) {
+                    TermQueryBuilder termQuery = (TermQueryBuilder) query;
+                    if ("test_field".equals(termQuery.fieldName()) && "test_value".equals(termQuery.value())) {
+                        // Replace with a different query
+                        return QueryBuilders.termQuery("custom_field", "custom_value");
+                    }
+                } else if (query instanceof BoolQueryBuilder) {
+                    // Recursively apply to nested queries
+                    BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
+                    BoolQueryBuilder rewritten = new BoolQueryBuilder();
+
+                    // Copy settings
+                    rewritten.boost(boolQuery.boost());
+                    rewritten.queryName(boolQuery.queryName());
+                    rewritten.minimumShouldMatch(boolQuery.minimumShouldMatch());
+                    rewritten.adjustPureNegative(boolQuery.adjustPureNegative());
+
+                    // Recursively rewrite clauses
+                    boolean changed = false;
+                    for (QueryBuilder must : boolQuery.must()) {
+                        QueryBuilder rewrittenClause = rewrite(must, context);
+                        rewritten.must(rewrittenClause);
+                        if (rewrittenClause != must) changed = true;
+                    }
+                    for (QueryBuilder filter : boolQuery.filter()) {
+                        QueryBuilder rewrittenClause = rewrite(filter, context);
+                        rewritten.filter(rewrittenClause);
+                        if (rewrittenClause != filter) changed = true;
+                    }
+                    for (QueryBuilder should : boolQuery.should()) {
+                        QueryBuilder rewrittenClause = rewrite(should, context);
+                        rewritten.should(rewrittenClause);
+                        if (rewrittenClause != should) changed = true;
+                    }
+                    for (QueryBuilder mustNot : boolQuery.mustNot()) {
+                        QueryBuilder rewrittenClause = rewrite(mustNot, context);
+                        rewritten.mustNot(rewrittenClause);
+                        if (rewrittenClause != mustNot) changed = true;
+                    }
+
+                    return changed ? rewritten : query;
+                }
+                return query;
+            }
+
+            @Override
+            public int priority() {
+                return 1000; // High priority to ensure it runs last
+            }
+
+            @Override
+            public String name() {
+                return "test_custom_rewriter";
+            }
+        };
+
+        // Register the custom rewriter
+        QueryRewriterRegistry.getInstance().registerRewriter(customRewriter);
+
+        // Test that it's applied
+        QueryBuilder query = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery("test_field", "test_value"))
+            .filter(QueryBuilders.termQuery("other_field", "other_value"));
+
+        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(query, context, true);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+
+        // The custom rewriter should have replaced the term query
+        assertThat(rewrittenBool.must().size(), equalTo(1));
+        assertThat(rewrittenBool.must().get(0), instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder mustTerm = (TermQueryBuilder) rewrittenBool.must().get(0);
+        assertThat(mustTerm.fieldName(), equalTo("custom_field"));
+        assertThat(mustTerm.value(), equalTo("custom_value"));
+    }
 }

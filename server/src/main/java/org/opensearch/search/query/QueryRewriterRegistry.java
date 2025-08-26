@@ -21,9 +21,10 @@ import org.opensearch.search.query.rewriters.TermsMergingRewriter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Registry for query rewriters.
+ * Registry for query rewriters
  *
  * @opensearch.internal
  */
@@ -31,7 +32,55 @@ public final class QueryRewriterRegistry {
 
     private static final Logger logger = LogManager.getLogger(QueryRewriterRegistry.class);
 
-    private QueryRewriterRegistry() {}
+    private static final QueryRewriterRegistry INSTANCE = new QueryRewriterRegistry();
+
+    /**
+     * Default rewriters.
+     * CopyOnWriteArrayList is used for thread-safety during registration.
+     */
+    private final CopyOnWriteArrayList<QueryRewriter> rewriters;
+
+    private QueryRewriterRegistry() {
+        this.rewriters = new CopyOnWriteArrayList<>();
+
+        // Register default rewriters
+        // Note: TermsMergingRewriter is special - it needs threshold at runtime
+        registerRewriter(new BooleanFlatteningRewriter());
+        registerRewriter(new MustToFilterRewriter());
+        registerRewriter(new MustNotToShouldRewriter());
+        registerRewriter(new MatchAllRemovalRewriter());
+    }
+
+    /**
+     * Get the singleton instance of the registry.
+     */
+    public static QueryRewriterRegistry getInstance() {
+        return INSTANCE;
+    }
+
+    /**
+     * Register a custom query rewriter.
+     *
+     * @param rewriter The rewriter to register
+     */
+    public void registerRewriter(QueryRewriter rewriter) {
+        if (rewriter != null) {
+            rewriters.add(rewriter);
+            logger.info("Registered query rewriter: {}", rewriter.name());
+        }
+    }
+
+    /**
+     * Get a list of all rewriters with the given terms threshold.
+     */
+    private List<QueryRewriter> getRewritersWithThreshold(int termsThreshold) {
+        List<QueryRewriter> allRewriters = new ArrayList<>(rewriters);
+        // Add TermsMergingRewriter with the current threshold
+        // This is added dynamically because it needs the threshold parameter
+        allRewriters.add(new TermsMergingRewriter(termsThreshold));
+        allRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
+        return allRewriters;
+    }
 
     public static QueryBuilder rewrite(QueryBuilder query, QueryShardContext context, boolean enabled) {
         return rewrite(query, context, enabled, 16);
@@ -42,17 +91,11 @@ public final class QueryRewriterRegistry {
             return query;
         }
 
-        // Create rewriters with the current threshold
-        List<QueryRewriter> currentRewriters = new ArrayList<>();
-        currentRewriters.add(new BooleanFlatteningRewriter());
-        currentRewriters.add(new MustToFilterRewriter());
-        currentRewriters.add(new MustNotToShouldRewriter());
-        currentRewriters.add(new TermsMergingRewriter(termsThreshold));
-        currentRewriters.add(new MatchAllRemovalRewriter());
-        currentRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
+        QueryRewriterRegistry registry = getInstance();
+        List<QueryRewriter> sortedRewriters = registry.getRewritersWithThreshold(termsThreshold);
 
         QueryBuilder current = query;
-        for (QueryRewriter rewriter : currentRewriters) {
+        for (QueryRewriter rewriter : sortedRewriters) {
             try {
                 QueryBuilder rewritten = rewriter.rewrite(current, context);
                 if (rewritten != current) {
