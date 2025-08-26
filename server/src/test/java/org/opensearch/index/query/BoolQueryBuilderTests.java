@@ -73,7 +73,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -582,74 +581,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertTrue(rewritten.mustNot().contains(rq));
 
         IOUtils.close(w, reader, dir);
-    }
-
-    // Note: The must-to-filter optimization has been moved to MustToFilterRewriter in the query rewriting infrastructure
-    // This test is kept but modified to verify that the optimization no longer happens at this level
-    public void testMustClausesRewritten() throws Exception {
-        BoolQueryBuilder qb = new BoolQueryBuilder();
-
-        // Previously these would be moved, but now they stay in must
-        QueryBuilder intTermQuery = new TermQueryBuilder(INT_FIELD_NAME, 200);
-        QueryBuilder rangeQuery = new RangeQueryBuilder(INT_FIELD_NAME).gt(10).lt(20);
-        QueryBuilder rangeQueryWithBoost = new RangeQueryBuilder(DATE_FIELD_NAME).gt(10).lt(20).boost(2);
-        QueryBuilder intTermsQuery = new TermsQueryBuilder(INT_FIELD_NAME, new int[] { 1, 4, 100 });
-        QueryBuilder boundingBoxQuery = new GeoBoundingBoxQueryBuilder(GEO_POINT_FIELD_NAME);
-        QueryBuilder doubleMatchQuery = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 5.5);
-
-        // Text queries
-        QueryBuilder textTermQuery = new TermQueryBuilder(TEXT_FIELD_NAME, "bar");
-        QueryBuilder textTermsQuery = new TermsQueryBuilder(TEXT_FIELD_NAME, "foo", "bar");
-        QueryBuilder textMatchQuery = new MatchQueryBuilder(TEXT_FIELD_NAME, "baz");
-
-        qb.must(intTermQuery);
-        qb.must(rangeQuery);
-        qb.must(rangeQueryWithBoost);
-        qb.must(intTermsQuery);
-        qb.must(boundingBoxQuery);
-        qb.must(doubleMatchQuery);
-
-        qb.must(textTermQuery);
-        qb.must(textTermsQuery);
-        qb.must(textMatchQuery);
-
-        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext());
-
-        // Verify that the must-to-filter optimization no longer happens at this level
-        // All clauses should remain in must
-        for (QueryBuilder clause : List.of(
-            intTermQuery,
-            rangeQuery,
-            rangeQueryWithBoost,
-            intTermsQuery,
-            boundingBoxQuery,
-            doubleMatchQuery,
-            textTermQuery,
-            textTermsQuery,
-            textMatchQuery
-        )) {
-            assertTrue(rewritten.must().contains(clause));
-            assertFalse(rewritten.filter().contains(clause));
-        }
-
-        // Same behavior with null context - all clauses remain in must
-        QueryRewriteContext nullContext = mock(QueryRewriteContext.class);
-        when(nullContext.convertToShardContext()).thenReturn(null);
-        rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, nullContext);
-        for (QueryBuilder clause : List.of(
-            rangeQuery,
-            rangeQueryWithBoost,
-            boundingBoxQuery,
-            textTermQuery,
-            textTermsQuery,
-            textMatchQuery,
-            intTermQuery,
-            intTermsQuery,
-            doubleMatchQuery
-        )) {
-            assertTrue(rewritten.must().contains(clause));
-            assertFalse(rewritten.filter().contains(clause));
-        }
     }
 
     private QueryBuilder getRangeQueryBuilder(String fieldName, Integer lower, Integer upper, boolean includeLower, boolean includeUpper) {
