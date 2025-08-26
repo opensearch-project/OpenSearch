@@ -44,6 +44,7 @@ public final class QueryCollectorContextSpecRegistry {
     /**
      * Get collector context spec
      * @param searchContext search context
+     * @param query required to create collectorContext spec
      * @param queryCollectorArguments query collector arguments
      * @return collector context spec
      * @throws IOException

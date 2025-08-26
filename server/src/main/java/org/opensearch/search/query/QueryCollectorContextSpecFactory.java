@@ -22,7 +22,7 @@ import java.util.Optional;
 public interface QueryCollectorContextSpecFactory {
     /**
      * @param searchContext context needed to create collector context spec
-     * @param query query required to create collector context spec
+     * @param query required to create collector context spec
      * @param queryCollectorArguments arguments to create collector context spec
      * @return QueryCollectorContextSpec
      * @throws IOException
