@@ -11,6 +11,7 @@ package org.opensearch.plugin.store.subdirectory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -52,8 +53,6 @@ import java.util.stream.Collectors;
 public class SubdirectoryAwareStore extends Store {
 
     private static final Logger logger = LogManager.getLogger(SubdirectoryAwareStore.class);
-
-    private static final String SEGMENTS_FILE_PREFIX = "segments_";
 
     private final Directory directory;
 
@@ -111,7 +110,7 @@ public class SubdirectoryAwareStore extends Store {
         // Find all segments_N files in subdirectories from the commit
         Set<String> subdirectorySegmentFiles = new HashSet<>();
         for (String fileName : commit.getFileNames()) {
-            if (Path.of(fileName).getParent() != null && fileName.contains(SEGMENTS_FILE_PREFIX)) {
+            if (Path.of(fileName).getParent() != null && fileName.contains(IndexFileNames.SEGMENTS)) {
                 subdirectorySegmentFiles.add(fileName);
             }
         }
