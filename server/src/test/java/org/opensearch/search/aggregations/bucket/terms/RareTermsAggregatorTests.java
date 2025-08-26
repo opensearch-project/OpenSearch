@@ -618,8 +618,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType("mv_field");
                         fieldType.setFielddata(true);
 
-                        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("nick")
-                            .field("mv_field")
+                        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("nick").field("mv_field")
                             .missing("no_nickname")
                             .maxDocCount(2);
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
