@@ -202,9 +202,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         // field missing, we might not be able to use the index unless there is a way to
         // calculate which ordinal value that missing field is (something I am not sure how to
         // do yet).
-        if (config != null && config.missing() != null && ((weight.count(ctx) == ctx.reader().getDocCount(fieldName)) == false)) {
+        /*if (config != null && config.missing() != null && ((weight.count(ctx) == ctx.reader().getDocCount(fieldName)) == false)) {
             return false;
-        }
+        }*/
 
         Terms segmentTerms = ctx.reader().terms(this.fieldName);
         if (segmentTerms == null) {
@@ -227,6 +227,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         // Iterate over the terms in the segment, look for matches in the global ordinal terms,
         // and increment bucket count when segment terms match global ordinal terms.
         while (indexTerm != null && ordinalTerm != null) {
+            /*String indexString = indexTerm.utf8ToString();
+            String ordinalString = ordinalTerm.utf8ToString();
+            if (config != null && config.missing() != null) {
+                String missingField = (String) config.missing();
+                if (missingField.equals(ordinalTerm.utf8ToString())) {
+                    if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
+                        ordCountConsumer.accept(globalOrdinalTermsEnum.ord(), weight.count(ctx) - ctx.reader().getDocCount(fieldName));
+                    }
+                }
+            }*/
             int compare = indexTerm.compareTo(ordinalTerm);
             if (compare == 0) {
                 if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
@@ -240,6 +250,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 ordinalTerm = globalOrdinalTermsEnum.next();
             }
         }
+        /*while (ordinalTerm != null) {
+            if (config != null && config.missing() != null) {
+                String missingField = (String) config.missing();
+                if (missingField.equals(ordinalTerm.utf8ToString())) {
+                    if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
+                        ordCountConsumer.accept(globalOrdinalTermsEnum.ord(), weight.count(ctx) - ctx.reader().getDocCount(fieldName));
+                    }
+                }
+            }
+            ordinalTerm = globalOrdinalTermsEnum.next();
+        }*/
         return true;
     }
 
