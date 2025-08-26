@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - The dynamic mapping parameter supports false_allow_templates ([#19065](https://github.com/opensearch-project/OpenSearch/pull/19065))
 - Add a toBuilder method in EngineConfig to support easy modification of configs([#19054](https://github.com/opensearch-project/OpenSearch/pull/19054))
 - Add StoreFactory plugin interface for custom Store implementations([#19091](https://github.com/opensearch-project/OpenSearch/pull/19091))
+- Use S3CrtClient for higher throughput while uploading files to S3 ([#18800](https://github.com/opensearch-project/OpenSearch/pull/18800))
 - Add a dynamic setting to change skip_cache_factor and min_frequency for querycache ([#18351](https://github.com/opensearch-project/OpenSearch/issues/18351))
 
 ### Changed
@@ -33,7 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `commons-cli:commons-cli` from 1.9.0 to 1.10.0 ([#19021](https://github.com/opensearch-project/OpenSearch/pull/19021))
 - Bump `org.jline:jline` from 3.30.4 to 3.30.5 ([#19013](https://github.com/opensearch-project/OpenSearch/pull/19013))
 - Bump `com.github.spotbugs:spotbugs-annotations` from 4.9.3 to 4.9.4 ([#19015](https://github.com/opensearch-project/OpenSearch/pull/19015))
-- Bump `com.azure:azure-storage-common` from 12.29.1 to 12.30.1 ([#19016](https://github.com/opensearch-project/OpenSearch/pull/19016))
+- Bump `com.azure:azure-storage-common` from 12.29.1 to 12.30.2 ([#19016](https://github.com/opensearch-project/OpenSearch/pull/19016), [#19145](https://github.com/opensearch-project/OpenSearch/pull/19145))
 - Update OpenTelemetry to 1.53.0 and OpenTelemetry SemConv to 1.34.0 ([#19068](https://github.com/opensearch-project/OpenSearch/pull/19068))
 - Bump `1password/load-secrets-action` from 2 to 3 ([#19100](https://github.com/opensearch-project/OpenSearch/pull/19100))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.3 to 10.4.2 ([#19099](https://github.com/opensearch-project/OpenSearch/pull/19099), [#19101](https://github.com/opensearch-project/OpenSearch/pull/19101))
@@ -41,6 +42,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump google cloud storage from 1.113.1 to 2.55.0 ([#4547](https://github.com/opensearch-project/OpenSearch/pull/4547))
 - Bump tika from 2.9.2 to 3.2.2 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
 - Bump commons-compress from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
+- Bump `com.google.auth:google-auth-library-oauth2-http` from 1.37.1 to 1.38.0 ([#19144](https://github.com/opensearch-project/OpenSearch/pull/19144))
+- Bump `com.squareup.okio:okio` from 3.15.0 to 3.16.0 ([#19146](https://github.com/opensearch-project/OpenSearch/pull/19146))
 
 ### Deprecated
 
@@ -49,4 +52,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Security
 
-[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.1...main
+[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.2...main
