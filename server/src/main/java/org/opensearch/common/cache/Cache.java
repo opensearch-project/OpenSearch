@@ -156,7 +156,7 @@ public class Cache<K, V> {
         return this.expireAfterWriteNanos;
     }
 
-    void setMaximumWeight(long maximumWeight) {
+    public void setMaximumWeight(long maximumWeight) {
         if (maximumWeight < 0) {
             throw new IllegalArgumentException("maximumWeight < 0");
         }

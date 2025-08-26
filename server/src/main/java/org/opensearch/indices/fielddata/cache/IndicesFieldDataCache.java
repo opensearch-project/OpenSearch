@@ -75,10 +75,14 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
 
+    /**
+     * The size after which the cache will begin to evict entries.
+     */
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.memorySizeSetting(
         "indices.fielddata.cache.size",
-        new ByteSizeValue(-1),
-        Property.NodeScope
+        "35%",
+        Property.NodeScope,
+        Property.Dynamic
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
@@ -249,6 +253,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             // soon as possible
             cache.refresh();
         }
+    }
+
+    public void updateMaximumWeight(ByteSizeValue newMaximumWeight) {
+        cache.setMaximumWeight(newMaximumWeight.getBytes());
     }
 
     /**
