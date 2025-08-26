@@ -89,7 +89,7 @@ public class SubdirectoryAwareStore extends Store {
 
         // Load regular segment files metadata
         final SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(commit);
-        Store.MetadataSnapshot.LoadedMetadata regularMetadata = MetadataSnapshot.loadMetadata(segmentCommitInfos, directory, logger);
+        MetadataSnapshot.LoadedMetadata regularMetadata = MetadataSnapshot.loadMetadata(segmentCommitInfos, directory, logger);
         Map<String, StoreFileMetadata> builder = new HashMap<>(regularMetadata.fileMetadata);
         Map<String, String> commitUserDataBuilder = new HashMap<>(regularMetadata.userData);
         totalNumDocs += regularMetadata.numDocs;
@@ -140,7 +140,7 @@ public class SubdirectoryAwareStore extends Store {
         }
 
         String segmentsFileName = filePath.getFileName().toString();
-        Path subdirectoryFullPath = this.shardPath().getDataPath().resolve(parent);
+        Path subdirectoryFullPath = this.shardPath().getDataPath().resolve(parent.toString());
 
         try (Directory subdirectory = FSDirectory.open(subdirectoryFullPath)) {
             // Read the SegmentInfos from the segments file
@@ -193,6 +193,7 @@ public class SubdirectoryAwareStore extends Store {
      * and delegates actual file operations to appropriate filesystem locations.
      */
     public static class SubdirectoryAwareDirectory extends FilterDirectory {
+        private static final Set<String> EXCLUDED_SUBDIRECTORIES = Set.of("index/", "translog/", "_state/");
         private final ShardPath shardPath;
 
         /**
@@ -259,7 +260,11 @@ public class SubdirectoryAwareStore extends Store {
                 Path relativePath = dataPath.relativize(file);
                 // Only add files that are in subdirectories (have a parent directory)
                 if (relativePath.getParent() != null) {
-                    allFiles.add(relativePath.toString());
+                    String relativePathStr = relativePath.toString();
+                    // Exclude index dir (handled in super.listAll()), translog dir, and _state dir
+                    if (EXCLUDED_SUBDIRECTORIES.stream().noneMatch(relativePathStr::startsWith)) {
+                        allFiles.add(relativePathStr);
+                    }
                 }
             });
         }
