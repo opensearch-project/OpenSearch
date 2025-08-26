@@ -157,30 +157,32 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     // This method can stay synchronized to avoid having multiple simultaneous cache iterators removing keys.
     // This shouldn't cause performance impact as it's called only from the scheduled cache clear thread
     // and is not blocking search traffic.
-    public synchronized void clearMarkedKeys() {
-        if (indicesToClear.isEmpty() && fieldsToClear.isEmpty()) return;
-
-        for (Iterator<Key> iterator = getCache().keys().iterator(); iterator.hasNext();) {
-            Key key = iterator.next();
-            if (indicesToClear.contains(key.indexCache.index)) {
-                try {
-                    iterator.remove();
-                } catch (Exception e) {
-                    logger.warn("Exception occurred while removing key from cache", e);
+    public void clearMarkedKeys() {
+        if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty())) {
+            synchronized (this) {
+                for (Iterator<Key> iterator = getCache().keys().iterator(); iterator.hasNext();) {
+                    Key key = iterator.next();
+                    if (indicesToClear.contains(key.indexCache.index)) {
+                        try {
+                            iterator.remove();
+                        } catch (Exception e) {
+                            logger.warn("Exception occurred while removing key from cache", e);
+                        }
+                        continue;
+                    }
+                    Set<String> fieldsOfIndexToClear = fieldsToClear.get(key.indexCache.index);
+                    if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
+                        try {
+                            iterator.remove();
+                        } catch (Exception e) {
+                            logger.warn("Exception occurred while removing key from cache", e);
+                        }
+                    }
                 }
-                continue;
             }
-            Set<String> fieldsOfIndexToClear = fieldsToClear.get(key.indexCache.index);
-            if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
-                try {
-                    iterator.remove();
-                } catch (Exception e) {
-                    logger.warn("Exception occurred while removing key from cache", e);
-                }
-            }
+            indicesToClear.clear();
+            fieldsToClear.clear();
         }
-        indicesToClear.clear();
-        fieldsToClear.clear();
         cache.refresh();
     }
 
