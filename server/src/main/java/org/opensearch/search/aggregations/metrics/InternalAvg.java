@@ -111,19 +111,21 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             if (aggregation instanceof InternalScriptedMetric) {
                 // If using InternalScriptedMetric in place of InternalAvg
-                Object value = ((InternalScriptedMetric) aggregation).aggregation();
-                if (value instanceof ScriptedAvg scriptedAvg) {
-                    count += scriptedAvg.getCount();
-                    kahanSummation.add(scriptedAvg.getSum());
-                } else {
-                    throw new IllegalArgumentException(
-                        "Invalid ScriptedMetric result for ["
-                            + getName()
-                            + "] avg aggregation. Expected ScriptedAvg "
-                            + "but received ["
-                            + (value == null ? "null" : value.getClass().getName())
-                            + "]"
-                    );
+                List<Object> aggList = ((InternalScriptedMetric) aggregation).aggregationsList();
+                for (Object value : aggList) {
+                    if (value instanceof ScriptedAvg scriptedAvg) {
+                        count += scriptedAvg.getCount();
+                        kahanSummation.add(scriptedAvg.getSum());
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Invalid ScriptedMetric result for ["
+                                + getName()
+                                + "] avg aggregation. Expected ScriptedAvg "
+                                + "but received ["
+                                + (value == null ? "null" : value.getClass().getName())
+                                + "]"
+                        );
+                    }
                 }
             } else {
                 // Original handling for InternalAvg
