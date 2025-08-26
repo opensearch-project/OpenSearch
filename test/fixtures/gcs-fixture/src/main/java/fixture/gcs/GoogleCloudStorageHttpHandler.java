@@ -38,13 +38,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
 
@@ -64,7 +64,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -80,14 +79,58 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageHttpHandler.class);
 
-    private static final Pattern RANGE_MATCHER = Pattern.compile("bytes=([0-9]*)-([0-9]*)");
+    record BlobResumableUpload(
+        String uploadId,
+        BytesReference contents,
+        Integer finalLength,
+        boolean completed
+    ) {
 
+        BlobResumableUpload(String uploadId) {
+            this(uploadId, BytesArray.EMPTY, null, false);
+        }
+
+        public BlobResumableUpload update(BytesReference contents) {
+            if (completed) {
+                throw new IllegalStateException("Blob already completed");
+            }
+            return new BlobResumableUpload(uploadId, contents, null, false);
+        }
+
+        public BlobResumableUpload complete() {
+            if (completed) {
+                throw new IllegalStateException("Blob already completed");
+            }
+            return new BlobResumableUpload(uploadId, null, contents.length(), true);
+        }
+
+        public ContentHttpHeadersParser.Range getRange() {
+            int length = length();
+            if (length > 0) {
+                return new ContentHttpHeadersParser.Range(0, length - 1);
+            } else {
+                return null;
+            }
+        }
+
+        public int length() {
+            if (finalLength != null) {
+                return finalLength;
+            }
+            if (contents != null) {
+                return contents.length();
+            }
+            return 0;
+        }
+    }
     private final ConcurrentMap<String, BytesReference> blobs;
+    private final ConcurrentMap<String, BlobResumableUpload> resumableUploads;
     private final String bucket;
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
         this.blobs = new ConcurrentHashMap<>();
+        this.resumableUploads = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -100,7 +143,11 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         try {
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
-            if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
+            if (request.equals("GET /") && "Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
+                // the SDK checks this endpoint to determine if it's running within Google Compute Engine
+                exchange.getResponseHeaders().add("Metadata-Flavor", "Google");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+            } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
                 final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
                 final BytesReference blob = blobs.get(key);
                 if (blob == null) {
@@ -151,19 +198,19 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // Download Object https://cloud.google.com/storage/docs/request-body
                 BytesReference blob = blobs.get(exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", ""));
                 if (blob != null) {
-                    final String range = exchange.getRequestHeaders().getFirst("Range");
+                    final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                     final int offset;
                     final int end;
-                    if (range == null) {
+                    if (rangeHeader == null) {
                         offset = 0;
                         end = blob.length() - 1;
                     } else {
-                        Matcher matcher = RANGE_MATCHER.matcher(range);
-                        if (matcher.find() == false) {
-                            throw new AssertionError("Range bytes header does not match expected format: " + range);
+                        final var rande = ContentHttpHeadersParser.parseRangeHeader(rangeHeader);
+                        if (rande == null) {
+                            throw new AssertionError("Range bytes header does not match expected format: " + rangeHeader);
                         }
-                        offset = Integer.parseInt(matcher.group(1));
-                        end = Integer.parseInt(matcher.group(2));
+                        offset = rande.start();
+                        end = rande.end();
                     }
                     BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -203,9 +250,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(requestBody.streamInput());
                 if (content.isPresent()) {
                     blobs.put(content.get().v1(), content.get().v2());
-
-                    byte[] response = ("{\"bucket\":\"" + bucket + "\",\"name\":\"" + content.get().v1() + "\"}").getBytes(UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/json");
+                    byte[] response = String.format("""
+                            {
+                                "bucket":"%s",
+                                "name":"%s"
+                            }
+                        """,  bucket, content.get().v1()).getBytes(UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
                 } else {
@@ -220,15 +271,17 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final String blobName = params.get("name");
                 blobs.put(blobName, BytesArray.EMPTY);
 
+                final String uploadId = UUIDs.randomBase64UUID();
+                resumableUploads.put(uploadId, new BlobResumableUpload(uploadId));
+
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.getResponseHeaders().add("Location", httpServerUrl(exchange) + "/upload/storage/v1/b/" + bucket + "/o?"
                     + "uploadType=resumable"
-                    + "&upload_id=" + UUIDs.randomBase64UUID()
+                    + "&upload_id=" + uploadId
                     + "&test_blob_name=" + blobName); // not a Google Storage parameter, but it allows to pass the blob name
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
-
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/" + bucket + "/o?*uploadType=resumable*", request)) {
                 // Resumable upload https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
                 final Map<String, String> params = new HashMap<>();
@@ -239,25 +292,36 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
                 }
-                BytesReference blob = blobs.get(blobName);
-                final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-                final Integer limit = getContentRangeLimit(range);
-                final int start = getContentRangeStart(range);
-                final int end = getContentRangeEnd(range);
+                final var resumableUpload = resumableUploads.compute(params.get("upload_id"), (uuid, existing) -> {
+                    BlobResumableUpload valueToReturn = existing;
+                    final String contentRangeHeader = exchange.getRequestHeaders().getFirst("Content-Range");
+                    final var contentRange = ContentHttpHeadersParser.parseContentRangeHeader(contentRangeHeader);
 
-                blob = CompositeBytesReference.of(blob, requestBody);
-                blobs.put(blobName, blob);
-
-                if (limit == null) {
-                    exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", start, end));
-                    exchange.getResponseHeaders().add("Content-Length", "0");
-                    exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
-                } else {
-                    if (limit > blob.length()) {
-                        throw new AssertionError("Requesting more bytes than available for blob");
+                    // Handle the request, a range indicates a chunk of data was submitted
+                    if (contentRange.hasRange()) {
+                        final int offset = Math.toIntExact(existing.contents.length() - contentRange.start());
+                        final BytesReference updatedContent = CompositeBytesReference.of(
+                            existing.contents,
+                            requestBody.slice(offset, requestBody.length())
+                        );
+                        valueToReturn = existing.update(updatedContent);
                     }
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+
+                    // Next we determine the response
+                    if (contentRange.hasSize() && contentRange.size() == valueToReturn.contents.length()) {
+                        blobs.put(blobName, valueToReturn.contents);
+                        valueToReturn = valueToReturn.complete();
+                    }
+
+                    return valueToReturn;
+                });
+
+                final int httpStatus = resumableUpload.completed ? RestStatus.OK.getStatus() : 308;
+                if (resumableUpload.getRange() != null) {
+                    exchange.getResponseHeaders().add("Range", resumableUpload.getRange().header());
                 }
+                exchange.getResponseHeaders().add("x-goog-stored-content-length", String.valueOf(resumableUpload.length()));
+                exchange.sendResponseHeaders(httpStatus, -1);
             } else {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
@@ -269,12 +333,15 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private String buildBlobInfoJson(String blobName, int size) {
-        return "{\"kind\":\"storage#object\","
-            + "\"bucket\":\"" + bucket + "\","
-            + "\"name\":\"" + blobName + "\","
-            + "\"id\":\"" + blobName + "\","
-            + "\"size\":\"" + size + "\""
-            + "}";
+        return String.format("""
+            {
+                "kind":   "storage#object",
+                "bucket": "%s",
+                "name":   "%s",
+                "id":     "%s",
+                "size":   "%s"
+            }
+            """, bucket, blobName, blobName, size);
     }
 
     public Map<String, BytesReference> blobs() {
@@ -352,32 +419,5 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             }
         }
         return true;
-    }
-
-    private static final Pattern PATTERN_CONTENT_RANGE = Pattern.compile("bytes ([^/]*)/([0-9\\*]*)");
-    private static final Pattern PATTERN_CONTENT_RANGE_BYTES = Pattern.compile("([0-9]*)-([0-9]*)");
-
-    private static Integer parse(final Pattern pattern, final String contentRange, final BiFunction<String, String, Integer> fn) {
-        final Matcher matcher = pattern.matcher(contentRange);
-        if (matcher.matches() == false || matcher.groupCount() != 2) {
-            throw new IllegalArgumentException("Unable to parse content range header");
-        }
-        return fn.apply(matcher.group(1), matcher.group(2));
-    }
-
-    public static Integer getContentRangeLimit(final String contentRange) {
-        return parse(PATTERN_CONTENT_RANGE, contentRange, (bytes, limit) -> "*".equals(limit) ? null : Integer.parseInt(limit));
-    }
-
-    public static int getContentRangeStart(final String contentRange) {
-        return parse(PATTERN_CONTENT_RANGE, contentRange,
-            (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes,
-                (start, end) -> Integer.parseInt(start)));
-    }
-
-    public static int getContentRangeEnd(final String contentRange) {
-        return parse(PATTERN_CONTENT_RANGE, contentRange,
-            (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes,
-                (start, end) -> Integer.parseInt(end)));
     }
 }

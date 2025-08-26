@@ -126,8 +126,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
                 thread.start();
             }
 
-            testHarness.start();
-
+            // Wait for all threads to complete before checking results
             for (Thread thread : threads) {
                 thread.join();
             }
@@ -222,26 +221,27 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     private static class TestHarness {
         private final CompletionStatsCache completionStatsCache;
-        private final CyclicBarrier cyclicBarrier;
+        private final CyclicBarrier startBarrier;
         private final CompletionStats[] results;
 
         TestHarness(CompletionStatsCache completionStatsCache, int resultCount) {
             this.completionStatsCache = completionStatsCache;
             results = new CompletionStats[resultCount];
-            cyclicBarrier = new CyclicBarrier(resultCount + 1);
+            // Only need threads to synchronize at start
+            startBarrier = new CyclicBarrier(resultCount);
         }
 
-        void getStats(int threadIndex, String... fieldPatterns) {
-            start();
-            results[threadIndex] = completionStatsCache.get(fieldPatterns);
-        }
-
-        void start() {
+        void waitForStart() {
             try {
-                cyclicBarrier.await();
+                startBarrier.await();
             } catch (InterruptedException | BrokenBarrierException e) {
                 throw new AssertionError(e);
             }
+        }
+
+        void getStats(int threadIndex, String... fieldPatterns) {
+            waitForStart();
+            results[threadIndex] = completionStatsCache.get(fieldPatterns);
         }
 
         CompletionStats getResult(int index) {

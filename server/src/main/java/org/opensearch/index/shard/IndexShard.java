@@ -48,7 +48,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -192,6 +191,7 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
+import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
@@ -510,7 +510,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             };
         } else {
-            cachingPolicy = new UsageTrackingQueryCachingPolicy();
+            cachingPolicy = new IndicesQueryCache.OpenseachUsageTrackingQueryCachingPolicy(clusterApplierService.clusterSettings());
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
         if (indexSettings.isDerivedSourceEnabled()) {
@@ -5755,4 +5755,5 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public AsyncShardRefreshTask getRefreshTask() {
         return refreshTask;
     }
+
 }
