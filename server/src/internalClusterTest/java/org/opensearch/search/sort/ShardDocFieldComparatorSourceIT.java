@@ -8,15 +8,14 @@
 
 package org.opensearch.search.sort;
 
-
-import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,21 +31,13 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createIndex(
-            INDEX,
-            Settings.builder()
-                .put("index.number_of_shards", 2)
-                .put("index.number_of_replicas", 0).build()
-        );
+        createIndex(INDEX, Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         ensureGreen(INDEX);
     }
 
     @Test
     public void testEmptyIndex() {
-        SearchResponse resp = client().prepareSearch(INDEX)
-            .addSort(SortBuilders.shardDocSort().order(SortOrder.ASC))
-            .setSize(10)
-            .get();
+        SearchResponse resp = client().prepareSearch(INDEX).addSort(SortBuilders.shardDocSort().order(SortOrder.ASC)).setSize(10).get();
 
         // no hits at all
         SearchHit[] hits = resp.getHits().getHits();
@@ -59,24 +50,18 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         client().prepareIndex(INDEX).setId("42").setSource("foo", "bar").get();
         refresh();
 
-        SearchResponse resp = client().prepareSearch(INDEX)
-            .addSort(SortBuilders.shardDocSort().order(SortOrder.ASC))
-            .setSize(5)
-            .get();
+        SearchResponse resp = client().prepareSearch(INDEX).addSort(SortBuilders.shardDocSort().order(SortOrder.ASC)).setSize(5).get();
 
         assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(resp.getHits().getHits()[0].getId(), equalTo("42"));
     }
-
 
     @Test
     public void testSearchAfterBeyondEndYieldsNoHits() {
         indexSequentialDocs(5);
         refresh();
         List<Long> allKeys = new ArrayList<>();
-        SearchSourceBuilder ssb = new SearchSourceBuilder()
-            .size(5)
-            .sort(SortBuilders.shardDocSort().order(SortOrder.ASC));
+        SearchSourceBuilder ssb = new SearchSourceBuilder().size(5).sort(SortBuilders.shardDocSort().order(SortOrder.ASC));
         SearchResponse resp0 = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
         // collect first page
         for (SearchHit hit : resp0.getHits().getHits()) {
@@ -88,7 +73,7 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         SearchResponse resp = client().prepareSearch(INDEX)
             .addSort(SortBuilders.shardDocSort().order(SortOrder.ASC))
             .setSize(3)
-            .searchAfter(new Object[]{globalMax + 1})
+            .searchAfter(new Object[] { globalMax + 1 })
             .get();
 
         SearchHit[] hits = resp.getHits().getHits();
@@ -101,9 +86,7 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         refresh();
 
         // First page: _shard_doc DESC, grab the SMALLEST key (last hit on the page)
-        SearchSourceBuilder ssb = new SearchSourceBuilder()
-            .size(5)
-            .sort(SortBuilders.shardDocSort().order(SortOrder.DESC));
+        SearchSourceBuilder ssb = new SearchSourceBuilder().size(5).sort(SortBuilders.shardDocSort().order(SortOrder.DESC));
         SearchResponse first = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
 
         assertThat(first.getHits().getHits().length, equalTo(5));
@@ -127,9 +110,12 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         }
         refresh();
 
-        var shardDocKeys = collectAllSortKeys(10, 1,
+        var shardDocKeys = collectAllSortKeys(
+            10,
+            1,
             new FieldSortBuilder("val").order(SortOrder.ASC),
-            SortBuilders.shardDocSort().order(SortOrder.ASC));
+            SortBuilders.shardDocSort().order(SortOrder.ASC)
+        );
 
         assertThat(shardDocKeys.size(), equalTo(30));
         for (int i = 1; i < shardDocKeys.size(); i++) {
@@ -139,7 +125,7 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
 
     @Test
     public void testOrderingAscAndPagination() throws Exception {
-        assertShardDocOrdering(SortOrder.ASC, 7,  20);
+        assertShardDocOrdering(SortOrder.ASC, 7, 20);
     }
 
     @Test
@@ -152,11 +138,7 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         refresh();
 
         // shardDocIndex = 0 because we're only sorting by _shard_doc here
-        List<Long> keys = collectAllSortKeys(
-            pageSize,
-            0,
-            SortBuilders.shardDocSort().order(order)
-        );
+        List<Long> keys = collectAllSortKeys(pageSize, 0, SortBuilders.shardDocSort().order(order));
 
         assertThat(keys.size(), equalTo(expectedCount));
 
@@ -177,7 +159,8 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         List<Long> all = new ArrayList<>();
 
         SearchSourceBuilder ssb = new SearchSourceBuilder().size(pageSize);
-        for (var s : sorts) ssb.sort(s);
+        for (var s : sorts)
+            ssb.sort(s);
 
         SearchResponse resp = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
 
@@ -190,11 +173,11 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
             if (resp.getHits().getHits().length < pageSize) break;
 
             // use the FULL last sortValues[] as search_after for correctness
-            Object[] nextAfter = resp.getHits().getHits()[resp.getHits().getHits().length - 1]
-                .getSortValues();
+            Object[] nextAfter = resp.getHits().getHits()[resp.getHits().getHits().length - 1].getSortValues();
 
             ssb = new SearchSourceBuilder().size(pageSize);
-            for (var s : sorts) ssb.sort(s);
+            for (var s : sorts)
+                ssb.sort(s);
             ssb.searchAfter(nextAfter);
 
             resp = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
