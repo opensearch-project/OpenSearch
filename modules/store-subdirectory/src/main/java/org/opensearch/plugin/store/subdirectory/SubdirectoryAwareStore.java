@@ -26,11 +26,9 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -55,7 +53,6 @@ public class SubdirectoryAwareStore extends Store {
 
     private static final Logger logger = LogManager.getLogger(SubdirectoryAwareStore.class);
 
-    private static final String PATH_SEPARATOR = File.separator;
     private static final String SEGMENTS_FILE_PREFIX = "segments_";
 
     private final Directory directory;
@@ -114,7 +111,7 @@ public class SubdirectoryAwareStore extends Store {
         // Find all segments_N files in subdirectories from the commit
         Set<String> subdirectorySegmentFiles = new HashSet<>();
         for (String fileName : commit.getFileNames()) {
-            if (fileName.contains(PATH_SEPARATOR) && fileName.contains(SEGMENTS_FILE_PREFIX)) {
+            if (Path.of(fileName).getParent() != null && fileName.contains(SEGMENTS_FILE_PREFIX)) {
                 subdirectorySegmentFiles.add(fileName);
             }
         }
@@ -137,7 +134,7 @@ public class SubdirectoryAwareStore extends Store {
         throws IOException {
         // Parse the directory path from the segments file path
         // e.g., "subdir/path/segments_1" -> "subdir/path"
-        Path filePath = Paths.get(segmentsFilePath);
+        Path filePath = Path.of(segmentsFilePath);
         Path parent = filePath.getParent();
         if (parent == null) {
             return 0; // Invalid path - no parent directory
@@ -261,16 +258,15 @@ public class SubdirectoryAwareStore extends Store {
             // Walk through all subdirectories and add files
             Files.walk(dataPath).filter(Files::isRegularFile).forEach(file -> {
                 Path relativePath = dataPath.relativize(file);
-                String relativePathStr = relativePath.toString();
-                // Only add files that are in subdirectories (contain path separator)
-                if (relativePathStr.contains(PATH_SEPARATOR)) {
-                    allFiles.add(relativePathStr);
+                // Only add files that are in subdirectories (have a parent directory)
+                if (relativePath.getParent() != null) {
+                    allFiles.add(relativePath.toString());
                 }
             });
         }
 
         private String parseFilePath(String fileName) {
-            if (fileName.contains(PATH_SEPARATOR)) {
+            if (Path.of(fileName).getParent() != null) {
                 // File path (e.g., "subdirectory/segments_1" or "subdirectory/recovery.xxx.segments_1")
                 return shardPath.getDataPath().resolve(fileName).toString();
             } else {

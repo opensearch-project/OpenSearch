@@ -33,7 +33,6 @@ import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -297,7 +296,7 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
                     Collection<String> segmentFiles = segmentInfos.files(true);
 
                     for (String fileName : segmentFiles) {
-                        String relativePath = TestEngine.SUBDIRECTORY_NAME + File.separator + fileName;
+                        String relativePath = Path.of(TestEngine.SUBDIRECTORY_NAME, fileName).toString();
                         allFiles.add(relativePath);
                     }
                 }

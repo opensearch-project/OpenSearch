@@ -49,7 +49,6 @@ import org.opensearch.transport.Transports;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -96,7 +95,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     /** Get a temporary name for the provided file name. */
     String getTempNameForFile(String origFile) {
-        Path filePath = Paths.get(origFile);
+        Path filePath = Path.of(origFile);
         Path name = filePath.getFileName();
         String prefixedName = tempFilePrefix + name;
         Path parent = filePath.getParent();
