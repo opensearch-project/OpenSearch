@@ -142,25 +142,17 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        if (subAggregators.length > 0 || filter != null || weight == null) {
-            // The optimization does not work when there are subaggregations or if there is a filter.
-            // The query has to be a match all, otherwise
-            return false;
-        }
-
-        // If the missing property is specified in the builder, and there are documents with the
-        // field missing, we might not be able to use the index unless there is some way we can
-        // calculate which ordinal value that missing field is (something I am not sure how to
-        // do yet).
-        if (config != null && config.missing() != null && ((weight.count(ctx) == ctx.reader().getDocCount(fieldName)) == false)) {
-            return false;
-        }
-
         // The optimization could only be used if there are no deleted documents and the top-level
         // query matches all documents in the segment.
         if (weight.count(ctx) == 0) {
             return true;
         } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+            return false;
+        }
+
+        if (subAggregators.length > 0 || filter != null || weight == null) {
+            // The optimization does not work when there are subaggregations or if there is a filter.
+            // The query has to be a match all, otherwise
             return false;
         }
 
@@ -178,6 +170,19 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
         TermsEnum stringTermsEnum = stringTerms.iterator();
         BytesRef stringTerm = stringTermsEnum.next();
+
+        // Here, we are accounting for the case that there might be missing values for the field name
+        if (config != null && config.missing() != null) {
+            String missingField = (String) config.missing();
+            BytesRef missingFieldTerm = new BytesRef(missingField);
+            int missingCount = weight.count(ctx) - ctx.reader().getDocCount(fieldName);
+            if (missingCount > 0) {
+                // Since the bucket name for the missing documents is not indexed as a potential value for that field,
+                // We will not have to worry about adding to a bucket that was already seen.
+                long bucketOrdinal = bucketOrds.add(0L, missingFieldTerm);
+                incrementBucketDocCount(bucketOrdinal, missingCount);
+            }
+        }
 
         // Here, we will iterate over all the terms in the segment and add the counts into the bucket.
         while (stringTerm != null) {

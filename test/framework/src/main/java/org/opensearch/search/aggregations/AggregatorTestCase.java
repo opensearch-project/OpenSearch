@@ -778,98 +778,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return internalAgg;
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
-        int expectedCount,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        boolean shardFanOut,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduceCounting(
-            expectedCount,
-            createIndexSettings(),
-            searcher,
-            query,
-            builder,
-            DEFAULT_MAX_BUCKETS,
-            shardFanOut,
-            fieldTypes
-        );
-    }
-
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
-        int expectedCount,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduceCounting(
-            expectedCount,
-            createIndexSettings(),
-            searcher,
-            query,
-            builder,
-            DEFAULT_MAX_BUCKETS,
-            randomBoolean(),
-            fieldTypes
-        );
-    }
-
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
-        int expectedCount,
-        IndexSettings indexSettings,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduceCounting(
-            expectedCount,
-            indexSettings,
-            searcher,
-            query,
-            builder,
-            DEFAULT_MAX_BUCKETS,
-            randomBoolean(),
-            fieldTypes
-        );
-    }
-
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
-        int expectedCount,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduceCounting(
-            expectedCount,
-            createIndexSettings(),
-            searcher,
-            query,
-            builder,
-            maxBucket,
-            randomBoolean(),
-            fieldTypes
-        );
-    }
-
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCounting(
-        int expectedCount,
-        IndexSettings indexSettings,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        boolean shardFanOut,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduceCounting(expectedCount, indexSettings, searcher, query, builder, maxBucket, false, shardFanOut, fieldTypes);
-    }
-
     /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
@@ -891,6 +799,12 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean shardFanOut,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        if (indexSettings == null) {
+            indexSettings = createIndexSettings();
+        }
+        if (maxBucket == -1) {
+            maxBucket = DEFAULT_MAX_BUCKETS;
+        }
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
