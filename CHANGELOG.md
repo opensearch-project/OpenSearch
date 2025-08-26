@@ -40,10 +40,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.3 to 10.4.2 ([#19099](https://github.com/opensearch-project/OpenSearch/pull/19099), [#19101](https://github.com/opensearch-project/OpenSearch/pull/19101))
 - Bump netty from 4.1.121.Final to 4.1.124.Final ([#19103](https://github.com/opensearch-project/OpenSearch/pull/19103))
 - Bump google cloud storage from 1.113.1 to 2.55.0 ([#4547](https://github.com/opensearch-project/OpenSearch/pull/4547))
-- Bump tika from 2.9.2 to 3.2.2 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
-- Bump commons-compress from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
 - Bump `com.google.auth:google-auth-library-oauth2-http` from 1.37.1 to 1.38.0 ([#19144](https://github.com/opensearch-project/OpenSearch/pull/19144))
 - Bump `com.squareup.okio:okio` from 3.15.0 to 3.16.0 ([#19146](https://github.com/opensearch-project/OpenSearch/pull/19146))
+- Bump `org.apache.tika` from 2.9.2 to 3.2.2 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
+- Bump `org.apache.commons:commons-compress` from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
 
 ### Deprecated
 
