@@ -517,71 +517,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     }
 
-    // Note: Must-not-to-should optimization is now handled by MustNotToShouldRewriter in the query rewriting infrastructure
-    // This test is disabled as the functionality has been moved out of BoolQueryBuilder
-    /*
-    public void testOneMustNotRangeRewritten() throws Exception {
-        int from = 10;
-        int to = 20;
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
-        addDocument(w, INT_FIELD_NAME, 1);
-        DirectoryReader reader = DirectoryReader.open(w);
-        IndexSearcher searcher = getIndexSearcher(reader);
-
-        for (boolean includeLower : new boolean[] { true, false }) {
-            for (boolean includeUpper : new boolean[] { true, false }) {
-                BoolQueryBuilder qb = new BoolQueryBuilder();
-                QueryBuilder rq = getRangeQueryBuilder(INT_FIELD_NAME, from, to, includeLower, includeUpper);
-                qb.mustNot(rq);
-
-                BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
-                assertFalse(rewritten.mustNot().contains(rq));
-
-                QueryBuilder expectedLowerQuery = getRangeQueryBuilder(INT_FIELD_NAME, null, from, false, !includeLower);
-                QueryBuilder expectedUpperQuery = getRangeQueryBuilder(INT_FIELD_NAME, to, null, !includeUpper, true);
-                assertEquals(1, rewritten.must().size());
-
-                BoolQueryBuilder nestedBoolQuery = (BoolQueryBuilder) rewritten.must().get(0);
-                assertEquals(2, nestedBoolQuery.should().size());
-                assertEquals("1", nestedBoolQuery.minimumShouldMatch());
-                assertTrue(nestedBoolQuery.should().contains(expectedLowerQuery));
-                assertTrue(nestedBoolQuery.should().contains(expectedUpperQuery));
-            }
-        }
-        IOUtils.close(w, reader, dir);
-    }
-    */
-
-    // Note: Must-not-to-should optimization is now handled by MustNotToShouldRewriter in the query rewriting infrastructure
-    // This test is disabled as the functionality has been moved out of BoolQueryBuilder
-    /*
-    public void testOneSingleEndedMustNotRangeRewritten() throws Exception {
-        // Test a must_not range query with only one endpoint is rewritten correctly
-        int from = 10;
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
-        addDocument(w, INT_FIELD_NAME, 1);
-        DirectoryReader reader = DirectoryReader.open(w);
-        IndexSearcher searcher = getIndexSearcher(reader);
-
-        BoolQueryBuilder qb = new BoolQueryBuilder();
-        QueryBuilder rq = getRangeQueryBuilder(INT_FIELD_NAME, from, null, false, false);
-        qb.mustNot(rq);
-        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
-        assertFalse(rewritten.mustNot().contains(rq));
-
-        QueryBuilder expectedQuery = getRangeQueryBuilder(INT_FIELD_NAME, null, from, false, true);
-        assertEquals(1, rewritten.must().size());
-        BoolQueryBuilder nestedBoolQuery = (BoolQueryBuilder) rewritten.must().get(0);
-        assertEquals(1, nestedBoolQuery.should().size());
-        assertTrue(nestedBoolQuery.should().contains(expectedQuery));
-        assertEquals("1", nestedBoolQuery.minimumShouldMatch());
-
-        IOUtils.close(w, reader, dir);
-    }
-    */
-
     public void testMultipleComplementAwareOnSameFieldNotRewritten() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
@@ -648,45 +583,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         IOUtils.close(w, reader, dir);
     }
-
-    // Note: Must-not-to-should optimization is now handled by MustNotToShouldRewriter in the query rewriting infrastructure
-    // This test is disabled as the functionality has been moved out of BoolQueryBuilder
-    /*
-    public void testOneMustNotNumericMatchQueryRewritten() throws Exception {
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
-        addDocument(w, INT_FIELD_NAME, 1);
-        DirectoryReader reader = DirectoryReader.open(w);
-        IndexSearcher searcher = getIndexSearcher(reader);
-
-        BoolQueryBuilder qb = new BoolQueryBuilder();
-        int excludedValue = 200;
-        QueryBuilder matchQuery = new MatchQueryBuilder(INT_FIELD_NAME, excludedValue);
-        qb.mustNot(matchQuery);
-
-        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
-        assertFalse(rewritten.mustNot().contains(matchQuery));
-
-        QueryBuilder expectedLowerQuery = getRangeQueryBuilder(INT_FIELD_NAME, null, excludedValue, true, false);
-        QueryBuilder expectedUpperQuery = getRangeQueryBuilder(INT_FIELD_NAME, excludedValue, null, false, true);
-        assertEquals(1, rewritten.must().size());
-
-        BoolQueryBuilder nestedBoolQuery = (BoolQueryBuilder) rewritten.must().get(0);
-        assertEquals(2, nestedBoolQuery.should().size());
-        assertEquals("1", nestedBoolQuery.minimumShouldMatch());
-        assertTrue(nestedBoolQuery.should().contains(expectedLowerQuery));
-        assertTrue(nestedBoolQuery.should().contains(expectedUpperQuery));
-
-        // When the QueryShardContext is null, we should not rewrite any match queries as we can't confirm if they're on numeric fields.
-        QueryRewriteContext nullContext = mock(QueryRewriteContext.class);
-        when(nullContext.convertToShardContext()).thenReturn(null);
-        BoolQueryBuilder rewrittenNoContext = (BoolQueryBuilder) Rewriteable.rewrite(qb, nullContext);
-        assertTrue(rewrittenNoContext.mustNot().contains(matchQuery));
-        assertTrue(rewrittenNoContext.should().isEmpty());
-
-        IOUtils.close(w, reader, dir);
-    }
-    */
 
     // Note: The must-to-filter optimization has been moved to MustToFilterRewriter in the query rewriting infrastructure
     // This test is kept but modified to verify that the optimization no longer happens at this level

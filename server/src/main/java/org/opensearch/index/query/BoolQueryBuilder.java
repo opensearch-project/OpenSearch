@@ -400,11 +400,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return any.get();
         }
 
-        // Note: must-not-to-should optimization is now handled by MustNotToShouldRewriter in the query rewriting infrastructure
-        // changed |= rewriteMustNotRangeClausesToShould(newBuilder, queryRewriteContext);
-        // Note: must-to-filter optimization is now handled by MustToFilterRewriter in the query rewriting infrastructure
-        // changed |= rewriteMustClausesToFilter(newBuilder, queryRewriteContext);
-
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
             if (minimumShouldMatch != null) {

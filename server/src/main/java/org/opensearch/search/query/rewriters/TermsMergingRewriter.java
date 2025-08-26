@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.query;
+package org.opensearch.search.query.rewriters;
 
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.search.query.QueryRewriter;
 
 import java.util.ArrayList;
 import java.util.HashMap;

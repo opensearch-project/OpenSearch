@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.query;
+package org.opensearch.search.query.rewriters;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;

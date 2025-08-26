@@ -284,6 +284,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /**
+     * Controls the threshold for the number of term queries on the same field that triggers
+     * the TermsMergingRewriter to combine them into a single terms query. For example,
+     * if set to 16 (default), when 16 or more term queries target the same field within
+     * a boolean clause, they will be merged into a single terms query for better performance.
+     */
     public static final Setting<Integer> QUERY_REWRITING_TERMS_THRESHOLD_SETTING = Setting.intSetting(
         "search.query_rewriting.terms_threshold",
         16,

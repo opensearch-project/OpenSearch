@@ -12,6 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.query.rewriters.BooleanFlatteningRewriter;
+import org.opensearch.search.query.rewriters.MatchAllRemovalRewriter;
+import org.opensearch.search.query.rewriters.MustNotToShouldRewriter;
+import org.opensearch.search.query.rewriters.MustToFilterRewriter;
+import org.opensearch.search.query.rewriters.TermsMergingRewriter;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,22 +30,6 @@ import java.util.List;
 public final class QueryRewriterRegistry {
 
     private static final Logger logger = LogManager.getLogger(QueryRewriterRegistry.class);
-    private static volatile List<QueryRewriter> rewriters;
-
-    static {
-        initializeDefaultRewriters();
-    }
-
-    private static void initializeDefaultRewriters() {
-        List<QueryRewriter> defaultRewriters = new ArrayList<>();
-        defaultRewriters.add(new BooleanFlatteningRewriter());
-        defaultRewriters.add(new MustToFilterRewriter());
-        defaultRewriters.add(new MustNotToShouldRewriter());
-        defaultRewriters.add(new TermsMergingRewriter());
-        defaultRewriters.add(new MatchAllRemovalRewriter());
-        defaultRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
-        rewriters = defaultRewriters;
-    }
 
     private QueryRewriterRegistry() {}
 

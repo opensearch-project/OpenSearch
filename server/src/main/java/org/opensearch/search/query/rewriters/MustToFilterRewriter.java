@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.query;
+package org.opensearch.search.query.rewriters;
 
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -19,6 +19,7 @@ import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.WithFieldName;
+import org.opensearch.search.query.QueryRewriter;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.query;
+package org.opensearch.search.query.rewriters;
 
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;

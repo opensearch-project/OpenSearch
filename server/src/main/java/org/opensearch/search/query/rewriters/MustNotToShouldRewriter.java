@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.query;
+package org.opensearch.search.query.rewriters;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -15,6 +15,7 @@ import org.opensearch.index.query.ComplementAwareQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.WithFieldName;
+import org.opensearch.search.query.QueryRewriter;
 
 import java.io.IOException;
 import java.util.ArrayList;
