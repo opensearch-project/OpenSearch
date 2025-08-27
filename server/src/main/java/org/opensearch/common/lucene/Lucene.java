@@ -57,7 +57,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -580,7 +579,7 @@ public class Lucene {
             sortField = newSortField;
         }
 
-        if (sortField.getClass() != SortField.class && sortField.getClass() != NonPruningSortField.class) {
+        if (sortField.getClass() != SortField.class && (sortField instanceof NonPruningSortField)) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
         if (sortField.getField() == null) {
@@ -590,8 +589,8 @@ public class Lucene {
             out.writeString(sortField.getField());
         }
         if (sortField.getComparatorSource() != null && (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource)) {
-            FieldComparatorSource fieldComparatorSource = sortField.getComparatorSource();
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) fieldComparatorSource;
+            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) (sortField
+                .getComparatorSource());
             writeSortType(out, comparatorSource.reducedType());
             writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
         } else {

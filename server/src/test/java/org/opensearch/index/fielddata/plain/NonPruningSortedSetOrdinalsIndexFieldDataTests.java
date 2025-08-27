@@ -8,6 +8,8 @@
 
 package org.opensearch.index.fielddata.plain;
 
+import org.apache.lucene.index.IndexSorter;
+import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -24,6 +26,7 @@ import org.opensearch.search.MultiValueMode;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Comparator;
 
 public class NonPruningSortedSetOrdinalsIndexFieldDataTests extends OpenSearchSingleNodeTestCase {
     public void testNonPruningSortedSetOrdinalsIndexFieldData() throws IOException {
@@ -43,25 +46,16 @@ public class NonPruningSortedSetOrdinalsIndexFieldDataTests extends OpenSearchSi
         assertTrue(fd instanceof NonPruningSortedSetOrdinalsIndexFieldData);
         SortField field = ((NonPruningSortedSetOrdinalsIndexFieldData) fd).sortField(null, MultiValueMode.MAX, null, false);
         assertTrue(field instanceof NonPruningSortField);
-
-        // Test all the methods of NonPruningSortField for code coverage
-
         field.setMissingValue(SortedSetSortField.STRING_FIRST);
-        field.getMissingValue();
-        field.getField();
-        field.getType();
-        assertFalse(field.getReverse());
-        field.getComparatorSource();
-        field.toString();
-        field.hashCode();
-        field.equals(field);
-        field.getBytesComparator();
-        field.getComparator(0, Pruning.NONE);
-        field.needsScores();
-        field.getIndexSorter();
         field.setOptimizeSortWithIndexedData(false);
-        field.getOptimizeSortWithIndexedData();
         field.setOptimizeSortWithPoints(false);
-        field.getOptimizeSortWithPoints();
+        assertEquals("<sortedset: \"string\"> missingValue=SortField.STRING_FIRST selector=MAX", field.toString());
+        assertFalse(field.equals(field));
+        assertFalse(field.getOptimizeSortWithIndexedData());
+        assertFalse(field.getOptimizeSortWithPoints());
+        assertFalse(field.needsScores());
+        assertTrue(field.getBytesComparator().equals(Comparator.naturalOrder()));
+        assertTrue(field.getComparator(0, Pruning.NONE) instanceof FieldComparator);
+        assertTrue(field.getIndexSorter() instanceof IndexSorter);
     }
 }
