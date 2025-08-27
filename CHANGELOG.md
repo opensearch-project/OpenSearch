@@ -30,5 +30,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 
 - Change single shard assignment log message from warn to debug ([#18186](https://github.com/opensearch-project/OpenSearch/pull/18186))
+- Replace centos:8 with almalinux:8 since centos docker images are deprecated ([#19154](https://github.com/opensearch-project/OpenSearch/pull/19154))
 
 [Unreleased 2.19.x]: https://github.com/opensearch-project/OpenSearch/compare/fd9a9d90df25bea1af2c6a85039692e815b894f5...2.19
