@@ -51,6 +51,7 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -75,12 +76,13 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
 
+    public static final RatioValue MAX_SIZE_PERCENTAGE = new RatioValue(35);
     /**
      * The size after which the cache will begin to evict entries.
      */
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.memorySizeSetting(
         "indices.fielddata.cache.size",
-        "35%",
+        MAX_SIZE_PERCENTAGE.toString(),
         Property.NodeScope,
         Property.Dynamic
     );
@@ -256,7 +258,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     public void updateMaximumWeight(ByteSizeValue newMaximumWeight) {
+        long oldMaximumWeight = cache.getMaximumWeight();
         cache.setMaximumWeight(newMaximumWeight.getBytes());
+        if (newMaximumWeight.getBytes() < oldMaximumWeight) {
+            cache.refresh(); // Evict entries if needed, if the new size is smaller than the old
+        }
     }
 
     /**

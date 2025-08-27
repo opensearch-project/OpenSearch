@@ -163,6 +163,10 @@ public class Cache<K, V> {
         this.maximumWeight = maximumWeight;
     }
 
+    public long getMaximumWeight() {
+        return maximumWeight;
+    }
+
     void setWeigher(ToLongBiFunction<K, V> weigher) {
         Objects.requireNonNull(weigher);
         this.weigher = weigher;
