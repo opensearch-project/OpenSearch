@@ -234,20 +234,20 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             greaterThan(0L)
         );
         assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getFields().get("field") + nodesStats.getNodes()
+            nodesStats.getNodes().get(0).getIndices().getFieldData().getFieldMemorySizes().get("field") + nodesStats.getNodes()
                 .get(1)
                 .getIndices()
                 .getFieldData()
-                .getFields()
+                .getFieldMemorySizes()
                 .get("field"),
             greaterThan(0L)
         );
         assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getFields().get("field") + nodesStats.getNodes()
+            nodesStats.getNodes().get(0).getIndices().getFieldData().getFieldMemorySizes().get("field") + nodesStats.getNodes()
                 .get(1)
                 .getIndices()
                 .getFieldData()
-                .getFields()
+                .getFieldMemorySizes()
                 .get("field"),
             lessThan(
                 nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
@@ -267,9 +267,9 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             .execute()
             .actionGet();
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
-        assertThat(indicesStats.getTotal().getFieldData().getFields().get("field"), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getFieldData().getFieldMemorySizes().get("field"), greaterThan(0L));
         assertThat(
-            indicesStats.getTotal().getFieldData().getFields().get("field"),
+            indicesStats.getTotal().getFieldData().getFieldMemorySizes().get("field"),
             lessThan(indicesStats.getTotal().getFieldData().getMemorySizeInBytes())
         );
 
