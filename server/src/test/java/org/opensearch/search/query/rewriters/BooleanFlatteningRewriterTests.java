@@ -22,7 +22,7 @@ import static org.mockito.Mockito.mock;
 
 public class BooleanFlatteningRewriterTests extends OpenSearchTestCase {
 
-    private final BooleanFlatteningRewriter rewriter = new BooleanFlatteningRewriter();
+    private final BooleanFlatteningRewriter rewriter = BooleanFlatteningRewriter.INSTANCE;
     private final QueryShardContext context = mock(QueryShardContext.class);
 
     public void testSimpleBooleanQuery() {

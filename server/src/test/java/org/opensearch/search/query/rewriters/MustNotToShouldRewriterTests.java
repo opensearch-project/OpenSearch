@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 
 public class MustNotToShouldRewriterTests extends OpenSearchTestCase {
 
-    private final MustNotToShouldRewriter rewriter = new MustNotToShouldRewriter();
+    private final MustNotToShouldRewriter rewriter = MustNotToShouldRewriter.INSTANCE;
     private QueryShardContext context;
     private Directory directory;
     private IndexReader reader;

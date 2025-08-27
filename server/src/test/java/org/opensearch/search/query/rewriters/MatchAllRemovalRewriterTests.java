@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 
 public class MatchAllRemovalRewriterTests extends OpenSearchTestCase {
 
-    private final MatchAllRemovalRewriter rewriter = new MatchAllRemovalRewriter();
+    private final MatchAllRemovalRewriter rewriter = MatchAllRemovalRewriter.INSTANCE;
     private final QueryShardContext context = mock(QueryShardContext.class);
 
     public void testRemoveMatchAllFromMust() {

@@ -44,11 +44,6 @@ public final class QueryRewriterRegistry {
     private final CopyOnWriteArrayList<QueryRewriter> rewriters;
 
     /**
-     * TermsMergingRewriter instance that needs settings initialization.
-     */
-    private final TermsMergingRewriter termsMergingRewriter;
-
-    /**
      * Whether query rewriting is enabled.
      */
     private volatile boolean enabled;
@@ -56,15 +51,12 @@ public final class QueryRewriterRegistry {
     private QueryRewriterRegistry() {
         this.rewriters = new CopyOnWriteArrayList<>();
 
-        // Register default rewriters
-        registerRewriter(new BooleanFlatteningRewriter());
-        registerRewriter(new MustToFilterRewriter());
-        registerRewriter(new MustNotToShouldRewriter());
-        registerRewriter(new MatchAllRemovalRewriter());
-
-        // TermsMergingRewriter is registered as singleton
-        this.termsMergingRewriter = new TermsMergingRewriter();
-        registerRewriter(termsMergingRewriter);
+        // Register default rewriters using singletons
+        registerRewriter(BooleanFlatteningRewriter.INSTANCE);
+        registerRewriter(MustToFilterRewriter.INSTANCE);
+        registerRewriter(MustNotToShouldRewriter.INSTANCE);
+        registerRewriter(MatchAllRemovalRewriter.INSTANCE);
+        registerRewriter(TermsMergingRewriter.INSTANCE);
     }
 
     /**
@@ -96,7 +88,7 @@ public final class QueryRewriterRegistry {
      */
     public static void initialize(Settings settings, ClusterSettings clusterSettings) {
         QueryRewriterRegistry instance = getInstance();
-        instance.termsMergingRewriter.initialize(settings, clusterSettings);
+        TermsMergingRewriter.INSTANCE.initialize(settings, clusterSettings);
         instance.enabled = SearchService.QUERY_REWRITING_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
             SearchService.QUERY_REWRITING_ENABLED_SETTING,

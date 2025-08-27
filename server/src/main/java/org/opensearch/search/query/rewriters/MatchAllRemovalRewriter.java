@@ -23,6 +23,12 @@ import java.util.List;
  */
 public class MatchAllRemovalRewriter implements QueryRewriter {
 
+    public static final MatchAllRemovalRewriter INSTANCE = new MatchAllRemovalRewriter();
+
+    private MatchAllRemovalRewriter() {
+        // Singleton
+    }
+
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
         if (query instanceof BoolQueryBuilder) {

@@ -49,6 +49,12 @@ import java.util.Map;
  */
 public class MustNotToShouldRewriter implements QueryRewriter {
 
+    public static final MustNotToShouldRewriter INSTANCE = new MustNotToShouldRewriter();
+
+    private MustNotToShouldRewriter() {
+        // Singleton
+    }
+
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
         if (!(query instanceof BoolQueryBuilder)) {

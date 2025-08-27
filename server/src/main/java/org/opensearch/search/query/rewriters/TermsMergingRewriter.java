@@ -50,6 +50,8 @@ import java.util.Map;
  */
 public class TermsMergingRewriter implements QueryRewriter {
 
+    public static final TermsMergingRewriter INSTANCE = new TermsMergingRewriter();
+
     /**
      * Default minimum number of terms to merge. Below this threshold, individual
      * term queries may perform better than a terms query.
@@ -65,7 +67,9 @@ public class TermsMergingRewriter implements QueryRewriter {
     /**
      * Creates a new rewriter.
      */
-    public TermsMergingRewriter() {}
+    private TermsMergingRewriter() {
+        // Singleton
+    }
 
     /**
      * Initialize this rewriter with cluster settings.

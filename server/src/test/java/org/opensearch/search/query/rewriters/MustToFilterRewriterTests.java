@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 public class MustToFilterRewriterTests extends OpenSearchTestCase {
 
-    private final MustToFilterRewriter rewriter = new MustToFilterRewriter();
+    private final MustToFilterRewriter rewriter = MustToFilterRewriter.INSTANCE;
     private QueryShardContext context;
 
     @Override

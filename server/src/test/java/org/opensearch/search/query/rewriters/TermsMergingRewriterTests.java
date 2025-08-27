@@ -21,7 +21,7 @@ import static org.mockito.Mockito.mock;
 
 public class TermsMergingRewriterTests extends OpenSearchTestCase {
 
-    private final TermsMergingRewriter rewriter = new TermsMergingRewriter();
+    private final TermsMergingRewriter rewriter = TermsMergingRewriter.INSTANCE;
     private final QueryShardContext context = mock(QueryShardContext.class);
 
     public void testSimpleTermMergingBelowThreshold() {

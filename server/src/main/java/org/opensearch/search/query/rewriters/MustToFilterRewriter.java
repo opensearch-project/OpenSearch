@@ -47,6 +47,12 @@ import java.util.List;
  */
 public class MustToFilterRewriter implements QueryRewriter {
 
+    public static final MustToFilterRewriter INSTANCE = new MustToFilterRewriter();
+
+    private MustToFilterRewriter() {
+        // Singleton
+    }
+
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
         if (!(query instanceof BoolQueryBuilder)) {

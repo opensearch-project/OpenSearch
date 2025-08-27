@@ -36,6 +36,12 @@ import java.util.List;
  */
 public class BooleanFlatteningRewriter implements QueryRewriter {
 
+    public static final BooleanFlatteningRewriter INSTANCE = new BooleanFlatteningRewriter();
+
+    private BooleanFlatteningRewriter() {
+        // Singleton
+    }
+
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
         if (!(query instanceof BoolQueryBuilder)) {
