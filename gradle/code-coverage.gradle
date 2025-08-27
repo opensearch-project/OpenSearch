@@ -71,6 +71,9 @@ if (System.getProperty("tests.coverage")) {
       testCodeCoverageReport(JacocoCoverageReport) {
         testSuiteName = "test"
       }
+      testCodeCoverageReportInternalClusterTest(JacocoCoverageReport) {
+        testSuiteName = "internalClusterTest"
+      }
       testCodeCoverageReportJavaRestTest(JacocoCoverageReport) {
         testSuiteName = "javaRestTest"
       }
@@ -81,6 +84,7 @@ if (System.getProperty("tests.coverage")) {
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
     dependsOn(
       tasks.named('testCodeCoverageReport', JacocoReport),
+      tasks.named('testCodeCoverageReportInternalClusterTest', JacocoReport),
       tasks.named('testCodeCoverageReportJavaRestTest', JacocoReport)
     )
   }
