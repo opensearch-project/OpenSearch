@@ -9,7 +9,6 @@
 package org.opensearch.search.query.rewriters;
 
 import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -43,11 +42,8 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
                 if (q instanceof MatchAllQueryBuilder) {
                     matchAllCount++;
                     matchAllInMust++;
-                } else if (q instanceof ConstantScoreQueryBuilder) {
-                    // Don't treat constant score queries as match_all even if they contain match_all
-                    onlyMatchAll = false;
-                    break;
                 } else {
+                    // Don't treat constant score queries or any other queries as match_all
                     onlyMatchAll = false;
                     break;
                 }
@@ -83,15 +79,18 @@ public class MatchAllRemovalRewriter implements QueryRewriter {
             return original;
         }
 
-        // Create rewritten query
+        // Clone the query structure
         BoolQueryBuilder rewritten = new BoolQueryBuilder();
         rewritten.boost(original.boost());
         rewritten.queryName(original.queryName());
         rewritten.minimumShouldMatch(original.minimumShouldMatch());
         rewritten.adjustPureNegative(original.adjustPureNegative());
 
-        // Process all clauses
-        // For must clauses, only remove match_all if there are other non-match_all queries
+        // Process each clause type with different match_all removal logic:
+        // - must: Remove match_all only if other queries exist (preserves scoring semantics)
+        // - filter: Always remove match_all (it's redundant in non-scoring context)
+        // - should: Keep match_all (changes OR semantics if removed)
+        // - mustNot: Keep match_all (excluding all docs is meaningful)
         processClausesWithContext(original.must(), rewritten::must, true, original, true);
         processClauses(original.filter(), rewritten::filter, true, original);
         processClauses(original.should(), rewritten::should, false, original);

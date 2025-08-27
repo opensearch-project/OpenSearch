@@ -529,6 +529,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
 
         this.pluginProfilers = pluginProfilers;
+
+        // Initialize QueryRewriterRegistry with cluster settings so TermsMergingRewriter
+        // can register its settings update consumer
+        QueryRewriterRegistry.initialize(settings, clusterService.getClusterSettings());
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1514,8 +1518,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             // Apply query rewriting optimizations if enabled
             if (QUERY_REWRITING_ENABLED_SETTING.get(clusterService.getSettings())) {
-                int termsThreshold = QUERY_REWRITING_TERMS_THRESHOLD_SETTING.get(clusterService.getSettings());
-                query = QueryRewriterRegistry.rewrite(query, queryShardContext, true, termsThreshold);
+                query = QueryRewriterRegistry.rewrite(query, queryShardContext, true);
             }
 
             InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);

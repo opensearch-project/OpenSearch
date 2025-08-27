@@ -10,6 +10,8 @@ package org.opensearch.search.query;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.query.rewriters.BooleanFlatteningRewriter;
@@ -40,15 +42,23 @@ public final class QueryRewriterRegistry {
      */
     private final CopyOnWriteArrayList<QueryRewriter> rewriters;
 
+    /**
+     * TermsMergingRewriter instance that needs settings initialization.
+     */
+    private final TermsMergingRewriter termsMergingRewriter;
+
     private QueryRewriterRegistry() {
         this.rewriters = new CopyOnWriteArrayList<>();
 
         // Register default rewriters
-        // Note: TermsMergingRewriter is special - it needs threshold at runtime
         registerRewriter(new BooleanFlatteningRewriter());
         registerRewriter(new MustToFilterRewriter());
         registerRewriter(new MustNotToShouldRewriter());
         registerRewriter(new MatchAllRemovalRewriter());
+
+        // TermsMergingRewriter is registered as singleton
+        this.termsMergingRewriter = new TermsMergingRewriter();
+        registerRewriter(termsMergingRewriter);
     }
 
     /**
@@ -71,28 +81,25 @@ public final class QueryRewriterRegistry {
     }
 
     /**
-     * Get a list of all rewriters with the given terms threshold.
+     * Initialize the registry with cluster settings.
+     * This must be called once during system startup to properly configure
+     * the TermsMergingRewriter with settings and update consumers.
+     *
+     * @param settings Initial cluster settings
+     * @param clusterSettings Cluster settings for registering update consumers
      */
-    private List<QueryRewriter> getRewritersWithThreshold(int termsThreshold) {
-        List<QueryRewriter> allRewriters = new ArrayList<>(rewriters);
-        // Add TermsMergingRewriter with the current threshold
-        // This is added dynamically because it needs the threshold parameter
-        allRewriters.add(new TermsMergingRewriter(termsThreshold));
-        allRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
-        return allRewriters;
+    public static void initialize(Settings settings, ClusterSettings clusterSettings) {
+        getInstance().termsMergingRewriter.initialize(settings, clusterSettings);
     }
 
     public static QueryBuilder rewrite(QueryBuilder query, QueryShardContext context, boolean enabled) {
-        return rewrite(query, context, enabled, 16);
-    }
-
-    public static QueryBuilder rewrite(QueryBuilder query, QueryShardContext context, boolean enabled, int termsThreshold) {
         if (!enabled || query == null) {
             return query;
         }
 
         QueryRewriterRegistry registry = getInstance();
-        List<QueryRewriter> sortedRewriters = registry.getRewritersWithThreshold(termsThreshold);
+        List<QueryRewriter> sortedRewriters = new ArrayList<>(registry.rewriters);
+        sortedRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
 
         QueryBuilder current = query;
         for (QueryRewriter rewriter : sortedRewriters) {

@@ -22,7 +22,6 @@ import static org.mockito.Mockito.mock;
 public class TermsMergingRewriterTests extends OpenSearchTestCase {
 
     private final TermsMergingRewriter rewriter = new TermsMergingRewriter();
-    private final TermsMergingRewriter customThresholdRewriter = new TermsMergingRewriter(5);
     private final QueryShardContext context = mock(QueryShardContext.class);
 
     public void testSimpleTermMergingBelowThreshold() {
@@ -290,27 +289,4 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
         assertThat(merged.values().size(), equalTo(20));
     }
 
-    public void testCustomThreshold() {
-        // Test with custom threshold of 5
-        BoolQueryBuilder query = QueryBuilders.boolQuery();
-
-        // Add 6 term queries (above custom threshold of 5)
-        for (int i = 0; i < 6; i++) {
-            query.filter(QueryBuilders.termQuery("field", "value" + i));
-        }
-
-        // Should merge with custom threshold rewriter
-        QueryBuilder rewritten = customThresholdRewriter.rewrite(query, context);
-        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
-        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
-
-        assertThat(rewrittenBool.filter().size(), equalTo(1));
-        assertThat(rewrittenBool.filter().get(0), instanceOf(TermsQueryBuilder.class));
-        TermsQueryBuilder termsQuery = (TermsQueryBuilder) rewrittenBool.filter().get(0);
-        assertThat(termsQuery.values().size(), equalTo(6));
-
-        // Should NOT merge with default threshold rewriter (6 < 16)
-        QueryBuilder defaultRewritten = rewriter.rewrite(query, context);
-        assertSame(query, defaultRewritten); // No changes expected
-    }
 }

@@ -8,11 +8,14 @@
 
 package org.opensearch.search.query.rewriters;
 
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.query.QueryRewriter;
 
 import java.util.ArrayList;
@@ -55,24 +58,28 @@ public class TermsMergingRewriter implements QueryRewriter {
     private static final int DEFAULT_MINIMUM_TERMS_TO_MERGE = 16;
 
     /**
-     * The minimum number of terms to merge for this instance.
+     * The minimum number of terms to merge.
      */
-    private final int minimumTermsToMerge;
+    private volatile int minimumTermsToMerge = DEFAULT_MINIMUM_TERMS_TO_MERGE;
 
     /**
-     * Creates a new rewriter with the default threshold.
+     * Creates a new rewriter.
      */
-    public TermsMergingRewriter() {
-        this(DEFAULT_MINIMUM_TERMS_TO_MERGE);
-    }
+    public TermsMergingRewriter() {}
 
     /**
-     * Creates a new rewriter with a custom threshold.
+     * Initialize this rewriter with cluster settings.
+     * This registers an update consumer to keep the threshold in sync with the cluster setting.
      *
-     * @param minimumTermsToMerge The minimum number of terms to merge
+     * @param settings Initial settings
+     * @param clusterSettings Cluster settings to register update consumer
      */
-    public TermsMergingRewriter(int minimumTermsToMerge) {
-        this.minimumTermsToMerge = minimumTermsToMerge;
+    public void initialize(Settings settings, ClusterSettings clusterSettings) {
+        this.minimumTermsToMerge = SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
+            threshold -> this.minimumTermsToMerge = threshold
+        );
     }
 
     @Override
