@@ -74,8 +74,8 @@ dependencies {
   runtimeOnly "com.google.code.gson:gson:2.12.1"
   runtimeOnly "com.google.api.grpc:proto-google-common-protos:2.60.0"
   runtimeOnly "com.google.api.grpc:proto-google-iam-v1:1.55.0"
-  implementation "com.google.auth:google-auth-library-credentials:1.37.1"
-  implementation "com.google.auth:google-auth-library-oauth2-http:1.37.1"
+  implementation "com.google.auth:google-auth-library-credentials:1.38.0"
+  implementation "com.google.auth:google-auth-library-oauth2-http:1.38.0"
   runtimeOnly "com.google.oauth-client:google-oauth-client:1.39.0" // 1.39.0 in bom
   implementation "com.google.api-client:google-api-client:2.7.2"
   implementation "com.google.http-client:google-http-client:1.47.1"
@@ -277,11 +277,6 @@ thirdPartyAudit {
     'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
     'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
     'org.graalvm.nativeimage.hosted.RuntimeReflection',
-    //slf4j dependencies
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
-    'org.slf4j.spi.LoggingEventBuilder',
   )
 }
 

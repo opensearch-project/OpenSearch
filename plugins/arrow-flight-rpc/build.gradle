@@ -130,10 +130,6 @@ tasks.named('thirdPartyAudit').configure {
     'org.apache.commons.logging.Log',
     'org.apache.commons.logging.LogFactory',
 
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
-
     // from Log4j (deliberate, Netty will fallback to Log4j 2)
     'org.apache.log4j.Level',
     'org.apache.log4j.Logger',
