@@ -133,7 +133,7 @@ project.ext {
 
 void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
   if (base != DockerBase.ALMALINUX) {
-    throw new GradleException("The only allowed docker base image for builds is CENTOS")
+    throw new GradleException("The only allowed docker base image for builds is ALMALINUX")
   }
 
   tasks.register(taskName("copy", architecture, base, "DockerContext"), Sync) {
@@ -209,7 +209,7 @@ tasks.named("check").configure {
 
 void addBuildDockerImage(Architecture architecture, DockerBase base) {
   if (base != DockerBase.ALMALINUX) {
-    throw new GradleException("The only allowed docker base image for builds is CENTOS")
+    throw new GradleException("The only allowed docker base image for builds is ALMALINUX")
   }
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
