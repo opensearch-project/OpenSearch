@@ -176,6 +176,7 @@ import org.opensearch.transport.ProxyConnectionStrategy;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
+import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportSettings;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -298,6 +299,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
+                IndicesQueryCache.INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR,
+                IndicesQueryCache.INDICES_QUERY_CACHE_MIN_FREQUENCY,
+                IndicesQueryCache.INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY,
                 IndicesService.CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING,
                 IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING,
                 IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING,
@@ -360,6 +364,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
                 NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
+                NetworkModule.STREAM_TRANSPORT_DEFAULT_TYPE_SETTING,
                 NetworkModule.HTTP_TYPE_SETTING,
                 NetworkModule.TRANSPORT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED,
@@ -554,6 +559,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_KEEPALIVE_SETTING,
                 SearchService.ALLOW_EXPENSIVE_QUERIES,
                 MultiBucketConsumerService.MAX_BUCKET_SETTING,
+                SearchService.BUCKET_SELECTION_STRATEGY_FACTOR_SETTING,
                 SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
                 SearchService.MAX_OPEN_PIT_CONTEXT,
@@ -844,7 +850,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
-                ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER
+                ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
+                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING
             )
         )
     );

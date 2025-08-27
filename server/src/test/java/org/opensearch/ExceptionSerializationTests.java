@@ -128,6 +128,7 @@ import org.opensearch.transport.NoSuchRemoteClusterException;
 import org.opensearch.transport.TcpTransport;
 import org.opensearch.transport.client.node.AbstractClientHeadersTestCase;
 import org.opensearch.transport.client.transport.NoNodeAvailableException;
+import org.opensearch.transport.stream.StreamException;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -900,6 +901,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(174, InvalidIndexContextException.class);
         ids.put(175, ResponseLimitBreachedException.class);
         ids.put(176, IngestionEngineException.class);
+        ids.put(177, StreamException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
