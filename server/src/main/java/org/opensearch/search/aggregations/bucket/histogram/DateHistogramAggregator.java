@@ -31,10 +31,10 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.*;
-import org.apache.lucene.internal.hppc.LongIntHashMap;
 import org.apache.lucene.search.DocIdStream;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
@@ -89,6 +89,8 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  * @opensearch.internal
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator, StarTreePreComputeCollector {
+    private static final Logger logger = LogManager.getLogger(DateHistogramAggregator.class);
+
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
@@ -212,17 +214,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         DocValuesSkipper skipper = null;
         if (this.fieldName != null) {
-            ctx.reader().getDocValuesSkipper(this.fieldName);
+            skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
+            logger.warn("AGG: found skipper for {}:{}", this.fieldName, skipper);
         }
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
 
         // If no subaggregations, we can use skip list based collector
-        if (sub == null && skipper != null) {
-            return new HistogramLeafCollector(singleton, skipper, preparedRounding, bucketOrds, this::incrementBucketDocCount);
+        //TODO: add hard bounds support
+        if ((hardBounds != null || sub == null || sub == LeafBucketCollector.NO_OP_COLLECTOR) && skipper != null) {
+            return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, this::incrementBucketDocCount);
         }
 
         if (singleton != null) {
+            logger.warn("AGG: using single valued leave collector");
             // Optimized path for single-valued fields
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
@@ -408,7 +413,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    private static class HistogramLeafCollector extends LeafBucketCollector {
+    private static class HistogramSkiplistLeafCollector extends LeafBucketCollector {
 
         private final NumericDocValues values;
         private final DocValuesSkipper skipper;
@@ -431,7 +436,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
          */
         private long upToBucketIndex;
 
-        HistogramLeafCollector(
+        HistogramSkiplistLeafCollector(
             NumericDocValues values,
             DocValuesSkipper skipper,
             Rounding.Prepared preparedRounding,
@@ -498,7 +503,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 incrementDocCount.accept(upToBucketIndex, 1L);
             } else if (values.advanceExact(doc)) {
                 final long value = values.longValue();
-                bucketOrds.add(0, preparedRounding.round(value));
+                long bucketIndex = bucketOrds.add(0, preparedRounding.round(value));
+                if (bucketIndex < 0) {
+                    bucketIndex = -1 - bucketIndex;
+                }
+                incrementDocCount.accept(bucketIndex, 1L);
             }
         }
 
