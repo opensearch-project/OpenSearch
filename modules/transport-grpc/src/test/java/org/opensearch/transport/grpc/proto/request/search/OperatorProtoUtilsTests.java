@@ -9,14 +9,13 @@
 package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.index.query.Operator;
-import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class OperatorProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromEnumWithAnd() {
         // Call the method under test with AND operator
-        Operator operator = OperatorProtoUtils.fromEnum(SearchRequest.Operator.OPERATOR_AND);
+        Operator operator = OperatorProtoUtils.fromEnum(org.opensearch.protobufs.Operator.OPERATOR_AND);
 
         // Verify the result
         assertNotNull("Operator should not be null", operator);
@@ -25,7 +24,7 @@ public class OperatorProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromEnumWithOr() {
         // Call the method under test with OR operator
-        Operator operator = OperatorProtoUtils.fromEnum(SearchRequest.Operator.OPERATOR_OR);
+        Operator operator = OperatorProtoUtils.fromEnum(org.opensearch.protobufs.Operator.OPERATOR_OR);
 
         // Verify the result
         assertNotNull("Operator should not be null", operator);
@@ -36,7 +35,7 @@ public class OperatorProtoUtilsTests extends OpenSearchTestCase {
         // Call the method under test with UNRECOGNIZED operator, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> OperatorProtoUtils.fromEnum(SearchRequest.Operator.UNRECOGNIZED)
+            () -> OperatorProtoUtils.fromEnum(org.opensearch.protobufs.Operator.UNRECOGNIZED)
         );
 
         assertTrue("Exception message should mention no operator found", exception.getMessage().contains("operator needs to be either"));

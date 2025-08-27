@@ -47,7 +47,7 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Create a Term query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
             .setTerm(
-                TermQuery.newBuilder().setField("test_field").setValue(FieldValue.newBuilder().setStringValue("test_value").build()).build()
+                TermQuery.newBuilder().setField("test_field").setValue(FieldValue.newBuilder().setString("test_value").build()).build()
             )
             .build();
 

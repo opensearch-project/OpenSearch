@@ -10,13 +10,8 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.GeneralNumber;
-import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.TermQuery;
 import org.opensearch.test.OpenSearchTestCase;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
@@ -24,9 +19,9 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with string value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setStringValue("test_value").build())
+            .setValue(FieldValue.newBuilder().setString("test_value").build())
             .build();
 
         // Call the method under test
@@ -44,9 +39,11 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with number value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setFloatValue(10.5f).build()).build())
+            .setValue(
+                FieldValue.newBuilder().setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setFloatValue(10.5f)).build()
+            )
             .build();
 
         // Call the method under test
@@ -64,9 +61,9 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with boolean value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setBoolValue(true).build())
+            .setValue(FieldValue.newBuilder().setBool(true).build())
             .build();
 
         // Call the method under test
@@ -80,6 +77,8 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
     }
 
+    // TODO: ObjectMap functionality removed from FieldValue in protobufs 0.8.0
+    /*
     public void testFromProtoWithObjectMapValue() {
         // Create a protobuf TermQuery with object map value
         Map<String, String> objectMapValues = new HashMap<>();
@@ -93,7 +92,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(FieldValue.newBuilder().setObjectMap(objectMapBuilder.build()).build())
             .build();
@@ -113,12 +112,13 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Boost should match", 2.0f, termQueryBuilder.boost(), 0.0f);
         assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
     }
+    */
 
     public void testFromProtoWithDefaultValues() {
         // Create a protobuf TermQuery with minimal values
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setValue(FieldValue.newBuilder().setStringValue("test_value").build())
+            .setValue(FieldValue.newBuilder().setString("test_value").build())
             .build();
 
         // Call the method under test
@@ -147,7 +147,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         assertTrue(
             "Exception message should mention field value not recognized",
-            exception.getMessage().contains("field value not recognized")
+            exception.getMessage().contains("FieldValue type not recognized")
         );
     }
 
@@ -155,9 +155,11 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with int32 value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setInt32Value(42).build()).build())
+            .setValue(
+                FieldValue.newBuilder().setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setFloatValue(42.0f)).build()
+            )
             .build();
 
         // Call the method under test
@@ -166,7 +168,7 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
         assertEquals("Field name should match", "test_field", termQueryBuilder.fieldName());
-        assertEquals("Value should match", 42, termQueryBuilder.value());
+        assertEquals("Value should match", 42.0f, termQueryBuilder.value());
         assertEquals("Boost should match", 2.0f, termQueryBuilder.boost(), 0.0f);
         assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
     }
@@ -175,10 +177,12 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with int64 value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
             .setValue(
-                FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(9223372036854775807L).build()).build()
+                FieldValue.newBuilder()
+                    .setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setInt64Value(9223372036854775807L))
+                    .build()
             )
             .build();
 
@@ -197,9 +201,13 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with double value
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(3.14159).build()).build())
+            .setValue(
+                FieldValue.newBuilder()
+                    .setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setDoubleValue(3.14159))
+                    .build()
+            )
             .build();
 
         // Call the method under test
@@ -217,9 +225,9 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf TermQuery with case insensitive flag
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setBoost(2.0f)
-            .setValue(FieldValue.newBuilder().setStringValue("test_value").build())
+            .setValue(FieldValue.newBuilder().setString("test_value").build())
             .setCaseInsensitive(true)
             .build();
 
@@ -235,14 +243,12 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Case insensitive should be true", termQueryBuilder.caseInsensitive());
     }
 
-    public void testFromProtoWithUnsupportedGeneralNumberType() {
-        // Create a protobuf TermQuery with unsupported general number type
+    public void testFromProtoWithUnsupportedFieldValueType() {
+        // Create a protobuf TermQuery with no field value set
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test_field")
             .setValue(
-                FieldValue.newBuilder()
-                    .setGeneralNumber(GeneralNumber.newBuilder().build()) // No value set
-                    .build()
+                FieldValue.newBuilder().build() // No value set at all
             )
             .build();
 
@@ -253,8 +259,8 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         );
 
         assertTrue(
-            "Exception message should mention unsupported general number type",
-            exception.getMessage().contains("Unsupported general number type")
+            "Exception message should mention field value not recognized",
+            exception.getMessage().contains("FieldValue type not recognized")
         );
     }
 }

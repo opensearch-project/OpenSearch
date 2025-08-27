@@ -31,12 +31,12 @@ public class TermQueryBuilderProtoConverterTests extends OpenSearchTestCase {
 
     public void testFromProto() {
         // Create a QueryContainer with TermQuery
-        FieldValue fieldValue = FieldValue.newBuilder().setStringValue("test-value").build();
+        FieldValue fieldValue = FieldValue.newBuilder().setString("test-value").build();
         TermQuery termQuery = TermQuery.newBuilder()
             .setField("test-field")
             .setValue(fieldValue)
             .setBoost(2.0f)
-            .setUnderscoreName("test_query")
+            .setXName("test_query")
             .setCaseInsensitive(true)
             .build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();

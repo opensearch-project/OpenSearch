@@ -88,7 +88,7 @@ public class IndicesOptionsProtoUtils {
      * @return an EnumSet of WildcardStates based on the provided wildcardList
      */
     protected static EnumSet<IndicesOptions.WildcardStates> parseProtoParameter(
-        List<SearchRequest.ExpandWildcard> wildcardList,
+        List<org.opensearch.protobufs.ExpandWildcard> wildcardList,
         EnumSet<IndicesOptions.WildcardStates> defaultStates
     ) {
         if (wildcardList.isEmpty()) {
@@ -96,7 +96,7 @@ public class IndicesOptionsProtoUtils {
         }
 
         EnumSet<IndicesOptions.WildcardStates> states = EnumSet.noneOf(IndicesOptions.WildcardStates.class);
-        for (SearchRequest.ExpandWildcard wildcard : wildcardList) {
+        for (org.opensearch.protobufs.ExpandWildcard wildcard : wildcardList) {
             updateSetForValue(states, wildcard);
         }
 
@@ -110,7 +110,10 @@ public class IndicesOptionsProtoUtils {
      * @param states the EnumSet of WildcardStates to update
      * @param wildcard the ExpandWildcard value to use for updating the states
      */
-    protected static void updateSetForValue(EnumSet<IndicesOptions.WildcardStates> states, SearchRequest.ExpandWildcard wildcard) {
+    protected static void updateSetForValue(
+        EnumSet<IndicesOptions.WildcardStates> states,
+        org.opensearch.protobufs.ExpandWildcard wildcard
+    ) {
         switch (wildcard) {
             case EXPAND_WILDCARD_OPEN:
                 states.add(OPEN);

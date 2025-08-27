@@ -42,7 +42,7 @@ public class MatchAllQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithName() {
         // Create a protobuf MatchAllQuery with name
-        MatchAllQuery matchAllQueryProto = MatchAllQuery.newBuilder().setUnderscoreName("test_query").build();
+        MatchAllQuery matchAllQueryProto = MatchAllQuery.newBuilder().setXName("test_query").build();
 
         // Call the method under test
         MatchAllQueryBuilder matchAllQueryBuilder = MatchAllQueryBuilderProtoUtils.fromProto(matchAllQueryProto);
@@ -55,7 +55,7 @@ public class MatchAllQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithBoostAndName() {
         // Create a protobuf MatchAllQuery with boost and name
-        MatchAllQuery matchAllQueryProto = MatchAllQuery.newBuilder().setBoost(3.0f).setUnderscoreName("test_query").build();
+        MatchAllQuery matchAllQueryProto = MatchAllQuery.newBuilder().setBoost(3.0f).setXName("test_query").build();
 
         // Call the method under test
         MatchAllQueryBuilder matchAllQueryBuilder = MatchAllQueryBuilderProtoUtils.fromProto(matchAllQueryProto);
