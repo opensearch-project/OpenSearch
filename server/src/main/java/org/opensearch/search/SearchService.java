@@ -1516,10 +1516,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.query() != null) {
             QueryBuilder query = source.query();
 
-            // Apply query rewriting optimizations if enabled
-            if (QUERY_REWRITING_ENABLED_SETTING.get(clusterService.getSettings())) {
-                query = QueryRewriterRegistry.rewrite(query, queryShardContext, true);
-            }
+            // Apply query rewriting optimizations
+            query = QueryRewriterRegistry.rewrite(query, queryShardContext);
 
             InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
             context.parsedQuery(queryShardContext.toQuery(query));

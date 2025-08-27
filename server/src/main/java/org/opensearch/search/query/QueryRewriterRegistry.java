@@ -14,6 +14,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.query.rewriters.BooleanFlatteningRewriter;
 import org.opensearch.search.query.rewriters.MatchAllRemovalRewriter;
 import org.opensearch.search.query.rewriters.MustNotToShouldRewriter;
@@ -46,6 +47,11 @@ public final class QueryRewriterRegistry {
      * TermsMergingRewriter instance that needs settings initialization.
      */
     private final TermsMergingRewriter termsMergingRewriter;
+
+    /**
+     * Whether query rewriting is enabled.
+     */
+    private volatile boolean enabled;
 
     private QueryRewriterRegistry() {
         this.rewriters = new CopyOnWriteArrayList<>();
@@ -89,15 +95,21 @@ public final class QueryRewriterRegistry {
      * @param clusterSettings Cluster settings for registering update consumers
      */
     public static void initialize(Settings settings, ClusterSettings clusterSettings) {
-        getInstance().termsMergingRewriter.initialize(settings, clusterSettings);
+        QueryRewriterRegistry instance = getInstance();
+        instance.termsMergingRewriter.initialize(settings, clusterSettings);
+        instance.enabled = SearchService.QUERY_REWRITING_ENABLED_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            SearchService.QUERY_REWRITING_ENABLED_SETTING,
+            (Boolean enabled) -> instance.enabled = enabled
+        );
     }
 
-    public static QueryBuilder rewrite(QueryBuilder query, QueryShardContext context, boolean enabled) {
-        if (!enabled || query == null) {
+    public static QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
+        QueryRewriterRegistry registry = getInstance();
+        if (!registry.enabled || query == null) {
             return query;
         }
 
-        QueryRewriterRegistry registry = getInstance();
         List<QueryRewriter> sortedRewriters = new ArrayList<>(registry.rewriters);
         sortedRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
 
