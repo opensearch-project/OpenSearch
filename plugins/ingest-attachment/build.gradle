@@ -38,8 +38,8 @@ opensearchplugin {
 }
 
 versions << [
-  'tika'  : '2.9.2',
-  'pdfbox': '2.0.31',
+  'tika'  : '3.2.2',
+  'pdfbox': '3.0.5',
   'poi'   : '5.4.1',
   'mime4j': '0.8.11'
 ]
@@ -75,10 +75,11 @@ dependencies {
 
   // external parser libraries
   // HTML
-  api 'org.ccil.cowan.tagsoup:tagsoup:1.2.1'
+  api 'org.jsoup:jsoup:1.20.1'
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
+  api "org.apache.pdfbox:pdfbox-io:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.bouncycastle:bcmail-jdk18on:${versions.bouncycastle}"
@@ -124,6 +125,7 @@ forbiddenPatterns {
   exclude '**/*.pdf'
   exclude '**/*.epub'
   exclude '**/*.vsdx'
+  exclude '**/*.ttf'
 }
 
 thirdPartyAudit {

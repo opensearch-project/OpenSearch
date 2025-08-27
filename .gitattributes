@@ -10,4 +10,5 @@
 *.bcfks binary
 *.crt binary
 *.p12 binary
+*.ttf binary
 *.txt text=auto
