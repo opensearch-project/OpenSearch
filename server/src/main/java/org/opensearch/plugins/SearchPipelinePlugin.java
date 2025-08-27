@@ -18,6 +18,7 @@ import org.opensearch.search.pipeline.SearchPhaseResultsProcessor;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
+import org.opensearch.search.pipeline.SystemGeneratedProcessor;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.transport.client.Client;
 
@@ -56,6 +57,32 @@ public interface SearchPipelinePlugin {
     }
 
     /**
+     * Returns additional system generated search pipeline request processor types added by this plugin.
+     * <p>
+     * The key of the returned {@link Map} is the unique name for the processor, and the value is a
+     * {@link SystemGeneratedProcessor.SystemGeneratedFactory}
+     * to create the system generated processor from a given search request.
+     */
+    default Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<SearchRequestProcessor>> getSystemGeneratedRequestProcessors(
+        Parameters parameters
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns additional system generated search pipeline response processor types added by this plugin.
+     * <p>
+     * The key of the returned {@link Map} is the unique name for the processor, and the value is a
+     * {@link SystemGeneratedProcessor.SystemGeneratedFactory}
+     * to create the system generated processor from a given search request.
+     */
+    default Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<SearchResponseProcessor>> getSystemGeneratedResponseProcessors(
+        Parameters parameters
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
      * Returns additional search pipeline search phase results processor types added by this plugin.
      * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
@@ -63,6 +90,19 @@ public interface SearchPipelinePlugin {
      * to create the processor from a given pipeline configuration.
      */
     default Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(Parameters parameters) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns additional system generated search pipeline search phase results processor types added by this plugin.
+     * <p>
+     * The key of the returned {@link Map} is the unique name for the processor, and the value is a
+     * {@link SystemGeneratedProcessor.SystemGeneratedFactory}
+     * to create the system generated processor from a given search request.
+     */
+    default
+        Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<SearchPhaseResultsProcessor>>
+        getSystemGeneratedSearchPhaseResultsProcessors(Parameters parameters) {
         return Collections.emptyMap();
     }
 
@@ -135,5 +175,15 @@ public interface SearchPipelinePlugin {
             this.namedXContentRegistry = namedXContentRegistry;
         }
 
+    }
+
+    /**
+     * Available config keys for the system generated search pipeline
+     */
+    class SystemGeneratedSearchPipelineConfigKeys {
+        /**
+         * The parsed search request sent by users
+         */
+        public static final String SEARCH_REQUEST = "search_request";
     }
 }
