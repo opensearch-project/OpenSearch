@@ -32,6 +32,7 @@
 
 package org.opensearch.index.fielddata;
 
+import org.opensearch.Version;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -44,6 +45,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Encapsulates heap usage for field data
@@ -58,10 +60,14 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     private static final String MEMORY_SIZE_IN_BYTES = "memory_size_in_bytes";
     private static final String EVICTIONS = "evictions";
     private static final String FIELDS = "fields";
+    private static final String ITEM_COUNT = "item_count";
     private long memorySize;
     private long evictions;
+    private long itemCount;
     @Nullable
-    private FieldMemoryStats fields;
+    private FieldMemoryStats fieldMemorySizes;
+    @Nullable
+    private FieldMemoryStats fieldItemCounts;
 
     public FieldDataStats() {
 
@@ -70,13 +76,40 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     public FieldDataStats(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
-        fields = in.readOptionalWriteable(FieldMemoryStats::new);
+        fieldMemorySizes = in.readOptionalWriteable(FieldMemoryStats::new);
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            itemCount = in.readVLong();
+            fieldItemCounts = in.readOptionalWriteable(FieldMemoryStats::new);
+        }
     }
 
+    /**
+     * @deprecated Use the constructor that includes item counts instead.
+     * @param memorySize the total memory size
+     * @param evictions the number of evictions
+     * @param fields the memory size for each field
+     */
+    @Deprecated
     public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields) {
+        // TODO: Remove usage of this ctor in tests?
+        this(memorySize, evictions, fields, 0, null);
+    }
+
+    public FieldDataStats(
+        long memorySize,
+        long evictions,
+        @Nullable FieldMemoryStats fieldMemorySizes,
+        long itemCount,
+        @Nullable FieldMemoryStats fieldItemCounts
+    ) {
         this.memorySize = memorySize;
         this.evictions = evictions;
-        this.fields = fields;
+        this.fieldMemorySizes = fieldMemorySizes;
+        this.itemCount = itemCount;
+        this.fieldItemCounts = fieldItemCounts;
+        if (fieldMemorySizes != null && fieldItemCounts != null) {
+            assert fieldMemorySizes.getStats().keySet().equals(fieldItemCounts.getStats().keySet());
+        }
     }
 
     public void add(FieldDataStats stats) {
@@ -85,11 +118,19 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         }
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
-        if (stats.fields != null) {
-            if (fields == null) {
-                fields = stats.fields.copy();
+        this.itemCount += stats.itemCount;
+        if (stats.fieldMemorySizes != null) {
+            if (fieldMemorySizes == null) {
+                fieldMemorySizes = stats.fieldMemorySizes.copy();
             } else {
-                fields.add(stats.fields);
+                fieldMemorySizes.add(stats.fieldMemorySizes);
+            }
+        }
+        if (stats.fieldItemCounts != null) {
+            if (fieldItemCounts == null) {
+                fieldItemCounts = stats.fieldItemCounts.copy();
+            } else {
+                fieldItemCounts.add(stats.fieldItemCounts);
             }
         }
     }
@@ -106,16 +147,29 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         return this.evictions;
     }
 
+    public long getItemCount() {
+        return this.itemCount;
+    }
+
     @Nullable
-    public FieldMemoryStats getFields() {
-        return fields;
+    public FieldMemoryStats getFieldMemorySizes() {
+        return fieldMemorySizes;
+    }
+
+    @Nullable
+    public FieldMemoryStats getFieldItemCounts() {
+        return fieldItemCounts;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
-        out.writeOptionalWriteable(fields);
+        out.writeOptionalWriteable(fieldMemorySizes);
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeVLong(itemCount);
+            out.writeOptionalWriteable(fieldItemCounts);
+        }
     }
 
     @Override
@@ -123,8 +177,27 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         builder.startObject(FIELDDATA);
         builder.humanReadableField(MEMORY_SIZE_IN_BYTES, MEMORY_SIZE, getMemorySize());
         builder.field(EVICTIONS, getEvictions());
+        builder.field(ITEM_COUNT, getItemCount());
+        Set<String> fields = null;
+        // We've already asserted the two key sets are the same if both are not null
+        if (fieldMemorySizes != null) {
+            fields = fieldMemorySizes.getStats().keySet();
+        } else if (fieldItemCounts != null) {
+            fields = fieldItemCounts.getStats().keySet();
+        }
         if (fields != null) {
-            fields.toXContent(builder, FIELDS, MEMORY_SIZE_IN_BYTES, MEMORY_SIZE);
+            builder.startObject(FIELDS);
+            for (String field : fields) {
+                builder.startObject(field);
+                if (fieldMemorySizes != null) {
+                    builder.humanReadableField(MEMORY_SIZE_IN_BYTES, MEMORY_SIZE, new ByteSizeValue(fieldMemorySizes.get(field)));
+                }
+                if (fieldItemCounts != null) {
+                    builder.field(ITEM_COUNT, fieldItemCounts.get(field));
+                }
+                builder.endObject();
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;
@@ -135,11 +208,15 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldDataStats that = (FieldDataStats) o;
-        return memorySize == that.memorySize && evictions == that.evictions && Objects.equals(fields, that.fields);
+        return memorySize == that.memorySize
+            && evictions == that.evictions
+            && Objects.equals(fieldMemorySizes, that.fieldMemorySizes)
+            && itemCount == that.itemCount
+            && Objects.equals(fieldItemCounts, that.fieldItemCounts);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(memorySize, evictions, fields);
+        return Objects.hash(memorySize, evictions, fieldMemorySizes, itemCount, fieldItemCounts);
     }
 }

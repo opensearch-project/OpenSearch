@@ -842,7 +842,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertEquals(new ByteSizeValue(0), statsResponseWithAllIndicesMetrics.getIndicesStats().getStore().getReservedSize());
         assertEquals(new ByteSizeValue(0), statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData().getMemorySize());
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData().getEvictions());
-        assertNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData().getFields());
+        assertNull(statsResponseWithAllIndicesMetrics.getIndicesStats().getFieldData().getFieldMemorySizes());
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getCount());
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getIndexWriterMemoryInBytes());
         assertEquals(0, statsResponseWithAllIndicesMetrics.getIndicesStats().getSegments().getVersionMapMemoryInBytes());
