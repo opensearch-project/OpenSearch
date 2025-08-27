@@ -35,7 +35,7 @@ public final class QueryRewriterRegistry {
 
     private static final Logger logger = LogManager.getLogger(QueryRewriterRegistry.class);
 
-    private static final QueryRewriterRegistry INSTANCE = new QueryRewriterRegistry();
+    public static final QueryRewriterRegistry INSTANCE = new QueryRewriterRegistry();
 
     /**
      * Default rewriters.
@@ -60,13 +60,6 @@ public final class QueryRewriterRegistry {
     }
 
     /**
-     * Get the singleton instance of the registry.
-     */
-    public static QueryRewriterRegistry getInstance() {
-        return INSTANCE;
-    }
-
-    /**
      * Register a custom query rewriter.
      *
      * @param rewriter The rewriter to register
@@ -86,23 +79,21 @@ public final class QueryRewriterRegistry {
      * @param settings Initial cluster settings
      * @param clusterSettings Cluster settings for registering update consumers
      */
-    public static void initialize(Settings settings, ClusterSettings clusterSettings) {
-        QueryRewriterRegistry instance = getInstance();
+    public void initialize(Settings settings, ClusterSettings clusterSettings) {
         TermsMergingRewriter.INSTANCE.initialize(settings, clusterSettings);
-        instance.enabled = SearchService.QUERY_REWRITING_ENABLED_SETTING.get(settings);
+        this.enabled = SearchService.QUERY_REWRITING_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
             SearchService.QUERY_REWRITING_ENABLED_SETTING,
-            (Boolean enabled) -> instance.enabled = enabled
+            (Boolean enabled) -> this.enabled = enabled
         );
     }
 
-    public static QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
-        QueryRewriterRegistry registry = getInstance();
-        if (!registry.enabled || query == null) {
+    public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
+        if (!enabled || query == null) {
             return query;
         }
 
-        List<QueryRewriter> sortedRewriters = new ArrayList<>(registry.rewriters);
+        List<QueryRewriter> sortedRewriters = new ArrayList<>(rewriters);
         sortedRewriters.sort(Comparator.comparingInt(QueryRewriter::priority));
 
         QueryBuilder current = query;

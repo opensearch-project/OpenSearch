@@ -37,7 +37,7 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
             .put(SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING.getKey(), 16)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        QueryRewriterRegistry.initialize(settings, clusterSettings);
+        QueryRewriterRegistry.INSTANCE.initialize(settings, clusterSettings);
     }
 
     public void testCompleteRewritingPipeline() {
@@ -53,7 +53,7 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
             .filter(QueryBuilders.termQuery("type", "product"))
             .filter(QueryBuilders.termQuery("type", "service"));
 
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(query, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
@@ -76,26 +76,26 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         // Initialize with disabled setting
-        QueryRewriterRegistry.initialize(settings, clusterSettings);
+        QueryRewriterRegistry.INSTANCE.initialize(settings, clusterSettings);
 
         QueryBuilder query = QueryBuilders.boolQuery()
             .must(QueryBuilders.matchAllQuery())
             .filter(QueryBuilders.termQuery("field", "value"));
 
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(query, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
         assertSame(query, rewritten);
 
         // Enable via settings update
         clusterSettings.applySettings(Settings.builder().put(SearchService.QUERY_REWRITING_ENABLED_SETTING.getKey(), true).build());
 
         // Now it should rewrite
-        QueryBuilder rewritten2 = QueryRewriterRegistry.rewrite(query, context);
+        QueryBuilder rewritten2 = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
         assertNotSame(query, rewritten2);
     }
 
     public void testNullQuery() {
         // Null query should return null
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(null, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(null, context);
         assertNull(rewritten);
     }
 
@@ -110,7 +110,7 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
                     .must(QueryBuilders.termQuery("field", "value2"))
             );
 
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(deeplyNested, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(deeplyNested, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
@@ -141,7 +141,7 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
             .must(QueryBuilders.rangeQuery("price").gte(500).lte(2000))
             .mustNot(QueryBuilders.termQuery("status", "discontinued"));
 
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(query, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
@@ -183,7 +183,7 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
             .filter(QueryBuilders.matchAllQuery());
 
         // Should not throw any exceptions
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(query, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
         assertNotNull(rewritten);
     }
 
@@ -195,7 +195,7 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
             .filter(QueryBuilders.matchAllQuery());
 
         // Even if one rewriter fails, others should still be applied
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(query, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
         assertNotNull(rewritten);
     }
 
@@ -230,7 +230,7 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
             .mustNot(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("archived", "true")))
             .minimumShouldMatch(1);
 
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(query, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder result = (BoolQueryBuilder) rewritten;
 
@@ -307,14 +307,14 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         };
 
         // Register the custom rewriter
-        QueryRewriterRegistry.getInstance().registerRewriter(customRewriter);
+        QueryRewriterRegistry.INSTANCE.registerRewriter(customRewriter);
 
         // Test that it's applied
         QueryBuilder query = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("test_field", "test_value"))
             .filter(QueryBuilders.termQuery("other_field", "other_value"));
 
-        QueryBuilder rewritten = QueryRewriterRegistry.rewrite(query, context);
+        QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 

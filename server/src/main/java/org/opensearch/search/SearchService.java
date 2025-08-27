@@ -532,7 +532,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         // Initialize QueryRewriterRegistry with cluster settings so TermsMergingRewriter
         // can register its settings update consumer
-        QueryRewriterRegistry.initialize(settings, clusterService.getClusterSettings());
+        QueryRewriterRegistry.INSTANCE.initialize(settings, clusterService.getClusterSettings());
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1517,7 +1517,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             QueryBuilder query = source.query();
 
             // Apply query rewriting optimizations
-            query = QueryRewriterRegistry.rewrite(query, queryShardContext);
+            query = QueryRewriterRegistry.INSTANCE.rewrite(query, queryShardContext);
 
             InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
             context.parsedQuery(queryShardContext.toQuery(query));

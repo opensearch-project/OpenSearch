@@ -8,6 +8,7 @@
 
 package org.opensearch.search.query;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 
@@ -15,8 +16,9 @@ import org.opensearch.index.query.QueryShardContext;
  * Interface for query rewriting implementations that optimize query structure
  * before conversion to Lucene queries.
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface QueryRewriter {
 
     /**
