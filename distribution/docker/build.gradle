@@ -125,7 +125,7 @@ project.ext {
 }
 
 void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
-  if (base != DockerBase.CENTOS) {
+  if (base != DockerBase.ALMALINUX) {
     throw new GradleException("The only allowed docker base image for builds is CENTOS")
   }
 
@@ -172,8 +172,8 @@ opensearch_distributions {
 tasks.named("preProcessFixture").configure {
   dependsOn opensearch_distributions.docker
   // always run the task, otherwise the folders won't be created
-  outputs.upToDateWhen { 
-    false 
+  outputs.upToDateWhen {
+    false
   }
   doLast {
     // tests expect to have an empty repo
@@ -199,7 +199,7 @@ tasks.named("check").configure {
 }
 
 void addBuildDockerImage(Architecture architecture, DockerBase base) {
-  if (base != DockerBase.CENTOS) {
+  if (base != DockerBase.ALMALINUX) {
     throw new GradleException("The only allowed docker base image for builds is CENTOS")
   }
 
@@ -225,7 +225,7 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
 for (final Architecture architecture : Architecture.values()) {
   // We only create Docker images for the distribution on CentOS.
   for (final DockerBase base : DockerBase.values()) {
-    if (base == DockerBase.CENTOS) {
+    if (base == DockerBase.ALMALINUX) {
       addCopyDockerContextTask(architecture, base)
       addBuildDockerImage(architecture, base)
     }
@@ -248,7 +248,7 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final Architecture architecture = subProject.name.contains('arm64-') ? Architecture.ARM64 : Architecture.X64
-    final DockerBase base = DockerBase.CENTOS
+    final DockerBase base = DockerBase.ALMALINUX
 
     final String arch = architecture == Architecture.ARM64 ? '-arm64' : ''
     final String extension = 'docker.tar'
