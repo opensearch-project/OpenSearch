@@ -235,10 +235,10 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         Settings settings = settings(Version.V_3_0_0).put("index.sort.field", "foo").build();
         IllegalArgumentException invalidNestedException = expectThrows(
             IllegalArgumentException.class,
-            () -> createIndex("test", settings, "t", "nested_field", "type=nested", "foo", "type=keyword")
+            () -> createIndexWithSimpleMappings("test", settings, "nested_field", "type=nested", "foo", "type=keyword")
         );
         assertThat(invalidNestedException.getMessage(), containsString("cannot have nested fields when index sort is activated"));
-        IndexService indexService = createIndex("test", settings, "t", "foo", "type=keyword");
+        IndexService indexService = createIndexWithSimpleMappings("test", settings, "foo", "type=keyword");
         CompressedXContent nestedFieldMapping = new CompressedXContent(
             BytesReference.bytes(
                 XContentFactory.jsonBuilder()

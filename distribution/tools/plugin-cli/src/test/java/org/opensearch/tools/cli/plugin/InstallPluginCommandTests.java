@@ -526,7 +526,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Path pluginDir = createPluginDir(temp);
         String pluginZip = createPluginUrl("fake", pluginDir);
         Path pluginZipWithSpaces = createTempFile("foo bar", ".zip");
-        try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip))) {
+        try (InputStream in = FileSystemUtils.openFileURLStream(URI.create(pluginZip).toURL())) {
             Files.copy(in, pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
         }
         installPlugin(pluginZipWithSpaces.toUri().toURL().toString(), env.v1());
@@ -536,8 +536,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testMalformedUrlNotMaven() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         // has two colons, so it appears similar to maven coordinates
-        MalformedURLException e = expectThrows(MalformedURLException.class, () -> installPlugin("://host:1234", env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> installPlugin("://host:1234", env.v1()));
+        assertThat(e.getMessage(), startsWith("Expected scheme name"));
     }
 
     public void testFileNotMaven() throws Exception {

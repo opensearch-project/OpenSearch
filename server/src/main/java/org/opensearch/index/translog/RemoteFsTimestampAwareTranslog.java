@@ -90,7 +90,8 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             startedPrimarySupplier,
             remoteTranslogTransferTracker,
             remoteStoreSettings,
-            translogOperationHelper
+            translogOperationHelper,
+            null
         );
         logger = Loggers.getLogger(getClass(), shardId);
         this.metadataFilePinnedTimestampMap = new HashMap<>();
