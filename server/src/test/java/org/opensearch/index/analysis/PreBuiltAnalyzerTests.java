@@ -127,7 +127,7 @@ public class PreBuiltAnalyzerTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .endObject();
-        MapperService mapperService = createIndex("test", indexSettings, "type", mapping).mapperService();
+        MapperService mapperService = createIndex("test", indexSettings, mapping).mapperService();
 
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType.getTextSearchInfo().getSearchAnalyzer(), instanceOf(NamedAnalyzer.class));
