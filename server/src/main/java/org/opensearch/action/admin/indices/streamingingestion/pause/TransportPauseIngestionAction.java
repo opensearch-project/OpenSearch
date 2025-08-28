@@ -27,13 +27,11 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.index.Index;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * Pause ingestion transport action.
@@ -110,20 +108,22 @@ public class TransportPauseIngestionAction extends TransportClusterManagerNodeAc
         final ClusterState state,
         final ActionListener<PauseIngestionResponse> listener
     ) throws Exception {
-        final Index[] concreteIndices = resolveIndicesAsArray(request, state);
-        if (concreteIndices == null || concreteIndices.length == 0) {
+        final ResolvedIndices.Local.Concrete concreteIndices = resolveIndices(request, state);
+        if (concreteIndices.concreteIndices().isEmpty()) {
             listener.onResponse(new PauseIngestionResponse(true, false, new IngestionStateShardFailure[0], ""));
             return;
         }
 
-        String[] indices = Arrays.stream(concreteIndices).map(Index::getName).toArray(String[]::new);
-        UpdateIngestionStateRequest updateIngestionStateRequest = new UpdateIngestionStateRequest(indices, new int[0]);
+        UpdateIngestionStateRequest updateIngestionStateRequest = new UpdateIngestionStateRequest(
+            concreteIndices.namesOfConcreteIndicesAsArray(),
+            new int[0]
+        );
         updateIngestionStateRequest.timeout(request.clusterManagerNodeTimeout());
         updateIngestionStateRequest.setIngestionPaused(true);
 
         ingestionStateService.updateIngestionPollerState(
             "pause-ingestion",
-            concreteIndices,
+            concreteIndices.concreteIndicesAsArray(),
             updateIngestionStateRequest,
             new ActionListener<>() {
 
@@ -151,10 +151,10 @@ public class TransportPauseIngestionAction extends TransportClusterManagerNodeAc
 
     @Override
     public ResolvedIndices resolveIndices(PauseIngestionRequest request) {
-        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+        return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
-    private Index[] resolveIndicesAsArray(PauseIngestionRequest request, ClusterState clusterState) {
-        return indexNameExpressionResolver.concreteIndices(clusterState, request);
+    private ResolvedIndices.Local.Concrete resolveIndices(PauseIngestionRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 }

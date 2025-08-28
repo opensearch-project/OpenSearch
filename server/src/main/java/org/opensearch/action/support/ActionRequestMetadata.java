@@ -9,10 +9,9 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.core.action.ActionResponse;
-
-import java.util.Optional;
 
 /**
  * This class can be used to provide metadata about action requests to ActionFilter implementations.
@@ -35,8 +34,7 @@ public class ActionRequestMetadata<Request extends ActionRequest, Response exten
     private final TransportAction<Request, Response> transportAction;
     private final Request request;
 
-    private ResolvedIndices resolvedIndices;
-    private boolean resolvedIndicesInitialized;
+    private OptionallyResolvedIndices resolvedIndices;
 
     ActionRequestMetadata(TransportAction<Request, Response> transportAction, Request request) {
         this.transportAction = transportAction;
@@ -48,15 +46,16 @@ public class ActionRequestMetadata<Request extends ActionRequest, Response exten
      * expressions or patterns will be resolved.
      * <p>
      * If the request cannot reference indices OR if the respective action does not support resolving of requests,
-     * this returns an empty Optional.
+     * this returns an {@link OptionallyResolvedIndices} with unknown = true. If indices can be resolved, actually
+     * a {@link ResolvedIndices} object will be returned.
      */
-    public Optional<ResolvedIndices> resolvedIndices() {
+    public OptionallyResolvedIndices resolvedIndices() {
         if (!(transportAction instanceof TransportIndicesResolvingAction<?>)) {
-            return Optional.empty();
+            return OptionallyResolvedIndices.unknown();
         }
 
-        if (this.resolvedIndicesInitialized) {
-            return Optional.of(this.resolvedIndices);
+        if (this.resolvedIndices != null) {
+            return this.resolvedIndices;
         } else {
             return resolveIndices();
         }
@@ -66,13 +65,12 @@ public class ActionRequestMetadata<Request extends ActionRequest, Response exten
      * Performs the actual index resolution. Index resolution can be relatively costly on big clusters, so we
      * perform it lazily only when requested.
      */
-    private Optional<ResolvedIndices> resolveIndices() {
+    private OptionallyResolvedIndices resolveIndices() {
         @SuppressWarnings("unchecked")
         TransportIndicesResolvingAction<Request> indicesResolvingAction = (TransportIndicesResolvingAction<Request>) this.transportAction;
-        ResolvedIndices result = indicesResolvingAction.resolveIndices(request);
+        OptionallyResolvedIndices result = indicesResolvingAction.resolveIndices(request);
 
         this.resolvedIndices = result;
-        this.resolvedIndicesInitialized = true;
-        return Optional.of(result);
+        return result;
     }
 }

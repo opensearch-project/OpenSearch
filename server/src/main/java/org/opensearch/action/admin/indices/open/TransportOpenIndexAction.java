@@ -123,7 +123,7 @@ public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<
         final ClusterState state,
         final ActionListener<OpenIndexResponse> listener
     ) {
-        final Index[] concreteIndices = resolveIndicesAsArray(request, state);
+        final Index[] concreteIndices = resolveIndices(request, state).concreteIndicesAsArray();
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new OpenIndexResponse(true, true));
             return;
@@ -150,10 +150,10 @@ public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<
 
     @Override
     public ResolvedIndices resolveIndices(OpenIndexRequest request) {
-        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+        return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
-    private Index[] resolveIndicesAsArray(OpenIndexRequest request, ClusterState clusterState) {
-        return indexNameExpressionResolver.concreteIndices(clusterState, request);
+    private ResolvedIndices.Local.Concrete resolveIndices(OpenIndexRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 }
