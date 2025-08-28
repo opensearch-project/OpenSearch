@@ -8,6 +8,7 @@
 
 package org.opensearch.search.query;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -43,18 +44,24 @@ public final class QueryCollectorContextSpecRegistry {
     /**
      * Get collector context spec
      * @param searchContext search context
+     * @param query required to create collectorContext spec
      * @param queryCollectorArguments query collector arguments
      * @return collector context spec
      * @throws IOException
      */
     public static Optional<QueryCollectorContextSpec> getQueryCollectorContextSpec(
         final SearchContext searchContext,
+        final Query query,
         final QueryCollectorArguments queryCollectorArguments
     ) throws IOException {
         Iterator<QueryCollectorContextSpecFactory> iterator = registry.iterator();
         while (iterator.hasNext()) {
             QueryCollectorContextSpecFactory factory = iterator.next();
-            Optional<QueryCollectorContextSpec> spec = factory.createQueryCollectorContextSpec(searchContext, queryCollectorArguments);
+            Optional<QueryCollectorContextSpec> spec = factory.createQueryCollectorContextSpec(
+                searchContext,
+                query,
+                queryCollectorArguments
+            );
             if (spec.isEmpty() == false) {
                 return spec;
             }

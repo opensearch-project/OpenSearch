@@ -642,7 +642,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if doc values is enabled for a field or not
      */
-    void checkDocValuesForDerivedSource() {
+    protected void checkDocValuesForDerivedSource() {
         if (!mappedFieldType.hasDocValues()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with doc values disabled");
         }
@@ -651,7 +651,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if stored field is enabled for a field or not
      */
-    void checkStoredForDerivedSource() {
+    protected void checkStoredForDerivedSource() {
         if (!mappedFieldType.isStored()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with store disabled");
         }
@@ -660,7 +660,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if doc_values or stored field is enabled for a field or not
      */
-    void checkStoredAndDocValuesForDerivedSource() {
+    protected void checkStoredAndDocValuesForDerivedSource() {
         if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
         }

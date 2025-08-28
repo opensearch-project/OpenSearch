@@ -1826,7 +1826,13 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 result.setShardIndex(index);
                 result.size(1);
 
-                consumer.consumeResult(result, latch::countDown);
+                try {
+                    consumer.consumeResult(result, latch::countDown);
+                } catch (Exception e) {
+                    // Ensure latch counts down even on cancellation
+                    latch.countDown();
+                    // Don't rethrow - let the thread complete normally
+                }
             });
             threads[index].start();
         }

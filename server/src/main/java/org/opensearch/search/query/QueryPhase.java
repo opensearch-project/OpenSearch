@@ -446,14 +446,16 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
-            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, hasFilterCollector);
+            QueryCollectorContext queryCollectorContext = getQueryCollectorContext(searchContext, query, hasFilterCollector);
             return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
         }
 
-        private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, boolean hasFilterCollector) throws IOException {
+        private QueryCollectorContext getQueryCollectorContext(SearchContext searchContext, Query query, boolean hasFilterCollector)
+            throws IOException {
             // create the top docs collector last when the other collectors are known
             final Optional<QueryCollectorContext> queryCollectorContextOpt = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
                 searchContext,
+                query,
                 new QueryCollectorArguments.Builder().hasFilterCollector(hasFilterCollector).build()
             ).map(queryCollectorContextSpec -> new QueryCollectorContext(queryCollectorContextSpec.getContextName()) {
                 @Override
