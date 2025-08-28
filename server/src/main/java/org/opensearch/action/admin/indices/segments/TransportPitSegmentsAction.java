@@ -17,6 +17,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.PlainShardsIterator;
@@ -108,9 +109,9 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
     }
 
     @Override
-    public ResolvedIndices resolveIndices(PitSegmentsRequest request) {
+    public OptionallyResolvedIndices resolveIndices(PitSegmentsRequest request) {
         if (isAllPitsRequest(request)) {
-            return ResolvedIndices.all();
+            return ResolvedIndices.unknown();
         } else {
             return ResolvedIndices.of(this.pitService.getIndicesForPitsFlat(request.getPitIds()));
         }

@@ -11,6 +11,7 @@ package org.opensearch.action.search;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -60,9 +61,9 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
     }
 
     @Override
-    public ResolvedIndices resolveIndices(DeletePitRequest request) {
+    public OptionallyResolvedIndices resolveIndices(DeletePitRequest request) {
         if (isAllPitsRequest(request)) {
-            return ResolvedIndices.all();
+            return ResolvedIndices.unknown();
         } else {
             return ResolvedIndices.of(this.pitService.getIndicesForPitsFlat(request.getPitIds()));
         }

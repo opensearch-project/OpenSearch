@@ -81,12 +81,8 @@ public class SystemIndexRegistry {
         if (systemIndexDescriptors == null) {
             return false;
         }
-        String[] pluginSystemIndexPatterns = systemIndexDescriptors
-            .stream()
-            .map(SystemIndexDescriptor::getIndexPattern)
-            .toArray(String[]::new);
-
-
+        return systemIndexDescriptors.stream()
+            .anyMatch(systemIndexDescriptor -> Regex.simpleMatch(systemIndexDescriptor.getIndexPattern(), index));
     }
 
     static List<SystemIndexDescriptor> getAllDescriptors() {

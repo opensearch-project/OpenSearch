@@ -35,6 +35,7 @@ package org.opensearch.action.admin.indices.alias;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.RequestValidators;
+import org.opensearch.action.admin.indices.delete.DeleteIndexAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
@@ -169,6 +170,7 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
     public ResolvedIndices resolveIndices(IndicesAliasesRequest request) {
         try {
             Set<String> indices = new HashSet<>();
+            Set<String> indicesToBeDeleted = new HashSet<>();
 
             for (AliasAction aliasAction : resolvedAliasActions(request, clusterService.state(), false)) {
                 if (aliasAction instanceof AliasAction.Add addAliasAction) {
@@ -178,12 +180,15 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
                     indices.add(removeAliasAction.getIndex());
                     indices.add(removeAliasAction.getAlias());
                 } else if (aliasAction instanceof AliasAction.RemoveIndex removeIndexAction) {
-                    // TODO special action
-                    indices.add(removeIndexAction.getIndex());
+                    indicesToBeDeleted.add(removeIndexAction.getIndex());
                 }
             }
 
-            return ResolvedIndices.of(indices);
+            ResolvedIndices result = ResolvedIndices.of(indices);
+            if (!indicesToBeDeleted.isEmpty()) {
+                result = result.withLocalSubActions(DeleteIndexAction.INSTANCE, ResolvedIndices.Local.of(indicesToBeDeleted));
+            }
+            return result;
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
@@ -192,18 +197,24 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
         }
     }
 
+    /**
+     * Resolves the actions from the IndicesAliasesRequest into concrete AliasAction instances.
+     * This method has two modes: validate=true makes validation of the parameters and can potentially cause
+     * exceptions to be thrown upon validation errors. validate=false skips any code that could throw exceptions. This
+     * is meant for the resolveIndices() method.
+     */
     private List<AliasAction> resolvedAliasActions(IndicesAliasesRequest request, ClusterState state, boolean validate) throws Exception {
         List<AliasAction> result = new ArrayList<>();
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         for (IndicesAliasesRequest.AliasActions action : request.aliasActions()) {
-            final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
+            ResolvedIndices.Local.Concrete concreteIndices = indexNameExpressionResolver.concreteResolvedIndices(
                 state,
                 request.indicesOptions(),
                 false,
                 action.indices()
             );
             if (validate) {
-                for (Index concreteIndex : concreteIndices) {
+                for (Index concreteIndex : concreteIndices.concreteIndices()) {
                     IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(concreteIndex.getName());
                     assert indexAbstraction != null : "invalid cluster metadata. index [" + concreteIndex.getName() + "] was not found";
                     if (indexAbstraction.getParentDataStream() != null) {
@@ -216,19 +227,23 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
                         );
                     }
                 }
-                final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
+                final Optional<Exception> maybeException = requestValidators.validateRequest(
+                    request,
+                    state,
+                    concreteIndices.concreteIndicesAsArray()
+                );
                 if (maybeException.isPresent()) {
                     throw maybeException.get();
                 }
             }
 
-            for (final Index index : concreteIndices) {
+            for (String index : concreteIndices.namesOfIndices(state)) {
                 switch (action.actionType()) {
                     case ADD:
-                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                        for (String alias : concreteAliases(action, state.metadata(), index)) {
                             result.add(
                                 new AliasAction.Add(
-                                    index.getName(),
+                                    index,
                                     alias,
                                     action.filter(),
                                     action.indexRouting(),
@@ -240,12 +255,12 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
                         }
                         break;
                     case REMOVE:
-                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                            result.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
+                        for (String alias : concreteAliases(action, state.metadata(), index)) {
+                            result.add(new AliasAction.Remove(index, alias, action.mustExist()));
                         }
                         break;
                     case REMOVE_INDEX:
-                        result.add(new AliasAction.RemoveIndex(index.getName()));
+                        result.add(new AliasAction.RemoveIndex(index));
                         break;
                     default:
                         throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
