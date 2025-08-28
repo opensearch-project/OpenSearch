@@ -126,7 +126,6 @@ public class TransportIndicesExistsAction extends TransportClusterManagerNodeRea
 
     @Override
     public ResolvedIndices resolveIndices(IndicesExistsRequest request) {
-        // TODO this is likely not correct
-        return ResolvedIndices.of(indexNameExpressionResolver.resolveExpressions(clusterService.state(), request.indices()));
+        return ResolvedIndices.of(indexNameExpressionResolver.concreteResolvedIndices(clusterService.state(), request));
     }
 }

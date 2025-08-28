@@ -12,6 +12,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
@@ -32,7 +34,9 @@ import java.util.Arrays;
 /**
  * Transport action for creating PIT reader context
  */
-public class TransportCreatePitAction extends HandledTransportAction<CreatePitRequest, CreatePitResponse> {
+public class TransportCreatePitAction extends HandledTransportAction<CreatePitRequest, CreatePitResponse>
+    implements
+        TransportIndicesResolvingAction<CreatePitRequest> {
 
     public static final String CREATE_PIT_ACTION = "create_pit";
     private final TransportService transportService;
@@ -74,6 +78,11 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
             listener.onFailure(e);
         });
         createPitController.executeCreatePit(request, task, createPitListener, updatePitIdListener);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(CreatePitRequest request) {
+        return createPitController.resolveIndices(request);
     }
 
     /**
