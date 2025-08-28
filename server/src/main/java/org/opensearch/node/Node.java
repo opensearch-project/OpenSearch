@@ -126,6 +126,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -804,7 +805,7 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings()
             );
             // File cache will be initialized by the node once circuit breakers are in place.
-            initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+            initializeFileCache(settings, new NoopCircuitBreaker("fileCache_noopBreaker"));
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
                 CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
