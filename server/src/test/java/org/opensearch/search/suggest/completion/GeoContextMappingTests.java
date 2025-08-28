@@ -77,7 +77,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
@@ -124,7 +124,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
@@ -169,7 +169,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
@@ -222,7 +222,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")
@@ -268,10 +268,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        OpenSearchParseException ex = expectThrows(
-            OpenSearchParseException.class,
-            () -> createIndex("test", Settings.EMPTY, "type1", mapping)
-        );
+        OpenSearchParseException ex = expectThrows(OpenSearchParseException.class, () -> createIndex("test", Settings.EMPTY, mapping));
 
         assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] must be mapped to geo_point, found [" + type + "]"));
     }
@@ -298,10 +295,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        OpenSearchParseException ex = expectThrows(
-            OpenSearchParseException.class,
-            () -> createIndex("test", Settings.EMPTY, "type1", mapping)
-        );
+        OpenSearchParseException ex = expectThrows(OpenSearchParseException.class, () -> createIndex("test", Settings.EMPTY, mapping));
 
         assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] is not defined in the mapping"));
     }

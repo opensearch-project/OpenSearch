@@ -7,16 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - Expand fetch phase profiling to support inner hits and top hits aggregation phases  ([##18936](https://github.com/opensearch-project/OpenSearch/pull/18936))
 - Add temporal routing processors for time-based document routing ([#18920](https://github.com/opensearch-project/OpenSearch/issues/18920))
+- Implement Query Rewriting Infrastructure ([#19060](https://github.com/opensearch-project/OpenSearch/pull/19060))
 - The dynamic mapping parameter supports false_allow_templates ([#19065](https://github.com/opensearch-project/OpenSearch/pull/19065))
 - Add a toBuilder method in EngineConfig to support easy modification of configs([#19054](https://github.com/opensearch-project/OpenSearch/pull/19054))
 - Add StoreFactory plugin interface for custom Store implementations([#19091](https://github.com/opensearch-project/OpenSearch/pull/19091))
 - Use S3CrtClient for higher throughput while uploading files to S3 ([#18800](https://github.com/opensearch-project/OpenSearch/pull/18800))
 - Add a dynamic setting to change skip_cache_factor and min_frequency for querycache ([#18351](https://github.com/opensearch-project/OpenSearch/issues/18351))
+- Add overload constructor for Translog to accept Channel Factory as a parameter ([#18918](https://github.com/opensearch-project/OpenSearch/pull/18918))
 
 ### Changed
 - Add CompletionStage variants to methods in the Client Interface and default to ActionListener impl ([#18998](https://github.com/opensearch-project/OpenSearch/pull/18998))
 - IllegalArgumentException when scroll ID references a node not found in Cluster ([#19031](https://github.com/opensearch-project/OpenSearch/pull/19031))
 - Adding ScriptedAvg class to painless spi to allowlist usage from plugins ([#19006](https://github.com/opensearch-project/OpenSearch/pull/19006))
+- Replace centos:8 with almalinux:8 since centos docker images are deprecated ([#19154](https://github.com/opensearch-project/OpenSearch/pull/19154))
+- Add CompletionStage variants to IndicesAdminClient as an alternative to ActionListener ([#19161](https://github.com/opensearch-project/OpenSearch/pull/19161))
 
 ### Fixed
 - Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
@@ -43,6 +47,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.auth:google-auth-library-oauth2-http` from 1.37.1 to 1.38.0 ([#19144](https://github.com/opensearch-project/OpenSearch/pull/19144))
 - Bump `com.squareup.okio:okio` from 3.15.0 to 3.16.0 ([#19146](https://github.com/opensearch-project/OpenSearch/pull/19146))
 - Bump Slf4j from 1.7.36 to 2.0.17 ([#19136](https://github.com/opensearch-project/OpenSearch/pull/19136))
+- Bump `org.apache.tika` from 2.9.2 to 3.2.2 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
+- Bump `org.apache.commons:commons-compress` from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
 
 ### Deprecated
 
