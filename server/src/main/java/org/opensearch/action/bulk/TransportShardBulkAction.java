@@ -224,7 +224,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     public ResolvedIndices resolveIndices(BulkShardRequest request) {
-        return ResolvedIndices.of(request.shardId().getIndexName());
+        return ResolvedIndices.of(request.index());
     }
 
     /**

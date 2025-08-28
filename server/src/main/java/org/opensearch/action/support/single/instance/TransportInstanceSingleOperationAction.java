@@ -116,7 +116,6 @@ public abstract class TransportInstanceSingleOperationAction<
             return ResolvedIndices.of(request.concreteIndex());
         } else {
             try {
-                // TODO shall we possibly also set request.concreteIndex here?
                 return ResolvedIndices.of(indexNameExpressionResolver.concreteWriteIndex(clusterService.state(), request).getName());
             } catch (IndexNotFoundException e) {
                 // We just return the original unresolved expression. The error we encountered here will

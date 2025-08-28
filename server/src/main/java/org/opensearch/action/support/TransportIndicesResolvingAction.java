@@ -9,7 +9,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.cluster.metadata.ResolvedIndices;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
 
 /**
  * An additional interface that should be implemented by TransportAction implementations which need to resolve
@@ -26,5 +26,5 @@ public interface TransportIndicesResolvingAction<Request extends ActionRequest> 
     /**
      * Returns the actual indices the action will operate on, given the specified request and cluster state.
      */
-    ResolvedIndices resolveIndices(Request request);
+    OptionallyResolvedIndices resolveIndices(Request request);
 }

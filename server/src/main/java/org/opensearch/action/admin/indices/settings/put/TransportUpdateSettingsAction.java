@@ -162,7 +162,7 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        final Index[] concreteIndices = resolveIndicesAsArray(request, state);
+        final Index[] concreteIndices = resolveIndices(request, state).concreteIndicesAsArray();
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
             concreteIndices
         )
@@ -187,10 +187,10 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
 
     @Override
     public ResolvedIndices resolveIndices(UpdateSettingsRequest request) {
-        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+        return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
-    private Index[] resolveIndicesAsArray(UpdateSettingsRequest request, ClusterState clusterState) {
-        return indexNameExpressionResolver.concreteIndices(clusterState, request);
+    private ResolvedIndices.Local.Concrete resolveIndices(UpdateSettingsRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 }

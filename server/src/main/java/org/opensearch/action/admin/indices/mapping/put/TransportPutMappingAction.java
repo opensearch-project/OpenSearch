@@ -134,7 +134,7 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         final ActionListener<AcknowledgedResponse> listener
     ) {
         try {
-            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver).concreteIndicesAsArray();
 
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
@@ -159,7 +159,11 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         return ResolvedIndices.of(resolveIndices(clusterService.state(), request, indexNameExpressionResolver));
     }
 
-    static Index[] resolveIndices(final ClusterState state, PutMappingRequest request, final IndexNameExpressionResolver iner) {
+    static ResolvedIndices.Local.Concrete resolveIndices(
+        final ClusterState state,
+        PutMappingRequest request,
+        final IndexNameExpressionResolver iner
+    ) {
         if (request.getConcreteIndex() == null) {
             if (request.writeIndexOnly()) {
                 List<Index> indices = new ArrayList<>();
@@ -174,12 +178,12 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
                         )
                     );
                 }
-                return indices.toArray(Index.EMPTY_ARRAY);
+                return ResolvedIndices.Local.Concrete.of(indices.toArray(Index.EMPTY_ARRAY));
             } else {
-                return iner.concreteIndices(state, request);
+                return iner.concreteResolvedIndices(state, request);
             }
         } else {
-            return new Index[] { request.getConcreteIndex() };
+            return ResolvedIndices.Local.Concrete.of(request.getConcreteIndex());
         }
     }
 

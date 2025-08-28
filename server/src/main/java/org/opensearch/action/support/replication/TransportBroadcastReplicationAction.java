@@ -145,11 +145,11 @@ public abstract class TransportBroadcastReplicationAction<
 
     @Override
     public ResolvedIndices resolveIndices(Request request) {
-        return resolveIndices(request, clusterService.state());
+        return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
-    private ResolvedIndices resolveIndices(Request request, ClusterState clusterState) {
-        return ResolvedIndices.of(indexNameExpressionResolver.concreteIndexNames(clusterState, request));
+    private ResolvedIndices.Local.Concrete resolveIndices(Request request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
@@ -163,7 +163,7 @@ public abstract class TransportBroadcastReplicationAction<
      */
     protected List<ShardId> shards(Request request, ClusterState clusterState) {
         List<ShardId> shardIds = new ArrayList<>();
-        Set<String> concreteIndices = resolveIndices(request, clusterState).local().names();
+        Set<String> concreteIndices = resolveIndices(request, clusterState).namesOfConcreteIndices();
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
             if (indexMetadata != null) {
