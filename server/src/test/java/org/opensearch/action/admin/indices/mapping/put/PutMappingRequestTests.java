@@ -184,7 +184,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
             cs,
             request,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
-        );
+        ).concreteIndicesAsArray();
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         // should resolve the data stream and each alias to their respective write indices
@@ -212,7 +212,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
             cs,
             request,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
-        );
+        ).concreteIndicesAsArray();
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
@@ -242,7 +242,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
             cs,
             request,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
-        );
+        ).concreteIndicesAsArray();
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
