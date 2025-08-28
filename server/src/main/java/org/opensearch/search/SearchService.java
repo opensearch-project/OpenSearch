@@ -136,6 +136,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.QueryRewriterRegistry;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
@@ -274,6 +275,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope,
         Property.Deprecated
+    );
+
+    public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
+        "search.query_rewriting.enabled",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Controls the threshold for the number of term queries on the same field that triggers
+     * the TermsMergingRewriter to combine them into a single terms query. For example,
+     * if set to 16 (default), when 16 or more term queries target the same field within
+     * a boolean clause, they will be merged into a single terms query for better performance.
+     */
+    public static final Setting<Integer> QUERY_REWRITING_TERMS_THRESHOLD_SETTING = Setting.intSetting(
+        "search.query_rewriting.terms_threshold",
+        16,
+        2,  // minimum value
+        Property.Dynamic,
+        Property.NodeScope
     );
 
     // Allow concurrent segment search for all requests
@@ -507,6 +529,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
 
         this.pluginProfilers = pluginProfilers;
+
+        // Initialize QueryRewriterRegistry with cluster settings so TermsMergingRewriter
+        // can register its settings update consumer
+        QueryRewriterRegistry.INSTANCE.initialize(settings, clusterService.getClusterSettings());
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1488,8 +1514,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
-            InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
-            context.parsedQuery(queryShardContext.toQuery(source.query()));
+            QueryBuilder query = source.query();
+
+            // Apply query rewriting optimizations
+            query = QueryRewriterRegistry.INSTANCE.rewrite(query, queryShardContext);
+
+            InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
+            context.parsedQuery(queryShardContext.toQuery(query));
         }
         if (source.postFilter() != null) {
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);

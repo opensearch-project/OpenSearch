@@ -126,10 +126,6 @@ thirdPartyAudit {
     'org.apache.log4j.Logger',
     'org.apache.log4j.Priority',
 
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
-
     'org.graalvm.nativeimage.hosted.Feature',
     'org.graalvm.nativeimage.hosted.Feature$AfterImageWriteAccess',
 

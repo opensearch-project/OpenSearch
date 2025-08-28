@@ -49,11 +49,14 @@ public class QueryCollectorContextSpecRegistryTests extends OpenSearchTestCase {
         QueryCollectorArguments mockArguments = new QueryCollectorArguments.Builder().build();
         // Given
         QueryCollectorContextSpecRegistry.registerFactory(mockFactory1);
-        when(mockFactory1.createQueryCollectorContextSpec(mockSearchContext, mockArguments)).thenReturn(Optional.of(mockSpec));
+        when(mockFactory1.createQueryCollectorContextSpec(mockSearchContext, mockSearchContext.query(), mockArguments)).thenReturn(
+            Optional.of(mockSpec)
+        );
 
         // When
         Optional<QueryCollectorContextSpec> result = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
             mockSearchContext,
+            mockSearchContext.query(),
             mockArguments
         );
 
@@ -69,6 +72,7 @@ public class QueryCollectorContextSpecRegistryTests extends OpenSearchTestCase {
         // When
         Optional<QueryCollectorContextSpec> result = QueryCollectorContextSpecRegistry.getQueryCollectorContextSpec(
             mockSearchContext,
+            mockSearchContext.query(),
             mockArguments
         );
 
