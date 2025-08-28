@@ -36,6 +36,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -70,6 +72,7 @@ import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.shard.IndexShard;
@@ -116,7 +119,6 @@ import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -175,129 +177,86 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .get()
         );
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
-        client().prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").execute().actionGet();
+        // Index enough docs to be sure neither primary shard is empty
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource("field", "value" + i, "field2", "value" + i)
+                .execute()
+                .actionGet();
+        }
         refreshAndWaitForReplication();
         indexRandomForConcurrentSearch("test");
+        // Force merge to 1 segment so we can predict counts
+        client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
+        refreshAndWaitForReplication();
 
-        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getMemorySizeInBytes(),
-            equalTo(0L)
-        );
-        IndicesStatsResponse indicesStats = client().admin()
-            .indices()
-            .prepareStats("test")
-            .clear()
-            .setFieldData(true)
-            .execute()
-            .actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+        for (FieldDataStats totalStats : List.of(getTotalFieldDataStats(false), getIndicesFieldDataStats(false))) {
+            assertEquals(0, totalStats.getMemorySizeInBytes());
+            assertEquals(0, totalStats.getItemCount());
+        }
 
         // sort to load it to field data...
         client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
-        client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
 
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getMemorySizeInBytes(),
-            greaterThan(0L)
-        );
-        indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
+        for (FieldDataStats totalStats : List.of(getTotalFieldDataStats(false), getIndicesFieldDataStats(false))) {
+            assertTrue(totalStats.getMemorySizeInBytes() > 0);
+            // The search should have hit 2 shards of the total 4 shards, each of which has 1 segment. So we expect 2 entries.
+            assertEquals(2, totalStats.getItemCount());
+        }
 
         // sort to load it to field data...
         client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
-        client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
+
+        // Now we expect 4 total entries, one per searched segment per field
+        assertEquals(4, getTotalFieldDataStats(false).getItemCount());
 
         // now check the per field stats
-        nodesStats = client().admin()
-            .cluster()
-            .prepareNodesStats("data:true")
-            .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.FieldData, true).fieldDataFields("*"))
-            .execute()
-            .actionGet();
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getMemorySizeInBytes(),
-            greaterThan(0L)
-        );
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getFieldMemorySizes().get("field") + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getFieldMemorySizes()
-                .get("field"),
-            greaterThan(0L)
-        );
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getFieldMemorySizes().get("field") + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getFieldMemorySizes()
-                .get("field"),
-            lessThan(
-                nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
-                    .get(1)
-                    .getIndices()
-                    .getFieldData()
-                    .getMemorySizeInBytes()
-            )
-        );
-
-        indicesStats = client().admin()
-            .indices()
-            .prepareStats("test")
-            .clear()
-            .setFieldData(true)
-            .setFieldDataFields("*")
-            .execute()
-            .actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
-        assertThat(indicesStats.getTotal().getFieldData().getFieldMemorySizes().get("field"), greaterThan(0L));
-        assertThat(
-            indicesStats.getTotal().getFieldData().getFieldMemorySizes().get("field"),
-            lessThan(indicesStats.getTotal().getFieldData().getMemorySizeInBytes())
-        );
+        for (FieldDataStats totalStats : List.of(getTotalFieldDataStats(true), getIndicesFieldDataStats(true))) {
+            assertTrue(totalStats.getMemorySizeInBytes() > 0);
+            for (String fieldName : List.of("field", "field2")) {
+                assertTrue(totalStats.getFieldMemorySizes().get(fieldName) > 0);
+                assertEquals(2, totalStats.getFieldItemCounts().get(fieldName));
+                assertTrue(totalStats.getFieldMemorySizes().get(fieldName) < totalStats.getMemorySizeInBytes());
+            }
+        }
 
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
         assertBusy(() -> {
-            NodesStatsResponse postClearNodesStats = client().admin()
-                .cluster()
-                .prepareNodesStats("data:true")
-                .setIndices(true)
-                .execute()
-                .actionGet();
-            assertThat(
-                postClearNodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + postClearNodesStats.getNodes()
-                    .get(1)
-                    .getIndices()
-                    .getFieldData()
-                    .getMemorySizeInBytes(),
-                equalTo(0L)
-            );
-            IndicesStatsResponse postClearIndicesStats = client().admin()
-                .indices()
-                .prepareStats("test")
-                .clear()
-                .setFieldData(true)
-                .execute()
-                .actionGet();
-            assertThat(postClearIndicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+            for (FieldDataStats postClearStats : List.of(getTotalFieldDataStats(true), getIndicesFieldDataStats(true))) {
+                assertEquals(0, postClearStats.getMemorySizeInBytes());
+                assertEquals(0, postClearStats.getItemCount());
+                for (long fieldMemorySize : postClearStats.getFieldMemorySizes().getStats().values()) {
+                    assertEquals(0, fieldMemorySize);
+                }
+                for (long fieldItemCount : postClearStats.getFieldItemCounts().getStats().values()) {
+                    assertEquals(0, fieldItemCount);
+                }
+            }
         });
+    }
+
+    private FieldDataStats getTotalFieldDataStats(boolean setFieldDataFields) {
+        NodesStatsRequestBuilder builder = client().admin().cluster().prepareNodesStats("data:true");
+        if (setFieldDataFields) {
+            builder.setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.FieldData, true).fieldDataFields("*"));
+        } else {
+            builder.setIndices(true);
+        }
+        NodesStatsResponse nodesStats = builder.execute().actionGet();
+        FieldDataStats total = new FieldDataStats();
+        for (NodeStats node : nodesStats.getNodes()) {
+            total.add(node.getIndices().getFieldData());
+        }
+        return total;
+    }
+
+    private FieldDataStats getIndicesFieldDataStats(boolean setFieldDataFields) {
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats("test").clear().setFieldData(true);
+        if (setFieldDataFields) {
+            builder.setFieldDataFields("*");
+        }
+        return builder.execute().actionGet().getTotal().getFieldData();
     }
 
     public void testClearAllCaches() throws Exception {
