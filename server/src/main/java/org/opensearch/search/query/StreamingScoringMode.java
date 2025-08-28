@@ -40,6 +40,10 @@ public enum StreamingScoringMode {
     
     /**
      * Parse mode from string representation.
+     * 
+     * @param mode The string representation of the mode
+     * @return The corresponding StreamingScoringMode
+     * @throws IllegalArgumentException if mode is unknown
      */
     public static StreamingScoringMode fromString(String mode) {
         if (mode == null) {

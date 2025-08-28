@@ -31,6 +31,9 @@ public class StreamingScoringHelper {
     
     /**
      * Check if streaming scoring is enabled for this search context.
+     * 
+     * @param searchContext The search context to check
+     * @return true if streaming is enabled for this context
      */
     public static boolean isStreamingEnabled(SearchContext searchContext) {
         // Handle null context
@@ -63,6 +66,9 @@ public class StreamingScoringHelper {
     
     /**
      * Get streaming configuration for the search context.
+     * 
+     * @param searchContext The search context
+     * @return The appropriate streaming configuration
      */
     public static StreamingScoringConfig getConfig(SearchContext searchContext) {
         if (!isStreamingEnabled(searchContext)) {
@@ -77,6 +83,10 @@ public class StreamingScoringHelper {
     
     /**
      * Wrap a collector with streaming capabilities if appropriate.
+     * 
+     * @param collector The collector to wrap
+     * @param searchContext The search context
+     * @return The wrapped collector or original if streaming not applicable
      */
     public static Collector wrapWithStreaming(
         Collector collector,
@@ -136,6 +146,11 @@ public class StreamingScoringHelper {
     
     /**
      * Create a QueryCollectorContext that supports streaming scoring.
+     * 
+     * @param searchContext The search context
+     * @param hasFilterCollector Whether a filter collector is present
+     * @return A QueryCollectorContext configured for streaming
+     * @throws IOException If an I/O error occurs
      */
     public static QueryCollectorContext createStreamingContext(
         SearchContext searchContext,
