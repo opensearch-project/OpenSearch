@@ -113,11 +113,11 @@ public abstract class TransportBroadcastAction<
 
     @Override
     public ResolvedIndices resolveIndices(Request request) {
-        return ResolvedIndices.of(indexNameExpressionResolver.concreteIndexNames(clusterService.state(), request));
+        return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
-    protected ResolvedIndices resolveIndices(Request request, ClusterState clusterState) {
-        return ResolvedIndices.of(indexNameExpressionResolver.concreteIndexNames(clusterState, request));
+    protected ResolvedIndices.Local.Concrete resolveIndices(Request request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 
     protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
@@ -167,7 +167,7 @@ public abstract class TransportBroadcastAction<
                 throw blockException;
             }
             // update to concrete indices
-            String[] concreteIndices = resolveIndices(request, clusterState).local().namesAsArray();
+            String[] concreteIndices = resolveIndices(request, clusterState).namesAsArray();
             blockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (blockException != null) {
                 throw blockException;

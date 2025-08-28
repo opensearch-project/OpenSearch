@@ -122,7 +122,7 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        Index[] concreteIndices = resolveIndicesAsArray(request, state);
+        Index[] concreteIndices = resolveIndices(request, state).concreteIndicesAsArray();
         if (concreteIndices.length == 0) {
             listener.onResponse(new AcknowledgedResponse(true));
             return;
@@ -149,10 +149,10 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
 
     @Override
     public ResolvedIndices resolveIndices(DeleteIndexRequest request) {
-        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+        return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
-    private Index[] resolveIndicesAsArray(DeleteIndexRequest request, ClusterState clusterState) {
-        return indexNameExpressionResolver.concreteIndices(clusterState, request);
+    private ResolvedIndices.Local.Concrete resolveIndices(DeleteIndexRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 }

@@ -116,7 +116,7 @@ public class TransportGetSettingsAction extends TransportClusterManagerNodeReadA
 
     @Override
     protected void clusterManagerOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
-        Index[] concreteIndices = resolveIndicesAsArray(request, state);
+        Index[] concreteIndices = resolveIndices(request, state).concreteIndicesAsArray();
         final Map<String, Settings> indexToSettingsBuilder = new HashMap<>();
         final Map<String, Settings> indexToDefaultSettingsBuilder = new HashMap<>();
         for (Index concreteIndex : concreteIndices) {
@@ -148,10 +148,10 @@ public class TransportGetSettingsAction extends TransportClusterManagerNodeReadA
 
     @Override
     public ResolvedIndices resolveIndices(GetSettingsRequest request) {
-        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+        return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
-    private Index[] resolveIndicesAsArray(GetSettingsRequest request, ClusterState clusterState) {
-        return indexNameExpressionResolver.concreteIndices(clusterState, request);
+    private ResolvedIndices.Local.Concrete resolveIndices(GetSettingsRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 }
