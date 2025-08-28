@@ -16,7 +16,6 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataService;
-import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper.BuilderContext;
@@ -27,35 +26,60 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Objects;
 
 public class NonPruningSortedSetOrdinalsIndexFieldDataTests extends OpenSearchSingleNodeTestCase {
-    public void testNonPruningSortedSetOrdinalsIndexFieldData() throws IOException {
-        final IndexService indexService = createIndex("test");
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexFieldDataService ifdService = new IndexFieldDataService(
+    IndexService indexService;
+    IndicesService indicesService;
+    IndexFieldDataService ifdService;
+    BuilderContext ctx;
+    MappedFieldType stringMapper;
+    SortField field;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        indexService = createIndex("test");
+        indicesService = getInstanceFromNode(IndicesService.class);
+        ifdService = new IndexFieldDataService(
             indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService(),
             indexService.mapperService(),
             indexService.getThreadPool()
         );
-        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        final MappedFieldType stringMapper = new WildcardFieldMapper.Builder("string").docValues(true).build(ctx).fieldType();
+        ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        stringMapper = new WildcardFieldMapper.Builder("string").docValues(true).build(ctx).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, "test", () -> { throw new UnsupportedOperationException(); });
-        assertTrue(fd instanceof NonPruningSortedSetOrdinalsIndexFieldData);
-        SortField field = ((NonPruningSortedSetOrdinalsIndexFieldData) fd).sortField(null, MultiValueMode.MAX, null, false);
-        assertTrue(field instanceof NonPruningSortField);
+        field = ((NonPruningSortedSetOrdinalsIndexFieldData) fd).sortField(null, MultiValueMode.MAX, null, false);
         field.setMissingValue(SortedSetSortField.STRING_FIRST);
         field.setOptimizeSortWithIndexedData(false);
         field.setOptimizeSortWithPoints(false);
+    }
+
+    public void testNonPruningSortedSetOrdinalsIndexFieldDataSerialization() throws IOException {
         assertEquals("<sortedset: \"string\"> missingValue=SortField.STRING_FIRST selector=MAX", field.toString());
-        assertFalse(field.equals(field));
-        assertFalse(field.getOptimizeSortWithIndexedData());
-        assertFalse(field.getOptimizeSortWithPoints());
-        assertFalse(field.needsScores());
+    }
+
+    public void testNonPruningSortedSetOrdinalsIndexFieldDataComparator() throws IOException {
         assertTrue(field.getBytesComparator().equals(Comparator.naturalOrder()));
         assertTrue(field.getComparator(0, Pruning.NONE) instanceof FieldComparator);
         assertTrue(field.getIndexSorter() instanceof IndexSorter);
+    }
+
+    public void testNonPruningSortedSetOrdinalsIndexFieldDataSorting() throws IOException {
+        assertFalse(field.getOptimizeSortWithIndexedData());
+        assertFalse(field.getOptimizeSortWithPoints());
+        assertFalse(field.needsScores());
+        assertTrue(field.getIndexSorter() instanceof IndexSorter);
+    }
+
+    public void testNonPruningSortedSetOrdinalsIndexFieldDataEquality() throws IOException {
+        assertFalse(field.equals(field));
+        assertNotEquals(
+            Objects.hash(field.getField(), field.getType(), field.getReverse(), field.getComparatorSource(), field.getMissingValue()),
+            field.hashCode()
+        );
     }
 }
