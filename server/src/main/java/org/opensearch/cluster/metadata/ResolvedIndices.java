@@ -8,8 +8,10 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.action.ActionType;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.Index;
 import org.opensearch.transport.RemoteClusterService;
 
@@ -44,42 +46,48 @@ import java.util.stream.Stream;
  *     just taken without further evaluation</li>
  * </ul>
  */
-public class ResolvedIndices {
-    public static ResolvedIndices of(String... indices) {
-        return new ResolvedIndices(
-            new Local(Collections.unmodifiableSet(new HashSet<>(Arrays.asList(indices))), null, false),
-            Remote.EMPTY
-        );
+@ExperimentalApi
+public class ResolvedIndices extends OptionallyResolvedIndices {
+    public static ResolvedIndices of(String... indicesAliasesAndDataStreams) {
+        return new ResolvedIndices(new Local(Set.of(indicesAliasesAndDataStreams), null, Map.of()), Remote.EMPTY);
     }
 
     public static ResolvedIndices of(Index... indices) {
         return new ResolvedIndices(
-            new Local(Stream.of(indices).map(Index::getName).collect(Collectors.toUnmodifiableSet()), null, false),
+            new Local.Concrete(
+                Set.of(indices),
+                Stream.of(indices).map(Index::getName).collect(Collectors.toUnmodifiableSet()),
+                null,
+                Map.of(),
+                List.of()
+            ),
             Remote.EMPTY
         );
     }
 
-    public static ResolvedIndices of(Collection<String> indices) {
-        return new ResolvedIndices(new Local(Collections.unmodifiableSet(new HashSet<>(indices)), null, false), Remote.EMPTY);
+    public static ResolvedIndices of(Collection<String> indicesAliasesAndDataStreams) {
+        return new ResolvedIndices(new Local(Set.copyOf(indicesAliasesAndDataStreams), null, Map.of()), Remote.EMPTY);
     }
 
-    public static ResolvedIndices all() {
-        return ALL;
+    public static ResolvedIndices of(Local local) {
+        return new ResolvedIndices(local, Remote.EMPTY);
     }
 
-    public static ResolvedIndices ofNonNull(String... indices) {
-        Set<String> indexSet = new HashSet<>(indices.length);
+    public static OptionallyResolvedIndices unknown() {
+        return OptionallyResolvedIndices.unknown();
+    }
 
-        for (String index : indices) {
+    public static ResolvedIndices ofNonNull(String... indicesAliasesAndDataStreams) {
+        Set<String> indexSet = new HashSet<>(indicesAliasesAndDataStreams.length);
+
+        for (String index : indicesAliasesAndDataStreams) {
             if (index != null) {
                 indexSet.add(index);
             }
         }
 
-        return new ResolvedIndices(new Local(Collections.unmodifiableSet(indexSet), null, false), Remote.EMPTY);
+        return new ResolvedIndices(new Local(Collections.unmodifiableSet(indexSet), null, Map.of()), Remote.EMPTY);
     }
-
-    private static final ResolvedIndices ALL = new ResolvedIndices(new Local(Set.of(Metadata.ALL), null, true), Remote.EMPTY);
 
     private final Local local;
     private final Remote remote;
@@ -89,6 +97,7 @@ public class ResolvedIndices {
         this.remote = remote;
     }
 
+    @Override
     public Local local() {
         return this.local;
     }
@@ -108,8 +117,16 @@ public class ResolvedIndices {
         return new ResolvedIndices(this.local, new Remote(Collections.unmodifiableMap(newRemoteIndices)));
     }
 
+    /**
+     * Returns a ResolvedIndices object associated with the given OriginalIndices object for the local part. This is only for
+     * convenience, no semantics are implied.
+     */
     public ResolvedIndices withLocalOriginalIndices(OriginalIndices originalIndices) {
-        return new ResolvedIndices(new Local(this.local.names, originalIndices, this.local.isAll), this.remote);
+        return new ResolvedIndices(this.local.withOriginalIndices(originalIndices), this.remote);
+    }
+
+    public ResolvedIndices withLocalSubActions(ActionType<?> actionType, ResolvedIndices.Local local) {
+        return new ResolvedIndices(this.local.withSubActions(actionType, local), this.remote);
     }
 
     public boolean isEmpty() {
@@ -119,44 +136,43 @@ public class ResolvedIndices {
     /**
      * Represents the local (i.e., non-remote) indices referenced by the respective request.
      */
-    public static class Local {
-        private final Set<String> names;
-        private final OriginalIndices originalIndices;
-        private final boolean isAll;
+    @ExperimentalApi
+    public static class Local extends OptionallyResolvedIndices.Local {
+        protected final Set<String> names;
+        protected final OriginalIndices originalIndices;
+        protected final Map<ActionType<?>, Local> subActions;
+        private Set<String> namesOfIndices;
 
-        private Local(Set<String> names, OriginalIndices originalIndices, boolean isAll) {
+        public static Local of(Collection<String> names) {
+            return new Local(Set.copyOf(names), null, Map.of());
+        }
+
+        /**
+         * Creates a new instance.
+         * <p>
+         * Note: The caller of this method must make sure that the passed objects are immutable.
+         * For this reason, this constructor is private. This contract is guaranteed by the static
+         * constructor methods in this file.
+         */
+        private Local(Set<String> names, OriginalIndices originalIndices, Map<ActionType<?>, Local> subActions) {
             this.names = names;
             this.originalIndices = originalIndices;
-            this.isAll = isAll;
+            this.subActions = subActions;
         }
 
         /**
          * Returns all the local names. These names might be indices, aliases or data streams, depending on the usage.
-         * <p>
-         * <strong>Note: You must gate this call by <code>if (!isAll())</code>.</strong>
-         * If isAll() is true, this method will throw an IllegalStateException. If you are sure that you really need all index names, please use the method
-         * <code>names(ClusterState)</code> instead.
          *
          * @return an unmodifiable set of names of indices, aliases and/or data streams.
-         * @throws IllegalStateException if isAll() is true
          */
         public Set<String> names() {
-            if (this.isAll) {
-                throw new IllegalStateException("ResolvedIndices.Local.names() cannot be called for isAll cases");
-            }
-
             return this.names;
         }
 
         /**
          * Returns all the local names. These names might be indices, aliases or data streams, depending on the usage.
-         * <p>
-         * <strong>Note: You must gate this call by <code>if (!isAll())</code>.</strong>
-         * If isAll() is true, this method will throw an IllegalStateException. If you are sure that you really need all index names, please use the method
-         * <code>names(ClusterState)</code> instead.
          *
          * @return an array of names of indices, aliases and/or data streams.
-         * @throws IllegalStateException if isAll() is true
          */
         public String[] namesAsArray() {
             return this.names().toArray(new String[0]);
@@ -165,59 +181,252 @@ public class ResolvedIndices {
         /**
          * Returns all the local names. These names might be indices, aliases or data streams, depending on the usage.
          * <p>
-         * In case this is an isAll() object, this will return a set of all concrete indices on the cluster (incl.
+         * In case this is an isUnknown() object, this will return a set of all concrete indices on the cluster (incl.
          * hidden and closed indices). This might be a large object. Be prepared to handle such a large object.
          * <p>
-         * <strong>This method will be only rarely needed. In most cases <code>names()</code> will be sufficient.</strong>
+         * <strong>This method will be only rarely needed. In most cases <code>ResolvedIndices.names()</code> will be sufficient.</strong>
          */
+        @Override
         public Set<String> names(ClusterState clusterState) {
-            if (this.isAll) {
-                return clusterState.metadata().getIndicesLookup().keySet();
-            } else {
-                return this.names;
-            }
+            return this.names;
         }
 
+        /**
+         * Returns all the local names. Any data streams or aliases will be replaced by the member index names.
+         * In contrast to namesOfConcreteIndices(), this will keep the names of non-existing indices and will never
+         * throw an exception.
+         *
+         * @return an unmodifiable set of index names
+         */
+        public Set<String> namesOfIndices(ClusterState clusterState) {
+            Set<String> result = this.namesOfIndices;
+
+            if (result == null) {
+                Map<String, IndexAbstraction> indicesLookup = clusterState.metadata().getIndicesLookup();
+                result = new HashSet<>(this.names.size());
+                for (String name : this.names) {
+                    IndexAbstraction indexAbstraction = indicesLookup.get(name);
+
+                    if (indexAbstraction == null) {
+                        // We keep the names of non existing indices
+                        this.names.add(name);
+                    } else if (indexAbstraction instanceof IndexAbstraction.Index) {
+                        // For normal indices, we just keep its name
+                        this.names.add(name);
+                    } else {
+                        // This is an alias or data stream
+                        for (IndexMetadata index : indexAbstraction.getIndices()) {
+                            result.add(index.getIndex().getName());
+                        }
+                    }
+                }
+
+                result = Collections.unmodifiableSet(result);
+
+                this.namesOfIndices = result;
+            }
+
+            return result;
+        }
+
+        /**
+         * Returns any OriginalIndices object associated with this object.
+         * Note: This is just a convenience method for code that passes around ResolvedIndices objects for managing
+         * information. This object will be only present if you add it to the object.
+         */
         public OriginalIndices originalIndices() {
             return this.originalIndices;
         }
 
+        /**
+         * Sub-actions can be used to specify indices which play a different role in the action processing.
+         * For example, the swiss-army-knife IndicesAliases action can delete indices. The subActions() property
+         * can be used to specify indices with such special roles.
+         */
+        public Map<ActionType<?>, Local> subActions() {
+            return this.subActions;
+        }
+
+        /**
+         * Returns true if there are no local indices.
+         */
+        @Override
         public boolean isEmpty() {
-            if (this.isAll) {
-                return false;
-            } else {
-                return this.names.isEmpty();
+            return this.names.isEmpty();
+        }
+
+        /**
+         * Returns true if the local names contain an entry with the given name.
+         */
+        @Override
+        public boolean contains(String name) {
+            return this.names.contains(name);
+        }
+
+        /**
+         * Returns true if the local names contain any of the specified names.
+         */
+        @Override
+        public boolean containsAny(Collection<String> names) {
+            return names.stream().anyMatch(this.names::contains);
+        }
+
+        /**
+         * Returns true if any of the local names match the given predicate.
+         */
+        @Override
+        public boolean containsAny(Predicate<String> namePredicate) {
+            return this.names.stream().anyMatch(namePredicate);
+        }
+
+        /**
+         * Returns a ResolvedIndices.Local object associated with the given OriginalIndices object. This is only for
+         * convenience, no semantics are implied.
+         */
+        public ResolvedIndices.Local withOriginalIndices(OriginalIndices originalIndices) {
+            return new Local(this.names, originalIndices, this.subActions);
+        }
+
+        public ResolvedIndices.Local withSubActions(ActionType<?> actionType, ResolvedIndices.Local local) {
+            Map<ActionType<?>, Local> subActions = new HashMap<>(this.subActions);
+            subActions.put(actionType, local);
+            return new Local(this.names, this.originalIndices, Collections.unmodifiableMap(subActions));
+        }
+
+        /**
+         * This is a specialization of the {@link ResolvedIndices.Local} class which additionally
+         * carries {@link Index} objects. The {@link IndexNameExpressionResolver} produces such objects.
+         * <p>
+         * <strong>Important:</strong> The methods that give access to the concrete indices can throw
+         * exceptions such as {@link org.opensearch.index.IndexNotFoundException} if the concrete indices
+         * could not be determined. The methods from the Local super class, such as names(), still give
+         * access to index information.
+         */
+        @ExperimentalApi
+        public static class Concrete extends Local {
+            private static final Concrete EMPTY = new Concrete(Set.of(), Set.of(), null, Map.of(), List.of());
+
+            public static Concrete empty() {
+                return EMPTY;
             }
-        }
 
-        public boolean isAll() {
-            return this.isAll;
-        }
-
-        public boolean contains(String index) {
-            if (this.isAll) {
-                return true;
-            } else {
-                return this.names.contains(index);
+            public static Concrete of(Index... concreteIndices) {
+                return new Concrete(
+                    Set.of(concreteIndices),
+                    Stream.of(concreteIndices).map(Index::getName).collect(Collectors.toSet()),
+                    null,
+                    Map.of(),
+                    List.of()
+                );
             }
-        }
 
-        public boolean containsAny(Collection<String> indices) {
-            if (this.isAll) {
-                return true;
-            } else {
-                return indices.stream().anyMatch(this.names::contains);
+            /**
+             * Creates a new RemoteIndices.Local.Concrete object with the given concrete indices and names.
+             * This is primarily used by IndexNameExpressionResolver to construct return values, that's why it is
+             * package private. There may be more names than concrete indices, for example when a referenced index does
+             * not exist. Thus, names should be usually a super set of concreteIndices. This method does not verify
+             * that, it is the duty of the caller to make this sure.
+             */
+            static Concrete of(Set<Index> concreteIndices, Set<String> names) {
+                return new Concrete(Set.copyOf(concreteIndices), Set.copyOf(names), null, Map.of(), List.of());
             }
-        }
 
-        public boolean containsAny(Predicate<String> indexNamePredicate) {
-            return this.names.stream().anyMatch(indexNamePredicate);
+            private final Set<Index> concreteIndices;
+            private final List<RuntimeException> resolutionErrors;
+
+            private Concrete(
+                Set<Index> concreteIndices,
+                Set<String> names,
+                OriginalIndices originalIndices,
+                Map<ActionType<?>, Local> subActions,
+                List<RuntimeException> resolutionErrors
+            ) {
+                super(names, originalIndices, subActions);
+                this.concreteIndices = concreteIndices;
+                this.resolutionErrors = resolutionErrors;
+            }
+
+            /**
+             * Returns the concrete indices. This might throw an exception if there were issues during index resolution.
+             * If you need access to index information while avoiding exceptions, use the names() method instead.
+             *
+             * @throws org.opensearch.index.IndexNotFoundException This exception is thrown for several conditions:
+             * 1. If one of the index expression pointed to a missing index, alias or data stream and the IndicesOptions
+             * used during resolution do not allow such a case. 2. If the set of resolved concrete indices is empty and
+             * the IndicesOptions used during resolution do not allow such a case.
+             * @throws IllegalArgumentException if one of the aliases resolved to multiple indices and
+             * IndicesOptions.FORBID_ALIASES_TO_MULTIPLE_INDICES was set.
+             */
+            public Set<Index> concreteIndices() {
+                checkResolutionErrors();
+                return this.concreteIndices;
+            }
+
+            public Index[] concreteIndicesAsArray() {
+                return this.concreteIndices().toArray(Index.EMPTY_ARRAY);
+            }
+
+            public Set<String> namesOfConcreteIndices() {
+                return this.concreteIndices().stream().map(Index::getName).collect(Collectors.toSet());
+            }
+
+            public String[] namesOfConcreteIndicesAsArray() {
+                return this.concreteIndices().stream().map(Index::getName).toArray(String[]::new);
+            }
+
+            public ResolvedIndices.Local.Concrete withOriginalIndices(OriginalIndices originalIndices) {
+                return new Concrete(this.concreteIndices, this.names, originalIndices, this.subActions, resolutionErrors);
+            }
+
+            public ResolvedIndices.Local withSubActions(ActionType<?> actionType, ResolvedIndices.Local local) {
+                Map<ActionType<?>, Local> subActions = new HashMap<>(this.subActions);
+                subActions.put(actionType, local);
+                return new Concrete(this.concreteIndices, this.names, this.originalIndices, subActions, resolutionErrors);
+            }
+
+            public ResolvedIndices.Local.Concrete withResolutionErrors(List<RuntimeException> resolutionErrors) {
+                if (resolutionErrors.isEmpty()) {
+                    return this;
+                } else {
+                    return new Concrete(
+                        this.concreteIndices,
+                        this.names(),
+                        originalIndices,
+                        this.subActions,
+                        Stream.concat(this.resolutionErrors.stream(), resolutionErrors.stream()).toList()
+                    );
+                }
+            }
+
+            public ResolvedIndices.Local.Concrete withResolutionErrors(RuntimeException... resolutionErrors) {
+                return withResolutionErrors(Arrays.asList(resolutionErrors));
+            }
+
+            public ResolvedIndices.Local.Concrete withoutResolutionErrors() {
+                return new Concrete(this.concreteIndices, this.names(), this.originalIndices, this.subActions, List.of());
+            }
+
+            List<RuntimeException> resolutionErrors() {
+                return this.resolutionErrors;
+            }
+
+            private void checkResolutionErrors() {
+                if (!this.resolutionErrors.isEmpty()) {
+                    throw this.resolutionErrors.getFirst();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "{" + "concreteIndices=" + concreteIndices + ", names=" + names() + ", resolutionErrors=" + resolutionErrors + '}';
+            }
         }
     }
 
     /**
      * Represents the remote indices part of the respective request.
      */
+    @ExperimentalApi
     public static class Remote {
         static final Remote EMPTY = new Remote(Collections.emptyMap(), Collections.emptyList());
 

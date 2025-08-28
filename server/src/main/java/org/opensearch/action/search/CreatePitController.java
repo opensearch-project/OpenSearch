@@ -15,6 +15,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -86,11 +87,7 @@ public class CreatePitController {
         StepListener<SearchResponse> createPitListener,
         ActionListener<CreatePitResponse> updatePitIdListener
     ) {
-        SearchRequest searchRequest = new SearchRequest(request.getIndices());
-        searchRequest.preference(request.getPreference());
-        searchRequest.routing(request.getRouting());
-        searchRequest.indicesOptions(request.getIndicesOptions());
-        searchRequest.allowPartialSearchResults(request.shouldAllowPartialPitCreation());
+        SearchRequest searchRequest = request.toSearchRequest();
         SearchTask searchTask = searchRequest.createTask(
             task.getId(),
             task.getType(),
@@ -325,5 +322,9 @@ public class CreatePitController {
             nodeToContextsMap.put(context.getNode(), contextIdsForNode);
         }
         pitService.deletePitContexts(nodeToContextsMap, deleteListener);
+    }
+
+    ResolvedIndices resolveIndices(CreatePitRequest request) {
+        return transportSearchAction.resolveIndices(request.toSearchRequest());
     }
 }

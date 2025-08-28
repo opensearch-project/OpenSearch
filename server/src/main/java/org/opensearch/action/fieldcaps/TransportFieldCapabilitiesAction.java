@@ -43,7 +43,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.Strings;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
@@ -177,12 +176,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState)
         );
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
+        final ResolvedIndices.Local.Concrete concreteIndices;
         if (localIndices == null) {
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-            concreteIndices = Strings.EMPTY_ARRAY;
+            concreteIndices = ResolvedIndices.Local.Concrete.empty();
         } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+            concreteIndices = indexNameExpressionResolver.concreteResolvedIndices(clusterState, localIndices);
         }
 
         return ResolvedIndices.of(concreteIndices).withLocalOriginalIndices(localIndices).withRemoteIndices(remoteClusterIndices);
