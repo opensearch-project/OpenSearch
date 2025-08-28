@@ -1938,7 +1938,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, false, false, true, null, Collections.emptyMap());
+            this(name, type, true, false, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
