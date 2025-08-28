@@ -216,7 +216,7 @@ public final class StreamingSearchSettings {
         "search.streaming.score_mode",
         "COMPLETE",
         value -> {
-            if (!Arrays.asList("COMPLETE", "TOP_SCORES", "MAX_SCORE").contains(value.toUpperCase())) {
+            if (!Arrays.asList("COMPLETE", "TOP_SCORES", "MAX_SCORE").contains(value.toUpperCase(java.util.Locale.ROOT))) {
                 throw new IllegalArgumentException("Invalid score mode: " + value);
             }
         },

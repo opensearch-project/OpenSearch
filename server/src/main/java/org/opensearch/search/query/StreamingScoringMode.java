@@ -49,7 +49,7 @@ public enum StreamingScoringMode {
         if (mode == null) {
             return DEFAULT;
         }
-        switch (mode.toLowerCase()) {
+        switch (mode.toLowerCase(java.util.Locale.ROOT)) {
             case "none":
             case "no_scoring":
                 return NO_SCORING;
