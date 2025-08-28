@@ -212,7 +212,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             } else if (doubleValue == Double.NEGATIVE_INFINITY) {
                 LongPoint.encodeDimension(Long.MIN_VALUE, point, 0);
             } else {
-                LongPoint.encodeDimension(scaleToLong(doubleValue), point, 0);
+                LongPoint.encodeDimension(scaleToLong(doubleValue, scalingFactor), point, 0);
             }
             return point;
         }
@@ -224,7 +224,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             } else {
                 doubleValue = Math.nextDown(doubleValue);
             }
-            long scaledValue = scaleToLong(doubleValue);
+            long scaledValue = scaleToLong(doubleValue, scalingFactor);
             byte[] point = new byte[Long.BYTES];
             LongPoint.encodeDimension(scaledValue, point, 0);
             return point;
@@ -242,7 +242,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            long scaledValue = scaleToLong(parse(value));
+            long scaledValue = scaleToLong(parse(value), scalingFactor);
             Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, hasDocValues(), isSearchable());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -255,7 +255,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexedAndNoDocValues();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
-                long scaledValue = scaleToLong(parse(value));
+                long scaledValue = scaleToLong(parse(value), scalingFactor);
                 scaledValues.add(scaledValue);
             }
             Query query = NumberFieldMapper.NumberType.LONG.termsQuery(
@@ -279,7 +279,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
                 }
-                lo = scaleToLong(dValue);
+                lo = scaleToLong(dValue, scalingFactor);
             }
             Long hi = null;
             if (upperTerm != null) {
@@ -287,7 +287,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);
                 }
-                hi = scaleToLong(dValue);
+                hi = scaleToLong(dValue, scalingFactor);
             }
             Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), isSearchable(), context);
             if (boost() != 1f) {
@@ -327,7 +327,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                     }
 
                     double scalingFactor = getScalingFactor();
-                    long scaledLong = scaleToLong(doubleValue);
+                    long scaledLong = scaleToLong(doubleValue, scalingFactor);
                     return scaledLong / scalingFactor;
                 }
             };
@@ -366,16 +366,6 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
          */
         private double scale(Object input) {
             return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
-        }
-
-        /**
-         * Scales the input value to a long using BigDecimal for precision.
-         * @param doubleValue Input value to scale
-         * @return Scaled long value
-         */
-        private long scaleToLong(double doubleValue) {
-            BigDecimal scaledValue = new BigDecimal(Double.toString(doubleValue)).multiply(BigDecimal.valueOf(scalingFactor));
-            return scaledValue.setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
         }
 
         @Override
@@ -490,7 +480,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
             }
         }
-        long scaledValue = scaleToLong(doubleValue);
+        long scaledValue = scaleToLong(doubleValue, scalingFactor);
 
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
             fieldType().name(),
@@ -511,7 +501,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         return objectToDouble(value);
     }
 
-    private long scaleToLong(double doubleValue) {
+    private static long scaleToLong(double doubleValue, double scalingFactor) {
         BigDecimal scaledValue = new BigDecimal(Double.toString(doubleValue)).multiply(BigDecimal.valueOf(scalingFactor));
         return scaledValue.setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
     }
