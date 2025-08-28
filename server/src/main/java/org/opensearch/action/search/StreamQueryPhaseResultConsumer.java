@@ -25,7 +25,8 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 /**
- * Streaming query phase result consumer
+ * Streaming query phase result consumer that supports progressive result computation
+ * with statistical confidence using Hoeffding bounds.
  *
  * @opensearch.internal
  */
@@ -38,6 +39,18 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
     private int totalDocsProcessed = 0;
     private final StreamingScoringMode scoringMode;
 
+    /**
+     * Creates a new streaming query phase result consumer.
+     * 
+     * @param request The search request
+     * @param executor The executor for async operations
+     * @param circuitBreaker Circuit breaker for memory protection
+     * @param controller The search phase controller
+     * @param progressListener Listener for search progress
+     * @param namedWriteableRegistry Registry for serialization
+     * @param expectedResultSize Expected number of results
+     * @param onPartialMergeFailure Callback for partial merge failures
+     */
     public StreamQueryPhaseResultConsumer(
         SearchRequest request,
         Executor executor,
@@ -66,7 +79,9 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
     /**
      * Adjust batch reduce size based on scoring mode.
      *
-     * @param minBatchReduceSize: pass as number of shard
+     * @param requestBatchedReduceSize The requested batch reduce size
+     * @param minBatchReduceSize Minimum batch reduce size (number of shards)
+     * @return Adjusted batch size based on scoring mode
      */
     @Override
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
@@ -91,6 +106,12 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         }
     }
 
+    /**
+     * Consume a streaming search result from a shard.
+     * 
+     * @param result The search phase result from a shard
+     * @param next Callback to invoke after consumption
+     */
     void consumeStreamResult(SearchPhaseResult result, Runnable next) {
         // For streaming, we skip the ArraySearchPhaseResults.consumeResult() call
         // since it doesn't support multiple results from the same shard.
@@ -106,6 +127,9 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
     
     /**
      * Update Hoeffding bounds for a shard based on its scores.
+     * 
+     * @param shardIndex The index of the shard
+     * @param queryResult The query result containing scores
      */
     private void updateHoeffdingBounds(int shardIndex, QuerySearchResult queryResult) {
         var topDocsAndMaxScore = queryResult.topDocs();
@@ -180,6 +204,8 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
     
     /**
      * Get the number of streaming emissions for monitoring.
+     * 
+     * @return The count of streaming emissions
      */
     public int getStreamingEmissions() {
         return streamingEmissions;
