@@ -1877,7 +1877,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 logger.trace("running periodic field data cache cleanup");
             }
             try {
-                this.cache.clearMarkedKeys();
+                this.cache.clear();
             } catch (Exception e) {
                 logger.warn("Exception during periodic field data cache cleanup:", e);
             }

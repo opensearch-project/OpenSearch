@@ -544,7 +544,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         // Clear the cache for both fields of the index, we expect 1 key will remain afterwards
         ifdService.clear();
         // Manually run the cache's clear keys loop
-        fdCacheSpy.clearMarkedKeys();
+        fdCacheSpy.clear();
         assertEquals(1, internalCacheSpy.count());
 
         reader.close();

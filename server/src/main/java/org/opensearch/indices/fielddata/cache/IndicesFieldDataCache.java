@@ -63,6 +63,7 @@ import org.opensearch.index.shard.ShardUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -154,15 +155,29 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         fieldsOfIndex.add(field);
     }
 
-    // This method can stay synchronized to avoid having multiple simultaneous cache iterators removing keys.
-    // This shouldn't cause performance impact as it's called only from the scheduled cache clear thread
-    // and is not blocking search traffic.
-    public void clearMarkedKeys() {
+    // The synchronized block is to avoid having multiple simultaneous cache iterators removing keys.
+    public void clear() {
         if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty())) {
+            // Copy marked indices/fields before iteration, and only remove keys matching the copies
+            // in case new entries are marked for cleanup mid-iteration
+            Set<Index> indicesToClearCopy = Set.copyOf(indicesToClear);
+            Map<Index, Set<String>> fieldsToClearCopy = new HashMap<>();
+            for (Map.Entry<Index, Set<String>> entry : fieldsToClear.entrySet()) {
+                fieldsToClearCopy.put(entry.getKey(), Set.copyOf(entry.getValue()));
+            }
+            // remove this way instead of clearing all, in case a new entry has been marked since copying
+            indicesToClear.removeAll(indicesToClearCopy);
+            for (Map.Entry<Index, Set<String>> entry : fieldsToClearCopy.entrySet()) {
+                Set<String> fieldsForIndex = fieldsToClear.get(entry.getKey());
+                if (fieldsForIndex != null) {
+                    fieldsForIndex.removeAll(entry.getValue());
+                }
+            }
+
             synchronized (this) {
                 for (Iterator<Key> iterator = getCache().keys().iterator(); iterator.hasNext();) {
                     Key key = iterator.next();
-                    if (indicesToClear.contains(key.indexCache.index)) {
+                    if (indicesToClearCopy.contains(key.indexCache.index)) {
                         try {
                             iterator.remove();
                         } catch (Exception e) {
@@ -170,7 +185,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                         }
                         continue;
                     }
-                    Set<String> fieldsOfIndexToClear = fieldsToClear.get(key.indexCache.index);
+                    Set<String> fieldsOfIndexToClear = fieldsToClearCopy.get(key.indexCache.index);
                     if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
                         try {
                             iterator.remove();
@@ -180,8 +195,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                     }
                 }
             }
-            indicesToClear.clear();
-            fieldsToClear.clear();
         }
         cache.refresh();
     }
