@@ -21,6 +21,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -64,6 +65,7 @@ public class NRTReplicationEngine extends Engine {
     private final WriteOnlyTranslogManager translogManager;
     private final Lock flushLock = new ReentrantLock();
     protected final ReplicaFileTracker replicaFileTracker;
+    private final MergeStats mergeStats;
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -71,6 +73,7 @@ public class NRTReplicationEngine extends Engine {
 
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
+        mergeStats = new MergeStats();
         store.incRef();
         NRTReplicationReaderManager readerManager = null;
         WriteOnlyTranslogManager translogManagerRef = null;
@@ -489,6 +492,12 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void maybePruneDeletes() {}
+
+    @Override
+    public MergeStats getMergeStats() {
+        this.mergeStats.add(engineConfig.getMergedSegmentTransferTracker().stats());
+        return this.mergeStats;
+    }
 
     @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {}

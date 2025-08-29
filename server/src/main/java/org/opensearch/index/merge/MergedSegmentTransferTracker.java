@@ -21,7 +21,7 @@ import org.opensearch.index.shard.AbstractIndexShardComponent;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class MergedSegmentReplicationTracker extends AbstractIndexShardComponent {
+public class MergedSegmentTransferTracker extends AbstractIndexShardComponent {
 
     private final CounterMetric totalWarmInvocationsCount = new CounterMetric();
     private final CounterMetric totalWarmTimeMillis = new CounterMetric();
@@ -32,7 +32,7 @@ public class MergedSegmentReplicationTracker extends AbstractIndexShardComponent
     private final CounterMetric totalDownloadTimeMillis = new CounterMetric();
     private final CounterMetric ongoingWarms = new CounterMetric();
 
-    public MergedSegmentReplicationTracker(ShardId shardId, IndexSettings indexSettings) {
+    public MergedSegmentTransferTracker(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
     }
 
