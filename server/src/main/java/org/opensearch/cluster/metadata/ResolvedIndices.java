@@ -209,10 +209,10 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
 
                     if (indexAbstraction == null) {
                         // We keep the names of non existing indices
-                        this.names.add(name);
+                        result.add(name);
                     } else if (indexAbstraction instanceof IndexAbstraction.Index) {
                         // For normal indices, we just keep its name
-                        this.names.add(name);
+                        result.add(name);
                     } else {
                         // This is an alias or data stream
                         for (IndexMetadata index : indexAbstraction.getIndices()) {
