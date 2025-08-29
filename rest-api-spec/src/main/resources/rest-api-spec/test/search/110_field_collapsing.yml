@@ -509,3 +509,104 @@ setup:
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._seq_no: 0 }
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }
+
+---
+"Test field collapsing with sort":
+  - skip:
+      version: " - 3.2.99"
+      reason: Fixed in 3.3.0
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          mappings:
+            properties:
+              sort_field: { type: integer }
+              collapse_field: { type: integer }
+              marker: {type: keyword}
+
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     1
+        body:   { sort_field: 1, collapse_field: 1, marker: "doc1" }
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     2
+        body:   { sort_field: 1, collapse_field: 2, marker: "doc2" }
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     3
+        body:   { sort_field: 1, collapse_field: 2, marker: "doc3" }
+
+  - do:
+      search:
+        index: test_1
+        size: 2
+        body:
+          collapse: { field: collapse_field }
+          sort: [{ sort_field: desc }]
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: '1' }
+  - match: { hits.hits.0._source.marker: 'doc1' }
+  - match: { hits.hits.1._id: '2' }
+  - match: { hits.hits.1._source.marker: 'doc2' }
+
+---
+"Test field collapsing with sort when concurrent segment search enabled":
+  - skip:
+      version: " - 3.2.99"
+      reason: Fixed in 3.3.0
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          mappings:
+            properties:
+              sort_field: { type: integer }
+              collapse_field: { type: integer }
+              marker: {type: keyword}
+
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     1
+        body:   { sort_field: 1, collapse_field: 1, marker: "doc1" }
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     2
+        body:   { sort_field: 1, collapse_field: 2, marker: "doc2" }
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     3
+        body:   { sort_field: 1, collapse_field: 2, marker: "doc3" }
+  - do:
+      indices.put_settings:
+        index: test_1
+        body:
+          index.search.concurrent_segment_search.mode: 'all'
+
+  - do:
+      search:
+        index: test_1
+        size: 2
+        body:
+          collapse: { field: collapse_field }
+          sort: [{ sort_field: desc }]
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: '1' }
+  - match: { hits.hits.0._source.marker: 'doc1' }
+  - match: { hits.hits.1._id: '2' }
+  - match: { hits.hits.1._source.marker: 'doc2' }
