@@ -54,7 +54,7 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
         assertEquals(-1, input.read());
         assertEquals(stats.getEvictions(), read.getEvictions());
         assertEquals(stats.getMemorySize(), read.getMemorySize());
-        assertEquals(stats.getFieldMemorySizes(), read.getFieldMemorySizes());
+        assertEquals(stats.getFields(), read.getFields());
         assertEquals(stats.getItemCount(), read.getItemCount());
         assertEquals(stats.getFieldItemCounts(), read.getFieldItemCounts());
     }

@@ -215,9 +215,9 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         for (FieldDataStats totalStats : List.of(getTotalFieldDataStats(true), getIndicesFieldDataStats(true))) {
             assertTrue(totalStats.getMemorySizeInBytes() > 0);
             for (String fieldName : List.of("field", "field2")) {
-                assertTrue(totalStats.getFieldMemorySizes().get(fieldName) > 0);
+                assertTrue(totalStats.getFields().get(fieldName) > 0);
                 assertEquals(2, totalStats.getFieldItemCounts().get(fieldName));
-                assertTrue(totalStats.getFieldMemorySizes().get(fieldName) < totalStats.getMemorySizeInBytes());
+                assertTrue(totalStats.getFields().get(fieldName) < totalStats.getMemorySizeInBytes());
             }
         }
 
@@ -226,7 +226,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             for (FieldDataStats postClearStats : List.of(getTotalFieldDataStats(true), getIndicesFieldDataStats(true))) {
                 assertEquals(0, postClearStats.getMemorySizeInBytes());
                 assertEquals(0, postClearStats.getItemCount());
-                for (long fieldMemorySize : postClearStats.getFieldMemorySizes().getStats().values()) {
+                for (long fieldMemorySize : postClearStats.getFields().getStats().values()) {
                     assertEquals(0, fieldMemorySize);
                 }
                 for (long fieldItemCount : postClearStats.getFieldItemCounts().getStats().values()) {
