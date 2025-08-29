@@ -49,6 +49,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.lucene.io.BufferCache;
+import org.opensearch.lucene.io.IOInterceptingDirectory;
 import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
@@ -75,6 +77,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
         } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
+
+    static BufferCache bufferCache = new BufferCache();
 
     @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
@@ -109,6 +113,15 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 return setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
             // simplefs was removed in Lucene 9; support for enum is maintained for bwc
             case SIMPLEFS:
+                FSDirectory dir = FSDirectory.open(location, lockFactory);
+                Set<String> nioFileExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
+                FSDirectory delegate = null;
+                if (dir instanceof MMapDirectory) {
+                    MMapDirectory mMapDirectory = (MMapDirectory) dir;
+                    delegate =  new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions), nioFileExtensions);
+                }
+                if (delegate == null) delegate = dir;
+                return new IOInterceptingDirectory(location, lockFactory, bufferCache, delegate);
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
             default:
