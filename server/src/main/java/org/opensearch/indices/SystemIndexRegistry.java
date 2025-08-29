@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -76,13 +77,17 @@ public class SystemIndexRegistry {
             .collect(Collectors.toSet());
     }
 
-    public static boolean matchesPluginSystemIndexPattern(String pluginClassName, String index) {
+    /**
+     * Returns a predicate that can be used to test if an index is registered as system index for the given plugin.
+     */
+    public static Predicate<String> getPluginSystemIndexPredicate(String pluginClassName) {
         Collection<SystemIndexDescriptor> systemIndexDescriptors = SYSTEM_INDEX_DESCRIPTORS_MAP.get(pluginClassName);
-        if (systemIndexDescriptors == null) {
-            return false;
+        if (systemIndexDescriptors == null || systemIndexDescriptors.isEmpty()) {
+            return index -> false;
+        } else {
+            return index -> systemIndexDescriptors.stream()
+                .anyMatch(systemIndexDescriptor -> Regex.simpleMatch(systemIndexDescriptor.getIndexPattern(), index));
         }
-        return systemIndexDescriptors.stream()
-            .anyMatch(systemIndexDescriptor -> Regex.simpleMatch(systemIndexDescriptor.getIndexPattern(), index));
     }
 
     static List<SystemIndexDescriptor> getAllDescriptors() {
