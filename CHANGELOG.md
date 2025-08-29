@@ -85,6 +85,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.code.gson:gson` from 2.13.1 to 2.13.2 ([#19290](https://github.com/opensearch-project/OpenSearch/pull/19290)) ([#19293](https://github.com/opensearch-project/OpenSearch/pull/19293))
 - Bump `actions/stale` from 9 to 10 ([#19292](https://github.com/opensearch-project/OpenSearch/pull/19292))
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.25 to 11.28 ([#19291](https://github.com/opensearch-project/OpenSearch/pull/19291))
+- Bump `log4j2` from 2.21.0 to 2.25.1 ([#19184](https://github.com/opensearch-project/OpenSearch/pull/19184))
 
 ### Deprecated
 
