@@ -589,7 +589,7 @@ public class Lucene {
             out.writeString(sortField.getField());
         }
         if (sortField.getComparatorSource() != null
-            && (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) == false) {
+            && (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource)) {
             IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) (sortField
                 .getComparatorSource());
             writeSortType(out, comparatorSource.reducedType());
