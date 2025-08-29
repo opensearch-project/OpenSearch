@@ -216,36 +216,36 @@ public class RestShardsAction extends AbstractListAction {
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
         table.addCell(
-            "merged_segment_warmer.total_warm_invocations",
+            "merges.merged_segment_warmer.total_warm_invocations",
             "alias:mswtwi,mergedSegmentWarmerTotalWarmInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
         );
         table.addCell(
-            "merged_segment_warmer.total_warm_time_millis",
-            "alias:mswtwtm,mergedSegmentWarmerTotalWarmTimeMillis;default:false;text-align:right;desc:UPDATE"
+            "merges.merged_segment_warmer.total_warm_time",
+            "alias:mswtwt,mergedSegmentWarmerTotalWarmTime;default:false;text-align:right;desc:total wallclock time spent in the warming operation"
         );
         table.addCell(
-            "merged_segment_warmer.ongoing_warms",
-            "alias:mswow,mergedSegmentWarmerOngoingWarms;default:false;text-align:right;desc:UPDATE"
+            "merges.merged_segment_warmer.ongoing_warms",
+            "alias:mswow,mergedSegmentWarmerOngoingWarms;default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
         );
         table.addCell(
-            "merged_segment_warmer.total_bytes_downloaded",
-            "alias:mswtbd,mergedSegmentWarmerTotalBytesDownloaded;default:false;text-align:right;desc:UPDATE"
+            "merges.merged_segment_warmer.total_bytes_received",
+            "alias:mswtbr,mergedSegmentWarmerTotalBytesReceived;default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
         );
         table.addCell(
-            "merged_segment_warmer.total_bytes_uploaded",
-            "alias:mswtbu,mergedSegmentWarmerTotalBytesUploaded;default:false;text-align:right;desc:UPDATE"
+            "merges.merged_segment_warmer.total_bytes_sent",
+            "alias:mswtbs,mergedSegmentWarmerTotalBytesSent;default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
         );
         table.addCell(
-            "merged_segment_warmer.total_download_time_millis",
-            "alias:mswtdtm,mergedSegmentWarmerTotalDownloadTimeMillis;default:false;text-align:right;desc:UPDATE"
+            "merges.merged_segment_warmer.total_download_time",
+            "alias:mswtdt,mergedSegmentWarmerTotalDownloadTime;default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
         );
         table.addCell(
-            "merged_segment_warmer.total_warm_failure_count",
-            "alias:mswtwfc,mergedSegmentWarmerTotalWarmFailureCount;default:false;text-align:right;desc:UPDATE"
+            "merges.merged_segment_warmer.total_warm_failure_count",
+            "alias:mswtwfc,mergedSegmentWarmerTotalWarmFailureCount;default:false;text-align:right;desc:total failures in merged segment warmer"
         );
         table.addCell(
-            "merged_segment_warmer.total_upload_time_millis",
-            "alias:mswtutm,mergedSegmentWarmerTotalUploadTimeMillis;default:false;text-align:right;desc:UPDATE"
+            "merges.merged_segment_warmer.total_upload_time",
+            "alias:mswtut,mergedSegmentWarmerTotalUploadTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
         );
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
@@ -480,17 +480,61 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalTime));
 
             table.addCell(
-                getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalWarmInvocationsCount)
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalWarmInvocationsCount
+                )
             );
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalWarmTimeMillis));
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getOngoingWarms));
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalBytesDownloaded));
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalBytesUploaded));
             table.addCell(
-                getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalDownloadTimeMillis)
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalWarmTime
+                )
             );
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalWarmFailureCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getMergedSegmentWarmer, MergedSegmentWarmerStats::getTotalUploadTimeMillis));
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getOngoingWarms
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalReceivedSize
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalSentSize
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalDownloadTime
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalWarmFailureCount
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalUploadTime
+                )
+            );
 
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotal));
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotalTime));

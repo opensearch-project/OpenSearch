@@ -1394,7 +1394,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 refreshStats.addTotals(indexShard.refreshStats());
                 flushStats.addTotals(indexShard.flushStats());
                 recoveryStats.addTotals(indexShard.recoveryStats());
-                mergedSegmentWarmerStats.addTotals(indexShard.mergedSegmentWarmerStats());
             }
         }
     }

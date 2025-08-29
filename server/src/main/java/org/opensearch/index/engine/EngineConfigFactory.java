@@ -29,6 +29,7 @@ import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
@@ -160,7 +161,8 @@ public class EngineConfigFactory {
         Comparator<LeafReader> leafSorter,
         Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
         IndexWriter.IndexReaderWarmer indexReaderWarmer,
-        ClusterApplierService clusterApplierService
+        ClusterApplierService clusterApplierService,
+        MergedSegmentTransferTracker mergedSegmentTransferTracker
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -197,6 +199,7 @@ public class EngineConfigFactory {
             .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
             .indexReaderWarmer(indexReaderWarmer)
             .clusterApplierService(clusterApplierService)
+            .mergedSegmentTransferTracker(mergedSegmentTransferTracker)
             .build();
     }
 
