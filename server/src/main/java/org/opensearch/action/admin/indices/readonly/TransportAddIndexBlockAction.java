@@ -37,12 +37,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -65,7 +67,9 @@ import java.util.Collections;
  *
  * @opensearch.internal
  */
-public class TransportAddIndexBlockAction extends TransportClusterManagerNodeAction<AddIndexBlockRequest, AddIndexBlockResponse> {
+public class TransportAddIndexBlockAction extends TransportClusterManagerNodeAction<AddIndexBlockRequest, AddIndexBlockResponse>
+    implements
+        TransportIndicesResolvingAction<AddIndexBlockRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportAddIndexBlockAction.class);
 
@@ -135,7 +139,7 @@ public class TransportAddIndexBlockAction extends TransportClusterManagerNodeAct
         final ClusterState state,
         final ActionListener<AddIndexBlockResponse> listener
     ) throws Exception {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final Index[] concreteIndices = resolveIndices(state, request).concreteIndicesAsArray();
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new AddIndexBlockResponse(true, false, Collections.emptyList()));
             return;
@@ -149,5 +153,14 @@ public class TransportAddIndexBlockAction extends TransportClusterManagerNodeAct
             logger.debug(() -> new ParameterizedMessage("failed to mark indices as readonly [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);
         }));
+    }
+
+    private ResolvedIndices.Local.Concrete resolveIndices(ClusterState state, AddIndexBlockRequest request) {
+        return indexNameExpressionResolver.concreteResolvedIndices(state, request);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(AddIndexBlockRequest request) {
+        return ResolvedIndices.of(resolveIndices(this.clusterService.state(), request));
     }
 }
