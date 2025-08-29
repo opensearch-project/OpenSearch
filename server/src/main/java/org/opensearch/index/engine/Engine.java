@@ -88,6 +88,7 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
@@ -213,7 +214,13 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     public MergeStats getMergeStats() {
+        logger.info(getClass().getSimpleName() + "  | getMergeStats called");
+
         return new MergeStats();
+    }
+
+    public MergedSegmentTransferTracker getMergedSegmentTransferTracker() {
+        return engineConfig.getMergedSegmentTransferTracker();
     }
 
     /** returns the history uuid for the engine */

@@ -76,4 +76,9 @@ public class MergedSegmentReplicationTarget extends AbstractSegmentReplicationTa
     public MergedSegmentReplicationTarget retryCopy() {
         return new MergedSegmentReplicationTarget(indexShard, checkpoint, source, listener);
     }
+
+    protected void updateMergedSegmentFileRecoveryBytes(String fileName, long bytesRecovered) {
+        indexShard.mergedSegmentTransferTracker().addTotalBytesDownloaded(bytesRecovered);
+        updateFileRecoveryBytes(fileName, bytesRecovered);
+    }
 }
