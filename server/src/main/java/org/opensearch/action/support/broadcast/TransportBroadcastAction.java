@@ -167,7 +167,7 @@ public abstract class TransportBroadcastAction<
                 throw blockException;
             }
             // update to concrete indices
-            String[] concreteIndices = resolveIndices(request, clusterState).namesAsArray();
+            String[] concreteIndices = resolveIndices(request, clusterState).namesOfConcreteIndicesAsArray();
             blockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (blockException != null) {
                 throw blockException;
