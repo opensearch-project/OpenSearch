@@ -16,3 +16,8 @@ jobs:
       - uses: dangoslen/changelog-enforcer@v3
         with:
           skipLabels: "autocut, skip-changelog"
+          changeIsMissingMessage: |
+            ❌ ERROR: No update to CHANGELOG.md found!
+            This project requires a changelog entry for every user-facing change.
+            Please add a note about your change to the 'Unreleased' section of the CHANGELOG.md file.
+            You can find the file here: https://github.com/opensearch-project/OpenSearch/blob/main/CHANGELOG.md
