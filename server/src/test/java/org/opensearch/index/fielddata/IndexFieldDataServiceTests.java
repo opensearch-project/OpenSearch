@@ -415,6 +415,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
                 false,
                 false,
                 false,
+                false,
                 null,
                 Collections.emptyMap()
             )
@@ -431,6 +432,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
                 false,
                 false,
                 false,
+                false,
                 null,
                 Collections.emptyMap()
             )
@@ -444,6 +446,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
                 "field",
                 NumberFieldMapper.NumberType.UNSIGNED_LONG,
                 true,
+                false,
                 false,
                 false,
                 false,
