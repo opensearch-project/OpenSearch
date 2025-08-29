@@ -207,6 +207,10 @@ public class IndexNameExpressionResolver {
 
         List<String> dataStreams = wildcardExpressionResolver.resolve(context, finalExpressions);
 
+        if (!context.resolutionErrors.isEmpty()) {
+            throw context.resolutionErrors.getFirst();
+        }
+
         return ((dataStreams == null) ? List.<String>of() : dataStreams).stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
@@ -613,6 +617,9 @@ public class IndexNameExpressionResolver {
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
+        if (!context.resolutionErrors.isEmpty()) {
+            throw context.resolutionErrors.getFirst();
+        }
         return Collections.unmodifiableSet(new HashSet<>(resolvedExpressions));
     }
 
@@ -706,6 +713,9 @@ public class IndexNameExpressionResolver {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true, isSystemIndexAccessAllowed());
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
+        }
+        if (!context.resolutionErrors.isEmpty()) {
+            throw context.resolutionErrors.getFirst();
         }
 
         // TODO: it appears that this can never be true?
@@ -1013,8 +1023,16 @@ public class IndexNameExpressionResolver {
          * Note: This is on purpose package private. External resolvers should have no need to inspect the
          * present resolution errors.
          */
-        private List<RuntimeException> getResolutionErrors() {
+        List<RuntimeException> getResolutionErrors() {
             return this.resolutionErrors;
+        }
+
+        RuntimeException getFirstResolutionError() {
+            if (this.resolutionErrors.isEmpty()) {
+                return null;
+            } else {
+                return this.resolutionErrors.getFirst();
+            }
         }
     }
 
