@@ -33,6 +33,7 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -70,6 +71,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
          * @opensearch.api
          */
         @PublicApi(since = "1.0.0")
+        @DeprecatedApi(since = "3.3.0")
         public static class DocStatusStats implements Writeable, ToXContentFragment {
 
             final AtomicLong[] docStatusCounter;
@@ -162,7 +164,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long maxLastIndexRequestTimestamp;
 
         Stats() {
-            docStatusStats = new DocStatusStats();
+            docStatusStats = null;
         }
 
         public Stats(StreamInput in) throws IOException {
@@ -181,13 +183,14 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             } else {
                 maxLastIndexRequestTimestamp = 0L;
             }
-            if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_11_0) && in.getVersion().onOrBefore(Version.V_3_2_0)) {
                 docStatusStats = in.readOptionalWriteable(DocStatusStats::new);
             } else {
                 docStatusStats = null;
             }
         }
 
+        @Deprecated(since = "3.3.0")
         public Stats(
             long indexCount,
             long indexTimeInMillis,
@@ -217,6 +220,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             );
         }
 
+        @Deprecated(since = "3.3.0")
         public Stats(
             long indexCount,
             long indexTimeInMillis,
@@ -241,7 +245,61 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.noopUpdateCount = noopUpdateCount;
             this.isThrottled = isThrottled;
             this.throttleTimeInMillis = throttleTimeInMillis;
-            this.docStatusStats = docStatusStats;
+            this.docStatusStats = null;
+            this.maxLastIndexRequestTimestamp = maxLastIndexRequestTimestamp;
+        }
+
+        public Stats(
+            long indexCount,
+            long indexTimeInMillis,
+            long indexCurrent,
+            long indexFailedCount,
+            long deleteCount,
+            long deleteTimeInMillis,
+            long deleteCurrent,
+            long noopUpdateCount,
+            boolean isThrottled,
+            long throttleTimeInMillis
+        ) {
+            this(
+                indexCount,
+                indexTimeInMillis,
+                indexCurrent,
+                indexFailedCount,
+                deleteCount,
+                deleteTimeInMillis,
+                deleteCurrent,
+                noopUpdateCount,
+                isThrottled,
+                throttleTimeInMillis,
+                0L
+            );
+        }
+
+        public Stats(
+            long indexCount,
+            long indexTimeInMillis,
+            long indexCurrent,
+            long indexFailedCount,
+            long deleteCount,
+            long deleteTimeInMillis,
+            long deleteCurrent,
+            long noopUpdateCount,
+            boolean isThrottled,
+            long throttleTimeInMillis,
+            long maxLastIndexRequestTimestamp
+        ) {
+            this.indexCount = indexCount;
+            this.indexTimeInMillis = indexTimeInMillis;
+            this.indexCurrent = indexCurrent;
+            this.indexFailedCount = indexFailedCount;
+            this.deleteCount = deleteCount;
+            this.deleteTimeInMillis = deleteTimeInMillis;
+            this.deleteCurrent = deleteCurrent;
+            this.noopUpdateCount = noopUpdateCount;
+            this.isThrottled = isThrottled;
+            this.throttleTimeInMillis = throttleTimeInMillis;
+            this.docStatusStats = null;
             this.maxLastIndexRequestTimestamp = maxLastIndexRequestTimestamp;
         }
 
@@ -356,7 +414,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
                 out.writeLong(maxLastIndexRequestTimestamp);
             }
-            if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_11_0) && out.getVersion().onOrBefore(Version.V_3_2_0)) {
                 out.writeOptionalWriteable(docStatusStats);
             }
         }
