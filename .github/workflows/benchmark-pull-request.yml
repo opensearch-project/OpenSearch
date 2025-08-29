@@ -141,7 +141,7 @@ jobs:
           ref: ${{ env.prHeadRefSha }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 21
           distribution: 'temurin'
