@@ -23,8 +23,8 @@ testClusters {
 dependencies {
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  implementation "com.google.errorprone:error_prone_annotations:2.24.1"
-  implementation "com.google.guava:failureaccess:1.0.2"
+  compileOnly "com.google.errorprone:error_prone_annotations:${versions.errorprone_annotations}"
+  compileOnly "com.google.guava:failureaccess:1.0.2"
   implementation "io.grpc:grpc-api:${versions.grpc}"
   implementation "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"

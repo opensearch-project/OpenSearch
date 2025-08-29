@@ -54,7 +54,7 @@ dependencies {
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-netty:${versions.grpc}"
-  implementation "com.google.errorprone:error_prone_annotations:2.31.0"
+  compileOnly "com.google.errorprone:error_prone_annotations:${versions.errorprone_annotations}"
 
   runtimeOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
   annotationProcessor 'org.immutables:value:2.10.1'

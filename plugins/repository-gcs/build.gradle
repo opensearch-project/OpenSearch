@@ -61,7 +61,7 @@ dependencies {
 
   runtimeOnly "com.google.guava:guava:${guava_version}"
   runtimeOnly "com.google.guava:failureaccess:1.0.2"
-  compileOnly "com.google.errorprone:error_prone_annotations:2.38.0"
+  compileOnly "com.google.errorprone:error_prone_annotations:${versions.errorprone_anntations}" // 2.15.0 in bom
 
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
