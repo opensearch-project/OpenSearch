@@ -48,6 +48,11 @@ public class OptionallyResolvedIndices {
         return Local.NOT_PRESENT;
     }
 
+    @Override
+    public String toString() {
+        return "ResolvedIndices{unknown=true}";
+    }
+
     /**
      * Represents the local (i.e., non-remote) indices referenced by the respective request.
      */
