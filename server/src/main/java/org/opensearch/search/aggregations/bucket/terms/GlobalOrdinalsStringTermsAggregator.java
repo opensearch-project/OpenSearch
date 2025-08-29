@@ -73,6 +73,7 @@ import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
@@ -107,6 +108,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     private final SetOnce<SortedSetDocValues> dvs = new SetOnce<>();
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
+    LongUnaryOperator globalOperator;
+    private final ValuesSourceConfig config;
+
+    /**
+     * Lookup global ordinals
+     *
+     * @opensearch.internal
+     */
+    public interface GlobalOrdLookupFunction {
+        BytesRef apply(long ord) throws IOException;
+    }
+
     protected CardinalityUpperBound cardinalityUpperBound;
 
     public GlobalOrdinalsStringTermsAggregator(
@@ -124,7 +137,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        ValuesSourceConfig config
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.cardinalityUpperBound = cardinality;
@@ -146,9 +160,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 return new DenseGlobalOrds();
             });
         }
-        this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData)
-            ? ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName()
-            : null;
+        this.fieldName = valuesSource.getIndexFieldName();
+        this.config = config;
     }
 
     String descriptCollectionStrategy() {
@@ -185,6 +198,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             }
         }
 
+        // If the missing property is specified in the builder, and there are documents with the
+        // field missing, we might not be able to use the index unless there is a way to
+        // calculate which ordinal value that missing field is (something I am not sure how to
+        // do yet).
+        /*if (config != null && config.missing() != null && ((weight.count(ctx) == ctx.reader().getDocCount(fieldName)) == false)) {
+            return false;
+        }*/
+
         Terms segmentTerms = ctx.reader().terms(this.fieldName);
         if (segmentTerms == null) {
             // Field is not indexed.
@@ -206,6 +227,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         // Iterate over the terms in the segment, look for matches in the global ordinal terms,
         // and increment bucket count when segment terms match global ordinal terms.
         while (indexTerm != null && ordinalTerm != null) {
+            /*String indexString = indexTerm.utf8ToString();
+            String ordinalString = ordinalTerm.utf8ToString();
+            if (config != null && config.missing() != null) {
+                String missingField = (String) config.missing();
+                if (missingField.equals(ordinalTerm.utf8ToString())) {
+                    if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
+                        ordCountConsumer.accept(globalOrdinalTermsEnum.ord(), weight.count(ctx) - ctx.reader().getDocCount(fieldName));
+                    }
+                }
+            }*/
             int compare = indexTerm.compareTo(ordinalTerm);
             if (compare == 0) {
                 if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
@@ -219,6 +250,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 ordinalTerm = globalOrdinalTermsEnum.next();
             }
         }
+        /*while (ordinalTerm != null) {
+            if (config != null && config.missing() != null) {
+                String missingField = (String) config.missing();
+                if (missingField.equals(ordinalTerm.utf8ToString())) {
+                    if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
+                        ordCountConsumer.accept(globalOrdinalTermsEnum.ord(), weight.count(ctx) - ctx.reader().getDocCount(fieldName));
+                    }
+                }
+            }
+            ordinalTerm = globalOrdinalTermsEnum.next();
+        }*/
         return true;
     }
 
@@ -482,7 +524,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             boolean remapGlobalOrds,
             SubAggCollectionMode collectionMode,
             boolean showTermDocCountError,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            ValuesSourceConfig config
         ) throws IOException {
             super(
                 name,
@@ -499,7 +542,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 collectionMode,
                 showTermDocCountError,
                 CardinalityUpperBound.ONE,
-                metadata
+                metadata,
+                config
             );
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newLongArray(1, true);
