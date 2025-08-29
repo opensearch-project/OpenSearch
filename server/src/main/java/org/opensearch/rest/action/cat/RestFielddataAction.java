@@ -105,8 +105,8 @@ public class RestFielddataAction extends AbstractCatAction {
         Table table = getTableWithHeader(request);
 
         for (NodeStats nodeStats : nodeStatses.getNodes()) {
-            if (nodeStats.getIndices().getFieldData().getFieldMemorySizes() != null) {
-                for (var cursor : nodeStats.getIndices().getFieldData().getFieldMemorySizes()) {
+            if (nodeStats.getIndices().getFieldData().getFields() != null) {
+                for (var cursor : nodeStats.getIndices().getFieldData().getFields()) {
                     table.startRow();
                     table.addCell(nodeStats.getNode().getId());
                     table.addCell(nodeStats.getNode().getHostName());

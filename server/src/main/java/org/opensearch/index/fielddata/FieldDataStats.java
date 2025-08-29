@@ -151,8 +151,13 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         return this.itemCount;
     }
 
+    /**
+     * Get the field memory sizes.
+     * Cannot change the method name as this class was marked PublicApi.
+     * @return The memory field sizes
+     */
     @Nullable
-    public FieldMemoryStats getFieldMemorySizes() {
+    public FieldMemoryStats getFields() {
         return fieldMemorySizes;
     }
 
