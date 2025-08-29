@@ -44,6 +44,7 @@ dependencies {
   testImplementation(project(':distribution:tools:plugin-cli')) {
     exclude group: 'org.bouncycastle'
   }
+  testCompileOnly "com.github.spotbugs:spotbugs-annotations:4.9.4"
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
