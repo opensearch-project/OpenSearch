@@ -48,6 +48,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.merge.OnGoingMerge;
 
 import java.io.IOException;
@@ -79,12 +80,18 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
+    private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
-    OpenSearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    OpenSearchConcurrentMergeScheduler(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        MergedSegmentTransferTracker mergedSegmentTransferTracker
+    ) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.mergedSegmentTransferTracker = mergedSegmentTransferTracker;
         refreshConfig();
     }
 
@@ -209,7 +216,8 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             currentMergesSizeInBytes.count(),
             totalMergeStoppedTime.count(),
             totalMergeThrottledTime.count(),
-            config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY
+            config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY,
+            mergedSegmentTransferTracker.stats()
         );
         return mergeStats;
     }
