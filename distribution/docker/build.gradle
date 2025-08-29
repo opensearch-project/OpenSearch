@@ -133,7 +133,7 @@ project.ext {
 
 void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
   if (base != DockerBase.ALMALINUX) {
-    throw new GradleException("The only allowed docker base image for builds is CENTOS")
+    throw new GradleException("The only allowed docker base image for builds is ALMALINUX")
   }
 
   tasks.register(taskName("copy", architecture, base, "DockerContext"), Sync) {
@@ -209,7 +209,7 @@ tasks.named("check").configure {
 
 void addBuildDockerImage(Architecture architecture, DockerBase base) {
   if (base != DockerBase.ALMALINUX) {
-    throw new GradleException("The only allowed docker base image for builds is CENTOS")
+    throw new GradleException("The only allowed docker base image for builds is ALMALINUX")
   }
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
@@ -232,7 +232,7 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
 }
 
 for (final Architecture architecture : Architecture.values()) {
-  // We only create Docker images for the distribution on CentOS.
+  // We only create Docker images for the distribution on AlmaLinux.
   for (final DockerBase base : DockerBase.values()) {
     if (base == DockerBase.ALMALINUX) {
       addCopyDockerContextTask(architecture, base)
