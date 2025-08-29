@@ -579,7 +579,7 @@ public class Lucene {
             sortField = newSortField;
         }
 
-        if (sortField.getClass() != SortField.class && (sortField instanceof NonPruningSortField)) {
+        if (sortField.getClass() != SortField.class && ((sortField instanceof NonPruningSortField) == false)) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
         if (sortField.getField() == null) {
