@@ -119,7 +119,7 @@ public abstract class LeafBucketCollector implements LeafCollector {
     public abstract void collect(int doc, long owningBucketOrd) throws IOException;
 
     @Override
-    public final void collect(int doc) throws IOException {
+    public void collect(int doc) throws IOException {
         collect(doc, 0);
     }
 
