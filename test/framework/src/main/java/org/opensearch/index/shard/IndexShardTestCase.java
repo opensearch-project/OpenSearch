@@ -983,6 +983,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexShard shard = shardFunction.apply(primary);
         if (primary) {
             recoverShardFromStore(shard);
+            shard.awaitRemoteStoreSync();
             assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         } else {
             recoveryEmptyReplica(shard, true);
@@ -1058,6 +1059,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             primary = newStartedShard(true, replica.indexSettings.getSettings());
             recoverReplica(replica, primary, startReplica);
         } finally {
+            primary.drainRefreshListeners();
             closeShards(primary);
         }
     }
