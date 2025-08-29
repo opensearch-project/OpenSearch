@@ -133,6 +133,11 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
         return this.local.isEmpty() && this.remote.isEmpty();
     }
 
+    @Override
+    public String toString() {
+        return "ResolvedIndices{" + "local=" + local + ", remote=" + remote + '}';
+    }
+
     /**
      * Represents the local (i.e., non-remote) indices referenced by the respective request.
      */
@@ -291,6 +296,15 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
             Map<ActionType<?>, Local> subActions = new HashMap<>(this.subActions);
             subActions.put(actionType, local);
             return new Local(this.names, this.originalIndices, Collections.unmodifiableMap(subActions));
+        }
+
+        @Override
+        public String toString() {
+            if (this.subActions.isEmpty()) {
+                return "{names=" + names() + "}";
+            } else {
+                return "{names=" + names() + ", subActions=" + subActions + '}';
+            }
         }
 
         /**
@@ -462,6 +476,11 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
 
         public boolean isEmpty() {
             return this.clusterToOriginalIndicesMap.isEmpty();
+        }
+
+        @Override
+        public String toString() {
+            return this.asRawExpressions().toString();
         }
 
         private List<String> buildRawExpressions() {
