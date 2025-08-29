@@ -249,22 +249,6 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         verify(mockClient, atLeastOnce()).get(any(GetRequest.class), any());
     }
 
-    private QueryBuilder mockQueryBuilder() {
-        return mock(QueryBuilder.class);
-    }
-
-    private QueryRewriteContext mockRewriteContextForFetch(Client client) {
-        QueryRewriteContext rewriteContext = mock(QueryRewriteContext.class);
-        doAnswer(invocation -> {
-            Object asyncAction = invocation.getArgument(0);
-            @SuppressWarnings("unchecked")
-            BiConsumer<Client, ActionListener<List<Object>>> lambda = (BiConsumer<Client, ActionListener<List<Object>>>) asyncAction;
-            lambda.accept(client, ActionListener.wrap(resp -> {}, ex -> fail("Should not throw")));
-            return null;
-        }).when(rewriteContext).registerAsyncAction(any());
-        return rewriteContext;
-    }
-
     public void testFetchIsCoveredWithTermsLookupQuery() throws Exception {
         QueryBuilder subQuery = mock(QueryBuilder.class);
         TermsLookup termsLookup = new TermsLookup("classes", null, "enrolled", subQuery);

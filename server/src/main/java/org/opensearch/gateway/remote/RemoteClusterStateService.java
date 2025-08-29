@@ -1948,35 +1948,12 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateReadTimeout = remoteStateReadTimeout;
     }
 
-    private BlobStoreTransferService getBlobStoreTransferService() {
-        if (blobStoreTransferService == null) {
-            blobStoreTransferService = new BlobStoreTransferService(getBlobStore(), threadpool);
-        }
-        return blobStoreTransferService;
-    }
-
     Set<String> getAllClusterUUIDs(String clusterName) throws IOException {
         Map<String, BlobContainer> clusterUUIDMetadata = clusterUUIDContainer(blobStoreRepository, clusterName).children();
         if (clusterUUIDMetadata == null) {
             return Collections.emptySet();
         }
         return Collections.unmodifiableSet(clusterUUIDMetadata.keySet());
-    }
-
-    private Map<String, ClusterMetadataManifest> getLatestManifestForAllClusterUUIDs(String clusterName, Set<String> clusterUUIDs) {
-        Map<String, ClusterMetadataManifest> manifestsByClusterUUID = new HashMap<>();
-        for (String clusterUUID : clusterUUIDs) {
-            try {
-                Optional<ClusterMetadataManifest> manifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-                manifest.ifPresent(clusterMetadataManifest -> manifestsByClusterUUID.put(clusterUUID, clusterMetadataManifest));
-            } catch (Exception e) {
-                throw new IllegalStateException(
-                    String.format(Locale.ROOT, "Exception in fetching manifest for clusterUUID: %s", clusterUUID),
-                    e
-                );
-            }
-        }
-        return manifestsByClusterUUID;
     }
 
     /**
