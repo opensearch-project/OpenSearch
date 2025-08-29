@@ -125,6 +125,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
+    private boolean streamingScoring = false;
+    private String streamingScoringMode = null; // Will use StreamingScoringMode.DEFAULT if null
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -142,6 +145,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             searchRequest.absoluteStartMillis,
             searchRequest.finalReduce
         );
+        this.streamingScoring = searchRequest.streamingScoring;
     }
 
     /**
@@ -654,6 +658,34 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public void setPhaseTook(Boolean phaseTook) {
         this.phaseTook = phaseTook;
+    }
+
+    /**
+     * Enable streaming scoring for this search request.
+     */
+    public void setStreamingScoring(boolean streamingScoring) {
+        this.streamingScoring = streamingScoring;
+    }
+
+    /**
+     * Check if streaming scoring is enabled for this search request.
+     */
+    public boolean isStreamingScoring() {
+        return streamingScoring;
+    }
+    
+    /**
+     * Set the streaming scoring mode.
+     */
+    public void setStreamingScoringMode(String mode) {
+        this.streamingScoringMode = mode;
+    }
+    
+    /**
+     * Get the streaming scoring mode.
+     */
+    public String getStreamingScoringMode() {
+        return streamingScoringMode;
     }
 
     /**
