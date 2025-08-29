@@ -35,8 +35,6 @@ package org.opensearch.monitor.fs;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
@@ -130,11 +128,7 @@ public class FsProbeTests extends OpenSearchTestCase {
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ByteSizeValue gbByteSizeValue = new ByteSizeValue(1, ByteSizeUnit.GB);
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
-            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-                gbByteSizeValue.getBytes(),
-                16,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-            );
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(gbByteSizeValue.getBytes(), 16);
             FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);
             assertNotNull(stats);
@@ -170,11 +164,7 @@ public class FsProbeTests extends OpenSearchTestCase {
             final long totalSpace = adjustForHugeFilesystems(env.fileCacheNodePath().fileStore.getTotalSpace());
             ByteSizeValue gbByteSizeValue = new ByteSizeValue(totalSpace, ByteSizeUnit.BYTES);
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
-            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-                gbByteSizeValue.getBytes(),
-                16,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-            );
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(gbByteSizeValue.getBytes(), 16);
 
             FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);

@@ -126,7 +126,6 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -804,8 +803,8 @@ public class Node implements Closeable {
                 pluginCircuitBreakers,
                 settingsModule.getClusterSettings()
             );
-            // File cache will be initialized by the node once circuit breakers are in place.
-            initializeFileCache(settings, new NoopCircuitBreaker("fileCache_noopBreaker"));
+
+            initializeFileCache(settings);
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
                 CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
@@ -2354,7 +2353,7 @@ public class Node implements Closeable {
      * If the user doesn't configure the cache size, it fails if the node is a data + warm node.
      * Else it configures the size to 80% of total capacity for a dedicated warm node, if not explicitly defined.
      */
-    private void initializeFileCache(Settings settings, CircuitBreaker circuitBreaker) throws IOException {
+    private void initializeFileCache(Settings settings) throws IOException {
         if (DiscoveryNode.isWarmNode(settings) == false) {
             return;
         }
@@ -2379,7 +2378,7 @@ public class Node implements Closeable {
             throw new SettingsException("Cache size must be larger than zero and less than total capacity");
         }
 
-        this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
+        this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
         ForkJoinPool loadFileCacheThreadpool = new ForkJoinPool(
             Runtime.getRuntime().availableProcessors(),
