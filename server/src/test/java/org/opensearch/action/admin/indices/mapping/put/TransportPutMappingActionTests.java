@@ -15,6 +15,7 @@ import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataMappingService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.MappingTransformerRegistry;
@@ -66,6 +67,7 @@ public class TransportPutMappingActionTests extends OpenSearchTestCase {
         MockitoAnnotations.openMocks(this);
 
         ActionFilter[] emptyActionFilters = new ActionFilter[] {};
+        when(indexNameExpressionResolver.concreteResolvedIndices(any(), any())).thenReturn(ResolvedIndices.Local.Concrete.empty());
         when(actionFilters.filters()).thenReturn(emptyActionFilters);
         action = new TransportPutMappingAction(
             transportService,
