@@ -1102,18 +1102,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         return aggregatedStarTreeDocument;
     }
 
-    /**
-     * Handles the dimension of date time field type
-     *
-     * @param fieldName name of the field
-     * @param val       value of the field
-     * @return returns the converted dimension of the field to a particular granularity
-     */
-    private long handleDateDimension(final String fieldName, final long val) {
-        // TODO: handle timestamp granularity
-        return val;
-    }
-
     public void close() throws IOException {
 
     }

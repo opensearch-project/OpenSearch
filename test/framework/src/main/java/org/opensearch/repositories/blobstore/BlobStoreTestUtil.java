@@ -59,14 +59,12 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.IndexModule;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
-import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -469,25 +467,5 @@ public final class BlobStoreTestUtil {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
-    }
-
-    private static boolean isRemoteSnapshot(BlobStoreRepository repository, RepositoryData repositoryData, IndexId indexId)
-        throws IOException {
-        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        for (SnapshotId snapshotId : snapshotIds) {
-            try {
-                if (isRemoteSnapshot(repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId))) {
-                    return true;
-                }
-            } catch (SnapshotMissingException e) {
-                // Index does not exist in this snapshot so continue looping
-            }
-        }
-        return false;
-    }
-
-    private static boolean isRemoteSnapshot(IndexMetadata metadata) {
-        final String storeType = metadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
-        return storeType != null && storeType.equals(IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
     }
 }

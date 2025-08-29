@@ -75,13 +75,6 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         this.batchAllocator = new TestBatchAllocator();
     }
 
-    private void allocateAllUnassigned(final RoutingAllocation allocation) {
-        final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-        while (iterator.hasNext()) {
-            batchAllocator.allocateUnassigned(iterator.next(), allocation, iterator);
-        }
-    }
-
     private void allocateAllUnassignedBatch(final RoutingAllocation allocation) {
         final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         List<ShardRouting> shardsToBatch = new ArrayList<>();
