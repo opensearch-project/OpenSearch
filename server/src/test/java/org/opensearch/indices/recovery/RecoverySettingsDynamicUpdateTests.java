@@ -212,5 +212,8 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
             "illegal value can't update [indices.replication.merged_segment_warmer_enabled] from [false] to [true]",
             e.getMessage()
         );
+        assertEquals(IllegalArgumentException.class, e.getCause().getClass());
+        assertEquals("FeatureFlag opensearch.experimental.feature.merged_segment_warmer.enabled must be enabled to set this property to true.",
+            e.getCause().getMessage());
     }
 }

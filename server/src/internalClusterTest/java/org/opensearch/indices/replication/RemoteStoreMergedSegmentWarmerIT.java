@@ -65,10 +65,10 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        String nodeHostingPrimaryShard = findNodeHostingPrimaryShard(INDEX_NAME);
+        String primaryShardNode = findprimaryShardNode(INDEX_NAME);
         MockTransportService mockTransportServicePrimary = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            nodeHostingPrimaryShard
+            primaryShardNode
         );
         final CountDownLatch latch = new CountDownLatch(1);
         StubbableTransport.SendRequestBehavior behavior = (connection, requestId, action, request, options) -> {
@@ -114,10 +114,10 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         );
         ensureGreen(INDEX_NAME);
 
-        String nodeHostingPrimaryShard = findNodeHostingPrimaryShard(INDEX_NAME);
+        String primaryShardNode = findprimaryShardNode(INDEX_NAME);
         MockTransportService mockTransportServicePrimary = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            nodeHostingPrimaryShard
+            primaryShardNode
         );
 
         CountDownLatch latch = new CountDownLatch(2);
@@ -181,7 +181,7 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        String primaryNodeName = findNodeHostingPrimaryShard(INDEX_NAME);
+        String primaryNodeName = findprimaryShardNode(INDEX_NAME);
         internalCluster().client()
             .admin()
             .cluster()
@@ -224,7 +224,7 @@ public class RemoteStoreMergedSegmentWarmerIT extends SegmentReplicationBaseIT {
     /**
      * Returns the node name for the node hosting the primary shard for index "indexName"
      */
-    private String findNodeHostingPrimaryShard(String indexName) {
+    private String findprimaryShardNode(String indexName) {
         String nodeId = internalCluster().clusterService().state().routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
 
         return internalCluster().clusterService().state().nodes().get(nodeId).getName();

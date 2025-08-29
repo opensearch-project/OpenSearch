@@ -89,7 +89,7 @@ public class RecoverySettings {
                 if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG) == false && value == true) {
                     throw new IllegalArgumentException(
                         "FeatureFlag "
-                            + INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey()
+                            + FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG
                             + " must be enabled to set this property to true."
                     );
                 }
