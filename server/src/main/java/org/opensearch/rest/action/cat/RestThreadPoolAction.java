@@ -175,6 +175,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
         return table;
     }
 
+    // ... [imports and class definition unchanged] ...
+
     private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
         final String[] threadPools = req.paramAsStringArray("thread_pool_patterns", new String[] { "*" });
         final DiscoveryNodes nodes = state.getState().nodes();
@@ -196,6 +198,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             }
         }
 
+        Set<String> forkJoinEmitted = new HashSet<>();
         for (final DiscoveryNode node : nodes) {
             final NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
             final NodeStats stats = nodesStats.getNodesMap().get(node.getId());
@@ -225,6 +228,44 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
                 if (!included.contains(entry.getKey())) continue;
 
+                final ThreadPoolStats.Stats poolStats = entry.getValue();
+                final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
+
+                boolean isForkJoin = poolInfo != null && poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.FORK_JOIN;
+                if (isForkJoin) {
+                    // only emit a single row for fork_join for the whole cluster
+                    if (forkJoinEmitted.contains(entry.getKey())) continue;
+                    forkJoinEmitted.add(entry.getKey());
+
+                    table.startRow();
+
+                    table.addCell(node.getName());
+                    table.addCell(node.getId());
+                    table.addCell(node.getEphemeralId());
+                    table.addCell(info == null ? null : info.getInfo(ProcessInfo.class).getId());
+                    table.addCell(node.getHostName());
+                    table.addCell(node.getHostAddress());
+                    table.addCell(node.getAddress().address().getPort());
+                    // pool columns
+                    table.addCell(entry.getKey());
+                    table.addCell(poolInfo.getThreadPoolType().getType());
+                    // ForkJoinPool: most stats undefined or 0/-1
+                    table.addCell(0);      // active
+                    table.addCell(0);      // pool_size
+                    table.addCell(0);      // queue
+                    table.addCell(-1);     // queue_size
+                    table.addCell(0);      // rejected
+                    table.addCell(0);      // largest
+                    table.addCell(0);      // completed
+                    table.addCell(-1);     // total_wait_time
+                    table.addCell(null);   // core
+                    table.addCell(null);   // max
+                    table.addCell(null);   // size
+                    table.addCell(null);   // keep_alive
+                    table.endRow();
+                    continue;
+                }
+
                 table.startRow();
 
                 table.addCell(node.getName());
@@ -234,8 +275,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(node.getHostName());
                 table.addCell(node.getHostAddress());
                 table.addCell(node.getAddress().address().getPort());
-                final ThreadPoolStats.Stats poolStats = entry.getValue();
-                final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
 
                 Long maxQueueSize = null;
                 String keepAlive = null;
