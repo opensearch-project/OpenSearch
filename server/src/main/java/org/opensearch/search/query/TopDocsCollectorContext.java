@@ -60,6 +60,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
@@ -736,6 +737,16 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             }
             result.topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats);
         }
+    }
+
+
+    /**
+     * Creates a streaming {@link TopDocsCollectorContext} for streaming search with scoring.
+     */
+    public static TopDocsCollectorContext createStreamingTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
+        throws IOException {
+        // For now, just use the regular createTopDocsCollectorContext until streaming classes are implemented
+        return createTopDocsCollectorContext(searchContext, hasFilterCollector);
     }
 
     /**

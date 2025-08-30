@@ -8,104 +8,94 @@
 
 package org.opensearch.search.query;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Configuration for streaming search with scoring.
  * Controls the behavior of streaming search with different scoring modes.
  * 
  * @opensearch.internal
  */
+@ExperimentalApi
 public class StreamingScoringConfig {
     
     private final boolean enabled;
-    private final float confidence;
-    private final int checkInterval;
+    private final StreamingScoringMode mode;
     private final int minDocsBeforeEmission;
+    private final int emissionIntervalMillis;
+    private final int rerankCountShard;
+    private final int rerankCountGlobal;
+    private final boolean enablePhaseMarkers;
     
     /**
      * Creates a streaming scoring configuration.
-     * 
-     * @param enabled Whether streaming is enabled
-     * @param confidence The confidence threshold for emission
-     * @param checkInterval How often to check for emission (in documents)
-     * @param minDocsBeforeEmission Minimum documents before first emission
      */
-    public StreamingScoringConfig(boolean enabled, float confidence, int checkInterval, int minDocsBeforeEmission) {
+    public StreamingScoringConfig(
+        boolean enabled, 
+        StreamingScoringMode mode,
+        int minDocsBeforeEmission,
+        int emissionIntervalMillis,
+        int rerankCountShard,
+        int rerankCountGlobal,
+        boolean enablePhaseMarkers
+    ) {
         this.enabled = enabled;
-        this.confidence = confidence;
-        this.checkInterval = checkInterval;
+        this.mode = mode;
         this.minDocsBeforeEmission = minDocsBeforeEmission;
+        this.emissionIntervalMillis = emissionIntervalMillis;
+        this.rerankCountShard = rerankCountShard;
+        this.rerankCountGlobal = rerankCountGlobal;
+        this.enablePhaseMarkers = enablePhaseMarkers;
     }
     
     /**
      * Returns a disabled configuration.
-     * 
-     * @return A disabled streaming scoring configuration
      */
     public static StreamingScoringConfig disabled() {
-        return new StreamingScoringConfig(false, 0.95f, 100, 1000);
+        return new StreamingScoringConfig(
+            false, 
+            StreamingScoringMode.FULL_SCORING,
+            1000, 100, 10, 100, false
+        );
     }
     
     /**
      * Returns the default configuration.
-     * 
-     * @return The default streaming scoring configuration
      */
     public static StreamingScoringConfig defaultConfig() {
-        return new StreamingScoringConfig(true, 0.95f, 100, 1000);
+        return new StreamingScoringConfig(
+            true, 
+            StreamingScoringMode.CONFIDENCE_BASED,
+            100, 50, 10, 100, true
+        );
     }
     
     /**
      * Creates a configuration for a specific scoring mode.
-     * 
-     * @param mode The scoring mode
-     * @return Configuration optimized for the given mode
      */
     public static StreamingScoringConfig forMode(StreamingScoringMode mode) {
         switch (mode) {
             case NO_SCORING:
-                return new StreamingScoringConfig(true, 0.0f, 10, 10);
+                return new StreamingScoringConfig(
+                    true, mode, 10, 10, 5, 50, true
+                );
             case CONFIDENCE_BASED:
                 return defaultConfig();
             case FULL_SCORING:
-                return new StreamingScoringConfig(true, 1.0f, Integer.MAX_VALUE, Integer.MAX_VALUE);
+                return new StreamingScoringConfig(
+                    true, mode, Integer.MAX_VALUE, Integer.MAX_VALUE, 10, 100, false
+                );
             default:
                 return defaultConfig();
         }
     }
     
-    /**
-     * Check if streaming is enabled.
-     * 
-     * @return true if streaming is enabled
-     */
-    public boolean isEnabled() {
-        return enabled;
-    }
-    
-    /**
-     * Get the confidence threshold.
-     * 
-     * @return The confidence level (0-1)
-     */
-    public float getConfidence() {
-        return confidence;
-    }
-    
-    /**
-     * Get the check interval.
-     * 
-     * @return Number of documents between emission checks
-     */
-    public int getCheckInterval() {
-        return checkInterval;
-    }
-    
-    /**
-     * Get the minimum documents before emission.
-     * 
-     * @return Minimum documents required before first emission
-     */
-    public int getMinDocsBeforeEmission() {
-        return minDocsBeforeEmission;
-    }
+    // Getters
+    public boolean isEnabled() { return enabled; }
+    public StreamingScoringMode getMode() { return mode; }
+    public int getMinDocsBeforeEmission() { return minDocsBeforeEmission; }
+    public int getEmissionIntervalMillis() { return emissionIntervalMillis; }
+    public int getRerankCountShard() { return rerankCountShard; }
+    public int getRerankCountGlobal() { return rerankCountGlobal; }
+    public boolean isEnablePhaseMarkers() { return enablePhaseMarkers; }
 }

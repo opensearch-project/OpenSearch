@@ -35,6 +35,7 @@ import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -237,6 +238,55 @@ public class StreamSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
             assertTrue("Bucket key should be value1, value2, or value3", bucket.getKeyAsString().matches("value[123]"));
             assertEquals("Each bucket should have 30 documents", 30, bucket.getDocCount());
         }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingSearchWithScoringModes() {
+        // Test NO_SCORING mode - should have fastest TTFB
+        SearchRequest noScoringRequest = new SearchRequest(TEST_INDEX);
+        noScoringRequest.source().query(QueryBuilders.matchAllQuery()).size(10);
+        noScoringRequest.searchType(SearchType.QUERY_THEN_FETCH);
+        noScoringRequest.setStreamingScoring(true);
+        noScoringRequest.setStreamingScoringMode("NO_SCORING");
+        
+        SearchResponse noScoringResponse = client().execute(StreamSearchAction.INSTANCE, noScoringRequest).actionGet();
+        assertNotNull("Response should not be null for NO_SCORING mode", noScoringResponse);
+        assertNotNull("Response hits should not be null", noScoringResponse.getHits());
+        assertTrue("Should have search hits", noScoringResponse.getHits().getTotalHits().value() > 0);
+        
+        // Test FULL_SCORING mode - traditional scoring with sorting
+        SearchRequest fullScoringRequest = new SearchRequest(TEST_INDEX);
+        fullScoringRequest.source()
+            .query(QueryBuilders.matchQuery("field1", "value1"))
+            .size(10)
+            .sort("_score", SortOrder.DESC);
+        fullScoringRequest.searchType(SearchType.QUERY_THEN_FETCH);
+        fullScoringRequest.setStreamingScoring(true);
+        fullScoringRequest.setStreamingScoringMode("FULL_SCORING");
+        
+        SearchResponse fullScoringResponse = client().execute(StreamSearchAction.INSTANCE, fullScoringRequest).actionGet();
+        assertNotNull("Response should not be null for FULL_SCORING mode", fullScoringResponse);
+        assertNotNull("Response hits should not be null", fullScoringResponse.getHits());
+        
+        // Verify hits are sorted by score
+        SearchHit[] hits = fullScoringResponse.getHits().getHits();
+        for (int i = 1; i < hits.length; i++) {
+            assertTrue("Hits should be sorted by score", hits[i-1].getScore() >= hits[i].getScore());
+        }
+        
+        // Test CONFIDENCE_BASED mode - progressive emission with Hoeffding bounds
+        SearchRequest confidenceRequest = new SearchRequest(TEST_INDEX);
+        confidenceRequest.source()
+            .query(QueryBuilders.matchQuery("field1", "value1"))
+            .size(5);
+        confidenceRequest.searchType(SearchType.QUERY_THEN_FETCH);
+        confidenceRequest.setStreamingScoring(true);
+        confidenceRequest.setStreamingScoringMode("CONFIDENCE_BASED");
+        
+        SearchResponse confidenceResponse = client().execute(StreamSearchAction.INSTANCE, confidenceRequest).actionGet();
+        assertNotNull("Response should not be null for CONFIDENCE_BASED mode", confidenceResponse);
+        assertNotNull("Response hits should not be null", confidenceResponse.getHits());
+        assertTrue("Should have search hits", confidenceResponse.getHits().getTotalHits().value() > 0);
     }
 
     private void createTestIndex() {
