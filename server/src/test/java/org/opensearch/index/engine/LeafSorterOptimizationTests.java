@@ -12,10 +12,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopDocs;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
@@ -54,7 +50,6 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
             store.associateIndexWithNewTranslog(translogUUID);
             Comparator<LeafReader> leafSorter = Comparator.comparingInt(LeafReader::maxDoc);
 
-            // Use NoMergePolicy to prevent aggressive merging and ensure multiple segments
             EngineConfig config = new EngineConfig.Builder().shardId(shardId)
                 .threadPool(threadPool)
                 .indexSettings(defaultSettings)
@@ -322,22 +317,4 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
         }
     }
 
-    private void testSortPerformance(Engine engine, String engineType) throws IOException {
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)) {
-            DirectoryReader reader = searcher.getDirectoryReader();
-            IndexSearcher indexSearcher = new IndexSearcher(reader);
-
-            // Create a sort by timestamp (descending)
-            Sort timestampSort = new Sort(new SortField("@timestamp", SortField.Type.LONG, true));
-
-            // Perform a sorted search
-            TopDocs topDocs = indexSearcher.search(new MatchAllDocsQuery(), 10, timestampSort);
-
-            // Verify that the search completed successfully
-            assertThat("Search should complete successfully on " + engineType, topDocs.totalHits.value(), greaterThan(0L));
-
-            // Verify that the engine has leafSorter configured
-            assertThat("Engine " + engineType + " should have leafSorter configured", engine.config().getLeafSorter(), notNullValue());
-        }
-    }
 }
