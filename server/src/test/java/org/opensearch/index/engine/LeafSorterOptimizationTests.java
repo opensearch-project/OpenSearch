@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
@@ -36,7 +37,7 @@ import static org.junit.Assert.assertThat;
 
 public class LeafSorterOptimizationTests extends EngineTestCase {
 
-    public void testReadOnlyEngineUsesLeafSorter() throws IOException {
+    public void testReadOnlyEngineConfiguresLeafSorter() throws IOException {
         Path translogPath = createTempDir();
         try (Store store = createStore()) {
             store.createEmpty(Version.CURRENT.luceneVersion);
@@ -145,27 +146,13 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                     // Always verify we have at least one leaf
                     assertThat("Should have at least one leaf", reader.leaves().size(), greaterThan(0));
 
-                    // Verify the leaf sorter is configured regardless of segment count
+                    // Test that ReadOnlyEngine can be created with a leaf sorter configured
+                    // and that it can acquire a searcher successfully
                     assertThat("Leaf sorter should be configured", readOnlyEngine.config().getLeafSorter(), notNullValue());
-
-                    // Test that the leaf sorter is configured and the engine has leaves
-                    // Note: The actual sorting behavior may vary depending on the engine implementation
-                    // and Lucene's internal segment management. The key test is that the leaf sorter
-                    // is properly configured and the engine can create a searcher with leaves.
+                    assertThat("Leaf sorter should match the configured one", readOnlyEngine.config().getLeafSorter(), equalTo(leafSorter));
+                    
+                    // Verify basic functionality - we can read from the engine
                     assertThat("Should have at least one leaf", reader.leaves().size(), greaterThan(0));
-
-                    // Verify the leaf sorter is configured (this is the main test)
-                    assertThat("Leaf sorter should be configured", readOnlyEngine.config().getLeafSorter(), notNullValue());
-
-                    // Log the leaf order for debugging (but don't fail the test)
-                    if (reader.leaves().size() > 1) {
-                        java.util.List<Integer> leafSizes = new java.util.ArrayList<>();
-                        for (org.apache.lucene.index.LeafReaderContext ctx : reader.leaves()) {
-                            leafSizes.add(ctx.reader().maxDoc());
-                        }
-                        // The test passes as long as the leaf sorter is configured
-                        // The actual sorting behavior is implementation-dependent
-                    }
                 }
             }
         }
