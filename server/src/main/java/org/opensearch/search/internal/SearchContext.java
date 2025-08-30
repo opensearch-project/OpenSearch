@@ -80,6 +80,9 @@ import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
+import org.opensearch.search.query.StreamingScoringConfig;
+import org.opensearch.search.query.BoundProvider;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.streaming.FlushMode;
@@ -591,35 +594,29 @@ public abstract class SearchContext implements Releasable {
     public boolean isStreamSearch() {
         return false;
     }
-
-    /**
-     * Gets the resolved flush mode for this search context.
-     */
+    
     @ExperimentalApi
-    public FlushMode getFlushMode() {
-        return null;
+    public StreamingScoringConfig getStreamingConfig() {
+        throw new IllegalStateException("Get streaming config should be implemented for streaming search");
     }
-
-    /**
-     * Atomically sets the flush mode if not already set. Returns true if successful.
-     */
+    
     @ExperimentalApi
-    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
-        return false;
+    public BoundProvider getBoundProvider() {
+        throw new IllegalStateException("Get bound provider should be implemented for streaming search");
     }
-
-    public String getPartitionStrategy() {
-        return CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getDefault(Settings.EMPTY);
+    
+    @ExperimentalApi
+    public StreamingSearchMode getStreamingMode() {
+        throw new IllegalStateException("Get streaming mode should be implemented for streaming search");
     }
-
-    public int getPartitionMinSegmentSize() {
-        return CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getDefault(Settings.EMPTY);
+    
+    @ExperimentalApi
+    public void setStreamingConfig(StreamingScoringConfig config) {
+        throw new IllegalStateException("Set streaming config should be implemented for streaming search");
     }
-
-    /**
-     * Evaluates whether this request should use intra-segment search based on query and aggregation analysis.
-     */
-    public boolean shouldUseIntraSegmentSearch() {
-        return false;
+    
+    @ExperimentalApi
+    public void setBoundProvider(BoundProvider provider) {
+        throw new IllegalStateException("Set bound provider should be implemented for streaming search");
     }
 }

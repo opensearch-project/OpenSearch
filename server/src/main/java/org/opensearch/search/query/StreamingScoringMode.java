@@ -8,11 +8,14 @@
 
 package org.opensearch.search.query;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Scoring modes for streaming search operations.
  * 
  * @opensearch.internal
  */
+@ExperimentalApi
 public enum StreamingScoringMode {
     
     /**
