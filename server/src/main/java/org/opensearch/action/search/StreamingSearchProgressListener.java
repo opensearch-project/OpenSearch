@@ -13,13 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.aggregations.InternalAggregations;
-import org.opensearch.search.query.QuerySearchResult;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,17 +23,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * SearchProgressListener implementation for streaming search with scoring.
  * Computes partial search results when confidence thresholds are met.
- * 
+ *
  * @opensearch.internal
  */
 public class StreamingSearchProgressListener extends SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(StreamingSearchProgressListener.class);
-    
+
     private final ActionListener<SearchResponse> responseListener;
     private final AtomicInteger streamEmissions = new AtomicInteger(0);
     private final SearchPhaseController searchPhaseController;
     private final SearchRequest searchRequest;
-    
+
     public StreamingSearchProgressListener(
         ActionListener<SearchResponse> responseListener,
         SearchPhaseController searchPhaseController,
@@ -47,20 +43,20 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
         this.searchPhaseController = searchPhaseController;
         this.searchRequest = searchRequest;
     }
-    
+
     @Override
     protected void onPartialReduceWithTopDocs(
-        List<SearchShard> shards, 
-        TotalHits totalHits, 
+        List<SearchShard> shards,
+        TotalHits totalHits,
         TopDocs topDocs,
-        InternalAggregations aggs, 
+        InternalAggregations aggs,
         int reducePhase
     ) {
         if (topDocs == null || topDocs.scoreDocs.length == 0) {
             // No docs to emit
             return;
         }
-        
+
         try {
             // Convert TopDocs to SearchHits
             // Simplified conversion of TopDocs to SearchHits
@@ -69,10 +65,10 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
                 hits[i] = new SearchHit(topDocs.scoreDocs[i].doc);
                 hits[i].score(topDocs.scoreDocs[i].score);
             }
-            
+
             float maxScore = hits.length > 0 ? hits[0].getScore() : Float.NaN;
             SearchHits searchHits = new SearchHits(hits, totalHits, maxScore);
-            
+
             // Create a partial search response with the current TopDocs
             SearchResponseSections sections = new SearchResponseSections(
                 searchHits,
@@ -83,7 +79,7 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
                 null, // no profile results
                 reducePhase
             );
-            
+
             // Create partial response
             SearchResponse partialResponse = new SearchResponse(
                 sections,
@@ -96,18 +92,17 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
                 SearchResponse.Clusters.EMPTY,
                 null // no phase took
             );
-            
+
             collectPartialResponse(partialResponse);
-            
+
             int count = streamEmissions.incrementAndGet();
-            logger.info("Computed streaming partial #{} with {} docs from {} shards", 
-                count, topDocs.scoreDocs.length, shards.size());
-            
+            logger.info("Computed streaming partial #{} with {} docs from {} shards", count, topDocs.scoreDocs.length, shards.size());
+
         } catch (Exception e) {
             logger.error("Failed to send partial TopDocs", e);
         }
     }
-    
+
     private void collectPartialResponse(SearchResponse partialResponse) {
         if (responseListener instanceof StreamingSearchResponseListener) {
             ((StreamingSearchResponseListener) responseListener).onPartialResponse(partialResponse);
@@ -115,13 +110,17 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
             logger.debug("Partial result computed, listener type: {}", responseListener.getClass().getSimpleName());
         }
     }
-    
+
     @Override
     protected void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-        logger.info("Final reduce: {} total hits from {} shards, {} partial computations",
-            totalHits.value(), shards.size(), streamEmissions.get());
+        logger.info(
+            "Final reduce: {} total hits from {} shards, {} partial computations",
+            totalHits.value(),
+            shards.size(),
+            streamEmissions.get()
+        );
     }
-    
+
     public int getStreamEmissions() {
         return streamEmissions.get();
     }

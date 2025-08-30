@@ -82,7 +82,7 @@ public class StreamTransportSearchAction extends TransportSearchAction {
             indicesService
         );
     }
-    
+
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // Enable streaming scoring for stream search requests
@@ -115,14 +115,14 @@ public class StreamTransportSearchAction extends TransportSearchAction {
             if (searchRequest.isStreamingScoring() && searchRequest.source() != null && searchRequest.source().size() > 0) {
                 streamingListener = new StreamingSearchResponseListener(listener, searchRequest);
             }
-            
+
             // Create a streaming progress listener that can send partial TopDocs
             SearchProgressListener progressListener = task.getProgressListener();
             if (searchRequest.isStreamingScoring() && searchRequest.source() != null && searchRequest.source().size() > 0) {
                 // Use streaming listener for search queries with hits
                 progressListener = new StreamingSearchProgressListener(streamingListener, searchPhaseController, searchRequest);
             }
-            
+
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newStreamSearchPhaseResults(
                 executor,
                 circuitBreaker,

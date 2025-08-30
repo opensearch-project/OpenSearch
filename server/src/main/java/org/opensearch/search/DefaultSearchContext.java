@@ -102,11 +102,11 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.Profilers;
+import org.opensearch.search.query.BoundProvider;
 import org.opensearch.search.query.QueryPhaseExecutionException;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.query.StreamingScoringConfig;
-import org.opensearch.search.query.BoundProvider;
 import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
@@ -240,12 +240,12 @@ final class DefaultSearchContext extends SearchContext {
 
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
-    
+
     // Streaming search configuration
     private StreamingScoringConfig streamingConfig;
     private BoundProvider boundProvider;
     private StreamingSearchMode streamingMode;
-    
+
     // Streaming search configuration
 
     DefaultSearchContext(
@@ -1343,27 +1343,27 @@ final class DefaultSearchContext extends SearchContext {
     public boolean isStreamSearch() {
         return isStreamSearch;
     }
-    
+
     public void setStreamingConfig(StreamingScoringConfig config) {
         this.streamingConfig = config;
     }
-    
+
     public StreamingScoringConfig getStreamingConfig() {
         return streamingConfig;
     }
-    
+
     public void setBoundProvider(BoundProvider provider) {
         this.boundProvider = provider;
     }
-    
+
     public BoundProvider getBoundProvider() {
         return boundProvider;
     }
-    
+
     public StreamingSearchMode getStreamingMode() {
         return streamingMode != null ? streamingMode : StreamingSearchMode.SCORED_SORTED;
     }
-    
+
     public void setStreamingMode(StreamingSearchMode mode) {
         this.streamingMode = mode;
     }

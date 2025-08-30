@@ -9,7 +9,7 @@
 /**
  * Classes for streaming search functionality with progressive result emission
  * and statistical confidence calculation using Hoeffding bounds.
- * 
+ *
  * @opensearch.internal
  */
 package org.opensearch.search.streaming;

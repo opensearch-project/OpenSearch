@@ -11,13 +11,12 @@ package org.opensearch.search.streaming;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Production-ready settings for streaming search with comprehensive configuration options.
@@ -212,17 +211,11 @@ public final class StreamingSearchSettings {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<String> STREAMING_SCORE_MODE = Setting.simpleString(
-        "search.streaming.score_mode",
-        "COMPLETE",
-        value -> {
-            if (!Arrays.asList("COMPLETE", "TOP_SCORES", "MAX_SCORE").contains(value.toUpperCase(java.util.Locale.ROOT))) {
-                throw new IllegalArgumentException("Invalid score mode: " + value);
-            }
-        },
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    public static final Setting<String> STREAMING_SCORE_MODE = Setting.simpleString("search.streaming.score_mode", "COMPLETE", value -> {
+        if (!Arrays.asList("COMPLETE", "TOP_SCORES", "MAX_SCORE").contains(value.toUpperCase(java.util.Locale.ROOT))) {
+            throw new IllegalArgumentException("Invalid score mode: " + value);
+        }
+    }, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     // Experimental features
     public static final Setting<Boolean> STREAMING_ADAPTIVE_BATCHING = Setting.boolSetting(
@@ -290,16 +283,18 @@ public final class StreamingSearchSettings {
         public StreamingSearchConfig(Settings settings, ClusterSettings clusterSettings) {
             this.settings = settings;
             this.clusterSettings = clusterSettings;
-            
+
             // Initialize cached values
             updateCachedValues();
-            
+
             // Register update listeners
             clusterSettings.addSettingsUpdateConsumer(STREAMING_SEARCH_ENABLED, this::setEnabled);
             clusterSettings.addSettingsUpdateConsumer(STREAMING_BLOCK_SIZE, this::setBlockSize);
             clusterSettings.addSettingsUpdateConsumer(STREAMING_BATCH_SIZE, this::setBatchSize);
-            clusterSettings.addSettingsUpdateConsumer(STREAMING_EMISSION_INTERVAL, 
-                interval -> this.emissionIntervalMillis = interval.millis());
+            clusterSettings.addSettingsUpdateConsumer(
+                STREAMING_EMISSION_INTERVAL,
+                interval -> this.emissionIntervalMillis = interval.millis()
+            );
             clusterSettings.addSettingsUpdateConsumer(STREAMING_INITIAL_CONFIDENCE, this::setInitialConfidence);
             clusterSettings.addSettingsUpdateConsumer(STREAMING_CONFIDENCE_DECAY_RATE, this::setConfidenceDecayRate);
             clusterSettings.addSettingsUpdateConsumer(STREAMING_MIN_CONFIDENCE, this::setMinConfidence);
@@ -316,21 +311,58 @@ public final class StreamingSearchSettings {
         }
 
         // Fast getters for hot path
-        public boolean isEnabled() { return enabled; }
-        public int getBlockSize() { return blockSize; }
-        public int getBatchSize() { return batchSize; }
-        public long getEmissionIntervalMillis() { return emissionIntervalMillis; }
-        public float getInitialConfidence() { return initialConfidence; }
-        public float getConfidenceDecayRate() { return confidenceDecayRate; }
-        public float getMinConfidence() { return minConfidence; }
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public int getBlockSize() {
+            return blockSize;
+        }
+
+        public int getBatchSize() {
+            return batchSize;
+        }
+
+        public long getEmissionIntervalMillis() {
+            return emissionIntervalMillis;
+        }
+
+        public float getInitialConfidence() {
+            return initialConfidence;
+        }
+
+        public float getConfidenceDecayRate() {
+            return confidenceDecayRate;
+        }
+
+        public float getMinConfidence() {
+            return minConfidence;
+        }
 
         // Setters for dynamic updates
-        private void setEnabled(boolean enabled) { this.enabled = enabled; }
-        private void setBlockSize(int blockSize) { this.blockSize = blockSize; }
-        private void setBatchSize(int batchSize) { this.batchSize = batchSize; }
-        private void setInitialConfidence(float confidence) { this.initialConfidence = confidence; }
-        private void setConfidenceDecayRate(float rate) { this.confidenceDecayRate = rate; }
-        private void setMinConfidence(float confidence) { this.minConfidence = confidence; }
+        private void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        private void setBlockSize(int blockSize) {
+            this.blockSize = blockSize;
+        }
+
+        private void setBatchSize(int batchSize) {
+            this.batchSize = batchSize;
+        }
+
+        private void setInitialConfidence(float confidence) {
+            this.initialConfidence = confidence;
+        }
+
+        private void setConfidenceDecayRate(float rate) {
+            this.confidenceDecayRate = rate;
+        }
+
+        private void setMinConfidence(float confidence) {
+            this.minConfidence = confidence;
+        }
 
         // Get non-cached values
         public int getMinDocsForStreaming() {

@@ -99,7 +99,7 @@ public abstract class SearchProgressListener {
      * @param reducePhase The version number for this reduce.
      */
     protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
-    
+
     /**
      * Executed when a partial reduce with TopDocs is created for streaming search.
      *
@@ -109,9 +109,13 @@ public abstract class SearchProgressListener {
      * @param aggs The partial result for aggregations.
      * @param reducePhase The version number for this reduce.
      */
-    protected void onPartialReduceWithTopDocs(List<SearchShard> shards, TotalHits totalHits, 
-                                              org.apache.lucene.search.TopDocs topDocs, 
-                                              InternalAggregations aggs, int reducePhase) {
+    protected void onPartialReduceWithTopDocs(
+        List<SearchShard> shards,
+        TotalHits totalHits,
+        org.apache.lucene.search.TopDocs topDocs,
+        InternalAggregations aggs,
+        int reducePhase
+    ) {
         // Default implementation delegates to the original method for backward compatibility
         onPartialReduce(shards, totalHits, aggs, reducePhase);
     }
@@ -180,10 +184,14 @@ public abstract class SearchProgressListener {
             logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on partial reduce"), e);
         }
     }
-    
-    final void notifyPartialReduceWithTopDocs(List<SearchShard> shards, TotalHits totalHits, 
-                                               org.apache.lucene.search.TopDocs topDocs,
-                                               InternalAggregations aggs, int reducePhase) {
+
+    final void notifyPartialReduceWithTopDocs(
+        List<SearchShard> shards,
+        TotalHits totalHits,
+        org.apache.lucene.search.TopDocs topDocs,
+        InternalAggregations aggs,
+        int reducePhase
+    ) {
         try {
             onPartialReduceWithTopDocs(shards, totalHits, topDocs, aggs, reducePhase);
         } catch (Exception e) {
