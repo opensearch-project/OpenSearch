@@ -15,7 +15,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
@@ -140,6 +140,35 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
     }
 
     /**
+     * Override onShardResult to handle streaming search results safely.
+     * This prevents the "topDocs already consumed" error when processing
+     * multiple streaming results from the same shard.
+     */
+    @Override
+    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
+        QuerySearchResult queryResult = result.queryResult();
+
+        // For streaming search, if topDocs has already been consumed,
+        // we need to handle this gracefully to avoid the error
+        if (queryResult.hasConsumedTopDocs()) {
+            // This is a streaming result that has already been processed
+            // We can't call the parent's onShardResult because it will try to access topDocs
+            // Instead, we'll just mark this as successful and continue
+            if (getLogger().isDebugEnabled()) {
+                getLogger().debug(
+                    "Skipping onShardResult for already consumed streaming result from shard {}",
+                    queryResult.getShardIndex()
+                );
+            }
+            // Don't call super.onShardResult() to avoid the error
+            return;
+        }
+
+        // For normal cases, call the parent method
+        super.onShardResult(result, shardIt);
+    }
+
+    /**
      * Override successful shard execution to handle stream result synchronization
      */
     @Override
@@ -189,5 +218,5 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             onPhaseFailure(this, "The phase has failed", ex);
         }
     }
-    
+
 }

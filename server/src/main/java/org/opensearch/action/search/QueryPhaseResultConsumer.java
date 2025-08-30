@@ -271,7 +271,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         // For streaming search with TopDocs, use the new notification method
         if (hasTopDocs && newTopDocs != null) {
-            progressListener.notifyPartialReduceWithTopDocs(processedShards, topDocsStats.getTotalHits(), newTopDocs, newAggs, numReducePhases);
+            progressListener.notifyPartialReduceWithTopDocs(
+                processedShards,
+                topDocsStats.getTotalHits(),
+                newTopDocs,
+                newAggs,
+                numReducePhases
+            );
         } else {
             progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
         }

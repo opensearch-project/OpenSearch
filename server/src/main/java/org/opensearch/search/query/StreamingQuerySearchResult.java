@@ -13,29 +13,28 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 
 /**
  * Wrapper for QuerySearchResult that includes streaming frame information.
  * Since QuerySearchResult is final, we use composition instead of inheritance.
- * 
+ *
  * @opensearch.internal
  */
 public class StreamingQuerySearchResult implements Writeable {
-    
+
     private final QuerySearchResult delegate;
     private StreamingScoringCollector.StreamingFrame streamingFrame;
-    
+
     public StreamingQuerySearchResult(QuerySearchResult delegate) {
         this.delegate = delegate;
     }
-    
+
     public StreamingQuerySearchResult(StreamInput in) throws IOException {
         // Read the delegate QuerySearchResult
         this.delegate = new QuerySearchResult(in);
-        
+
         // Read streaming frame if available
         if (in.readBoolean()) {
             this.streamingFrame = new StreamingScoringCollector.StreamingFrame(
@@ -49,7 +48,7 @@ public class StreamingQuerySearchResult implements Writeable {
             );
         }
     }
-    
+
     private TopDocs readTopDocs(StreamInput in) throws IOException {
         // Simple TopDocs reading - in practice you'd want more robust handling
         long totalHits = in.readVLong();
@@ -60,12 +59,12 @@ public class StreamingQuerySearchResult implements Writeable {
         // For simplicity, return null - in practice you'd reconstruct ScoreDoc array
         return null;
     }
-    
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // Write the delegate QuerySearchResult
         delegate.writeTo(out);
-        
+
         // Write streaming frame if available
         if (streamingFrame != null) {
             out.writeBoolean(true);
@@ -80,7 +79,7 @@ public class StreamingQuerySearchResult implements Writeable {
             out.writeBoolean(false);
         }
     }
-    
+
     private void writeTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
         if (topDocs == null) {
             out.writeVLong(0);
@@ -92,46 +91,46 @@ public class StreamingQuerySearchResult implements Writeable {
             out.writeVInt(topDocs.scoreDocs.length);
         }
     }
-    
+
     /**
      * Set the streaming frame for this result.
      */
     public void setStreamingFrame(StreamingScoringCollector.StreamingFrame frame) {
         this.streamingFrame = frame;
     }
-    
+
     /**
      * Get the streaming frame from this result.
      */
     public StreamingScoringCollector.StreamingFrame getStreamingFrame() {
         return streamingFrame;
     }
-    
+
     /**
      * Check if this result has streaming frame information.
      */
     public boolean hasStreamingFrame() {
         return streamingFrame != null;
     }
-    
+
     /**
      * Get the delegate QuerySearchResult.
      */
     public QuerySearchResult getDelegate() {
         return delegate;
     }
-    
+
     /**
      * Delegate methods to the wrapped QuerySearchResult
      */
     public org.opensearch.common.lucene.search.TopDocsAndMaxScore topDocs() {
         return delegate.topDocs();
     }
-    
+
     public int getShardIndex() {
         return delegate.getShardIndex();
     }
-    
+
     public org.opensearch.search.SearchShardTarget getSearchShardTarget() {
         return delegate.getSearchShardTarget();
     }

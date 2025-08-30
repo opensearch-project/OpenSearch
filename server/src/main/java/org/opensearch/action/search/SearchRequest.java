@@ -126,7 +126,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private Boolean phaseTook = null;
 
     private boolean streamingScoring = false;
-    private String streamingScoringMode = null; // Will use StreamingScoringMode.DEFAULT if null
+    private String streamingSearchMode = null; // Will use StreamingSearchMode.SCORED_UNSORTED if null
 
     public SearchRequest() {
         this.localClusterAlias = null;
@@ -673,19 +673,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     public boolean isStreamingScoring() {
         return streamingScoring;
     }
-    
+
     /**
-     * Set the streaming scoring mode.
+     * Sets the streaming search mode for this request.
+     * @param mode The streaming search mode to use
      */
-    public void setStreamingScoringMode(String mode) {
-        this.streamingScoringMode = mode;
+    public void setStreamingSearchMode(String mode) {
+        this.streamingSearchMode = mode;
     }
-    
+
     /**
-     * Get the streaming scoring mode.
+     * Gets the streaming search mode for this request.
+     * @return The streaming search mode, or null if not set
      */
-    public String getStreamingScoringMode() {
-        return streamingScoringMode;
+    public String getStreamingSearchMode() {
+        return streamingSearchMode;
     }
 
     /**

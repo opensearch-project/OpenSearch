@@ -141,6 +141,8 @@ import org.opensearch.search.query.QueryRewriterRegistry;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
+import org.opensearch.search.query.StreamingScoringConfig;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -811,6 +813,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (isStreamSearch || request.isStreamingSearch()) {
                 if (listener instanceof StreamSearchChannelListener) {
                     context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
+                }
+
+                // NEW: Set streaming mode and configuration
+                if (request.getStreamingSearchMode() != null) {
+                    context.setStreamingMode(StreamingSearchMode.fromString(request.getStreamingSearchMode()));
+                    context.setStreamingConfig(
+                        new StreamingScoringConfig(
+                            true,
+                            StreamingSearchMode.fromString(request.getStreamingSearchMode()),
+                            100,  // minDocsBeforeEmission
+                            100,  // emissionIntervalMillis
+                            1000, // rerankCountShard
+                            100,  // rerankCountGlobal
+                            true  // enablePhaseMarkers
+                        )
+                    );
                 }
             }
             final long afterQueryTime;

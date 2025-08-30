@@ -76,10 +76,10 @@ import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
+import org.opensearch.search.query.BoundProvider;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.query.StreamingScoringConfig;
-import org.opensearch.search.query.BoundProvider;
 import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
@@ -564,27 +564,32 @@ public abstract class SearchContext implements Releasable {
     public boolean isStreamSearch() {
         return false;
     }
-    
+
     @ExperimentalApi
     public StreamingScoringConfig getStreamingConfig() {
         throw new IllegalStateException("Get streaming config should be implemented for streaming search");
     }
-    
+
     @ExperimentalApi
     public BoundProvider getBoundProvider() {
         throw new IllegalStateException("Get bound provider should be implemented for streaming search");
     }
-    
+
     @ExperimentalApi
     public StreamingSearchMode getStreamingMode() {
         throw new IllegalStateException("Get streaming mode should be implemented for streaming search");
     }
-    
+
+    @ExperimentalApi
+    public void setStreamingMode(StreamingSearchMode mode) {
+        throw new IllegalStateException("Set streaming mode should be implemented for streaming search");
+    }
+
     @ExperimentalApi
     public void setStreamingConfig(StreamingScoringConfig config) {
         throw new IllegalStateException("Set streaming config should be implemented for streaming search");
     }
-    
+
     @ExperimentalApi
     public void setBoundProvider(BoundProvider provider) {
         throw new IllegalStateException("Set bound provider should be implemented for streaming search");

@@ -477,8 +477,8 @@ public class QueryPhase {
             if (queryCollectorContextOpt.isPresent()) {
                 return queryCollectorContextOpt.get();
             } else {
-                            // TODO: Implement streaming scoring integration
-            // For now, fall back to regular collector
+                // TODO: Implement streaming scoring integration
+                // For now, fall back to regular collector
                 return createTopDocsCollectorContext(searchContext, hasFilterCollector);
             }
         }

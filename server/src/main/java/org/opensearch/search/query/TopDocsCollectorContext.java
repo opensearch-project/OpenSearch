@@ -60,7 +60,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
@@ -739,14 +738,30 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         }
     }
 
-
     /**
      * Creates a streaming {@link TopDocsCollectorContext} for streaming search with scoring.
+     * This method routes to the appropriate streaming collector based on the search mode.
      */
     public static TopDocsCollectorContext createStreamingTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
         throws IOException {
-        // For now, just use the regular createTopDocsCollectorContext until streaming classes are implemented
-        return createTopDocsCollectorContext(searchContext, hasFilterCollector);
+
+        StreamingSearchMode mode = searchContext.getStreamingMode();
+        if (mode == null) {
+            throw new IllegalArgumentException("Streaming mode must be set for streaming collectors");
+        }
+
+        switch (mode) {
+            case NO_SCORING:
+                return new StreamingUnsortedCollectorContext(searchContext, hasFilterCollector);
+            case SCORED_SORTED:
+                return new StreamingSortedCollectorContext(searchContext, hasFilterCollector);
+            case SCORED_UNSORTED:
+                return new StreamingScoredUnsortedCollectorContext(searchContext, hasFilterCollector);
+            case CONFIDENCE_BASED:
+                return new StreamingConfidenceCollectorContext(searchContext, hasFilterCollector);
+            default:
+                throw new IllegalArgumentException("Unknown streaming mode: " + mode);
+        }
     }
 
     /**
@@ -813,6 +828,12 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
      */
     public static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
         throws IOException {
+
+        // NEW: Check for streaming search first
+        if (searchContext.isStreamSearch() && searchContext.getStreamingMode() != null) {
+            return createStreamingTopDocsCollectorContext(searchContext, hasFilterCollector);
+        }
+
         final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.query();
         // top collectors don't like a size of 0
