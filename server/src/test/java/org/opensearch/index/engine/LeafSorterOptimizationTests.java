@@ -10,7 +10,6 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.uid.Versions;
@@ -55,7 +54,7 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                 .indexSettings(defaultSettings)
                 .warmer(null)
                 .store(store)
-                .mergePolicy(NoMergePolicy.INSTANCE)
+                .mergePolicy(newMergePolicy())
                 .analyzer(newIndexWriterConfig().getAnalyzer())
                 .similarity(newIndexWriterConfig().getSimilarity())
                 .codecService(new CodecService(null, defaultSettings, logger))
@@ -113,7 +112,7 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                 .indexSettings(defaultSettings)
                 .warmer(null)
                 .store(store)
-                .mergePolicy(NoMergePolicy.INSTANCE)
+                .mergePolicy(newMergePolicy())
                 .analyzer(newIndexWriterConfig().getAnalyzer())
                 .similarity(newIndexWriterConfig().getSimilarity())
                 .codecService(new CodecService(null, defaultSettings, logger))
