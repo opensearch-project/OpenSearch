@@ -47,7 +47,7 @@ httpcore          = "4.4.16"
 httpasyncclient   = "4.1.5"
 commonslogging    = "1.2"
 commonscodec      = "1.16.1"
-commonslang       = "3.14.0"
+commonslang       = "3.18.0"
 commonscompress   = "1.26.1"
 commonsio         = "2.16.0"
 # plugin dependencies
@@ -57,7 +57,7 @@ reactivestreams   = "1.0.4"
 # when updating this version, you need to ensure compatibility with:
 #  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
 #  - distribution/tools/plugin-cli
-bouncycastle="1.78"
+bouncycastle="1.79"
 # test dependencies
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"
