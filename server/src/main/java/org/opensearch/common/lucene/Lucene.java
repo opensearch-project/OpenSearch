@@ -561,7 +561,7 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
-        } else if (sortField.getClass() == SortedSetSortField.class) {
+        } else if (sortField.getClass() == SortedSetSortField.class || (sortField instanceof NonPruningSortField)) {
             // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
             // It works because the sort field is only used to merge results from different shards.
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
@@ -579,7 +579,7 @@ public class Lucene {
             sortField = newSortField;
         }
 
-        if (sortField.getClass() != SortField.class && ((sortField instanceof NonPruningSortField) == false)) {
+        if (sortField.getClass() != SortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
         if (sortField.getField() == null) {
@@ -588,9 +588,9 @@ public class Lucene {
             out.writeBoolean(true);
             out.writeString(sortField.getField());
         }
-        if (sortField.getComparatorSource() != null && (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource)) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) (sortField
-                .getComparatorSource());
+        if (sortField.getComparatorSource() != null) {
+            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField
+                .getComparatorSource();
             writeSortType(out, comparatorSource.reducedType());
             writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
         } else {
