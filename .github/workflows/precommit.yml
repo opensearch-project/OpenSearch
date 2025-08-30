@@ -26,3 +26,8 @@ jobs:
         shell: bash
         run: |
           ./gradlew javadoc precommit --parallel
+      - name: Run Gradle (rewrite)
+        continue-on-error: ${{ matrix.experimental }}
+        shell: bash
+        run: ./gradlew rewriteDryRun -Dorg.gradle.jvmargs=-Xmx8G
+        timeout-minutes: 90 # dependency lookup takes 15 mins

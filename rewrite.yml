@@ -1,0 +1,7 @@
+type: specs.openrewrite.org/v1beta/recipe
+name: DefinitionOfDone
+displayName: Definition of Done
+description: Automatically cleanup code to apply coding convention.
+recipeList:
+  - org.openrewrite.staticanalysis.RemoveUnusedPrivateMethods
+  #- org.openrewrite.java.RemoveUnusedImports
