@@ -56,6 +56,8 @@ plugins {
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.25.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
+  id "org.openrewrite.rewrite" version "7.15.0" apply false
+  id "pmd"
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -65,6 +67,8 @@ apply from: 'gradle/runtime-jdk-provision.gradle'
 apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
+apply from: 'gradle/pmd.gradle'
+apply from: 'gradle/rewrite.gradle'
 apply from: 'gradle/local-distribution.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
