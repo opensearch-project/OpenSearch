@@ -43,6 +43,7 @@ import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
@@ -145,6 +146,16 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public boolean hasFetchSourceContext() {
         return fetchSourceContext != null;
+    }
+
+    @Override
+    public StreamingSearchMode getStreamingMode() {
+        return null; // SubSearchContext doesn't support streaming
+    }
+
+    @Override
+    public void setStreamingMode(StreamingSearchMode mode) {
+        // SubSearchContext doesn't support streaming - no-op
     }
 
     @Override

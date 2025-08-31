@@ -68,8 +68,14 @@ public class StreamSearchChannelListener<Response extends TransportResponse, Req
     public void onFailure(Exception e) {
         try {
             channel.sendResponse(e);
+            // Don't call completeStream() here as sendResponse() already releases the channel
         } catch (IOException exc) {
-            channel.completeStream();
+            // If sendResponse fails, try to complete the stream
+            try {
+                channel.completeStream();
+            } catch (Exception ignored) {
+                // Stream might already be closed
+            }
             throw new RuntimeException(exc);
         }
     }
