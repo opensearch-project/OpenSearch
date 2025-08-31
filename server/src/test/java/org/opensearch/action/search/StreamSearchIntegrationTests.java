@@ -35,6 +35,7 @@ import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -241,30 +242,54 @@ public class StreamSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamingSearchWithScoringModes() {
-        // Test that we can create streaming search requests without errors
+        // Test NO_SCORING mode - should have fastest TTFB
         SearchRequest noScoringRequest = new SearchRequest(TEST_INDEX);
         noScoringRequest.source().query(QueryBuilders.matchAllQuery()).size(10);
         noScoringRequest.searchType(SearchType.QUERY_THEN_FETCH);
         noScoringRequest.setStreamingScoring(true);
         noScoringRequest.setStreamingSearchMode("NO_SCORING");
-
-        // Verify the request was created correctly
-        assertNotNull("Request should not be null", noScoringRequest);
-        assertTrue("Streaming scoring should be enabled", noScoringRequest.isStreamingScoring());
-        assertEquals("Streaming search mode should be NO_SCORING", "NO_SCORING", noScoringRequest.getStreamingSearchMode());
-
-        // Test that we can create a basic search request
-        SearchRequest basicRequest = new SearchRequest(TEST_INDEX);
-        basicRequest.source().query(QueryBuilders.matchAllQuery()).size(5);
-        basicRequest.searchType(SearchType.QUERY_THEN_FETCH);
-
-        // Verify basic request creation
-        assertNotNull("Basic request should not be null", basicRequest);
-        assertEquals("Should have correct index", TEST_INDEX, basicRequest.indices()[0]);
-
-        // For now, skip the actual execution since the streaming infrastructure is not fully implemented
-        // This test verifies that the basic components can be created without errors
-        // TODO: Re-enable streaming search execution once the infrastructure is properly implemented
+        
+        SearchResponse noScoringResponse = client().execute(StreamSearchAction.INSTANCE, noScoringRequest).actionGet();
+        assertNotNull("Response should not be null for NO_SCORING mode", noScoringResponse);
+        assertNotNull("Response hits should not be null", noScoringResponse.getHits());
+        assertTrue("Should have search hits", noScoringResponse.getHits().getTotalHits().value() > 0);
+        assertEquals("Should have 10 hits as requested", 10, noScoringResponse.getHits().getHits().length);
+        
+        // Test FULL_SCORING mode - traditional scoring with sorting
+        SearchRequest fullScoringRequest = new SearchRequest(TEST_INDEX);
+        fullScoringRequest.source()
+            .query(QueryBuilders.matchQuery("field1", "value1"))
+            .size(10)
+            .sort("_score", SortOrder.DESC);
+        fullScoringRequest.searchType(SearchType.QUERY_THEN_FETCH);
+        fullScoringRequest.setStreamingScoring(true);
+        fullScoringRequest.setStreamingSearchMode("SCORED_SORTED");
+        
+        SearchResponse fullScoringResponse = client().execute(StreamSearchAction.INSTANCE, fullScoringRequest).actionGet();
+        assertNotNull("Response should not be null for FULL_SCORING mode", fullScoringResponse);
+        assertNotNull("Response hits should not be null", fullScoringResponse.getHits());
+        assertEquals("Should have 10 hits as requested", 10, fullScoringResponse.getHits().getHits().length);
+        
+        // Verify hits are sorted by score
+        SearchHit[] hits = fullScoringResponse.getHits().getHits();
+        for (int i = 1; i < hits.length; i++) {
+            assertTrue("Hits should be sorted by score", hits[i-1].getScore() >= hits[i].getScore());
+        }
+        
+        // Test CONFIDENCE_BASED mode - progressive emission with Hoeffding bounds
+        SearchRequest confidenceRequest = new SearchRequest(TEST_INDEX);
+        confidenceRequest.source()
+            .query(QueryBuilders.matchQuery("field1", "value1"))
+            .size(5);
+        confidenceRequest.searchType(SearchType.QUERY_THEN_FETCH);
+        confidenceRequest.setStreamingScoring(true);
+        confidenceRequest.setStreamingSearchMode("CONFIDENCE_BASED");
+        
+        SearchResponse confidenceResponse = client().execute(StreamSearchAction.INSTANCE, confidenceRequest).actionGet();
+        assertNotNull("Response should not be null for CONFIDENCE_BASED mode", confidenceResponse);
+        assertNotNull("Response hits should not be null", confidenceResponse.getHits());
+        assertTrue("Should have search hits", confidenceResponse.getHits().getTotalHits().value() > 0);
+        assertEquals("Should have 5 hits as requested", 5, confidenceResponse.getHits().getHits().length);
     }
 
     private void createTestIndex() {

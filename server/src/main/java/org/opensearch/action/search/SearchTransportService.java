@@ -565,11 +565,15 @@ public class SearchTransportService {
             AdmissionControlActionType.SEARCH,
             ShardSearchRequest::new,
             (request, channel, task) -> {
+                // Check if request has streaming mode enabled
+                boolean isStreamSearch = request.isStreamingSearch() || request.getStreamingSearchMode() != null;
                 searchService.executeQueryPhase(
                     request,
                     false,
                     (SearchShardTask) task,
-                    new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request)
+                    new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request),
+                    ThreadPool.Names.SAME,
+                    isStreamSearch
                 );
             }
         );

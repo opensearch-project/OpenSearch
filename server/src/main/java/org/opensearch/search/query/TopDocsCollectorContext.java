@@ -65,6 +65,8 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.MaxScoreCollector;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.Lucene;
@@ -72,6 +74,7 @@ import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.common.util.CachedSupplier;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
@@ -80,6 +83,10 @@ import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.query.StreamingUnsortedCollectorContext;
+import org.opensearch.search.query.StreamingScoredUnsortedCollectorContext;
+import org.opensearch.search.query.StreamingSortedCollectorContext;
+import org.opensearch.search.query.StreamingConfidenceCollectorContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,6 +104,7 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
  * @opensearch.internal
  */
 public abstract class TopDocsCollectorContext extends QueryCollectorContext implements RescoringQueryCollectorContext {
+    private static final Logger logger = LogManager.getLogger(TopDocsCollectorContext.class);
     protected final int numHits;
 
     TopDocsCollectorContext(String profilerName, int numHits) {
@@ -742,8 +750,26 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
      * Creates a streaming {@link TopDocsCollectorContext} for streaming search with scoring.
      * This method routes to the appropriate streaming collector based on the search mode.
      */
-    public static TopDocsCollectorContext createStreamingTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
-        throws IOException {
+    public static TopDocsCollectorContext createStreamingTopDocsCollectorContext(
+        SearchContext searchContext,
+        boolean hasFilterCollector
+    ) throws IOException {
+
+        // Get circuit breaker from search context
+        CircuitBreaker circuitBreaker = null;
+        try {
+            // Try to get REQUEST circuit breaker
+            if (searchContext.bigArrays() != null && searchContext.bigArrays().breakerService() != null) {
+                circuitBreaker = searchContext.bigArrays().breakerService()
+                    .getBreaker(CircuitBreaker.REQUEST);
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to get circuit breaker for streaming search", e);
+        }
+
+        if (circuitBreaker == null) {
+            logger.warn("No circuit breaker available for streaming search - memory protection disabled");
+        }
 
         StreamingSearchMode mode = searchContext.getStreamingMode();
         if (mode == null) {
@@ -752,11 +778,11 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
         switch (mode) {
             case NO_SCORING:
-                return new StreamingUnsortedCollectorContext("streaming_unsorted", searchContext.size());
-            case SCORED_SORTED:
-                return new StreamingSortedCollectorContext("streaming_sorted", searchContext.size());
+                return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size());
             case SCORED_UNSORTED:
                 return new StreamingScoredUnsortedCollectorContext("streaming_scored_unsorted", searchContext.size());
+            case SCORED_SORTED:
+                return new StreamingSortedCollectorContext("streaming_scored_sorted", searchContext.size());
             case CONFIDENCE_BASED:
                 return new StreamingConfidenceCollectorContext("streaming_confidence", searchContext.size());
             default:
@@ -830,7 +856,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         throws IOException {
 
         // NEW: Check for streaming search first
-        if (searchContext.isStreamSearch() && searchContext.getStreamingMode() != null) {
+        if (searchContext.isStreamingSearch() && searchContext.getStreamingMode() != null) {
             return createStreamingTopDocsCollectorContext(searchContext, hasFilterCollector);
         }
 

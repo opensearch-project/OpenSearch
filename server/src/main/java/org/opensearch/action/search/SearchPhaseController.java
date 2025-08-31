@@ -34,6 +34,8 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -90,6 +92,7 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public final class SearchPhaseController {
+    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -795,17 +798,35 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure,
         BooleanSupplier isTaskCancelled
     ) {
-        return new QueryPhaseResultConsumer(
-            request,
-            executor,
-            circuitBreaker,
-            this,
-            listener,
-            namedWriteableRegistry,
-            numShards,
-            onPartialMergeFailure,
-            isTaskCancelled
-        );
+        // Check if this is a streaming search request
+        if (request.getStreamingSearchMode() != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Creating StreamQueryPhaseResultConsumer for mode: {}", request.getStreamingSearchMode());
+            }
+            return new StreamQueryPhaseResultConsumer(
+                request,
+                executor,
+                circuitBreaker,
+                this,
+                listener,
+                namedWriteableRegistry,
+                numShards,
+                onPartialMergeFailure
+            );
+        } else {
+            // Regular QueryPhaseResultConsumer
+            return new QueryPhaseResultConsumer(
+                request,
+                executor,
+                circuitBreaker,
+                this,
+                listener,
+                namedWriteableRegistry,
+                numShards,
+                onPartialMergeFailure,
+                isTaskCancelled
+            );
+        }
     }
 
     /**

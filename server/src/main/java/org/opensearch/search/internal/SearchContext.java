@@ -76,14 +76,12 @@ import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
-import org.opensearch.search.query.BoundProvider;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
-import org.opensearch.search.query.StreamingScoringConfig;
-import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
+import org.opensearch.search.query.StreamingSearchMode;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -565,33 +563,23 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    @ExperimentalApi
-    public StreamingScoringConfig getStreamingConfig() {
-        throw new IllegalStateException("Get streaming config should be implemented for streaming search");
-    }
+    /**
+     * Returns the streaming search mode for this context
+     * @return the streaming mode or null if not streaming
+     */
+    public abstract StreamingSearchMode getStreamingMode();
 
-    @ExperimentalApi
-    public BoundProvider getBoundProvider() {
-        throw new IllegalStateException("Get bound provider should be implemented for streaming search");
-    }
+    /**
+     * Sets the streaming search mode for this context  
+     * @param mode the streaming mode to set
+     */
+    public abstract void setStreamingMode(StreamingSearchMode mode);
 
-    @ExperimentalApi
-    public StreamingSearchMode getStreamingMode() {
-        throw new IllegalStateException("Get streaming mode should be implemented for streaming search");
-    }
-
-    @ExperimentalApi
-    public void setStreamingMode(StreamingSearchMode mode) {
-        throw new IllegalStateException("Set streaming mode should be implemented for streaming search");
-    }
-
-    @ExperimentalApi
-    public void setStreamingConfig(StreamingScoringConfig config) {
-        throw new IllegalStateException("Set streaming config should be implemented for streaming search");
-    }
-
-    @ExperimentalApi
-    public void setBoundProvider(BoundProvider provider) {
-        throw new IllegalStateException("Set bound provider should be implemented for streaming search");
+    /**
+     * Returns true if this is a streaming search
+     * @return true if streaming mode is set
+     */
+    public boolean isStreamingSearch() {
+        return getStreamingMode() != null;
     }
 }

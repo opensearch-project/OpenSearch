@@ -815,20 +815,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
                 }
 
-                // NEW: Set streaming mode and configuration
+                // NEW: Set streaming mode
                 if (request.getStreamingSearchMode() != null) {
                     context.setStreamingMode(StreamingSearchMode.fromString(request.getStreamingSearchMode()));
-                    context.setStreamingConfig(
-                        new StreamingScoringConfig(
-                            true,
-                            StreamingSearchMode.fromString(request.getStreamingSearchMode()),
-                            100,  // minDocsBeforeEmission
-                            100,  // emissionIntervalMillis
-                            1000, // rerankCountShard
-                            100,  // rerankCountGlobal
-                            true  // enablePhaseMarkers
-                        )
-                    );
                 }
             }
             final long afterQueryTime;

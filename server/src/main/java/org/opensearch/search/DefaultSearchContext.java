@@ -97,11 +97,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.Profilers;
-import org.opensearch.search.query.BoundProvider;
 import org.opensearch.search.query.QueryPhaseExecutionException;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
-import org.opensearch.search.query.StreamingScoringConfig;
 import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
@@ -224,13 +222,7 @@ final class DefaultSearchContext extends SearchContext {
 
     private final boolean isStreamSearch;
     private StreamSearchChannelListener listener;
-
-    // Streaming search configuration
-    private StreamingScoringConfig streamingConfig;
-    private BoundProvider boundProvider;
     private StreamingSearchMode streamingMode;
-
-    // Streaming search configuration
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -296,6 +288,18 @@ final class DefaultSearchContext extends SearchContext {
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
+        
+        // Initialize streaming mode from request
+        if (request.getStreamingSearchMode() != null) {
+            try {
+                this.streamingMode = StreamingSearchMode.fromString(request.getStreamingSearchMode());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Initialized streaming search with mode: {}", this.streamingMode);
+                }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid streaming search mode: " + request.getStreamingSearchMode(), e);
+            }
+        }
     }
 
     DefaultSearchContext(
@@ -1286,22 +1290,6 @@ final class DefaultSearchContext extends SearchContext {
 
     public boolean isStreamSearch() {
         return isStreamSearch;
-    }
-
-    public void setStreamingConfig(StreamingScoringConfig config) {
-        this.streamingConfig = config;
-    }
-
-    public StreamingScoringConfig getStreamingConfig() {
-        return streamingConfig;
-    }
-
-    public void setBoundProvider(BoundProvider provider) {
-        this.boundProvider = provider;
-    }
-
-    public BoundProvider getBoundProvider() {
-        return boundProvider;
     }
 
     public StreamingSearchMode getStreamingMode() {

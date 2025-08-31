@@ -200,6 +200,11 @@ public class QueryPhase {
             Query query = searchContext.query();
             assert query == searcher.rewrite(query); // already rewritten
 
+            // Add streaming path
+            if (searchContext.isStreamingSearch()) {
+                return executeStreamingQuery(searchContext, searcher, query);
+            }
+
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {
                 if (scrollContext.totalHits == null) {
@@ -310,6 +315,41 @@ public class QueryPhase {
     }
 
     /**
+     * Execute streaming query for progressive result emission.
+     * This method handles the streaming search execution path.
+     */
+        private static boolean executeStreamingQuery(
+        SearchContext searchContext,
+        ContextIndexSearcher searcher,
+        Query query
+    ) throws IOException {
+        QuerySearchResult queryResult = searchContext.queryResult();
+
+        try {
+            // Create streaming collector context
+            TopDocsCollectorContext streamingCollectorContext = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(
+                searchContext,
+                false // hasFilterCollector - simplified for streaming
+            );
+
+            // Create collector manager for concurrent segment search compatibility
+            CollectorManager<?, ReduceableSearchResult> manager = streamingCollectorContext.createManager(null);
+
+            // Execute search using CollectorManager
+            ReduceableSearchResult reduceResult = searcher.search(query, manager);
+
+            // Process the result
+            reduceResult.reduce(queryResult);
+
+            // For streaming, we don't need rescoring phase
+            return true; // Enable streaming execution
+
+        } catch (Exception e) {
+            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute streaming query", e);
+        }
+    }
+
+    /**
      * Create runnable which throws {@link TimeExceededException} when the runnable is called after timeout + runnable creation time
      * exceeds currentTime
      * @param searchContext to extract timeout from and to get relative time from
@@ -412,6 +452,7 @@ public class QueryPhase {
      * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+        private static final Logger logger = LogManager.getLogger(DefaultQueryPhaseSearcher.class);
         private final AggregationProcessor aggregationProcessor;
 
         /**
@@ -477,9 +518,17 @@ public class QueryPhase {
             if (queryCollectorContextOpt.isPresent()) {
                 return queryCollectorContextOpt.get();
             } else {
-                // TODO: Implement streaming scoring integration
-                // For now, fall back to regular collector
-                return createTopDocsCollectorContext(searchContext, hasFilterCollector);
+                // Check if this is a streaming search request FIRST
+                if (searchContext.isStreamingSearch()) {
+                    // Use streaming collectors for streaming search
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Using streaming collector for mode: {}", searchContext.getStreamingMode());
+                    }
+                    return TopDocsCollectorContext.createStreamingTopDocsCollectorContext(searchContext, hasFilterCollector);
+                } else {
+                    // Fall back to regular top docs collector
+                    return createTopDocsCollectorContext(searchContext, hasFilterCollector);
+                }
             }
         }
 

@@ -74,6 +74,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
@@ -136,6 +137,16 @@ public class TestSearchContext extends SearchContext {
      */
     public void setMaxSliceCount(int sliceCount) {
         this.maxSliceCount = sliceCount;
+    }
+
+    @Override
+    public StreamingSearchMode getStreamingMode() {
+        return null; // TestSearchContext doesn't support streaming
+    }
+
+    @Override
+    public void setStreamingMode(StreamingSearchMode mode) {
+        // TestSearchContext doesn't support streaming - no-op
     }
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();

@@ -51,6 +51,8 @@ import org.opensearch.search.profile.NetworkTime;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.suggest.Suggest;
 
+import java.util.List;
+
 import java.io.IOException;
 
 import static org.opensearch.common.lucene.Lucene.readTopDocs;
@@ -416,5 +418,37 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
+    }
+    
+    // Streaming search support
+    private List<Integer> docIds;
+    private boolean partial = false;
+    
+    /**
+     * Set document IDs for streaming search results
+     */
+    public void setDocIds(List<Integer> docIds) {
+        this.docIds = docIds;
+    }
+    
+    /**
+     * Get document IDs for streaming search results
+     */
+    public List<Integer> getDocIds() {
+        return docIds;
+    }
+    
+    /**
+     * Set whether this is a partial result
+     */
+    public void setPartial(boolean partial) {
+        this.partial = partial;
+    }
+    
+    /**
+     * Check if this is a partial result
+     */
+    public boolean isPartial() {
+        return partial;
     }
 }
