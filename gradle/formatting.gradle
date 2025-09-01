@@ -81,18 +81,7 @@ allprojects {
               '',
               '\\#java|\\#org.opensearch|\\#org.hamcrest|\\#'
           )
-          eclipse('4.36')
-            .withP2Mirrors([
-              'https://download.eclipse.org/eclipse/updates/4.36/': [
-                'https://download.eclipse.org/eclipse/updates/4.36/',
-                'https://ftp.fau.de/eclipse/eclipse/updates/4.36/',
-                'https://mirror.kakao.com/eclipse/eclipse/updates/4.36/',
-                'https://mirrors.ustc.edu.cn/eclipse/eclipse/updates/4.36/',
-                'https://ftp.osuosl.org/pub/eclipse/eclipse/updates/4.36/',
-                'https://mirror.dkm.cz/eclipse/eclipse/updates/4.36/'
-              ]
-            ])
-            .configFile rootProject.file('buildSrc/formatterConfig.xml')
+          eclipse().withP2Mirrors(['https://download.eclipse.org/eclipse/updates/4.36/':'https://download.eclipse.org/eclipse/updates/4.36/']).configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
           endWithNewline()
 
