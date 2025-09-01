@@ -30,6 +30,7 @@ import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Map;
@@ -38,7 +39,9 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 /**
- * Transport search action for streaming search
+ * Deprecated shim: streaming is now enabled via flags on the regular SearchAction.
+ * Keeping the class to avoid large refactors; it delegates to the parent wiring and
+ * does not register its own action.
  * @opensearch.internal
  */
 public class StreamTransportSearchAction extends TransportSearchAction {
@@ -47,7 +50,8 @@ public class StreamTransportSearchAction extends TransportSearchAction {
         NodeClient client,
         ThreadPool threadPool,
         CircuitBreakerService circuitBreakerService,
-        @Nullable StreamTransportService transportService,
+        TransportService transportService,
+        @Nullable StreamTransportService streamTransportService,
         SearchService searchService,
         @Nullable StreamSearchTransportService searchTransportService,
         SearchPhaseController searchPhaseController,
@@ -67,6 +71,7 @@ public class StreamTransportSearchAction extends TransportSearchAction {
             threadPool,
             circuitBreakerService,
             transportService,
+            streamTransportService,
             searchService,
             searchTransportService,
             searchPhaseController,
@@ -86,7 +91,23 @@ public class StreamTransportSearchAction extends TransportSearchAction {
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // Enable streaming scoring for stream search requests
+        System.out.println("DEBUG: StreamTransportSearchAction.doExecute() called");
+        System.out.println("DEBUG: Original streaming mode: " + searchRequest.getStreamingSearchMode());
+        
+        // Preserve the streaming mode that was set in the request
+        String originalStreamingMode = searchRequest.getStreamingSearchMode();
+        
+        // Enable streaming scoring BEFORE calling super.doExecute() so ShardSearchRequest objects are created with correct mode
         searchRequest.setStreamingScoring(true);
+        
+        // Restore the streaming mode if it was set
+        if (originalStreamingMode != null) {
+            searchRequest.setStreamingSearchMode(originalStreamingMode);
+        }
+        
+        System.out.println("DEBUG: After setStreamingScoring, streaming mode: " + searchRequest.getStreamingSearchMode());
+        
+        // Now call super.doExecute() - the ShardSearchRequest objects will be created with the correct streaming mode
         super.doExecute(task, searchRequest, listener);
     }
 
@@ -123,7 +144,14 @@ public class StreamTransportSearchAction extends TransportSearchAction {
                 progressListener = new StreamingSearchProgressListener(streamingListener, searchPhaseController, searchRequest);
             }
 
-            final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newStreamSearchPhaseResults(
+            // Ensure streaming mode is set on the request that will be used to create the consumer
+            if (searchRequest.getStreamingSearchMode() == null) {
+                // If no streaming mode was set, use NO_SCORING as default for streaming searches
+                searchRequest.setStreamingSearchMode("NO_SCORING");
+                System.out.println("DEBUG: Set default streaming mode: NO_SCORING");
+            }
+            
+            final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                 executor,
                 circuitBreaker,
                 progressListener,

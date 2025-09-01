@@ -238,6 +238,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = originalIndices;
         this.readerId = readerId;
         this.keepAlive = keepAlive;
+        // Initialize streaming fields to default values
+        this.streamingSearch = false;
+        this.streamingSearchMode = null;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
 
@@ -425,6 +428,17 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public void setStreamingSearchMode(String streamingSearchMode) {
         this.streamingSearchMode = streamingSearchMode;
+    }
+
+    /**
+     * Set streaming fields from a SearchRequest
+     * This is needed for constructors that don't have access to the full SearchRequest
+     */
+    public void setStreamingFieldsFromSearchRequest(SearchRequest searchRequest) {
+        if (searchRequest != null) {
+            this.streamingSearch = searchRequest.isStreamingScoring();
+            this.streamingSearchMode = searchRequest.getStreamingSearchMode();
+        }
     }
 
     public long getOutboundNetworkTime() {

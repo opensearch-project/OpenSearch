@@ -799,10 +799,10 @@ public final class SearchPhaseController {
         BooleanSupplier isTaskCancelled
     ) {
         // Check if this is a streaming search request
-        if (request.getStreamingSearchMode() != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Creating StreamQueryPhaseResultConsumer for mode: {}", request.getStreamingSearchMode());
-            }
+        String streamingMode = request.getStreamingSearchMode();
+        logger.info("🔍 STREAMING: SearchPhaseController - request.getStreamingSearchMode() = {}", streamingMode);
+        if (streamingMode != null) {
+            logger.info("🔍 STREAMING: Creating StreamQueryPhaseResultConsumer for mode: {}", streamingMode);
             return new StreamQueryPhaseResultConsumer(
                 request,
                 executor,
