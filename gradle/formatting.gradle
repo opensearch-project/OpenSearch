@@ -82,7 +82,7 @@ allprojects {
               '\\#java|\\#org.opensearch|\\#org.hamcrest|\\#'
           )
 
-          eclipse().withP2Mirrors(['https://download.eclipse.org/eclipse/updates/4.29/':'https://download.eclipse.org/eclipse/updates/4.29/']).configFile rootProject.file('buildSrc/formatterConfig.xml')
+          eclipse().withP2Mirrors(['https://download.eclipse.org/eclipse/updates/4.36/':'https://download.eclipse.org/eclipse/updates/4.36/']).configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
           endWithNewline()
 
