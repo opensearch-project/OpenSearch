@@ -197,18 +197,18 @@ public class DiskThresholdMonitor {
                         fileCacheThresholdSettings.describeSearchThreshold(),
                         usage
                     );
-                }
-                else if (aggregateFileCacheStats != null && fileCacheEvaluator.isNodeExceedingIndexingThreshold(aggregateFileCacheStats)) {
-                    for (ShardRouting routing : routingNode) {
-                        String indexName = routing.index().getName();
-                        indicesToMarkReadOnly.add(indexName);
+                } else if (aggregateFileCacheStats != null
+                    && fileCacheEvaluator.isNodeExceedingIndexingThreshold(aggregateFileCacheStats)) {
+                        for (ShardRouting routing : routingNode) {
+                            String indexName = routing.index().getName();
+                            indicesToMarkReadOnly.add(indexName);
+                        }
+                        logger.warn(
+                            "index file cache threshold [{}] exceeded on {}, indices on this node are marked read only.",
+                            fileCacheThresholdSettings.describeIndexThreshold(),
+                            usage
+                        );
                     }
-                    logger.warn(
-                        "index file cache threshold [{}] exceeded on {}, indices on this node are marked read only.",
-                        fileCacheThresholdSettings.describeIndexThreshold(),
-                        usage
-                    );
-                }
             }
 
             if (nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage)) {
@@ -447,9 +447,9 @@ public class DiskThresholdMonitor {
         ActionListener<Void> listener
     ) {
         final Set<String> indicesToAutoRelease = StreamSupport.stream(
-                Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
-                false
-            )
+            Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
+            false
+        )
             .map(Map.Entry::getKey)
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
@@ -493,9 +493,9 @@ public class DiskThresholdMonitor {
 
     private void handleReadBlocks(ClusterState state, Set<String> indicesToBlockRead, ActionListener<Void> listener) {
         final Set<String> indicesToReleaseReadBlock = StreamSupport.stream(
-                Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
-                false
-            )
+            Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
+            false
+        )
             .map(Map.Entry::getKey)
             .filter(index -> indicesToBlockRead.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
@@ -553,16 +553,16 @@ public class DiskThresholdMonitor {
         } else if (state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id())
             && diskThresholdSettings.isCreateIndexBlockAutoReleaseEnabled()
             && nodesOverHighThreshold.size() < nodes.size()) {
-            logger.warn(
-                "Removing index create block on cluster as all nodes are no longer breaching high disk watermark. "
-                    + "Number of nodes above high watermark: {}. Total numbers of nodes: {}.",
-                nodesOverHighThreshold.size(),
-                nodes.size()
-            );
-            setIndexCreateBlock(listener, false);
-        } else {
-            listener.onResponse(null);
-        }
+                logger.warn(
+                    "Removing index create block on cluster as all nodes are no longer breaching high disk watermark. "
+                        + "Number of nodes above high watermark: {}. Total numbers of nodes: {}.",
+                    nodesOverHighThreshold.size(),
+                    nodes.size()
+                );
+                setIndexCreateBlock(listener, false);
+            } else {
+                listener.onResponse(null);
+            }
     }
 
     private static void cleanUpRemovedNodes(Set<String> nodesToKeep, Set<String> nodesToCleanUp) {

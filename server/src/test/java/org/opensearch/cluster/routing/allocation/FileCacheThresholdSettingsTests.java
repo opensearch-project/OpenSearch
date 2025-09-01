@@ -83,10 +83,7 @@ public class FileCacheThresholdSettingsTests extends OpenSearchTestCase {
                 .build();
             final Settings.Builder updates = Settings.builder();
             assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
-            assertEquals(
-                "95.0%",
-                target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey())
-            );
+            assertEquals("95.0%", target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey()));
             assertNull(target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey()));
         }
 
@@ -96,14 +93,8 @@ public class FileCacheThresholdSettingsTests extends OpenSearchTestCase {
                 .build();
             final Settings.Builder updates = Settings.builder();
             assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
-            assertEquals(
-                "95.0%",
-                target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey())
-            );
-            assertEquals(
-                "97.0%",
-                target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey())
-            );
+            assertEquals("95.0%", target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey()));
+            assertEquals("97.0%", target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey()));
         }
     }
 
