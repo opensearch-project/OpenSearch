@@ -54,8 +54,8 @@ public class FileCacheThresholdSettingsTests extends OpenSearchTestCase {
         new FileCacheThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
 
         final Settings newSettings = Settings.builder()
-            .put(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.getKey(), "96.0%")
-            .put(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.getKey(), "95.0%")
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey(), "96.0%")
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(), "95.0%")
             .build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
@@ -73,36 +73,36 @@ public class FileCacheThresholdSettingsTests extends OpenSearchTestCase {
 
         final Settings.Builder target = Settings.builder();
         {
-            assertNull(target.get(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.getKey()));
-            assertNull(target.get(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.getKey()));
+            assertNull(target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey()));
+            assertNull(target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey()));
         }
 
         {
             final Settings settings = Settings.builder()
-                .put(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.getKey(), "95.0%")
+                .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey(), "95.0%")
                 .build();
             final Settings.Builder updates = Settings.builder();
             assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
             assertEquals(
                 "95.0%",
-                target.get(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.getKey())
+                target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey())
             );
-            assertNull(target.get(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.getKey()));
+            assertNull(target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey()));
         }
 
         {
             final Settings settings = Settings.builder()
-                .put(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.getKey(), "97.0%")
+                .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(), "97.0%")
                 .build();
             final Settings.Builder updates = Settings.builder();
             assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
             assertEquals(
                 "95.0%",
-                target.get(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.getKey())
+                target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey())
             );
             assertEquals(
                 "97.0%",
-                target.get(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.getKey())
+                target.get(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey())
             );
         }
     }
@@ -114,8 +114,8 @@ public class FileCacheThresholdSettingsTests extends OpenSearchTestCase {
         assertEquals("100.0%", fileCacheThreshldSettings.describeSearchThreshold());
         fileCacheThreshldSettings = new FileCacheThresholdSettings(
             Settings.builder()
-                .put(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_INDEX_THRESHOLD_SETTING.getKey(), "91.1%")
-                .put(FileCacheThresholdSettings.CLUSTER_ROUTING_ALLOCATION_FILECACHE_SEARCH_THRESHOLD_SETTING.getKey(), "91.2%")
+                .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey(), "91.1%")
+                .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(), "91.2%")
                 .build(),
             clusterSettings
         );
