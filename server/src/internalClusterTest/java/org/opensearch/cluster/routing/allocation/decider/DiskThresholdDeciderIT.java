@@ -857,7 +857,7 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
     private List<String> createTestIndices(List<String> nodeNames) throws Exception {
         boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
         List<String> indexList = new ArrayList<>();
-        if (isWarmIndex && nodeNames.size() >= 2) {
+        if (isWarmIndex && !nodeNames.isEmpty()) {
             // Create warm indices on specific nodes
             for (String nodeName : nodeNames) {
                 String index = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
