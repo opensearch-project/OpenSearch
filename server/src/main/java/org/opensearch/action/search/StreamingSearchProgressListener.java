@@ -124,4 +124,18 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
     public int getStreamEmissions() {
         return streamEmissions.get();
     }
+
+    /**
+     * Trigger partial emission of results
+     * This method is called by StreamQueryPhaseResultConsumer to trigger partial emissions
+     */
+    public void triggerPartialEmission() {
+        // Trigger a partial reduce to emit current results
+        // This will call onPartialReduceWithTopDocs if there are results to emit
+        logger.debug("Triggering partial emission, current emissions: {}", streamEmissions.get());
+        
+        // For now, just log that we're triggering emission
+        // The actual emission will happen when onPartialReduceWithTopDocs is called
+        // by the parent class's reduce logic
+    }
 }

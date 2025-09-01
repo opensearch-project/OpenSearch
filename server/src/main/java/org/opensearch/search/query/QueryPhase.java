@@ -521,6 +521,7 @@ public class QueryPhase {
                 // Check if this is a streaming search request FIRST
                 if (searchContext.isStreamingSearch()) {
                     // Use streaming collectors for streaming search
+                    System.out.println("DEBUG: QueryPhase - Using streaming collector for mode: " + searchContext.getStreamingMode());
                     if (logger.isTraceEnabled()) {
                         logger.trace("Using streaming collector for mode: {}", searchContext.getStreamingMode());
                     }

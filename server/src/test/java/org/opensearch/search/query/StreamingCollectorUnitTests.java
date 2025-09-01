@@ -8,6 +8,8 @@ import org.apache.lucene.document.*;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.search.internal.SearchContext;
+import static org.mockito.Mockito.mock;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.After;
@@ -48,8 +50,9 @@ public class StreamingCollectorUnitTests extends OpenSearchTestCase {
     @Test
     public void testNoScoringCollectorCollectsDocuments() throws Exception {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        SearchContext mockSearchContext = mock(SearchContext.class);
         StreamingUnsortedCollectorContext context =
-            new StreamingUnsortedCollectorContext("test", 10, breaker);
+            new StreamingUnsortedCollectorContext("test", 10, mockSearchContext, breaker);
 
         // NEW PATTERN (WORKING):
         CollectorManager<? extends Collector, ReduceableSearchResult> manager =
@@ -78,8 +81,9 @@ public class StreamingCollectorUnitTests extends OpenSearchTestCase {
     @Test
     public void testScoredSortedCollectorSortsCorrectly() throws Exception {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        SearchContext mockSearchContext = mock(SearchContext.class);
         StreamingSortedCollectorContext context =
-            new StreamingSortedCollectorContext("test", 10, breaker);
+            new StreamingSortedCollectorContext("test", 10, mockSearchContext, breaker);
 
         // NEW PATTERN (WORKING):
         CollectorManager<? extends Collector, ReduceableSearchResult> manager =
@@ -108,8 +112,9 @@ public class StreamingCollectorUnitTests extends OpenSearchTestCase {
     @Test
     public void testScoredUnsortedCollectorHasScoresButNoSorting() throws Exception {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        SearchContext mockSearchContext = mock(SearchContext.class);
         StreamingScoredUnsortedCollectorContext context =
-            new StreamingScoredUnsortedCollectorContext("test", 10, breaker);
+            new StreamingScoredUnsortedCollectorContext("test", 10, mockSearchContext, breaker);
 
         // NEW PATTERN (WORKING):
         CollectorManager<? extends Collector, ReduceableSearchResult> manager =
@@ -138,8 +143,9 @@ public class StreamingCollectorUnitTests extends OpenSearchTestCase {
     @Test
     public void testConfidenceBasedCollectorBasicFunctionality() throws Exception {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        SearchContext mockSearchContext = mock(SearchContext.class);
         StreamingConfidenceCollectorContext context =
-            new StreamingConfidenceCollectorContext("test", 10, breaker);
+            new StreamingConfidenceCollectorContext("test", 10, mockSearchContext, breaker);
 
         // NEW PATTERN (WORKING):
         CollectorManager<? extends Collector, ReduceableSearchResult> manager =
@@ -165,8 +171,9 @@ public class StreamingCollectorUnitTests extends OpenSearchTestCase {
     @Test
     public void testCollectorManagerReduceLogic() throws Exception {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        SearchContext mockSearchContext = mock(SearchContext.class);
         StreamingUnsortedCollectorContext context =
-            new StreamingUnsortedCollectorContext("test", 5, breaker);
+            new StreamingUnsortedCollectorContext("test", 5, mockSearchContext, breaker);
 
         // Test that we can create a manager
         CollectorManager<? extends Collector, ReduceableSearchResult> manager =
@@ -200,14 +207,15 @@ public class StreamingCollectorUnitTests extends OpenSearchTestCase {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         
         // Test all four modes
+        SearchContext mockSearchContext = mock(SearchContext.class);
         StreamingUnsortedCollectorContext noScoringContext =
-            new StreamingUnsortedCollectorContext("test", 5, breaker);
+            new StreamingUnsortedCollectorContext("test", 5, mockSearchContext, breaker);
         StreamingSortedCollectorContext sortedContext =
-            new StreamingSortedCollectorContext("test", 5, breaker);
+            new StreamingSortedCollectorContext("test", 5, mockSearchContext, breaker);
         StreamingScoredUnsortedCollectorContext unsortedContext =
-            new StreamingScoredUnsortedCollectorContext("test", 5, breaker);
+            new StreamingScoredUnsortedCollectorContext("test", 5, mockSearchContext, breaker);
         StreamingConfidenceCollectorContext confidenceContext =
-            new StreamingConfidenceCollectorContext("test", 5, breaker);
+            new StreamingConfidenceCollectorContext("test", 5, mockSearchContext, breaker);
 
         // Verify all can create managers
         assertNotNull("NO_SCORING manager should be created", noScoringContext.createManager(null));

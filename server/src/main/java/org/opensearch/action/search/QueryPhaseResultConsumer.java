@@ -77,7 +77,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final Executor executor;
     private final CircuitBreaker circuitBreaker;
     private final SearchPhaseController controller;
-    private final SearchProgressListener progressListener;
+    protected final SearchProgressListener progressListener;
     private final ReduceContextBuilder aggReduceContextBuilder;
     private final NamedWriteableRegistry namedWriteableRegistry;
 

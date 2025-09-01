@@ -2382,6 +2382,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         threadPool,
                         new NoneCircuitBreakerService(),
                         transportService,
+                        null, // StreamTransportService - not available in test
                         searchService,
                         searchTransportService,
                         searchPhaseController,

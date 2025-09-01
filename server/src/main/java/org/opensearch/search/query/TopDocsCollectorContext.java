@@ -778,13 +778,15 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
 
         switch (mode) {
             case NO_SCORING:
-                return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size());
+                return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size(), searchContext, circuitBreaker);
             case SCORED_UNSORTED:
-                return new StreamingScoredUnsortedCollectorContext("streaming_scored_unsorted", searchContext.size());
+                return new StreamingScoredUnsortedCollectorContext("streaming_scored_unsorted", searchContext.size(), searchContext, circuitBreaker);
             case SCORED_SORTED:
-                return new StreamingSortedCollectorContext("streaming_scored_sorted", searchContext.size());
+                SortAndFormats sortAndFormats = searchContext.sort();
+                Sort sort = (sortAndFormats != null) ? sortAndFormats.sort : Sort.RELEVANCE;
+                return new StreamingSortedCollectorContext("streaming_scored_sorted", searchContext.size(), searchContext, sort, circuitBreaker);
             case CONFIDENCE_BASED:
-                return new StreamingConfidenceCollectorContext("streaming_confidence", searchContext.size());
+                return new StreamingConfidenceCollectorContext("streaming_confidence", searchContext.size(), searchContext, circuitBreaker);
             default:
                 throw new IllegalArgumentException("Unknown streaming mode: " + mode);
         }

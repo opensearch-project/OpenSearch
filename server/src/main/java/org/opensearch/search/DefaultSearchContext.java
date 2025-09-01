@@ -1293,7 +1293,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     public StreamingSearchMode getStreamingMode() {
-        return streamingMode != null ? streamingMode : StreamingSearchMode.SCORED_SORTED;
+        // Do not default to a mode; null means streaming disabled
+        return streamingMode;
     }
 
     public void setStreamingMode(StreamingSearchMode mode) {

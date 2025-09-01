@@ -8,8 +8,12 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,18 +28,23 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
+    private static final Logger logger = LogManager.getLogger(StreamingUnsortedCollectorContext.class);
+    
     private final AtomicInteger totalCollected = new AtomicInteger(0);
     private final CircuitBreaker circuitBreaker;
     private static final long SCORE_DOC_BYTES = 24L;
     private final AtomicLong memoryUsed = new AtomicLong(0);
+    private final SearchContext searchContext; // Add SearchContext access
 
-    public StreamingUnsortedCollectorContext(String profilerName, int numHits) {
+    public StreamingUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext) {
         super(profilerName, numHits);
+        this.searchContext = searchContext;
         this.circuitBreaker = null; // Will work but no protection
     }
 
-    public StreamingUnsortedCollectorContext(String profilerName, int numHits, CircuitBreaker breaker) {
+    public StreamingUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext, CircuitBreaker breaker) {
         super(profilerName, numHits);
+        this.searchContext = searchContext;
         this.circuitBreaker = breaker;
     }
 
@@ -83,21 +92,21 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
             List<ScoreDoc> allDocs = new ArrayList<>();
 
             // DEBUG: Log reduction details
-            System.out.println("DEBUG: StreamingUnsortedCollectorManager.reduce() - numHits: " + numHits() + 
-                             ", collectors.size: " + collectors.size());
+            logger.debug("StreamingUnsortedCollectorManager.reduce() - numHits: {}, collectors.size: {}", 
+                        numHits(), collectors.size());
 
             // Combine all collected documents from all collectors
             for (StreamingUnsortedCollector collector : collectors) {
                 List<ScoreDoc> collectorDocs = collector.getCollectedDocs();
-                System.out.println("DEBUG: Collector returned " + collectorDocs.size() + " docs");
+                logger.debug("Collector returned {} docs", collectorDocs.size());
                 allDocs.addAll(collectorDocs);
             }
 
-            System.out.println("DEBUG: Total docs collected: " + allDocs.size());
+            logger.debug("Total docs collected: {}", allDocs.size());
 
             // Limit to numHits if we collected more
             if (allDocs.size() > numHits()) {
-                System.out.println("DEBUG: Limiting from " + allDocs.size() + " to " + numHits() + " docs");
+                logger.debug("Limiting from {} to {} docs", allDocs.size(), numHits());
                 allDocs = allDocs.subList(0, numHits());
             }
 
@@ -106,7 +115,7 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
             TotalHits totalHits = new TotalHits(allDocs.size(), TotalHits.Relation.EQUAL_TO);
             TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
 
-            System.out.println("DEBUG: Final TopDocs created with " + allDocs.size() + " docs");
+            logger.debug("Final TopDocs created with {} docs", allDocs.size());
 
             // Return a ReduceableSearchResult that can set the TopDocs
             return result -> {
@@ -122,6 +131,7 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
     private class StreamingUnsortedCollector implements Collector {
 
         private final List<ScoreDoc> collectedDocs = new ArrayList<>();
+        private final List<ScoreDoc> allCollectedDocs = new ArrayList<>(); // Keep track of all docs for final result
 
         @Override
         public ScoreMode scoreMode() {
@@ -138,17 +148,20 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
                 @Override
                 public void collect(int doc) throws IOException {
-                    // DEBUG: Log collection details
-                    System.out.println("DEBUG: StreamingUnsortedCollector.collect() - doc: " + doc + 
-                                     ", context.docBase: " + context.docBase + 
-                                     ", collectedDocs.size: " + collectedDocs.size() + 
-                                     ", numHits: " + numHits());
+                    // DEBUG: Verify streaming collector is being used
+                    logger.debug("StreamingUnsortedCollector.collect() called with doc: {}", doc);
                     
                     if (collectedDocs.size() < numHits()) {
                         // Collect document with Float.NaN score for NO_SCORING mode
                         ScoreDoc scoreDoc = new ScoreDoc(doc + context.docBase, Float.NaN);
                         collectedDocs.add(scoreDoc);
+                        allCollectedDocs.add(scoreDoc); // Keep track of all docs for final result
                         totalCollected.incrementAndGet();
+
+                        // NEW: Emit batch when threshold reached (every 10 docs)
+                        if (collectedDocs.size() % 10 == 0) {
+                            emitCurrentBatch(false);
+                        }
 
                         // NEW: Add memory check every 100 docs
                         if (circuitBreaker != null && collectedDocs.size() % 100 == 0) {
@@ -164,15 +177,49 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
                             }
                         }
                     } else {
-                        System.out.println("DEBUG: Skipping doc " + doc + " - already have " + collectedDocs.size() + " docs");
+                        logger.debug("Skipping doc {} - already have {} docs", doc, collectedDocs.size());
                     }
                 }
             };
         }
 
         public List<ScoreDoc> getCollectedDocs() {
-            System.out.println("DEBUG: StreamingUnsortedCollector.getCollectedDocs() - returning " + collectedDocs.size() + " docs");
-            return collectedDocs;
+            logger.debug("StreamingUnsortedCollector.getCollectedDocs() - returning {} docs", allCollectedDocs.size());
+            return allCollectedDocs;
+        }
+
+        /**
+         * Emit current batch of collected documents through streaming channel
+         */
+        private void emitCurrentBatch(boolean isFinal) {
+            if (collectedDocs.isEmpty()) return;
+            
+            try {
+                // Create partial result
+                QuerySearchResult partial = new QuerySearchResult();
+                TopDocs topDocs = new TopDocs(
+                    new TotalHits(collectedDocs.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                    collectedDocs.toArray(new ScoreDoc[0])
+                );
+                partial.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
+                partial.setPartial(!isFinal);
+
+                // Emit through listener if available
+                if (searchContext != null && searchContext.getStreamChannelListener() != null) {
+                    logger.info("🚀 STREAMING: About to emit batch of {} docs, isFinal: {}", collectedDocs.size(), isFinal);
+                    searchContext.getStreamChannelListener().onStreamResponse(partial, isFinal);
+                    logger.info("✅ STREAMING: Successfully emitted batch of {} docs, isFinal: {}", collectedDocs.size(), isFinal);
+                } else {
+                    logger.warn("⚠️ STREAMING: No stream channel listener available for emission - test environment");
+                }
+                
+                // Clear the batch to avoid accumulating too many docs
+                if (!isFinal) {
+                    collectedDocs.clear();
+                }
+            } catch (Exception e) {
+                logger.error("Failed to emit batch", e);
+            }
         }
     }
 }

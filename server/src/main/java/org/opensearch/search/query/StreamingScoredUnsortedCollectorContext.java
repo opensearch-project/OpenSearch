@@ -10,6 +10,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,14 +30,17 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
     private final CircuitBreaker circuitBreaker;
     private static final long SCORE_DOC_BYTES = 24L;
     private final AtomicLong memoryUsed = new AtomicLong(0);
+    private final SearchContext searchContext; // Add SearchContext access
 
-    public StreamingScoredUnsortedCollectorContext(String profilerName, int numHits) {
+    public StreamingScoredUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext) {
         super(profilerName, numHits);
+        this.searchContext = searchContext;
         this.circuitBreaker = null; // Will work but no protection
     }
 
-    public StreamingScoredUnsortedCollectorContext(String profilerName, int numHits, CircuitBreaker breaker) {
+    public StreamingScoredUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext, CircuitBreaker breaker) {
         super(profilerName, numHits);
+        this.searchContext = searchContext;
         this.circuitBreaker = breaker;
     }
 
@@ -128,6 +133,7 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
     private class StreamingScoredUnsortedCollector implements Collector {
 
         private final List<ScoreDoc> collectedDocs = new ArrayList<>();
+        private final List<ScoreDoc> allCollectedDocs = new ArrayList<>(); // Keep track of all docs for final result
 
         @Override
         public ScoreMode scoreMode() {
@@ -152,7 +158,13 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
                         float score = this.scorer.score();
                         ScoreDoc scoreDoc = new ScoreDoc(doc + context.docBase, score);
                         collectedDocs.add(scoreDoc);
+                        allCollectedDocs.add(scoreDoc); // Keep track of all docs for final result
                         totalCollected.incrementAndGet();
+
+                        // NEW: Emit batch when threshold reached (every 10 docs)
+                        if (collectedDocs.size() % 10 == 0) {
+                            emitCurrentBatch(false);
+                        }
 
                         // NEW: Add memory check every 100 docs
                         if (circuitBreaker != null && collectedDocs.size() % 100 == 0) {
@@ -173,7 +185,35 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
         }
 
         public List<ScoreDoc> getCollectedDocs() {
-            return collectedDocs;
+            return allCollectedDocs;
+        }
+
+        /**
+         * Emit current batch of collected documents through streaming channel
+         */
+        private void emitCurrentBatch(boolean isFinal) {
+            if (collectedDocs.isEmpty()) return;
+            
+            try {
+                // Create partial result
+                QuerySearchResult partial = new QuerySearchResult();
+                TopDocs topDocs = new TopDocs(
+                    new TotalHits(collectedDocs.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                    collectedDocs.toArray(new ScoreDoc[0])
+                );
+                partial.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
+                partial.setPartial(!isFinal);
+
+                // Emit through listener if available
+                if (searchContext != null && searchContext.getStreamChannelListener() != null) {
+                    searchContext.getStreamChannelListener().onStreamResponse(partial, isFinal);
+                    System.out.println("DEBUG: Emitted scored batch of " + collectedDocs.size() + " docs, isFinal: " + isFinal);
+                } else {
+                    System.out.println("DEBUG: No stream channel listener available for scored emission");
+                }
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to emit scored batch: " + e.getMessage());
+            }
         }
     }
 }

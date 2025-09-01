@@ -8,11 +8,15 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.StreamingSearchMode;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -27,6 +31,8 @@ import java.util.function.Consumer;
  */
 public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
 
+    private static final Logger logger = LogManager.getLogger(StreamQueryPhaseResultConsumer.class);
+    
     private final StreamingSearchMode scoringMode;
     private int resultsReceived = 0;
     
@@ -53,7 +59,9 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         
         // Initialize scoring mode from request
         String mode = request.getStreamingSearchMode();
+        logger.info("🔍 STREAMING: StreamQueryPhaseResultConsumer constructor - request.getStreamingSearchMode() = {}", mode);
         this.scoringMode = (mode != null) ? StreamingSearchMode.fromString(mode) : StreamingSearchMode.SCORED_SORTED;
+        logger.info("🔍 STREAMING: StreamQueryPhaseResultConsumer constructor - scoringMode set to {}", this.scoringMode);
     }
 
     /**
@@ -66,21 +74,36 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
         // Handle null during construction (parent constructor calls this before our constructor body runs)
         if (scoringMode == null) {
+            logger.warn("⚠️ STREAMING: scoringMode is null, using fallback batch size");
             return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
         }
         
+        int batchSize;
         switch (scoringMode) {
             case NO_SCORING:
                 // Reduce immediately for fastest TTFB (similar to streaming aggs with low batch size)
-                return Math.min(requestBatchedReduceSize, 1);
+                batchSize = Math.min(requestBatchedReduceSize, 1);
+                logger.info("🎯 STREAMING: NO_SCORING mode: using batch size {} for fastest TTFB", batchSize);
+                return batchSize;
+            case SCORED_UNSORTED:
+                // Small batches for quick emission without sorting overhead
+                batchSize = super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 2);
+                logger.info("🎯 STREAMING: SCORED_UNSORTED mode: using batch size {} for quick emission", batchSize);
+                return batchSize;
             case CONFIDENCE_BASED:
-                // Moderate batching for progressive emission
-                return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 2);
+                // Moderate batching for progressive emission with confidence
+                batchSize = super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 3);
+                logger.info("🎯 STREAMING: CONFIDENCE_BASED mode: using batch size {} for progressive emission", batchSize);
+                return batchSize;
             case SCORED_SORTED:
-                // Higher batch size to collect more results before reducing
-                return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
+                // Higher batch size to collect more results before reducing (sorting is expensive)
+                batchSize = super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
+                logger.info("🎯 STREAMING: SCORED_SORTED mode: using batch size {} for sorting efficiency", batchSize);
+                return batchSize;
             default:
-                return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
+                batchSize = super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
+                logger.warn("⚠️ STREAMING: Unknown mode {}, using default batch size {}", scoringMode, batchSize);
+                return batchSize;
         }
     }
 
@@ -92,18 +115,21 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
 
         // Check if already consumed
         if (querySearchResult.hasConsumedTopDocs()) {
+            logger.debug("Result already consumed, skipping");
             next.run();
             return;
         }
 
         resultsReceived++;
-
-        // SIMPLIFIED: For now, just consume normally to avoid hanging
-        // TODO: Re-enable streaming emission once deadlock issues are resolved
-        // Note: logger is private in parent class, so we can't use it directly
+        logger.info("🎯 STREAMING: Consumed result #{} from shard {}, partial={}, hasTopDocs={}", 
+                    resultsReceived, result.getShardIndex(), querySearchResult.isPartial(), 
+                    querySearchResult.topDocs() != null);
         
         // Use parent's pendingMerges to consume the result
+        // Partial reduces are automatically triggered by batchReduceSize
+        logger.info("🔄 STREAMING: About to consume result in pendingMerges");
         pendingMerges.consume(querySearchResult, next);
+        logger.info("✅ STREAMING: Result consumed in pendingMerges");
     }
 }
 

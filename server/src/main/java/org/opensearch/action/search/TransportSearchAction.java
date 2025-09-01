@@ -188,6 +188,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ThreadPool threadPool,
         CircuitBreakerService circuitBreakerService,
         TransportService transportService,
+        @Nullable org.opensearch.transport.StreamTransportService streamTransportService,
         SearchService searchService,
         SearchTransportService searchTransportService,
         SearchPhaseController searchPhaseController,
@@ -208,11 +209,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        if (transportService instanceof StreamTransportService) {
-            StreamSearchTransportService.registerStreamRequestHandler((StreamTransportService) transportService, searchService);
-        } else {
-            SearchTransportService.registerRequestHandler(transportService, searchService);
+        // Register request handlers for both transports: stream (if available) and classic
+        if (streamTransportService != null) {
+            StreamSearchTransportService.registerStreamRequestHandler(streamTransportService, searchService);
         }
+        SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

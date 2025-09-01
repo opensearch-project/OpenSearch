@@ -31,6 +31,7 @@ import java.util.function.BiFunction;
  */
 public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchAsyncAction {
 
+    private final Logger logger;
     private final AtomicInteger streamResultsReceived = new AtomicInteger(0);
     private final AtomicInteger streamResultsConsumeCallback = new AtomicInteger(0);
     private final AtomicBoolean shardResultsConsumed = new AtomicBoolean(false);
@@ -75,6 +76,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             searchRequestContext,
             tracer
         );
+        this.logger = logger;
     }
 
     /**
@@ -94,8 +96,11 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             protected void innerOnStreamResponse(SearchPhaseResult result) {
                 try {
-                    streamResultsReceived.incrementAndGet();
+                    int count = streamResultsReceived.incrementAndGet();
+                    logger.info("🚀 STREAMING: Received streaming result #{} from shard {}, partial={}", 
+                               count, result.getShardIndex(), result.queryResult().isPartial());
                     onStreamResult(result, shardIt, () -> successfulStreamExecution());
+                    logger.info("✅ STREAMING: Processed streaming result #{} from shard {}", count, result.getShardIndex());
                 } finally {
                     executeNext(pendingExecutions, thread);
                 }

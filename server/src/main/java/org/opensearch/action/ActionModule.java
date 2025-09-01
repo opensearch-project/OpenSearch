@@ -737,7 +737,8 @@ public class ActionModule extends AbstractModule {
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
-            actions.register(StreamSearchAction.INSTANCE, StreamTransportSearchAction.class);
+            // Streaming is enabled via flags on the regular SearchAction; no separate action registration needed
+            // actions.register(StreamSearchAction.INSTANCE, StreamTransportSearchAction.class);
         }
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);

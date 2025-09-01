@@ -139,14 +139,15 @@ public class RestSearchAction extends BaseRestHandler {
         boolean stream = request.paramAsBoolean("stream", false);
         if (stream) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
-                // Set scoring mode if provided
+                // Enable streaming scoring path via flags on the regular SearchAction
+                searchRequest.setStreamingScoring(true);
                 String scoringMode = request.param("stream_scoring_mode");
                 if (scoringMode != null) {
                     searchRequest.setStreamingSearchMode(scoringMode);
                 }
                 return channel -> {
                     RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-                    cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                    cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
                 };
             } else {
                 throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");

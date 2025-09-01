@@ -281,6 +281,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
+        // Read streaming fields
+        streamingScoring = in.readBoolean();
+        streamingSearchMode = in.readOptionalString();
     }
 
     @Override
@@ -315,6 +318,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
         }
+        // Write streaming fields
+        out.writeBoolean(streamingScoring);
+        out.writeOptionalString(streamingSearchMode);
     }
 
     @Override
@@ -673,7 +679,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     public boolean isStreamingScoring() {
         return streamingScoring;
     }
-
+    
     /**
      * Sets the streaming search mode for this request.
      * @param mode The streaming search mode to use
