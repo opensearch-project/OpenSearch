@@ -14,7 +14,6 @@ import java.security.ProtectionDomain;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtConstructor;
-import javassist.CtMethod;
 
 /**
  * Java agent for bytecode injection of chaos testing
@@ -73,27 +72,6 @@ public class ChaosAgent {
 
         private boolean shouldTransform(String className) {
             return className.startsWith("org/opensearch/arrow/flight/transport/Flight");
-        }
-
-        private void transformFlightTransport(CtClass ctClass) throws Exception {
-            CtMethod method = ctClass.getDeclaredMethod("openConnection");
-            method.insertBefore("org.opensearch.arrow.flight.chaos.ChaosScenario.injectChaos();");
-        }
-
-        private void transformFlightTransportChannel(CtClass ctClass) throws Exception {
-            CtMethod sendBatch = ctClass.getDeclaredMethod("sendResponseBatch");
-            sendBatch.insertBefore("org.opensearch.arrow.flight.chaos.ChaosScenario.injectChaos();");
-
-            CtMethod complete = ctClass.getDeclaredMethod("completeStream");
-            complete.insertBefore("org.opensearch.arrow.flight.chaos.ChaosScenario.injectChaos();");
-        }
-
-        private void transformFlightTransportResponse(CtClass ctClass) throws Exception {
-            CtMethod nextResponse = ctClass.getDeclaredMethod("nextResponse");
-            nextResponse.insertBefore("org.opensearch.arrow.flight.chaos.ChaosScenario.injectChaos();");
-
-            // CtMethod close = ctClass.getDeclaredMethod("close");
-            // close.insertBefore("org.opensearch.arrow.flight.chaos.ChaosInterceptor.beforeResponseClose();");
         }
 
         private void transformFlightServerChannelWithDelay(CtClass ctClass) throws Exception {

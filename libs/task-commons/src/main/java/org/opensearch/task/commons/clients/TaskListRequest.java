@@ -72,16 +72,6 @@ public class TaskListRequest {
     }
 
     /**
-     * Update worker node to filter with in the request
-     * @param workerNode WorkerNode
-     * @return ListTaskRequest
-     */
-    private TaskListRequest workerNode(WorkerNode workerNode) {
-        this.workerNodes = workerNode;
-        return this;
-    }
-
-    /**
      * Update page number to start with when fetching the list of tasks
      * @param startPageNumber startPageNumber
      * @return ListTaskRequest

@@ -101,10 +101,6 @@ public class RemoteStorePressureSettings {
         return minRefreshSeqNoLagLimit;
     }
 
-    private void setMinRefreshSeqNoLagLimit(long minRefreshSeqNoLagLimit) {
-        this.minRefreshSeqNoLagLimit = minRefreshSeqNoLagLimit;
-    }
-
     double getBytesLagVarianceFactor() {
         return bytesLagVarianceFactor;
     }
