@@ -561,7 +561,7 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
-        } else if (sortField.getClass() == SortedSetSortField.class || (sortField instanceof NonPruningSortField)) {
+        } else if (sortField.getClass() == SortedSetSortField.class) {
             // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
             // It works because the sort field is only used to merge results from different shards.
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
@@ -577,9 +577,27 @@ public class Lucene {
             );
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
+        } else if (sortField instanceof NonPruningSortField) {
+            // There are 2 cases of how NonPruningSortField wraps around its underlying sort field.
+            // Which are through the SortField class or SortedSetSortField class
+            // We will serialize the sort field based on the type of underlying sort field
+            // Here the underlying sort field is SortedSetSortField, therefore, we will follow the
+            // logic in serializing SortedSetSortField.
+            NonPruningSortField nonPruningSortField = (NonPruningSortField) sortField;
+            if (nonPruningSortField.getDelegate().getClass() == SortedSetSortField.class) {
+                SortField newSortField = new SortField(
+                    nonPruningSortField.getField(),
+                    SortField.Type.STRING,
+                    nonPruningSortField.getReverse()
+                );
+                newSortField.setMissingValue(nonPruningSortField.getMissingValue());
+                sortField = newSortField;
+            }
         }
 
-        if (sortField.getClass() != SortField.class) {
+        if (sortField.getClass() != SortField.class
+            && (((sortField instanceof NonPruningSortField)
+                && (((NonPruningSortField) sortField).getDelegate().getClass() == SortField.class)) == false)) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
         if (sortField.getField() == null) {

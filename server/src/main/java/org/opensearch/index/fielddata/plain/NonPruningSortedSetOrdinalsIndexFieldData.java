@@ -247,5 +247,9 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
             // explictly disable pruning
             return delegate.getComparator(numHits, Pruning.NONE);
         }
+
+        public SortField getDelegate() {
+            return delegate;
+        }
     }
 }
