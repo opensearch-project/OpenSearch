@@ -92,6 +92,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
+            false,
             Collections.emptyMap(),
             0.1 + randomDouble() * 100,
             null

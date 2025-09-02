@@ -119,7 +119,13 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
             m -> toType(m).nullValue
         ).acceptsNull();
-
+        private final Parameter<Boolean> skiplist = new Parameter<>(
+            "skip_list",
+            false,
+            () -> false,
+            (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
+            m -> toType(m).skiplist
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, Settings settings) {
@@ -149,7 +155,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue);
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, skiplist);
         }
 
         @Override
@@ -159,6 +165,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
+                skiplist.getValue(),
                 meta.getValue(),
                 scalingFactor.getValue(),
                 nullValue.getValue()
@@ -183,23 +190,27 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         private final double scalingFactor;
         private final Double nullValue;
+        private final boolean skiplist;
 
         public ScaledFloatFieldType(
             String name,
             boolean indexed,
             boolean stored,
             boolean hasDocValues,
+            boolean skiplist,
             Map<String, String> meta,
             double scalingFactor,
             Double nullValue
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.skiplist = skiplist;
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, false, true, Collections.emptyMap(), scalingFactor, null);
+            // TODO: enable skiplist by default
+            this(name, true, false, true, false, Collections.emptyMap(), scalingFactor, null);
         }
 
         @Override
@@ -383,9 +394,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
+    private final boolean skiplist;
     private final Double nullValue;
     private final double scalingFactor;
-
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
 
@@ -400,6 +411,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
+        this.skiplist = builder.skiplist.getValue();
         this.scalingFactor = builder.scalingFactor.getValue();
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
@@ -490,7 +502,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             scaledValue,
             indexed,
             hasDocValues,
-            false,
+            skiplist,
             stored
         );
         context.doc().addAll(fields);
