@@ -104,6 +104,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     @Override
     public void onFailedQueryPhase(SearchContext searchContext) {
         computeStats(searchContext, statsHolder -> {
+            statsHolder.queryFailed.inc();
             if (searchContext.hasOnlySuggest()) {
                 statsHolder.suggestCurrent.dec();
                 assert statsHolder.suggestCurrent.count() >= 0;
@@ -115,6 +116,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                     assert statsHolder.concurrentQueryCurrent.count() >= 0;
                 }
                 if (searchContext.getQueryShardContext().getStarTreeQueryContext() != null) {
+                    statsHolder.starTreeQueryFailed.inc();
                     statsHolder.starTreeCurrent.dec();
                     assert statsHolder.starTreeCurrent.count() >= 0;
                 }
@@ -237,6 +239,7 @@ public final class ShardSearchStats implements SearchOperationListener {
      */
     static final class StatsHolder {
         final MeanMetric queryMetric = new MeanMetric();
+        final CounterMetric queryFailed = new CounterMetric();
         final MeanMetric concurrentQueryMetric = new MeanMetric();
         final CounterMetric queryConcurrencyMetric = new CounterMetric();
         final MeanMetric fetchMetric = new MeanMetric();
@@ -259,11 +262,13 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric searchIdleMetric = new CounterMetric();
         final MeanMetric starTreeQueryMetric = new MeanMetric();
         final CounterMetric starTreeCurrent = new CounterMetric();
+        final CounterMetric starTreeQueryFailed = new CounterMetric();
 
         SearchStats.Stats stats() {
             return new SearchStats.Stats.Builder().queryCount(queryMetric.count())
                 .queryTimeInMillis(TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()))
                 .queryCurrent(queryCurrent.count())
+                .queryFailed(queryFailed.count())
                 .concurrentQueryCount(concurrentQueryMetric.count())
                 .concurrentQueryTimeInMillis(TimeUnit.NANOSECONDS.toMillis(concurrentQueryMetric.sum()))
                 .concurrentQueryCurrent(concurrentQueryCurrent.count())
@@ -284,6 +289,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 .starTreeQueryCount(starTreeQueryMetric.count())
                 .starTreeQueryTimeInMillis(TimeUnit.NANOSECONDS.toMillis(starTreeQueryMetric.sum()))
                 .starTreeQueryCurrent(starTreeCurrent.count())
+                .starTreeQueryFailed(starTreeQueryFailed.count())
                 .build();
         }
     }
