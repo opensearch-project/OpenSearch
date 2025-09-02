@@ -128,7 +128,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         public void messageReceived(CheckpointInfoRequest request, TransportChannel channel, Task task) throws Exception {
             final ReplicationTimer timer = new ReplicationTimer();
             timer.start();
-            final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = getRemoteSegmentFileChunkWriter(
+            final RemoteSegmentFileChunkWriter remoteSegmentFileChunkWriter = getRemoteSegmentFileChunkWriter(
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
                 request,
                 request.getCheckpoint().getShardId(),
@@ -137,7 +137,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             );
             final SegmentReplicationSourceHandler handler = ongoingSegmentReplications.prepareForReplication(
                 request,
-                segmentSegmentFileChunkWriter
+                remoteSegmentFileChunkWriter
             );
             channel.sendResponse(new CheckpointInfoResponse(handler.getCheckpoint(), handler.getInfosBytes()));
             timer.stop();
