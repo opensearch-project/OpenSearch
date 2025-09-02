@@ -623,6 +623,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final int bufferSize = randomIntBetween(1024, 2048);
         final int blobSize = randomIntBetween(0, bufferSize);
 
+        // Build the payload first so we know/keep its exact length
+        final byte[] payload = randomByteArrayOfLength(blobSize);
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(payload);
+
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
@@ -656,24 +660,29 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
         when(blobStore.clientReference()).thenReturn(clientReference);
 
-        final ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-        final ArgumentCaptor<RequestBody> requestBodyArgumentCaptor = ArgumentCaptor.forClass(RequestBody.class);
-        when(client.putObject(putObjectRequestArgumentCaptor.capture(), requestBodyArgumentCaptor.capture())).thenReturn(
-            PutObjectResponse.builder().build()
-        );
+        final ArgumentCaptor<PutObjectRequest> putReqCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        final ArgumentCaptor<RequestBody> bodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
+        when(client.putObject(putReqCaptor.capture(), bodyCaptor.capture())).thenReturn(PutObjectResponse.builder().build());
 
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        // Pass the known-length stream + tell the code the exact size
         blobContainer.executeSingleUpload(blobStore, blobName, inputStream, blobSize, metadata);
 
-        final PutObjectRequest request = putObjectRequestArgumentCaptor.getValue();
-        final RequestBody requestBody = requestBodyArgumentCaptor.getValue();
+        final PutObjectRequest request = putReqCaptor.getValue();
+        final RequestBody requestBody = bodyCaptor.getValue();
+
         assertEquals(bucketName, request.bucket());
         assertEquals(blobPath.buildAsString() + blobName, request.key());
-        byte[] expectedBytes = inputStream.readAllBytes();
+
+        // Read back what the SDK will send and compare to the original payload
         try (InputStream is = requestBody.contentStreamProvider().newStream()) {
-            assertArrayEquals(expectedBytes, is.readAllBytes());
+            byte[] actual = is.readAllBytes();
+            assertEquals(payload.length, actual.length);
+            assertArrayEquals(payload, actual);
         }
+
+        // Explicit content length must be set on the request
         assertEquals(blobSize, request.contentLength().longValue());
+
         assertEquals(storageClass, request.storageClass());
         assertEquals(cannedAccessControlList, request.acl());
         assertEquals(metadata, request.metadata());
@@ -1752,18 +1761,25 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final ListObjectsV2Publisher listPublisher = mock(ListObjectsV2Publisher.class);
         doAnswer(invocation -> {
-            Subscriber<? super ListObjectsV2Response> subscriber = invocation.getArgument(0);
-            subscriber.onSubscribe(new Subscription() {
+            Subscriber<? super ListObjectsV2Response> sub = invocation.getArgument(0);
+            sub.onSubscribe(new Subscription() {
+                volatile boolean done;
+
                 @Override
                 public void request(long n) {
-                    subscriber.onNext(
-                        ListObjectsV2Response.builder().contents(S3Object.builder().key("test-key").size(100L).build()).build()
-                    );
-                    subscriber.onComplete();
+                    if (done || n <= 0) return;
+                    done = true; // emit once
+                    CompletableFuture.runAsync(
+                        () -> sub.onNext(
+                            ListObjectsV2Response.builder().contents(S3Object.builder().key("test-key").size(100L).build()).build()
+                        )
+                    ).thenRun(sub::onComplete);
                 }
 
                 @Override
-                public void cancel() {}
+                public void cancel() {
+                    done = true;
+                }
             });
             return null;
         }).when(listPublisher).subscribe(ArgumentMatchers.<Subscriber<ListObjectsV2Response>>any());
