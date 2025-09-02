@@ -15,6 +15,8 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.client.config.ClientAsyncConfiguration;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
@@ -247,7 +249,9 @@ class S3AsyncService implements Closeable {
         String asyncHttpClientType
     ) {
         setDefaultAwsProfilePath();
-        final S3AsyncClientBuilder builder = S3AsyncClient.builder();
+        final S3AsyncClientBuilder builder = S3AsyncClient.builder()
+            .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+            .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
         builder.overrideConfiguration(buildOverrideConfiguration(clientSettings, clientExecutorService));
         final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         builder.credentialsProvider(credentials);
