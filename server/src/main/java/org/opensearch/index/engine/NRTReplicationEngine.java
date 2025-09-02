@@ -29,6 +29,7 @@ import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -125,7 +126,8 @@ public class NRTReplicationEngine extends Engine {
                 },
                 this,
                 engineConfig.getTranslogFactory(),
-                engineConfig.getStartedPrimarySupplier()
+                engineConfig.getStartedPrimarySupplier(),
+                TranslogOperationHelper.create(engineConfig)
             );
             this.translogManager = translogManagerRef;
             success = true;
@@ -150,7 +152,8 @@ public class NRTReplicationEngine extends Engine {
         return new NRTReplicationReaderManager(
             OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
             replicaFileTracker::incRef,
-            replicaFileTracker::decRef
+            replicaFileTracker::decRef,
+            engineConfig
         );
     }
 
@@ -537,6 +540,9 @@ public class NRTReplicationEngine extends Engine {
 
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
+        return new SoftDeletesDirectoryReaderWrapper(
+            DirectoryReader.open(store.directory(), engineConfig.getLeafSorter()),
+            Lucene.SOFT_DELETES_FIELD
+        );
     }
 }

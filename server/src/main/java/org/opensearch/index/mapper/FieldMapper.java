@@ -617,6 +617,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * DerivedFieldGenerator should be set for which derived source feature is supported, this behaviour can be
      * overridden at a Mapper level by implementing this method
      */
+    @Override
     public void canDeriveSource() {
         if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
             throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
@@ -641,7 +642,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if doc values is enabled for a field or not
      */
-    void checkDocValuesForDerivedSource() {
+    protected void checkDocValuesForDerivedSource() {
         if (!mappedFieldType.hasDocValues()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with doc values disabled");
         }
@@ -650,7 +651,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if stored field is enabled for a field or not
      */
-    void checkStoredForDerivedSource() {
+    protected void checkStoredForDerivedSource() {
         if (!mappedFieldType.isStored()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with store disabled");
         }
@@ -659,7 +660,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Validates if doc_values or stored field is enabled for a field or not
      */
-    void checkStoredAndDocValuesForDerivedSource() {
+    protected void checkStoredAndDocValuesForDerivedSource() {
         if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
             throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
         }
@@ -677,6 +678,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param leafReader - leafReader to read data from
      * @param docId - docId for which we want to derive the source
      */
+    @Override
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
         derivedFieldGenerator.generate(builder, leafReader, docId);
     }

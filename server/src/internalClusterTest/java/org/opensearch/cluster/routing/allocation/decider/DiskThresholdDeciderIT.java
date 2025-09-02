@@ -690,28 +690,18 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
      * Helper method to simulate disk pressure for both hot and warm indices
      */
     private void simulateDiskPressure(MockInternalClusterInfoService clusterInfoService) {
-        boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
-        if (isWarmIndex) {
-            clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> TOTAL_SPACE_BYTES - WATERMARK_BYTES + 10);
-        } else {
-            clusterInfoService.setDiskUsageFunctionAndRefresh(
-                (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, WATERMARK_BYTES - 1)
-            );
-        }
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, WATERMARK_BYTES - 1)
+        );
     }
 
     /**
      * Helper method to release disk pressure for both hot and warm indices
      */
     private void releaseDiskPressure(MockInternalClusterInfoService clusterInfoService) {
-        boolean isWarmIndex = WRITABLE_WARM_INDEX_SETTING.get(settings);
-        if (isWarmIndex) {
-            clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 100L);
-        } else {
-            clusterInfoService.setDiskUsageFunctionAndRefresh(
-                (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, TOTAL_SPACE_BYTES)
-            );
-        }
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, TOTAL_SPACE_BYTES)
+        );
     }
 
     /**

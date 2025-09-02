@@ -118,11 +118,28 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
+                    // if user doesn't provide execution mode, and using stream search
+                    // we use stream aggregation
+                    if (context.isStreamSearch()) {
+                        return createStreamAggregator(
+                            name,
+                            factories,
+                            valuesSource,
+                            order,
+                            format,
+                            bucketCountThresholds,
+                            context,
+                            parent,
+                            showTermDocCountError,
+                            metadata
+                        );
+                    } else {
+                        execution = ExecutionMode.GLOBAL_ORDINALS;
+                    }
                 }
                 final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
                 if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), maxOrd);
+                    subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), maxOrd, context);
                 }
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
@@ -192,7 +209,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), -1);
+                    subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), -1, context);
                 }
 
                 ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
@@ -329,13 +346,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * Pick a {@link SubAggCollectionMode} based on heuristics about what
      * we're collecting.
      */
-    static SubAggCollectionMode pickSubAggColectMode(AggregatorFactories factories, int expectedSize, long maxOrd) {
+    static SubAggCollectionMode pickSubAggCollectMode(AggregatorFactories factories, int expectedSize, long maxOrd, SearchContext context) {
         if (factories.countAggregators() == 0) {
             // Without sub-aggregations we pretty much ignore this field value so just pick something
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (expectedSize == Integer.MAX_VALUE) {
             // We expect to return all buckets so delaying them won't save any time
+            return SubAggCollectionMode.DEPTH_FIRST;
+        }
+        if (context.isStreamSearch()) {
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (maxOrd == -1 || maxOrd > expectedSize) {
@@ -445,14 +465,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
                     (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
                     /*
-                     * We can use the low cardinality execution mode iff this aggregator:
-                     *  - has no sub-aggregator AND
-                     *  - collects from a single bucket AND
-                     *  - has a values source that can map from segment to global ordinals
-                     *  - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
-                     *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
-                     *  which directly linked to maxOrd, so we need to limit).
-                     */
+                    * We can use the low cardinality execution mode iff this aggregator:
+                    * - has no sub-aggregator AND
+                    * - collects from a single bucket AND
+                    * - has a values source that can map from segment to global ordinals
+                    * - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
+                    * - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
+                    * which directly linked to maxOrd, so we need to limit).
+                    */
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
                         name,
                         factories,
@@ -555,6 +575,38 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         @Override
         public String toString() {
             return parseField.getPreferredName();
+        }
+    }
+
+    static Aggregator createStreamAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource valuesSource,
+        BucketOrder order,
+        DocValueFormat format,
+        BucketCountThresholds bucketCountThresholds,
+        SearchContext context,
+        Aggregator parent,
+        boolean showTermDocCountError,
+        Map<String, Object> metadata
+    ) throws IOException {
+        {
+            assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
+            ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+            return new StreamStringTermsAggregator(
+                name,
+                factories,
+                a -> a.new StandardTermsResults(),
+                ordinalsValuesSource,
+                order,
+                format,
+                bucketCountThresholds,
+                context,
+                parent,
+                SubAggCollectionMode.DEPTH_FIRST,
+                showTermDocCountError,
+                metadata
+            );
         }
     }
 

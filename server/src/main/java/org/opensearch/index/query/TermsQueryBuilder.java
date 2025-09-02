@@ -39,8 +39,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
@@ -57,6 +59,9 @@ import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
@@ -66,8 +71,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -79,7 +86,7 @@ import java.util.stream.IntStream;
  *
  * @opensearch.internal
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements WithFieldName {
+public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements ComplementAwareQueryBuilder, WithFieldName {
     public static final String NAME = "terms";
 
     private final String fieldName;
@@ -429,6 +436,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
+        QueryBuilder nestedQuery = null;
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -529,6 +537,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        // This section ensures no on-demand fetching for other cases as well
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
@@ -550,6 +559,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+
         if (valueType == ValueType.BITMAP) {
             if (values.size() == 1 && values.get(0) instanceof BytesArray) {
                 if (fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
@@ -561,29 +571,124 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
-        GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
-        getRequest.preference("_local").routing(termsLookup.routing());
-        if (termsLookup.store()) {
-            getRequest.storedFields(termsLookup.path());
-        }
-        client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
-            List<Object> terms = new ArrayList<>();
+        if (termsLookup.id() != null) {
+            GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
+            getRequest.preference("_local").routing(termsLookup.routing());
             if (termsLookup.store()) {
-                List<Object> values = getResponse.getField(termsLookup.path()).getValues();
-                if (values.size() != 1 && valueType == ValueType.BITMAP) {
-                    throw new IllegalArgumentException(
-                        "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
-                    );
-                }
-                terms.addAll(values);
+                getRequest.storedFields(termsLookup.path());
             } else {
-                if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                    List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
-                    terms.addAll(extractedValues);
-                }
+                getRequest.fetchSourceContext(new FetchSourceContext(true, new String[] { termsLookup.path() }, null));
             }
-            delegatedListener.onResponse(terms);
-        }));
+            client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
+                List<Object> terms = new ArrayList<>();
+                if (termsLookup.store()) {
+                    List<Object> values = getResponse.getField(termsLookup.path()).getValues();
+                    if (values.size() != 1 && valueType == ValueType.BITMAP) {
+                        throw new IllegalArgumentException(
+                            "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
+                        );
+                    }
+                    terms.addAll(values);
+                } else {
+                    if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+                        List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+                        terms.addAll(extractedValues);
+                    }
+                }
+                delegatedListener.onResponse(terms);
+            }));
+        } else if (termsLookup.query() != null) {
+            client.admin()
+                .indices()
+                .getSettings(
+                    new org.opensearch.action.admin.indices.settings.get.GetSettingsRequest().indices(termsLookup.index()),
+                    ActionListener.wrap(settingsResponse -> {
+                        // Get index-specific settings, fall back to defaults if missing
+                        Settings idxSettings = settingsResponse.getIndexToSettings().getOrDefault(termsLookup.index(), Settings.EMPTY);
+
+                        // Get max_terms_count, max_result_window, and max_clause_count, fallback to their defaults
+                        int maxTermsCount = IndexSettings.MAX_TERMS_COUNT_SETTING.get(idxSettings);
+                        int maxResultWindow = IndexSettings.MAX_RESULT_WINDOW_SETTING.get(idxSettings);
+                        int maxClauseCount = idxSettings.getAsInt("indices.query.max_clause_count", 1024);
+                        // The effective size must not exceed any of these
+                        int fetchSize = Math.min(Math.min(maxTermsCount, maxResultWindow), maxClauseCount);
+
+                        try {
+                            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(termsLookup.query()).size(fetchSize);
+
+                            // Use stored fields if possible, otherwise fetch source
+                            if (termsLookup.store()) {
+                                sourceBuilder.storedField(termsLookup.path());
+                            } else {
+                                sourceBuilder.fetchSource(termsLookup.path(), null);
+                            }
+
+                            SearchRequest searchRequest = new SearchRequest(termsLookup.index()).source(sourceBuilder);
+
+                            client.search(
+                                searchRequest,
+                                ActionListener.delegateFailure(actionListener, (delegatedListener, searchResponse) -> {
+                                    List<Object> terms = new ArrayList<>();
+                                    SearchHit[] hits = searchResponse.getHits().getHits();
+                                    long totalHits = searchResponse.getHits().getTotalHits().value();
+
+                                    // Correctness: fail if total hits exceed fetchSize (results are incomplete)
+                                    if (totalHits > fetchSize) {
+                                        delegatedListener.onFailure(
+                                            new IllegalArgumentException(
+                                                "Terms lookup subquery total hits ["
+                                                    + totalHits
+                                                    + "] exceed fetch limit ["
+                                                    + fetchSize
+                                                    + "]; filter may be incomplete."
+                                            )
+                                        );
+                                        return;
+                                    }
+
+                                    // Defensive: avoid exceeding maxTermsCount
+                                    if (hits.length > maxTermsCount) {
+                                        delegatedListener.onFailure(
+                                            new IllegalArgumentException(
+                                                "Terms lookup subquery result count ["
+                                                    + hits.length
+                                                    + "] exceeds allowed max_terms_count ["
+                                                    + maxTermsCount
+                                                    + "]"
+                                            )
+                                        );
+                                        return;
+                                    }
+
+                                    for (SearchHit hit : hits) {
+                                        if (termsLookup.store()) {
+                                            if (hit.field(termsLookup.path()) != null) {
+                                                terms.addAll(hit.field(termsLookup.path()).getValues());
+                                            }
+                                        } else {
+                                            Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                                            if (sourceAsMap != null) {
+                                                List<Object> extractedValues = XContentMapValues.extractRawValues(
+                                                    termsLookup.path(),
+                                                    sourceAsMap
+                                                );
+                                                terms.addAll(extractedValues);
+                                            }
+                                        }
+                                    }
+                                    delegatedListener.onResponse(terms);
+                                })
+                            );
+
+                        } catch (Exception e) {
+                            actionListener.onFailure(e);
+                        }
+                    }, actionListener::onFailure)
+                );
+        } else {
+            // No lookup type provided
+            actionListener.onResponse(Collections.emptyList());
+        }
     }
 
     @Override
@@ -601,10 +706,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), valueType);
-        } else if (this.termsLookup != null) {
+        }
+        // Support: terms lookup by document id && Support: terms lookup by subquery
+        else if (this.termsLookup != null && (this.termsLookup.id() != null || this.termsLookup.query() != null)) {
             SetOnce<List<?>> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
                 supplier.set(list);
@@ -639,4 +746,27 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
         return this;
     }
+
+    @Override
+    public List<QueryBuilder> getComplement(QueryShardContext context) {
+        // If this uses BITMAP value type, or if we're using termsLookup, we can't provide the complement.
+        if (valueType.equals(ValueType.BITMAP)) return null;
+        if (values == null || termsLookup != null) return null;
+        // If this is a terms query on a numeric field, we can provide the complement using RangeQueryBuilder.
+        NumberFieldMapper.NumberFieldType nft = ComplementHelperUtils.getNumberFieldType(context, fieldName);
+        if (nft == null) return null;
+        List<Number> numberValues = new ArrayList<>();
+        for (Object value : values) {
+            numberValues.add(nft.parse(value));
+        }
+        numberValues.sort(Comparator.comparingDouble(Number::doubleValue)); // For sorting purposes, use double value.
+        NumberFieldMapper.NumberType numberType = nft.numberType();
+        // If there is some other field type that's a whole number, this will still be correct, the complement may just have some
+        // unnecessary components like "x < value < x + 1"
+        boolean isWholeNumber = numberType.equals(NumberFieldMapper.NumberType.INTEGER)
+            || numberType.equals(NumberFieldMapper.NumberType.LONG)
+            || numberType.equals(NumberFieldMapper.NumberType.SHORT);
+        return ComplementHelperUtils.numberValuesToComplement(fieldName, numberValues, isWholeNumber);
+    }
+
 }

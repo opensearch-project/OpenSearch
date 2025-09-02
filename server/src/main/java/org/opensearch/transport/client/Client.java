@@ -93,6 +93,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
@@ -315,6 +317,11 @@ public interface Client extends OpenSearchClient, Releasable {
     SearchRequestBuilder prepareSearch(String... indices);
 
     /**
+     * Search across one or more indices with a query.
+     */
+    SearchRequestBuilder prepareStreamSearch(String... indices);
+
+    /**
      * A search scroll request to continue searching a previous scrollable search request.
      *
      * @param request The search scroll request
@@ -499,5 +506,149 @@ public interface Client extends OpenSearchClient, Releasable {
      */
     default Client getRemoteClusterClient(String clusterAlias) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
+    }
+
+    /**
+     * Index a document - CompletionStage version
+     */
+    default CompletionStage<IndexResponse> indexAsync(IndexRequest request) {
+        CompletableFuture<IndexResponse> future = new CompletableFuture<>();
+        index(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Update a document - CompletionStage version
+     */
+    default CompletionStage<UpdateResponse> updateAsync(UpdateRequest request) {
+        CompletableFuture<UpdateResponse> future = new CompletableFuture<>();
+        update(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Delete a document - CompletionStage version
+     */
+    default CompletionStage<DeleteResponse> deleteAsync(DeleteRequest request) {
+        CompletableFuture<DeleteResponse> future = new CompletableFuture<>();
+        delete(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Bulk operations - CompletionStage version
+     */
+    default CompletionStage<BulkResponse> bulkAsync(BulkRequest request) {
+        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
+        bulk(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Get document - CompletionStage version
+     */
+    default CompletionStage<GetResponse> getAsync(GetRequest request) {
+        CompletableFuture<GetResponse> future = new CompletableFuture<>();
+        get(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Multi get - CompletionStage version
+     */
+    default CompletionStage<MultiGetResponse> multiGetAsync(MultiGetRequest request) {
+        CompletableFuture<MultiGetResponse> future = new CompletableFuture<>();
+        multiGet(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Search - CompletionStage version
+     */
+    default CompletionStage<SearchResponse> searchAsync(SearchRequest request) {
+        CompletableFuture<SearchResponse> future = new CompletableFuture<>();
+        search(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Search scroll - CompletionStage version
+     */
+    default CompletionStage<SearchResponse> searchScrollAsync(SearchScrollRequest request) {
+        CompletableFuture<SearchResponse> future = new CompletableFuture<>();
+        searchScroll(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Multi search - CompletionStage version
+     */
+    default CompletionStage<MultiSearchResponse> multiSearchAsync(MultiSearchRequest request) {
+        CompletableFuture<MultiSearchResponse> future = new CompletableFuture<>();
+        multiSearch(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Term vectors - CompletionStage version
+     */
+    default CompletionStage<TermVectorsResponse> termVectorsAsync(TermVectorsRequest request) {
+        CompletableFuture<TermVectorsResponse> future = new CompletableFuture<>();
+        termVectors(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Multi term vectors - CompletionStage version
+     */
+    default CompletionStage<MultiTermVectorsResponse> multiTermVectorsAsync(MultiTermVectorsRequest request) {
+        CompletableFuture<MultiTermVectorsResponse> future = new CompletableFuture<>();
+        multiTermVectors(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Explain - CompletionStage version
+     */
+    default CompletionStage<ExplainResponse> explainAsync(ExplainRequest request) {
+        CompletableFuture<ExplainResponse> future = new CompletableFuture<>();
+        explain(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Clear scroll - CompletionStage version
+     */
+    default CompletionStage<ClearScrollResponse> clearScrollAsync(ClearScrollRequest request) {
+        CompletableFuture<ClearScrollResponse> future = new CompletableFuture<>();
+        clearScroll(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Field capabilities - CompletionStage version
+     */
+    default CompletionStage<FieldCapabilitiesResponse> fieldCapsAsync(FieldCapabilitiesRequest request) {
+        CompletableFuture<FieldCapabilitiesResponse> future = new CompletableFuture<>();
+        fieldCaps(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * Search view - CompletionStage version
+     */
+    default CompletionStage<SearchResponse> searchViewAsync(SearchViewAction.Request request) {
+        CompletableFuture<SearchResponse> future = new CompletableFuture<>();
+        searchView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /**
+     * List view names - CompletionStage version
+     */
+    default CompletionStage<ListViewNamesAction.Response> listViewNamesAsync(ListViewNamesAction.Request request) {
+        CompletableFuture<ListViewNamesAction.Response> future = new CompletableFuture<>();
+        listViewNames(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
     }
 }

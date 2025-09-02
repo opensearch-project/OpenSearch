@@ -77,6 +77,7 @@ import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -471,6 +472,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         public TextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
+            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)) {
+                fieldType.setStored(true);
+            }
             return new TextFieldMapper(
                 name,
                 fieldType,
@@ -1228,18 +1232,10 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void canDeriveSourceInternal() {
-        checkStoredForDerivedSource();
-    }
+    protected void canDeriveSourceInternal() {}
 
     /**
-     * 1. Currently, we will only be supporting text field, if stored field is enabled
-     *
-     * <p>
-     * Future Improvements
-     * 1. If there is any subfield present of type keyword, for which source can be derived(doc_values/stored field
-     *    is present and other conditions are meeting for keyword field mapper, i.e. ignore_above or normalizer should
-     *    not be present in subfield mapping)
+     * Derive source using stored field, which would always be present for derived source enabled index field
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {

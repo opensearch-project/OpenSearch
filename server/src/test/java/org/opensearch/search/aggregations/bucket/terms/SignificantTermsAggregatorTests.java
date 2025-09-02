@@ -221,13 +221,13 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();
                 if (i % 2 == 0) {
-                    addFields(doc, NumberType.LONG.createFields("long_field", ODD_VALUE, true, true, false));
+                    addFields(doc, NumberType.LONG.createFields("long_field", ODD_VALUE, true, true, false, false));
                     doc.add(new Field("text", "odd", TextFieldMapper.Defaults.FIELD_TYPE));
                 } else {
-                    addFields(doc, NumberType.LONG.createFields("long_field", EVEN_VALUE, true, true, false));
+                    addFields(doc, NumberType.LONG.createFields("long_field", EVEN_VALUE, true, true, false, false));
                     doc.add(new Field("text", "even", TextFieldMapper.Defaults.FIELD_TYPE));
                 }
-                addFields(doc, NumberType.LONG.createFields("long_field", COMMON_VALUE, true, true, false));
+                addFields(doc, NumberType.LONG.createFields("long_field", COMMON_VALUE, true, true, false, false));
                 w.addDocument(doc);
             }
 

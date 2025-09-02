@@ -217,6 +217,23 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             return point;
         }
 
+        @Override
+        public byte[] encodePoint(Object value, boolean roundUp) {
+            long scaledValue = Math.round(scale(value));
+            if (roundUp) {
+                if (scaledValue < Long.MAX_VALUE) {
+                    scaledValue = scaledValue + 1;
+                }
+            } else {
+                if (scaledValue > Long.MIN_VALUE) {
+                    scaledValue = scaledValue - 1;
+                }
+            }
+            byte[] point = new byte[Long.BYTES];
+            LongPoint.encodeDimension(scaledValue, point, 0);
+            return point;
+        }
+
         public double getScalingFactor() {
             return scalingFactor;
         }
@@ -468,7 +485,14 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
 
-        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
+        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
+            fieldType().name(),
+            scaledValue,
+            indexed,
+            hasDocValues,
+            false,
+            stored
+        );
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (indexed || stored)) {

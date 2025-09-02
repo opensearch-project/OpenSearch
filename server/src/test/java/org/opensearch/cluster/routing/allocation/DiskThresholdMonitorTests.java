@@ -901,7 +901,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         // High stage threshold (50%) = 200 * 0.15 = 30
         // Free space = 28 < 30, so should exceed low stage
         Map<String, DiskUsage> diskUsages = new HashMap<>();
-        diskUsages.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 8));
+        diskUsages.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 28));
 
         Map<String, AggregateFileCacheStats> fileCacheStats = new HashMap<>();
         fileCacheStats.put("warm_node", createAggregateFileCacheStats(100));
@@ -982,7 +982,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         // High stage threshold (10%) = 200 * 0.1 = 20
         // Free space = 18 < 20, so should exceed high stage
         Map<String, DiskUsage> diskUsages = new HashMap<>();
-        diskUsages.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 8));
+        diskUsages.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 18));
 
         Map<String, AggregateFileCacheStats> fileCacheStats = new HashMap<>();
         fileCacheStats.put("warm_node", createAggregateFileCacheStats(100));

@@ -223,9 +223,8 @@ public abstract class AbstractTermVectorsTestCase extends ParameterizedStaticSet
             if (requestPayloads) {
                 requested += "payload,";
             }
-            Locale aLocale = new Locale("en", "US");
             return String.format(
-                aLocale,
+                Locale.US,
                 "(doc: %s\n requested: %s, fields: %s)",
                 doc,
                 requested,

@@ -6,7 +6,7 @@ jobs:
   detect-breaking-change:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: actions/setup-java@v4
       with:
         distribution: temurin # Temurin is a distribution of adoptium
@@ -15,7 +15,7 @@ jobs:
       with:
         cache-disabled: true
         arguments: japicmp
-        gradle-version: 8.14
+        gradle-version: 8.14.3
         build-root-directory: server
     - if: failure()
       run: cat server/build/reports/java-compatibility/report.txt

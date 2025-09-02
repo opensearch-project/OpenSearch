@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.search.internal.SearchContext;
@@ -83,6 +84,39 @@ public class BucketCollectorProcessor {
                 }
             }
         }
+    }
+
+    /**
+     * For streaming aggregation, build one aggregation batch result
+     */
+    @ExperimentalApi
+    public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
+        final List<InternalAggregation> aggregations = new ArrayList<>();
+
+        final Queue<Collector> collectors = new LinkedList<>();
+        collectors.offer(collectorTree);
+        while (!collectors.isEmpty()) {
+            Collector currentCollector = collectors.poll();
+            if (currentCollector instanceof InternalProfileCollector) {
+                collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector) {
+                collectors.offer(((MinimumScoreCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MultiCollector) {
+                for (Collector innerCollector : ((MultiCollector) currentCollector).getCollectors()) {
+                    collectors.offer(innerCollector);
+                }
+            } else if (currentCollector instanceof BucketCollector) {
+                // Perform build aggregation during post collection
+                if (currentCollector instanceof Aggregator) {
+                    aggregations.add(((Aggregator) currentCollector).buildTopLevelBatch());
+                } else if (currentCollector instanceof MultiBucketCollector) {
+                    for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
+                        collectors.offer(innerCollector);
+                    }
+                }
+            }
+        }
+        return aggregations;
     }
 
     /**

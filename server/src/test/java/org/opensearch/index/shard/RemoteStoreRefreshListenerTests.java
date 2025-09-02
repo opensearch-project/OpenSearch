@@ -47,11 +47,14 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import org.mockito.stubbing.Answer;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
@@ -157,7 +160,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
             mock(ThreadPool.class),
-            shardId
+            shardId,
+            new HashMap<>()
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
@@ -224,7 +228,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
             mock(ThreadPool.class),
-            shardId
+            shardId,
+            new HashMap<>()
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
@@ -730,7 +735,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 mock(RemoteDirectory.class),
                 mock(RemoteStoreLockManager.class),
                 indexShard.getThreadPool(),
-                indexShard.shardId
+                indexShard.shardId,
+                new HashMap<>()
             );
         } else {
             remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore()
@@ -818,7 +824,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(shard.getRemoteStoreSettings()).thenReturn(remoteStoreSettings);
         if (testUploadTimeout) {
             when(remoteStoreSettings.getClusterRemoteSegmentTransferTimeout()).thenReturn(TimeValue.timeValueMillis(10));
-            doAnswer(invocation -> {
+            Answer<Boolean> answer = invocation -> {
                 ActionListener<Void> actionListener = invocation.getArgument(5);
                 indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
                     try {
@@ -829,7 +835,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                     actionListener.onResponse(null);
                 });
                 return true;
-            }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(ActionListener.class), any(Boolean.class));
+            };
+            doAnswer(answer).when(remoteDirectory)
+                .copyFrom(any(), any(), any(), any(), any(), any(ActionListener.class), any(Boolean.class));
+
+            doAnswer(answer).when(remoteDirectory).copyFrom(any(), any(), any(), any());
         }
 
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(

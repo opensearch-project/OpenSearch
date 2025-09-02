@@ -803,8 +803,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createShardContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing automaton"));
-        assertThat(e.getMessage(), containsString("would require more than 10000 effort"));
+        assertTrue(e.getMessage().contains("Determinizing automaton"));
+        assertTrue(e.getMessage().contains("would require more than 10000 effort"));
+
+        // TooComplexToDeterminizeException should be thrown even if lenient is true
+        QueryStringQueryBuilder lenientQueryBuilder = queryStringQuery("/[ac]*a[ac]{50,200}/").defaultField(TEXT_FIELD_NAME).lenient(true);
+        e = expectThrows(TooComplexToDeterminizeException.class, () -> lenientQueryBuilder.toQuery(createShardContext()));
+        assertTrue(e.getMessage().contains("Determinizing automaton"));
+        assertTrue(e.getMessage().contains("would require more than 10000 effort"));
     }
 
     /**

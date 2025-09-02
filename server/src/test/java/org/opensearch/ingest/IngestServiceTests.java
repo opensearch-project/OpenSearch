@@ -124,6 +124,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.argThat;
@@ -2937,19 +2938,29 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
         clusterState = createPipeline("pipeline", new BytesArray("{\"processors\": [{\"default\" : {}}]}"), ingestService, clusterState);
         createPipeline("final_pipeline", new BytesArray("{\"processors\": [{\"dummy\" : {}}]}"), ingestService, clusterState);
 
+        // prepare systemIngestPipelineCache for the case using index template
+        SystemIngestPipelineCache systemIngestPipelineCache = ingestService.getSystemIngestPipelineCache();
+        systemIngestPipelineCache.cachePipeline(
+            "[_index/template]",
+            new Pipeline("id", "description", null, new CompoundProcessor(false, List.of(dummySystemProcessor), Collections.emptyList())),
+            100
+        );
+
         // prepare request
         BulkRequest bulkRequest = new BulkRequest();
         IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
             .source(emptyMap())
             .setPipeline("pipeline")
             .setFinalPipeline("final_pipeline")
-            .setSystemIngestPipeline("index_pipeline");
+            .setSystemIngestPipeline("[_index/template]")
+            .isPipelineResolved(true);
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
             .source(emptyMap())
             .setPipeline("pipeline")
             .setFinalPipeline("final_pipeline")
-            .setSystemIngestPipeline("index_pipeline");
+            .setSystemIngestPipeline("[_index/template]")
+            .isPipelineResolved(true);
         bulkRequest.add(indexRequest2);
 
         // prepare handler
@@ -2967,6 +2978,10 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
             Names.WRITE
         );
 
+        // verify we use the system pipeline from the cache
+        verify(systemIngestPipelineCache, times(1)).getSystemIngestPipeline(any());
+        // only 1 time for set up
+        verify(systemIngestPipelineCache, times(1)).cachePipeline(any(), any(), anyInt());
         // verify
         verify(defaultProcessor, times(1)).batchExecute(any(), any());
         verify(dummyProcessor, times(1)).batchExecute(any(), any());
@@ -3030,7 +3045,73 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
             .source(emptyMap())
             .setPipeline("_none")
             .setFinalPipeline("_none")
-            .setSystemIngestPipeline("[_index/uuid]");
+            .setSystemIngestPipeline("[_index/uuid]")
+            .isPipelineResolved(true);
+        bulkRequest.add(indexRequest1);
+
+        // prepare systemIngestPipelineCache
+        SystemIngestPipelineCache systemIngestPipelineCache = ingestService.getSystemIngestPipelineCache();
+        systemIngestPipelineCache.cachePipeline(
+            "[_index/uuid]",
+            new Pipeline("id", "description", null, new CompoundProcessor(false, List.of(dummySystemProcessor), Collections.emptyList())),
+            100
+        );
+
+        // prepare handler
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
+
+        // call
+        ingestService.executeBulkRequest(
+            1,
+            bulkRequest.requests(),
+            failureHandler::put,
+            completionHandler::put,
+            dropHandler::add,
+            Names.WRITE
+        );
+
+        // verify we use the system pipeline from the cache
+        verify(systemIngestPipelineCache, times(1)).getSystemIngestPipeline(any());
+        // only 1 time for set up
+        verify(systemIngestPipelineCache, times(1)).cachePipeline(any(), any(), anyInt());
+        // verify
+        verify(dummySystemProcessor, times(1)).execute(any(), any());
+        assertTrue(failureHandler.isEmpty());
+        assertTrue(dropHandler.isEmpty());
+        assertEquals(1, completionHandler.size());
+    }
+
+    public void testExecuteBulkRequestWithSystemPipelineButCacheNotAvailable() throws Exception {
+        // mock a system pipeline do nothing
+        final Processor dummySystemProcessor = mock(Processor.class);
+        final Map<String, Processor.Factory> systemProcessors = createDummyMockSystemProcessors(dummySystemProcessor, false);
+
+        // add index metadata for the new index
+        IngestService ingestService = createIngestServiceWithProcessors(Map.of(), systemProcessors);
+        IndexMetadata indexMetadata = spy(
+            IndexMetadata.builder("_index")
+                .settings(settings(Version.CURRENT))
+                .putMapping("{}")
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetadata.builder("alias").writeIndex(true).build())
+                .build()
+        );
+        when(indexMetadata.getIndex()).thenReturn(new Index("_index", "uuid"));
+        Metadata metadata = Metadata.builder().indices(Map.of("_index", indexMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ingestService.applyClusterState(new ClusterChangedEvent("_name", clusterState, clusterState));
+
+        // prepare request
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_none")
+            .setFinalPipeline("_none")
+            .setSystemIngestPipeline("[_index/uuid]")
+            .isPipelineResolved(true);
         bulkRequest.add(indexRequest1);
 
         // prepare handler
@@ -3048,6 +3129,11 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
             Names.WRITE
         );
 
+        // verify we resolve the system pipeline again and then cache it
+        SystemIngestPipelineCache systemIngestPipelineCache = ingestService.getSystemIngestPipelineCache();
+        verify(systemIngestPipelineCache, times(3)).getSystemIngestPipeline(any());
+        // only 1 time to cache the newly generated pipeline
+        verify(systemIngestPipelineCache, times(1)).cachePipeline(any(), any(), anyInt());
         // verify
         verify(dummySystemProcessor, times(1)).execute(any(), any());
         assertTrue(failureHandler.isEmpty());

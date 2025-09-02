@@ -115,8 +115,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchResponse.Clusters clusters;
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
-    private final int expectedTotalOps;
-    private final AtomicInteger totalOps = new AtomicInteger();
+    final int expectedTotalOps;
+    final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
@@ -296,30 +296,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 final Thread thread = Thread.currentThread();
                 try {
                     final SearchPhase phase = this;
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
-                        @Override
-                        public void innerOnResponse(Result result) {
-                            try {
-                                onShardResult(result, shardIt);
-                            } finally {
-                                executeNext(pendingExecutions, thread);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception t) {
-                            try {
-                                // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
-                                if (totalOps.get() == expectedTotalOps) {
-                                    onPhaseFailure(phase, "The phase has failed", t);
-                                } else {
-                                    onShardFailure(shardIndex, shard, shardIt, t);
-                                }
-                            } finally {
-                                executeNext(pendingExecutions, thread);
-                            }
-                        }
-                    });
+                    SearchActionListener<Result> listener = createShardActionListener(
+                        shard,
+                        shardIndex,
+                        shardIt,
+                        phase,
+                        pendingExecutions,
+                        thread
+                    );
+                    executePhaseOnShard(shardIt, shard, listener);
                 } catch (final Exception e) {
                     try {
                         /*
@@ -347,6 +332,54 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 r.run();
             }
         }
+    }
+
+    /**
+     * Extension point to create the appropriate action listener for shard execution.
+     * Override this method to provide custom listener implementations (e.g., streaming listeners).
+     *
+     * @param shard the shard target
+     * @param shardIndex the shard index
+     * @param shardIt the shard iterator
+     * @param phase the current search phase
+     * @param pendingExecutions pending executions for throttling
+     * @param thread the current thread for fork logic
+     * @return the action listener to use for this shard
+     */
+    SearchActionListener<Result> createShardActionListener(
+        final SearchShardTarget shard,
+        final int shardIndex,
+        final SearchShardIterator shardIt,
+        final SearchPhase phase,
+        final PendingExecutions pendingExecutions,
+        final Thread thread
+    ) {
+        return new SearchActionListener<Result>(shard, shardIndex) {
+            @Override
+            public void innerOnResponse(Result result) {
+                try {
+                    onShardResult(result, shardIt);
+                } catch (Exception e) {
+                    logger.trace("Failed to consume the shard {} result: {}", shard.getShardId(), e);
+                } finally {
+                    executeNext(pendingExecutions, thread);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception t) {
+                try {
+                    // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                    if (totalOps.get() == expectedTotalOps) {
+                        onPhaseFailure(phase, "The phase has failed", t);
+                    } else {
+                        onShardFailure(shardIndex, shard, shardIt, t);
+                    }
+                } finally {
+                    executeNext(pendingExecutions, thread);
+                }
+            }
+        };
     }
 
     /**
@@ -509,7 +542,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return failures;
     }
 
-    private void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
+    void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         setPhaseResourceUsages();
@@ -650,7 +683,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         successfulShardExecution(shardIt);
     }
 
-    private void successfulShardExecution(SearchShardIterator shardsIt) {
+    void successfulShardExecution(SearchShardIterator shardsIt) {
         final int remainingOpsOnIterator;
         if (shardsIt.skip()) {
             remainingOpsOnIterator = shardsIt.remaining();
@@ -871,7 +904,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     protected abstract SearchPhase getNextPhase(SearchPhaseResults<Result> results, SearchPhaseContext context);
 
-    private void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
+    void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
         executeNext(pendingExecutions == null ? null : pendingExecutions::finishAndRunNext, originalThread);
     }
 
@@ -892,7 +925,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      *
      * @opensearch.internal
      */
-    private static final class PendingExecutions {
+    static final class PendingExecutions {
         private final int permits;
         private int permitsTaken = 0;
         private ArrayDeque<Runnable> queue = new ArrayDeque<>();

@@ -13,13 +13,18 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.termsQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -227,6 +232,53 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             expectedHitCount
         );
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), numDocs);
+    }
+
+    public void testMustNotNumericMatchOrTermQueryRewrite() throws Exception {
+        Map<Integer, Integer> statusToDocCountMap = Map.of(200, 1000, 404, 30, 500, 1, 400, 1293);
+        String statusField = "status";
+        createIndex("test");
+        int totalDocs = 0;
+        for (Map.Entry<Integer, Integer> entry : statusToDocCountMap.entrySet()) {
+            for (int i = 0; i < entry.getValue(); i++) {
+                client().prepareIndex("test").setSource(statusField, entry.getKey()).get();
+            }
+            totalDocs += entry.getValue();
+        }
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
+
+        int excludedValue = randomFrom(statusToDocCountMap.keySet());
+        int expectedHitCount = totalDocs - statusToDocCountMap.get(excludedValue);
+
+        // Check the rewritten match query behaves as expected
+        assertHitCount(
+            client().prepareSearch("test").setQuery(boolQuery().mustNot(matchQuery(statusField, excludedValue))).get(),
+            expectedHitCount
+        );
+
+        // Check the rewritten term query behaves as expected
+        assertHitCount(
+            client().prepareSearch("test").setQuery(boolQuery().mustNot(termQuery(statusField, excludedValue))).get(),
+            expectedHitCount
+        );
+
+        // Check a rewritten terms query behaves as expected
+        List<Integer> excludedValues = new ArrayList<>();
+        excludedValues.add(excludedValue);
+        int secondExcludedValue = randomFrom(statusToDocCountMap.keySet());
+        expectedHitCount = totalDocs - statusToDocCountMap.get(excludedValue);
+        if (secondExcludedValue != excludedValue) {
+            excludedValues.add(secondExcludedValue);
+            expectedHitCount -= statusToDocCountMap.get(secondExcludedValue);
+        }
+
+        assertHitCount(
+            client().prepareSearch("test").setQuery(boolQuery().mustNot(termsQuery(statusField, excludedValues))).get(),
+            expectedHitCount
+        );
     }
 
     public void testMustToFilterRewrite() throws Exception {

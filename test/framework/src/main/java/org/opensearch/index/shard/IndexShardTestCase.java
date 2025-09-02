@@ -33,6 +33,7 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -142,7 +143,9 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
@@ -171,6 +174,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -733,7 +737,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 indexSettings::getRefreshInterval,
                 new Object(),
                 clusterService.getClusterApplierService(),
-                MergedSegmentPublisher.EMPTY
+                MergedSegmentPublisher.EMPTY,
+                ReferencedSegmentsPublisher.EMPTY
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
@@ -820,7 +825,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
             new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex().resolve("lock_files")))
         );
-        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool, shardId);
+        return new RemoteSegmentStoreDirectory(
+            dataDirectory,
+            metadataDirectory,
+            remoteStoreLockManager,
+            threadPool,
+            shardId,
+            new HashMap<>()
+        );
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
@@ -1797,11 +1809,20 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             final SegmentInfos primarySegmentInfos = segmentInfosSnapshot.get();
             primaryMetadata = primaryShard.store().getSegmentMetadataMap(primarySegmentInfos);
         }
+        ReplicationCheckpoint replicationCheckpoint = primaryShard.getLatestReplicationCheckpoint();
         for (IndexShard replica : replicaShards) {
             final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             targetService.startMergedSegmentReplication(
                 replica,
-                primaryShard.getLatestReplicationCheckpoint(),
+                new MergedSegmentCheckpoint(
+                    replicationCheckpoint.getShardId(),
+                    replicationCheckpoint.getPrimaryTerm(),
+                    replicationCheckpoint.getSegmentInfosVersion(),
+                    replicationCheckpoint.getLength(),
+                    replicationCheckpoint.getCodec(),
+                    replicationCheckpoint.getMetadataMap(),
+                    IndexFileNames.parseSegmentName(replicationCheckpoint.getMetadataMap().keySet().stream().toList().getFirst())
+                ),
                 getMergedSegmentTargetListener(primaryShard, replica, primaryMetadata, countDownLatch)
             );
         }

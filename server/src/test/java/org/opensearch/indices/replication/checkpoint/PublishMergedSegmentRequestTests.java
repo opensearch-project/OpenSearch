@@ -22,9 +22,10 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class PublishMergedSegmentRequestTests extends OpenSearchTestCase {
 
     public void testPublishMergedSegmentRequest() {
-        MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
             new ShardId(new Index("1", "1"), 0),
             0,
+            1,
             0,
             "",
             Collections.emptyMap(),
@@ -37,9 +38,10 @@ public class PublishMergedSegmentRequestTests extends OpenSearchTestCase {
     }
 
     public void testSerialize() throws Exception {
-        MergeSegmentCheckpoint checkpoint = new MergeSegmentCheckpoint(
+        MergedSegmentCheckpoint checkpoint = new MergedSegmentCheckpoint(
             new ShardId(new Index("1", "1"), 0),
             0,
+            1,
             0,
             "",
             Collections.emptyMap(),

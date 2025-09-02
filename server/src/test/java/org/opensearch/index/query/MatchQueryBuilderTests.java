@@ -34,6 +34,9 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -50,6 +53,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
@@ -58,6 +62,7 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -76,6 +81,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
@@ -633,5 +639,41 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    public void testGetComplement() throws Exception {
+        // getComplement() should return null if QueryShardContext is null
+        int value = 200;
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(INT_FIELD_NAME, value);
+        assertNull(queryBuilder.getComplement(null));
+
+        // getComplement() should return 2 range queries if this is a numeric field
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        testGetComplementNumericField(queryBuilder, value, INT_FIELD_NAME, searcher);
+
+        // should return null if this isn't a numeric field
+        queryBuilder = new MatchQueryBuilder(TEXT_FIELD_NAME, "some_text");
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+
+        IOUtils.close(w, reader, dir);
+    }
+
+    // pkg-private so it can be reused in TermQueryBuilderTests
+    static void testGetComplementNumericField(
+        ComplementAwareQueryBuilder queryBuilder,
+        int value,
+        String fieldName,
+        IndexSearcher searcher
+    ) {
+        List<? extends QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
+        RangeQueryBuilder expectedLower = new RangeQueryBuilder(fieldName).to(value).includeLower(true).includeUpper(false);
+        RangeQueryBuilder expectedUpper = new RangeQueryBuilder(fieldName).from(value).includeLower(false).includeUpper(true);
+        assertEquals(2, complement.size());
+        assertTrue(complement.contains(expectedLower));
+        assertTrue(complement.contains(expectedUpper));
     }
 }

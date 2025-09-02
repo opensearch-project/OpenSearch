@@ -25,15 +25,11 @@ public class MergedSegmentPublisher {
 
     // This Component is behind feature flag so we are manually binding this in IndicesModule.
     @Inject
-    public MergedSegmentPublisher(PublishMergedSegmentAction publishAction) {
-        this(publishAction::publish);
-    }
-
     public MergedSegmentPublisher(PublishAction publishAction) {
         this.publishAction = Objects.requireNonNull(publishAction);
     }
 
-    public void publish(IndexShard indexShard, MergeSegmentCheckpoint checkpoint) {
+    public void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
         publishAction.publish(indexShard, checkpoint);
     }
 
@@ -44,7 +40,7 @@ public class MergedSegmentPublisher {
      */
     @ExperimentalApi
     public interface PublishAction {
-        void publish(IndexShard indexShard, MergeSegmentCheckpoint checkpoint);
+        void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint);
     }
 
     /**

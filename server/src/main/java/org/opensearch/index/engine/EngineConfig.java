@@ -318,6 +318,45 @@ public final class EngineConfig {
     }
 
     /**
+     * Creates a new Builder pre-populated with all values from this EngineConfig.
+     * This allows for easy modification of specific fields while preserving all others.
+     *
+     * @return a new Builder instance with all current configuration values
+     */
+    public Builder toBuilder() {
+        return new Builder().shardId(this.shardId)
+            .threadPool(this.threadPool)
+            .indexSettings(this.indexSettings)
+            .warmer(this.warmer)
+            .store(this.store)
+            .mergePolicy(this.mergePolicy)
+            .analyzer(this.analyzer)
+            .similarity(this.similarity)
+            .codecService(this.codecService)
+            .eventListener(this.eventListener)
+            .queryCache(this.queryCache)
+            .queryCachingPolicy(this.queryCachingPolicy)
+            .translogConfig(this.translogConfig)
+            .translogDeletionPolicyFactory(this.translogDeletionPolicyFactory)
+            .flushMergesAfter(this.flushMergesAfter)
+            .externalRefreshListener(this.externalRefreshListener)
+            .internalRefreshListener(this.internalRefreshListener)
+            .indexSort(this.indexSort)
+            .circuitBreakerService(this.circuitBreakerService)
+            .globalCheckpointSupplier(this.globalCheckpointSupplier)
+            .retentionLeasesSupplier(this.retentionLeasesSupplier)
+            .primaryTermSupplier(this.primaryTermSupplier)
+            .tombstoneDocSupplier(this.tombstoneDocSupplier)
+            .readOnlyReplica(this.isReadOnlyReplica)
+            .startedPrimarySupplier(this.startedPrimarySupplier)
+            .translogFactory(this.translogFactory)
+            .leafSorter(this.leafSorter)
+            .documentMapperForTypeSupplier(this.documentMapperForTypeSupplier)
+            .indexReaderWarmer(this.indexReaderWarmer)
+            .clusterApplierService(this.clusterApplierService);
+    }
+
+    /**
      * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled
      * by {@link IndexingMemoryController}
      */
@@ -589,8 +628,9 @@ public final class EngineConfig {
     /**
      * Builder for EngineConfig class
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "3.3.0")
     public static class Builder {
         private ShardId shardId;
         private ThreadPool threadPool;

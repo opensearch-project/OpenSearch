@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -92,7 +93,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         TRUE,
         FALSE,
         STRICT,
-        STRICT_ALLOW_TEMPLATES
+        STRICT_ALLOW_TEMPLATES,
+        FALSE_ALLOW_TEMPLATES
     }
 
     /**
@@ -312,6 +314,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     builder.dynamic(Dynamic.STRICT);
                 } else if (value.equalsIgnoreCase("strict_allow_templates")) {
                     builder.dynamic(Dynamic.STRICT_ALLOW_TEMPLATES);
+                } else if (value.equalsIgnoreCase("false_allow_templates")) {
+                    builder.dynamic(Dynamic.FALSE_ALLOW_TEMPLATES);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
@@ -903,4 +907,22 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     }
 
+    @Override
+    public void canDeriveSource() {
+        if (!this.enabled.value() || this.nested.isNested()) {
+            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled/nested");
+        }
+        for (final Mapper mapper : this.mappers.values()) {
+            mapper.canDeriveSource();
+        }
+    }
+
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        builder.startObject(simpleName());
+        for (final Mapper mapper : this.mappers.values()) {
+            mapper.deriveSource(builder, leafReader, docId);
+        }
+        builder.endObject();
+    }
 }

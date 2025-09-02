@@ -16,6 +16,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
@@ -35,6 +36,7 @@ import java.util.concurrent.Executors;
 public class DefaultStreamPoller implements StreamPoller {
     private static final Logger logger = LogManager.getLogger(DefaultStreamPoller.class);
     private static final int DEFAULT_POLLER_SLEEP_PERIOD_MS = 100;
+    private static final int CONSUMER_INIT_RETRY_INTERVAL_MS = 10000;
 
     private volatile State state = State.NONE;
 
@@ -49,7 +51,11 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private volatile long lastPolledMessageTimestamp = 0;
 
+    @Nullable
     private IngestionShardConsumer consumer;
+    private IngestionConsumerFactory consumerFactory;
+    private String consumerClientId;
+    private int shardId;
 
     private ExecutorService consumerThread;
 
@@ -80,10 +86,12 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private PartitionedBlockingQueueContainer blockingQueueContainer;
 
-    public DefaultStreamPoller(
+    private DefaultStreamPoller(
         IngestionShardPointer startPointer,
         Set<IngestionShardPointer> persistedPointers,
-        IngestionShardConsumer consumer,
+        IngestionConsumerFactory consumerFactory,
+        String consumerClientId,
+        int shardId,
         IngestionEngine ingestionEngine,
         ResetState resetState,
         String resetValue,
@@ -97,14 +105,10 @@ public class DefaultStreamPoller implements StreamPoller {
         this(
             startPointer,
             persistedPointers,
-            consumer,
-            new PartitionedBlockingQueueContainer(
-                numProcessorThreads,
-                consumer.getShardId(),
-                ingestionEngine,
-                errorStrategy,
-                blockingQueueSize
-            ),
+            consumerFactory,
+            consumerClientId,
+            shardId,
+            new PartitionedBlockingQueueContainer(numProcessorThreads, shardId, ingestionEngine, errorStrategy, blockingQueueSize),
             resetState,
             resetValue,
             errorStrategy,
@@ -115,10 +119,15 @@ public class DefaultStreamPoller implements StreamPoller {
         );
     }
 
+    /**
+     * Visible for testing.
+     */
     DefaultStreamPoller(
         IngestionShardPointer startPointer,
         Set<IngestionShardPointer> persistedPointers,
-        IngestionShardConsumer consumer,
+        IngestionConsumerFactory consumerFactory,
+        String consumerClientId,
+        int shardId,
         PartitionedBlockingQueueContainer blockingQueueContainer,
         ResetState resetState,
         String resetValue,
@@ -128,7 +137,9 @@ public class DefaultStreamPoller implements StreamPoller {
         int pollTimeout,
         IndexSettings indexSettings
     ) {
-        this.consumer = Objects.requireNonNull(consumer);
+        this.consumerFactory = Objects.requireNonNull(consumerFactory);
+        this.consumerClientId = Objects.requireNonNull(consumerClientId);
+        this.shardId = shardId;
         this.resetState = resetState;
         this.resetValue = resetValue;
         this.initialBatchStartPointer = startPointer;
@@ -141,10 +152,7 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         this.blockingQueueContainer = blockingQueueContainer;
         this.consumerThread = Executors.newSingleThreadExecutor(
-            r -> new Thread(
-                r,
-                String.format(Locale.ROOT, "stream-poller-consumer-%d-%d", consumer.getShardId(), System.currentTimeMillis())
-            )
+            r -> new Thread(r, String.format(Locale.ROOT, "stream-poller-consumer-%d-%d", shardId, System.currentTimeMillis()))
         );
         this.errorStrategy = errorStrategy;
         this.indexName = indexSettings.getIndex().getName();
@@ -178,7 +186,7 @@ public class DefaultStreamPoller implements StreamPoller {
         if (closed) {
             throw new IllegalStateException("poller is closed!");
         }
-        logger.info("Starting poller for shard {}", consumer.getShardId());
+        logger.info("Starting poller for shard {}", shardId);
 
         IngestionShardPointer failedShardPointer = null;
         while (true) {
@@ -188,45 +196,26 @@ public class DefaultStreamPoller implements StreamPoller {
                     break;
                 }
 
-                // reset the offset
-                if (resetState != ResetState.NONE) {
-                    switch (resetState) {
-                        case EARLIEST:
-                            initialBatchStartPointer = consumer.earliestPointer();
-                            logger.info("Resetting offset by seeking to earliest offset {}", initialBatchStartPointer.asString());
-                            break;
-                        case LATEST:
-                            initialBatchStartPointer = consumer.latestPointer();
-                            logger.info("Resetting offset by seeking to latest offset {}", initialBatchStartPointer.asString());
-                            break;
-                        case RESET_BY_OFFSET:
-                            initialBatchStartPointer = consumer.pointerFromOffset(resetValue);
-                            logger.info("Resetting offset by seeking to offset {}", initialBatchStartPointer.asString());
-                            break;
-                        case RESET_BY_TIMESTAMP:
-                            initialBatchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
-                            logger.info(
-                                "Resetting offset by seeking to timestamp {}, corresponding offset {}",
-                                resetValue,
-                                initialBatchStartPointer.asString()
-                            );
-                            break;
-                    }
-                    resetState = ResetState.NONE;
+                // Initialize consumer if not already initialized
+                if (this.consumer == null) {
+                    initializeConsumer(CONSUMER_INIT_RETRY_INTERVAL_MS);
+                    continue;
                 }
+
+                // reset the consumer offset
+                handleResetState();
 
                 if (paused || isWriteBlockEnabled) {
                     state = State.PAUSED;
                     try {
                         Thread.sleep(DEFAULT_POLLER_SLEEP_PERIOD_MS);
                     } catch (Throwable e) {
-                        logger.error("Error in pausing the poller of shard {}: {}", consumer.getShardId(), e);
+                        logger.error("Error in pausing the poller of shard {}: {}", shardId, e);
                     }
                     continue;
                 }
 
                 state = State.POLLING;
-
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results;
 
                 if (includeBatchStartPointer) {
@@ -251,7 +240,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 // Currently we do not have a good way to skip past the failing messages.
                 // The user will have the option to manually update the offset and resume ingestion.
                 // todo: support retry?
-                logger.error("Pausing ingestion. Fatal error occurred in polling the shard {}: {}", consumer.getShardId(), e);
+                logger.error("Pausing ingestion. Fatal error occurred in polling the shard {}: {}", shardId, e);
                 totalConsumerErrorCount.inc();
                 pause();
             }
@@ -283,12 +272,7 @@ public class DefaultStreamPoller implements StreamPoller {
                     result.getPointer().asString()
                 );
             } catch (Exception e) {
-                logger.error(
-                    "Error in processing a record. Shard {}, pointer {}: {}",
-                    consumer.getShardId(),
-                    result.getPointer().asString(),
-                    e
-                );
+                logger.error("Error in processing a record. Shard {}, pointer {}: {}", shardId, result.getPointer().asString(), e);
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
                 totalPollerMessageFailureCount.inc();
 
@@ -352,18 +336,18 @@ public class DefaultStreamPoller implements StreamPoller {
         while (state != State.CLOSED) {
             // Check if the timeout has been reached
             if (System.currentTimeMillis() - startTime > timeout) {
-                logger.error("Timeout reached while waiting for shard {} to close", consumer.getShardId());
+                logger.error("Timeout reached while waiting for shard {} to close", shardId);
                 break; // Exit the loop if the timeout is reached
             }
             try {
                 Thread.sleep(100);
             } catch (Throwable e) {
-                logger.error("Error in closing the poller of shard {}: {}", consumer.getShardId(), e);
+                logger.error("Error in closing the poller of shard {}: {}", shardId, e);
             }
         }
         consumerThread.shutdown();
         blockingQueueContainer.close();
-        logger.info("closed the poller of shard {}", consumer.getShardId());
+        logger.info("closed the poller of shard {}", shardId);
     }
 
     @Override
@@ -445,6 +429,7 @@ public class DefaultStreamPoller implements StreamPoller {
         this.isWriteBlockEnabled = isWriteBlockEnabled;
     }
 
+    @Nullable
     @Override
     public IngestionShardConsumer getConsumer() {
         return consumer;
@@ -463,6 +448,182 @@ public class DefaultStreamPoller implements StreamPoller {
         } catch (Exception e) {
             logger.error("Error applying cluster state in stream poller", e);
             throw e;
+        }
+    }
+
+    /**
+     * Handles the reset state logic, updating the initialBatchStartPointer based on the reset state.
+     */
+    private void handleResetState() {
+        if (resetState != ResetState.NONE) {
+            switch (resetState) {
+                case EARLIEST:
+                    initialBatchStartPointer = consumer.earliestPointer();
+                    logger.info("Resetting pointer by seeking to earliest pointer {}", initialBatchStartPointer.asString());
+                    break;
+                case LATEST:
+                    initialBatchStartPointer = consumer.latestPointer();
+                    logger.info("Resetting pointer by seeking to latest pointer {}", initialBatchStartPointer.asString());
+                    break;
+                case RESET_BY_OFFSET:
+                    initialBatchStartPointer = consumer.pointerFromOffset(resetValue);
+                    logger.info("Resetting pointer by seeking to pointer {}", initialBatchStartPointer.asString());
+                    break;
+                case RESET_BY_TIMESTAMP:
+                    initialBatchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
+                    logger.info(
+                        "Resetting pointer by seeking to timestamp {}, corresponding pointer {}",
+                        resetValue,
+                        initialBatchStartPointer.asString()
+                    );
+                    break;
+            }
+            resetState = ResetState.NONE;
+        }
+    }
+
+    /**
+     * Initializes the consumer using the provided consumerFactory. If an error is encountered during initialization,
+     * the poller thread sleeps for the provided duration before retrying/proceeding with the polling loop.
+     */
+    private void initializeConsumer(int sleepDurationOnError) {
+        try {
+            this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId);
+            logger.info("Successfully initialized consumer for shard {}", shardId);
+        } catch (Exception e) {
+            logger.warn("Failed to create consumer for shard {}: {}", shardId, e.getMessage());
+            totalConsumerErrorCount.inc();
+            try {
+                Thread.sleep(sleepDurationOnError);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /**
+     * Builder for DefaultStreamPoller
+     */
+    public static class Builder {
+        private IngestionShardPointer startPointer;
+        private Set<IngestionShardPointer> persistedPointers;
+        private IngestionConsumerFactory consumerFactory;
+        private String consumerClientId;
+        private int shardId;
+        private IngestionEngine ingestionEngine;
+        private ResetState resetState = ResetState.LATEST;
+        private String resetValue = "";
+        private IngestionErrorStrategy errorStrategy;
+        private State initialState = State.NONE;
+        private long maxPollSize = 1000;
+        private int pollTimeout = 1000;
+        private int numProcessorThreads = 1;
+        private int blockingQueueSize = 100;
+
+        /**
+         * Initialize the builder with mandatory parameters
+         */
+        public Builder(
+            IngestionShardPointer startPointer,
+            Set<IngestionShardPointer> persistedPointers,
+            IngestionConsumerFactory consumerFactory,
+            String consumerClientId,
+            int shardId,
+            IngestionEngine ingestionEngine
+        ) {
+            this.startPointer = startPointer;
+            this.persistedPointers = Objects.requireNonNull(persistedPointers);
+            this.consumerFactory = Objects.requireNonNull(consumerFactory);
+            this.consumerClientId = Objects.requireNonNull(consumerClientId);
+            this.shardId = shardId;
+            this.ingestionEngine = Objects.requireNonNull(ingestionEngine);
+            this.errorStrategy = new DropIngestionErrorStrategy("poller");
+        }
+
+        /**
+         * Set error strategy
+         */
+        public Builder errorStrategy(IngestionErrorStrategy errorStrategy) {
+            this.errorStrategy = Objects.requireNonNull(errorStrategy);
+            return this;
+        }
+
+        /**
+         * Set reset state
+         */
+        public Builder resetState(ResetState resetState) {
+            this.resetState = resetState;
+            return this;
+        }
+
+        /**
+         * Set reset value
+         */
+        public Builder resetValue(String resetValue) {
+            this.resetValue = resetValue;
+            return this;
+        }
+
+        /**
+         * Set initial state
+         */
+        public Builder initialState(State initialState) {
+            this.initialState = initialState;
+            return this;
+        }
+
+        /**
+         * Set max poll size
+         */
+        public Builder maxPollSize(long maxPollSize) {
+            this.maxPollSize = maxPollSize;
+            return this;
+        }
+
+        /**
+         * Set poll timeout
+         */
+        public Builder pollTimeout(int pollTimeout) {
+            this.pollTimeout = pollTimeout;
+            return this;
+        }
+
+        /**
+         * Set number of processor threads
+         */
+        public Builder numProcessorThreads(int numProcessorThreads) {
+            this.numProcessorThreads = numProcessorThreads;
+            return this;
+        }
+
+        /**
+         * Set blocking queue size
+         */
+        public Builder blockingQueueSize(int blockingQueueSize) {
+            this.blockingQueueSize = blockingQueueSize;
+            return this;
+        }
+
+        /**
+         * Build the DefaultStreamPoller instance
+         */
+        public DefaultStreamPoller build() {
+            return new DefaultStreamPoller(
+                startPointer,
+                persistedPointers,
+                consumerFactory,
+                consumerClientId,
+                shardId,
+                ingestionEngine,
+                resetState,
+                resetValue,
+                errorStrategy,
+                initialState,
+                maxPollSize,
+                pollTimeout,
+                numProcessorThreads,
+                blockingQueueSize
+            );
         }
     }
 }

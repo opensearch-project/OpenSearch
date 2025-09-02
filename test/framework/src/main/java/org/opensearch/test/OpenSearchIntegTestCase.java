@@ -193,7 +193,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -2017,9 +2017,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
         for (String stringAddress : stringAddresses) {
-            URL url = new URL("http://" + stringAddress);
-            InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+            URI uri = URI.create("http://" + stringAddress);
+            InetAddress inetAddress = InetAddress.getByName(uri.getHost());
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, uri.getPort()));
         }
         return new ExternalTestCluster(
             createTempDir(),

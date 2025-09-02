@@ -45,6 +45,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -120,6 +121,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.search.SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD;
+import static org.opensearch.search.SearchService.BUCKET_SELECTION_STRATEGY_FACTOR_SETTING;
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -214,7 +216,11 @@ final class DefaultSearchContext extends SearchContext {
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
+    private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
+
+    private final boolean isStreamSearch;
+    private StreamSearchChannelListener listener;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -230,7 +236,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean validate,
         Executor executor,
         Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        boolean isStreamSearch
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -275,8 +282,45 @@ final class DefaultSearchContext extends SearchContext {
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.filterRewriteSegmentThreshold = evaluateAggRewriteFilterSegThreshold();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
+        this.bucketSelectionStrategyFactor = evaluateBucketSelectionStrategyFactor();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
+        this.isStreamSearch = isStreamSearch;
+    }
+
+    DefaultSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTarget shardTarget,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        LongSupplier relativeTimeSupplier,
+        TimeValue timeout,
+        FetchPhase fetchPhase,
+        boolean lowLevelCancellation,
+        Version minNodeVersion,
+        boolean validate,
+        Executor executor,
+        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+    ) throws IOException {
+        this(
+            readerContext,
+            request,
+            shardTarget,
+            clusterService,
+            bigArrays,
+            relativeTimeSupplier,
+            timeout,
+            fetchPhase,
+            lowLevelCancellation,
+            minNodeVersion,
+            validate,
+            executor,
+            requestToAggReduceContextBuilder,
+            concurrentSearchDeciderFactories,
+            false
+        );
     }
 
     @Override
@@ -1190,6 +1234,11 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public int bucketSelectionStrategyFactor() {
+        return bucketSelectionStrategyFactor;
+    }
+
+    @Override
     public boolean keywordIndexOrDocValuesEnabled() {
         return keywordIndexOrDocValuesEnabled;
     }
@@ -1201,10 +1250,31 @@ final class DefaultSearchContext extends SearchContext {
         return 0;
     }
 
+    private int evaluateBucketSelectionStrategyFactor() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(BUCKET_SELECTION_STRATEGY_FACTOR_SETTING);
+        }
+        return SearchService.DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR;
+    }
+
     public boolean evaluateKeywordIndexOrDocValuesEnabled() {
         if (clusterService != null) {
             return clusterService.getClusterSettings().get(KEYWORD_INDEX_OR_DOC_VALUES_ENABLED);
         }
         return false;
+    }
+
+    public void setStreamChannelListener(StreamSearchChannelListener listener) {
+        assert isStreamSearch() : "Stream search not enabled";
+        this.listener = listener;
+    }
+
+    public StreamSearchChannelListener getStreamChannelListener() {
+        assert isStreamSearch() : "Stream search not enabled";
+        return listener;
+    }
+
+    public boolean isStreamSearch() {
+        return isStreamSearch;
     }
 }

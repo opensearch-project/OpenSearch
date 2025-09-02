@@ -25,7 +25,9 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
@@ -63,6 +65,16 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
 
     public Directory newDirectory(String repositoryName, String indexUUID, ShardId shardId, RemoteStorePathStrategy pathStrategy)
         throws IOException {
+        return newDirectory(repositoryName, indexUUID, shardId, pathStrategy, null);
+    }
+
+    public Directory newDirectory(
+        String repositoryName,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        String indexFixedPrefix
+    ) throws IOException {
         assert Objects.nonNull(pathStrategy);
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
 
@@ -70,6 +82,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
             BlobPath repositoryBasePath = blobStoreRepository.basePath();
             String shardIdStr = String.valueOf(shardId.id());
+            Map<String, String> pendingDownloadMergedSegments = new ConcurrentHashMap<>();
 
             RemoteStorePathStrategy.ShardDataPathInput dataPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
                 .basePath(repositoryBasePath)
@@ -78,6 +91,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .dataCategory(SEGMENTS)
                 .dataType(DATA)
                 .fixedPrefix(segmentsPathFixedPrefix)
+                .indexFixedPrefix(indexFixedPrefix)
                 .build();
             // Derive the path for data directory of SEGMENTS
             BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
@@ -85,7 +99,9 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 blobStoreRepository.blobStore().blobContainer(dataPath),
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitLowPriorityRemoteUploadTransfers,
-                blobStoreRepository::maybeRateLimitRemoteDownloadTransfers
+                blobStoreRepository::maybeRateLimitRemoteDownloadTransfers,
+                blobStoreRepository::maybeRateLimitLowPriorityDownloadTransfers,
+                pendingDownloadMergedSegments
             );
 
             RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
@@ -95,6 +111,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 .dataCategory(SEGMENTS)
                 .dataType(METADATA)
                 .fixedPrefix(segmentsPathFixedPrefix)
+                .indexFixedPrefix(indexFixedPrefix)
                 .build();
             // Derive the path for metadata directory of SEGMENTS
             BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
@@ -107,10 +124,18 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 indexUUID,
                 shardIdStr,
                 pathStrategy,
-                segmentsPathFixedPrefix
+                segmentsPathFixedPrefix,
+                indexFixedPrefix
             );
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId);
+            return new RemoteSegmentStoreDirectory(
+                dataDirectory,
+                metadataDirectory,
+                mdLockManager,
+                threadPool,
+                shardId,
+                pendingDownloadMergedSegments
+            );
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

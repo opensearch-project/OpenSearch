@@ -45,6 +45,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -224,7 +225,7 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             subSearcher.search(weight, c);
             shardHits[shardIDX] = c.getTopDocs();
         }
-        CollapseTopFieldDocs mergedFieldDocs = CollapseTopFieldDocs.merge(sort, 0, expectedNumGroups, shardHits, true);
+        CollapseTopFieldDocs mergedFieldDocs = CollapseTopFieldDocs.merge(sort, 0, expectedNumGroups, shardHits);
         assertTopDocsEquals(query, mergedFieldDocs, collapseTopFieldDocs);
         w.close();
         reader.close();
@@ -455,4 +456,42 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         reader.close();
         dir.close();
     }
+
+    public void testInconsistentShardIndicesException() {
+        Sort sort = Sort.RELEVANCE;
+
+        // Create TopDocs with mixed shardIndex values - some set, some -1
+        ScoreDoc[] shard1Docs = {
+            new FieldDoc(1, 9.0f, new Object[] { 9.0f }, 0), // shardIndex = 0
+            new FieldDoc(2, 8.0f, new Object[] { 8.0f }, 0)  // shardIndex = 0
+        };
+
+        ScoreDoc[] shard2Docs = {
+            new FieldDoc(3, 7.0f, new Object[] { 7.0f }, -1), // shardIndex = -1 (inconsistent!)
+            new FieldDoc(4, 6.0f, new Object[] { 6.0f }, -1)  // shardIndex = -1
+        };
+
+        CollapseTopFieldDocs[] shardHits = {
+            new CollapseTopFieldDocs(
+                "field",
+                new TotalHits(2, TotalHits.Relation.EQUAL_TO),
+                shard1Docs,
+                sort.getSort(),
+                new Object[] { "val1", "val2" }
+            ),
+            new CollapseTopFieldDocs(
+                "field",
+                new TotalHits(2, TotalHits.Relation.EQUAL_TO),
+                shard2Docs,
+                sort.getSort(),
+                new Object[] { "val3", "val4" }
+            ) };
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            CollapseTopFieldDocs.merge(sort, 0, 10, shardHits);
+        });
+
+        assertEquals("Inconsistent order of shard indices", exception.getMessage());
+    }
+
 }

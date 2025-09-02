@@ -38,11 +38,15 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.IndexStoreListener;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -82,7 +86,9 @@ public interface IndexStorePlugin {
      *
      * @return a map from store type to an directory factory
      */
-    Map<String, DirectoryFactory> getDirectoryFactories();
+    default Map<String, DirectoryFactory> getDirectoryFactories() {
+        return Collections.emptyMap();
+    }
 
     /**
      * An interface that describes how to create a new composite directory instance per shard.
@@ -104,7 +110,8 @@ public interface IndexStorePlugin {
             ShardPath shardPath,
             DirectoryFactory localDirectoryFactory,
             Directory remoteDirectory,
-            FileCache fileCache
+            FileCache fileCache,
+            ThreadPool threadPool
         ) throws IOException;
     }
 
@@ -150,5 +157,44 @@ public interface IndexStorePlugin {
      */
     default Optional<IndexStoreListener> getIndexStoreListener() {
         return Optional.empty();
+    }
+
+    /**
+     * An interface that describes how to create a new Store instance per shard.
+     *
+     * @opensearch.api
+     */
+    @FunctionalInterface
+    @ExperimentalApi
+    interface StoreFactory {
+        /**
+         * Creates a new Store per shard. This method is called once per shard on shard creation.
+         * @param shardId the shard id
+         * @param indexSettings the shard's index settings
+         * @param directory the Lucene directory selected for this shard
+         * @param shardLock the shard lock to associate with the store
+         * @param onClose listener invoked on store close
+         * @param shardPath the shard path
+         * @return a new Store instance
+         */
+        Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath
+        ) throws IOException;
+    }
+
+    /**
+     * The {@link StoreFactory} mappings for this plugin. When an index is created a custom store factory can be selected via
+     * {@code index.store.factory}. If not set, the default store is used.
+     *
+     * @return a map from store type key to a store factory
+     */
+    @ExperimentalApi
+    default Map<String, StoreFactory> getStoreFactories() {
+        return Collections.emptyMap();
     }
 }

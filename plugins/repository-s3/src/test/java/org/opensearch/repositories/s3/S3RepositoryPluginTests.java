@@ -74,6 +74,7 @@ public class S3RepositoryPluginTests extends OpenSearchTestCase {
                         + "] is deprecated"
                 );
             }
+            assertTrue(plugin.getSettings().contains(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE));
         } finally {
             if (threadPool != null) {
                 terminate(threadPool);

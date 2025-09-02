@@ -1,0 +1,21 @@
+apply plugin: 'opensearch.opensearchplugin'
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  name = 'stream-transport-example'
+  description = 'Example plugin demonstrating stream-based transport actions'
+  classname = 'org.opensearch.example.stream.StreamTransportExamplePlugin'
+  licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
+}
+dependencies {
+  api project(':plugins:arrow-flight-rpc')
+}
+testingConventions.enabled = false
+internalClusterTest {
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+}

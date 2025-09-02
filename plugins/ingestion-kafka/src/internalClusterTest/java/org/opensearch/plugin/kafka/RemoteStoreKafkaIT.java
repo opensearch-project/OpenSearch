@@ -749,6 +749,59 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(4, List.of(nodeB));
     }
 
+    public void testKafkaConnectionLost() throws Exception {
+        // Step 1: Create 2 nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        // Step 2: Create index
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "earliest")
+                .put("index.routing.allocation.require._name", nodeA)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+        ensureGreen(indexName);
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
+
+        // Step 3: Write documents and verify
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        refresh(indexName);
+        waitForSearchableDocs(2, List.of(nodeA));
+        flush(indexName);
+
+        // Step 4: Stop kafka and relocate index to nodeB
+        kafka.stop();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", nodeB))
+                .get()
+        );
+
+        // Step 5: Wait for relocation to complete
+        waitForState(() -> nodeB.equals(primaryNodeName(indexName)));
+
+        // Step 6: Ensure index is searchable on nodeB even though kafka is down
+        ensureGreen(indexName);
+        waitForSearchableDocs(2, List.of(nodeB));
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats.getConsumerStats().totalConsumerErrorCount() > 0;
+        });
+    }
+
     private void verifyRemoteStoreEnabled(String node) {
         GetSettingsResponse settingsResponse = client(node).admin().indices().prepareGetSettings(indexName).get();
         String remoteStoreEnabled = settingsResponse.getIndexToSettings().get(indexName).get("index.remote_store.enabled");

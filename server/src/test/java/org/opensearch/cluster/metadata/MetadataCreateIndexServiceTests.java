@@ -1702,7 +1702,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(error.getMessage(), "failed to create index [test-index]");
         assertThat(
             error.getCause().getMessage(),
-            containsString("Cluster is migrating to remote store but no remote node found, failing index creation")
+            containsString("Cluster is migrating to remote store but remote translog is not configured, failing index creation")
         );
     }
 
@@ -1771,6 +1771,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         if (remoteStoreEnabled) {
             settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
+            settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
+            settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
         }
         settingsBuilder.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), pathType.toString());
         Settings settings = settingsBuilder.build();

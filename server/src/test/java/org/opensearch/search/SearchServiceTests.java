@@ -1275,6 +1275,91 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testExecuteFetchPhaseWithProfiler() throws Exception {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        searchRequest.source(new SearchSourceBuilder().profile(true));
+
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        service.executeQueryPhase(shardSearchRequest, randomBoolean(), task, queryFuture);
+        SearchPhaseResult queryResult = queryFuture.get();
+
+        List<Integer> docIds = new ArrayList<>();
+        docIds.add(0);
+        ShardFetchRequest fetchRequest = new ShardFetchRequest(queryResult.getContextId(), docIds, null);
+
+        PlainActionFuture<FetchSearchResult> fetchFuture = new PlainActionFuture<>();
+        service.executeFetchPhase(fetchRequest, task, fetchFuture);
+        FetchSearchResult fetchResult = fetchFuture.get();
+
+        assertNotNull("Profile results should be set when profiler is enabled", fetchResult.getProfileResults());
+        assertNotNull("Profile results should contain fetch phase data", fetchResult.getProfileResults().getFetchProfileResult());
+
+        service.freeReaderContext(queryResult.getContextId());
+    }
+
+    public void testExecuteFetchPhaseWithoutProfiler() throws Exception {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        searchRequest.source(new SearchSourceBuilder().profile(false));
+
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        service.executeQueryPhase(shardSearchRequest, randomBoolean(), task, queryFuture);
+        SearchPhaseResult queryResult = queryFuture.get();
+
+        List<Integer> docIds = new ArrayList<>();
+        docIds.add(0);
+        ShardFetchRequest fetchRequest = new ShardFetchRequest(queryResult.getContextId(), docIds, null);
+
+        PlainActionFuture<FetchSearchResult> fetchFuture = new PlainActionFuture<>();
+        service.executeFetchPhase(fetchRequest, task, fetchFuture);
+        FetchSearchResult fetchResult = fetchFuture.get();
+
+        assertNull("Profile results should be null when profiler is disabled", fetchResult.getProfileResults());
+
+        service.freeReaderContext(queryResult.getContextId());
+    }
+
     public void testCreateSearchContext() throws IOException {
         String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         IndexService indexService = createIndex(index);
