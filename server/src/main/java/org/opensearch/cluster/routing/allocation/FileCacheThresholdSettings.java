@@ -51,10 +51,10 @@ import java.util.Map;
  */
 public class FileCacheThresholdSettings {
 
-    public static final Setting<String> CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING = new Setting<>(
-        "cluster.filecache.activeusage.index.threshold",
+    public static final Setting<String> CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING = new Setting<>(
+        "cluster.filecache.activeusage.indexing.threshold",
         "90%",
-        (s) -> validThresholdSetting(s, "cluster.filecache.activeusage.index.threshold"),
+        (s) -> validThresholdSetting(s, "cluster.filecache.activeusage.indexing.threshold"),
         new IndexThresholdBreachValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -72,11 +72,11 @@ public class FileCacheThresholdSettings {
     private volatile Double fileCacheSearchThreshold;
 
     public FileCacheThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
-        final String index = CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.get(settings);
+        final String index = CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.get(settings);
         final String searchStage = CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.get(settings);
         setIndexThreshold(index);
         setSearchThreshold(searchStage);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING, this::setIndexThreshold);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING, this::setIndexThreshold);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING, this::setSearchThreshold);
     }
 
@@ -114,13 +114,13 @@ public class FileCacheThresholdSettings {
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String indexThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING);
+            final String indexThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING);
             doValidate(indexThreshold, value);
         }
 
         @Override
         public Iterator<Setting<?>> settings() {
-            final List<Setting<?>> settings = List.of(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING);
+            final List<Setting<?>> settings = List.of(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING);
             return settings.iterator();
         }
     }
@@ -138,7 +138,7 @@ public class FileCacheThresholdSettings {
             final String message = String.format(
                 Locale.ROOT,
                 "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
-                CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey(),
+                CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.getKey(),
                 high,
                 CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(),
                 search
@@ -160,7 +160,7 @@ public class FileCacheThresholdSettings {
     private static void doValidateAsBytes(final String index, final String search) {
         final ByteSizeValue indexBytes = thresholdBytesFromValue(
             index,
-            CLUSTER_FILECACHE_ACTIVEUSAGE_INDEX_THRESHOLD_SETTING.getKey(),
+            CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.getKey(),
             false
         );
         final ByteSizeValue searchStageBytes = thresholdBytesFromValue(

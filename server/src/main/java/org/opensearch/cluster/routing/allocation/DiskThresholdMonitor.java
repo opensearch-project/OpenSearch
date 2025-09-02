@@ -191,6 +191,7 @@ public class DiskThresholdMonitor {
                         String indexName = routing.index().getName();
                         indicesToBlockRead.add(indexName);
                         indicesToMarkReadOnly.add(indexName);
+                        indicesNotToAutoRelease.add(indexName);
                     }
                     logger.warn(
                         "search file cache threshold [{}] exceeded on {}, read block applied on indices on this node",
@@ -202,6 +203,7 @@ public class DiskThresholdMonitor {
                         for (ShardRouting routing : routingNode) {
                             String indexName = routing.index().getName();
                             indicesToMarkReadOnly.add(indexName);
+                            indicesNotToAutoRelease.add(indexName);
                         }
                         logger.warn(
                             "index file cache threshold [{}] exceeded on {}, indices on this node are marked read only.",
