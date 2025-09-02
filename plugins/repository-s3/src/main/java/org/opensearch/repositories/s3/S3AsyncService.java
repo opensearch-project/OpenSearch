@@ -29,7 +29,6 @@ import software.amazon.awssdk.http.crt.ProxyConfiguration;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -252,8 +251,7 @@ class S3AsyncService implements Closeable {
         setDefaultAwsProfilePath();
         final S3AsyncClientBuilder builder = S3AsyncClient.builder()
             .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
-            .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
-            .addPlugin(LegacyMd5Plugin.create());
+            .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
         builder.overrideConfiguration(buildOverrideConfiguration(clientSettings, clientExecutorService));
         final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         builder.credentialsProvider(credentials);
