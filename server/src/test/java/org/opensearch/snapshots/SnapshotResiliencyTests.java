@@ -2385,6 +2385,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null, // StreamTransportService - not available in test
                         searchService,
                         searchTransportService,
+                        null, // StreamSearchTransportService - not available in test
                         searchPhaseController,
                         clusterService,
                         actionFilters,

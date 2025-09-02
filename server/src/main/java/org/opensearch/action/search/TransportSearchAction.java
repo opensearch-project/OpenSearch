@@ -104,6 +104,7 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.OriginSettingClient;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.wlm.WorkloadGroupTask;
+import org.opensearch.common.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -168,6 +169,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final ThreadPool threadPool;
     final ClusterService clusterService;
     final SearchTransportService searchTransportService;
+    @Nullable
+    final StreamSearchTransportService streamSearchTransportService;
     private final RemoteClusterService remoteClusterService;
     final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
@@ -191,6 +194,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Nullable org.opensearch.transport.StreamTransportService streamTransportService,
         SearchService searchService,
         SearchTransportService searchTransportService,
+        @Nullable StreamSearchTransportService streamSearchTransportService,
         SearchPhaseController searchPhaseController,
         ClusterService clusterService,
         ActionFilters actionFilters,
@@ -208,6 +212,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
+        this.streamSearchTransportService = streamSearchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
         // Register request handlers for both transports: stream (if available) and classic
         if (streamTransportService != null) {
@@ -1265,10 +1270,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 tracer
             );
         } else {
+            final boolean isStreamingRequest = searchRequest.getStreamingSearchMode() != null
+                && (searchRequest.source() == null || searchRequest.source().size() > 0);
+
+            final SearchProgressListener progressListener = isStreamingRequest
+                ? new StreamingSearchProgressListener(listener, searchPhaseController, searchRequest)
+                : task.getProgressListener();
+
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                 executor,
                 circuitBreaker,
-                task.getProgressListener(),
+                progressListener,
                 searchRequest,
                 shardIterators.size(),
                 exc -> cancelTask(task, exc),
@@ -1279,7 +1291,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(
                         logger,
-                        searchTransportService,
+                        isStreamingRequest && streamSearchTransportService != null ? streamSearchTransportService : searchTransportService,
                         connectionLookup,
                         aliasFilter,
                         concreteIndexBoosts,
@@ -1299,26 +1311,51 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                     break;
                 case QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(
-                        logger,
-                        searchTransportService,
-                        connectionLookup,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        indexRoutings,
-                        searchPhaseController,
-                        executor,
-                        queryResultConsumer,
-                        searchRequest,
-                        listener,
-                        shardIterators,
-                        timeProvider,
-                        clusterState,
-                        task,
-                        clusters,
-                        searchRequestContext,
-                        tracer
-                    );
+                    System.out.println("DEBUG: isStreamingRequest=" + isStreamingRequest + ", streamSearchTransportService=" + (streamSearchTransportService != null));
+                    if (isStreamingRequest && streamSearchTransportService != null) {
+                        System.out.println("DEBUG: Using StreamSearchQueryThenFetchAsyncAction!");
+                        searchAsyncAction = new StreamSearchQueryThenFetchAsyncAction(
+                            logger,
+                            streamSearchTransportService,
+                            connectionLookup,
+                            aliasFilter,
+                            concreteIndexBoosts,
+                            indexRoutings,
+                            searchPhaseController,
+                            executor,
+                            queryResultConsumer,
+                            searchRequest,
+                            listener,
+                            shardIterators,
+                            timeProvider,
+                            clusterState,
+                            task,
+                            clusters,
+                            searchRequestContext,
+                            tracer
+                        );
+                    } else {
+                        searchAsyncAction = new SearchQueryThenFetchAsyncAction(
+                            logger,
+                            searchTransportService,
+                            connectionLookup,
+                            aliasFilter,
+                            concreteIndexBoosts,
+                            indexRoutings,
+                            searchPhaseController,
+                            executor,
+                            queryResultConsumer,
+                            searchRequest,
+                            listener,
+                            shardIterators,
+                            timeProvider,
+                            clusterState,
+                            task,
+                            clusters,
+                            searchRequestContext,
+                            tracer
+                        );
+                    }
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

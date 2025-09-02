@@ -107,8 +107,8 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
             );
         }
 
-        // Do not override action registrations. ActionModule already registers
-        // StreamTransportSearchAction for StreamSearchAction.INSTANCE.
+        // Do not override action registrations. ActionModule registers SearchAction via
+        // TransportSearchAction; streaming transport is enabled internally without a separate action.
     }
 
     // Use MockStreamNioTransport which supports streaming transport channels

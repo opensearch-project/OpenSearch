@@ -63,13 +63,14 @@ public class StreamSearchTransportService extends SearchTransportService {
             AdmissionControlActionType.SEARCH,
             ShardSearchRequest::new,
             (request, channel, task) -> {
+                boolean isStreamSearch = request.isStreamingSearch() || request.getStreamingSearchMode() != null;
                 searchService.executeQueryPhase(
                     request,
                     false,
                     (SearchShardTask) task,
                     new StreamSearchChannelListener<>(channel, QUERY_ACTION_NAME, request),
                     ThreadPool.Names.STREAM_SEARCH,
-                    true
+                    isStreamSearch
                 );
             }
         );
@@ -135,36 +136,39 @@ public class StreamSearchTransportService extends SearchTransportService {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        final StreamSearchActionListener streamListener = (StreamSearchActionListener) listener;
+        final boolean streamingListener = listener instanceof StreamSearchActionListener;
         StreamTransportResponseHandler<SearchPhaseResult> transportHandler = new StreamTransportResponseHandler<SearchPhaseResult>() {
             @Override
             public void handleStreamResponse(StreamTransportResponse<SearchPhaseResult> response) {
                 try {
-                    // only send previous result if we have a current result
-                    // if current result is null, that means the previous result is the last result
                     SearchPhaseResult currentResult;
                     SearchPhaseResult lastResult = null;
-
-                    // Keep reading results until we reach the end
                     while ((currentResult = response.nextResponse()) != null) {
-                        if (lastResult != null) {
-                            streamListener.onStreamResponse(lastResult, false);
+                        if (streamingListener) {
+                            if (lastResult != null) {
+                                ((StreamSearchActionListener) listener).onStreamResponse(lastResult, false);
+                            }
+                            lastResult = currentResult;
+                        } else {
+                            // Non-streaming: keep only the last (final) response
+                            lastResult = currentResult;
                         }
-                        lastResult = currentResult;
                     }
 
-                    // Send the final result as complete response, or null if no results
                     if (lastResult != null) {
-                        streamListener.onStreamResponse(lastResult, true);
-                        logger.debug("Processed final stream response");
+                        if (streamingListener) {
+                            ((StreamSearchActionListener) listener).onStreamResponse(lastResult, true);
+                            logger.debug("Processed final stream response");
+                        } else {
+                            listener.onResponse(lastResult);
+                        }
                     } else {
-                        // Empty stream case
-                        logger.error("Empty stream");
+                        logger.debug("Empty stream");
                     }
                     response.close();
                 } catch (Exception e) {
                     response.cancel("Client error during search phase", e);
-                    streamListener.onFailure(e);
+                    listener.onFailure(e);
                 }
             }
 

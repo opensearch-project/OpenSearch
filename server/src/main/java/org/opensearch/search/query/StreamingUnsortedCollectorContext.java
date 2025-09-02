@@ -206,10 +206,13 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
                 // Emit through listener if available
                 if (searchContext != null && searchContext.getStreamChannelListener() != null) {
+                    System.out.println("DEBUG: StreamChannelListener EXISTS! Emitting " + collectedDocs.size() + " docs");
                     logger.info("🚀 STREAMING: About to emit batch of {} docs, isFinal: {}", collectedDocs.size(), isFinal);
                     searchContext.getStreamChannelListener().onStreamResponse(partial, isFinal);
                     logger.info("✅ STREAMING: Successfully emitted batch of {} docs, isFinal: {}", collectedDocs.size(), isFinal);
                 } else {
+                    System.out.println("DEBUG: StreamChannelListener is NULL - searchContext=" + searchContext + 
+                                     ", listener=" + (searchContext != null ? searchContext.getStreamChannelListener() : "N/A"));
                     logger.warn("⚠️ STREAMING: No stream channel listener available for emission - test environment");
                 }
                 
