@@ -57,6 +57,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.bouncycastle:bouncycastle_pkix` from `2.0.8` to `2.1.9` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
 - Bump `org.bouncycastle:bouncycastle_pg` from `2.0.11` to `2.1.11` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
 - Bump `org.bouncycastle:bouncycastle_util` from `2.0.3` to `2.1.4` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
+- Bump `com.azure:azure-core` from 1.55.5 to 1.56.0 ([#19206](https://github.com/opensearch-project/OpenSearch/pull/19206))
+- Bump `com.google.cloud:google-cloud-core` from 2.59.0 to 2.60.0 ([#19208](https://github.com/opensearch-project/OpenSearch/pull/19208))
+- Bump `org.jsoup:jsoup` from 1.20.1 to 1.21.2 ([#19207](https://github.com/opensearch-project/OpenSearch/pull/19207))
 
 ### Deprecated
 
