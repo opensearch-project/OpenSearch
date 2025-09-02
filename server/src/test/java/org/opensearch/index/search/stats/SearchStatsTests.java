@@ -60,6 +60,7 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         Stats.Builder defaultStats = new Stats.Builder().queryCount(1)
             .queryTimeInMillis(1)
             .queryCurrent(1)
+            .queryFailed(1)
             .concurrentQueryCount(1)
             .concurrentQueryTimeInMillis(1)
             .concurrentQueryCurrent(1)
@@ -80,7 +81,7 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
             .starTreeQueryCount(1)
             .starTreeQueryTimeInMillis(1)
             .starTreeQueryCurrent(1)
-            .starTreeQueryCurrent(1);
+            .starTreeQueryFailed(1);
         groupStats2.put("group1", defaultStats.build());
         SearchStats searchStats1 = new SearchStats(defaultStats.build(), 0, groupStats1);
         SearchStats searchStats2 = new SearchStats(defaultStats.build(), 0, groupStats2);
@@ -137,12 +138,14 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         assertEquals(equalTo, stats.getQueryCount());
         assertEquals(equalTo, stats.getQueryTimeInMillis());
         assertEquals(equalTo, stats.getQueryCurrent());
+        assertEquals(equalTo, stats.getQueryFailedCount());
         assertEquals(equalTo, stats.getConcurrentQueryCount());
         assertEquals(equalTo, stats.getConcurrentQueryTimeInMillis());
         assertEquals(equalTo, stats.getConcurrentQueryCurrent());
         assertEquals(equalTo, stats.getStarTreeQueryCount());
         assertEquals(equalTo, stats.getStarTreeQueryTimeInMillis());
         assertEquals(equalTo, stats.getStarTreeQueryCurrent());
+        assertEquals(equalTo, stats.getStarTreeQueryFailed());
         assertEquals(equalTo, stats.getFetchCount());
         assertEquals(equalTo, stats.getFetchTimeInMillis());
         assertEquals(equalTo, stats.getFetchCurrent());
