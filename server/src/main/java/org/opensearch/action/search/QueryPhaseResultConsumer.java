@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -189,7 +190,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             aggsList,
             topDocsList,
             topDocsStats,
-            pendingMerges.numReducePhases,
+            pendingMerges.numReducePhases.get(),
             false,
             aggReduceContextBuilder,
             performFinalReduce
@@ -284,7 +285,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     public int getNumReducePhases() {
-        return pendingMerges.numReducePhases;
+        return pendingMerges.numReducePhases.get();
     }
 
     /**
@@ -309,7 +310,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         private final SearchPhaseController.TopDocsStats topDocsStats;
         private volatile MergeResult mergeResult;
         private volatile boolean hasPartialReduce;
-        private volatile int numReducePhases;
+        private final AtomicInteger numReducePhases = new AtomicInteger();
 
         PendingMerges(int batchReduceSize, int trackTotalHitsUpTo) {
             this.batchReduceSize = batchReduceSize;
@@ -516,8 +517,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
                         addEstimateAndMaybeBreak(estimatedMergeSize);
                         estimatedTotalSize += estimatedMergeSize;
-                        ++numReducePhases;
-                        newMerge = partialReduce(toConsume, task.emptyResults, topDocsStats, thisMergeResult, numReducePhases);
+                        newMerge = partialReduce(toConsume, task.emptyResults, topDocsStats, thisMergeResult, numReducePhases.incrementAndGet());
                     } catch (Exception t) {
                         onMergeFailure(t);
                         return;
