@@ -69,7 +69,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             GET_CHECKPOINT_INFO,
             request,
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionRetryTimeout()).build(),
-            new ActionListenerResponseHandler<>(listener, CheckpointInfoResponse::new, ThreadPool.Names.GENERIC)
+            new ActionListenerResponseHandler<>(listener, CheckpointInfoResponse::new, ThreadPool.Names.REPLICATION)
         );
     }
 
@@ -98,7 +98,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             GET_SEGMENT_FILES,
             request,
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-            new ActionListenerResponseHandler<>(listener, GetSegmentFilesResponse::new, ThreadPool.Names.GENERIC)
+            new ActionListenerResponseHandler<>(listener, GetSegmentFilesResponse::new, ThreadPool.Names.REPLICATION)
         );
     }
 
@@ -131,7 +131,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             GET_MERGED_SEGMENT_FILES,
             request,
             TransportRequestOptions.builder().withTimeout(recoverySettings.getMergedSegmentReplicationTimeout()).build(),
-            new ActionListenerResponseHandler<>(listener, GetSegmentFilesResponse::new, ThreadPool.Names.GENERIC)
+            new ActionListenerResponseHandler<>(listener, GetSegmentFilesResponse::new, ThreadPool.Names.REPLICATION)
         );
     }
 
