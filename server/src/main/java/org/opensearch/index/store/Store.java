@@ -433,16 +433,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 String origFile = entry.getValue();
                 // first, go and delete the existing ones
                 try {
-                    directory.deleteFile(origFile);
+                    directory().deleteFile(origFile);
                 } catch (FileNotFoundException | NoSuchFileException e) {} catch (Exception ex) {
                     logger.debug(() -> new ParameterizedMessage("failed to delete file [{}]", origFile), ex);
                 }
                 // now, rename the files... and fail it it won't work
-                directory.rename(tempFile, origFile);
+                directory().rename(tempFile, origFile);
                 final String remove = tempFileMap.remove(tempFile);
                 assert remove != null;
             }
-            directory.syncMetaData();
+            directory().syncMetaData();
         } finally {
             metadataLock.writeLock().unlock();
         }
