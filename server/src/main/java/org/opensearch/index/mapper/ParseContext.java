@@ -72,6 +72,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private final String prefix;
         private final List<IndexableField> fields;
         private Map<Object, IndexableField> keyedFields;
+        private Map<String, Object> groupingCriteriaParams;
+        private String groupingCriteria;
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
@@ -112,6 +114,25 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
         public List<IndexableField> getFields() {
             return fields;
+        }
+
+        public void addGroupingCriteriaParams(final String fieldName, final Object value) {
+            if (groupingCriteriaParams == null) {
+                groupingCriteriaParams = new HashMap<>();
+            }
+            groupingCriteriaParams.put(fieldName, value);
+        }
+
+        public Map<String, Object> getGroupingCriteriaParams() {
+            return groupingCriteriaParams;
+        }
+
+        public void setGroupingCriteria(String groupingCriteria) {
+            this.groupingCriteria = groupingCriteria;
+        }
+
+        public String getGroupingCriteria() {
+            return groupingCriteria;
         }
 
         public void addAll(List<? extends IndexableField> fields) {
