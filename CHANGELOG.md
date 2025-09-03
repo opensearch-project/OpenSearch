@@ -57,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.cloud:google-cloud-core` from 2.59.0 to 2.60.0 ([#19208](https://github.com/opensearch-project/OpenSearch/pull/19208))
 - Bump `org.jsoup:jsoup` from 1.20.1 to 1.21.2 ([#19207](https://github.com/opensearch-project/OpenSearch/pull/19207))
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19203](https://github.com/opensearch-project/OpenSearch/pull/19203))
+- Bump `com.maxmind.geoip2:geoip2` from 4.3.1 to 4.4.0 ([#19205](https://github.com/opensearch-project/OpenSearch/pull/19205))
 
 ### Deprecated
 
