@@ -153,7 +153,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setSource("foo", "bar")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        flush();
 
         // generate _1.si
         client().prepareIndex(INDEX_NAME)
@@ -161,9 +160,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setSource("foo2", "bar2")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        flush();
 
         waitForSearchableDocs(2, primaryNode, replicaNode);
+
+        // primary and replica generate index commit
+        flush();
 
         IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
         logger.info("primary {} acquire last IndexCommit", primaryShard.shardId());
