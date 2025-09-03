@@ -16,9 +16,13 @@ import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.protobuf.lite.ProtoLiteUtils;
 import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.ServerCalls;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
+import org.opensearch.test.NodeConfigurationSource;
 import org.opensearch.transport.grpc.ssl.NettyGrpcClient;
 
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -55,12 +59,45 @@ public class LoadExtendingPluginServicesIT extends GrpcTransportBaseIT {
                 return new MockEchoService();
             }
         }
+
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(GrpcPlugin.class, MockExtendingPlugin.class);
     }
+
+//    @Override
+//    protected NodeConfigurationSource getNodeConfigSource() {
+//        return new NodeConfigurationSource() {
+//            @Override
+//            public Settings nodeSettings(int nodeOrdinal) {
+//                return Settings.EMPTY;
+//            }
+//
+//            @Override
+//            public Path nodeConfigPath(int nodeOrdinal) {
+//                return null;
+//            }
+//
+//            @Override
+//            public Collection<PluginInfo> additionalNodePlugins() {
+//                // Return proper PluginInfo for MockExtendingPlugin with extended plugins declared
+//                return List.of(
+//                    new PluginInfo(
+//                        "mock-extending-plugin",
+//                        "Mock plugin that extends transport-grpc for testing",
+//                        "1.0.0",
+//                        org.opensearch.Version.CURRENT,
+//                        "21",
+//                        "org.opensearch.transport.grpc.LoadExtendingPluginServicesIT$MockExtendingPlugin",
+//                        List.of("transport-grpc"),
+//                        false
+//                    )
+//                );
+//            }
+//        };
+//    }
 
     public void testListInjectedService() throws Exception {
         System.out.println("PRINTING DISCOVERED SERVICES: ");
