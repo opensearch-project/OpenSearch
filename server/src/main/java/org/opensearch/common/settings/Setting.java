@@ -2244,42 +2244,102 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Creates a setting which specifies a memory size. This can either be
+     * specified as an absolute bytes value or as a percentage of the heap
+     * memory.
+     *
+     * @param key the key for the setting
+     * @param defaultPercentage the default value of this setting as a percentage of the heap memory
+     * @param minPercentage the minimum allowable value of this setting as a percentage of the heap memory
+     * @param maxPercentage the maximum allowable value of this setting as a percentage of the heap memory
+     * @param properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> memorySizeSetting(
+        String key,
+        String defaultPercentage,
+        String minPercentage,
+        String maxPercentage,
+        Property... properties
+    ) {
+        return new Setting<>(key, (s) -> defaultPercentage, new MemorySizeValueParser(key, minPercentage, maxPercentage), properties);
+    }
+
+    /**
      * A writeable parser for memory size value
      */
     public static class MemorySizeValueParser implements Function<String, ByteSizeValue>, Writeable {
         private String key;
+        private final ByteSizeValue minValue;
+        private final ByteSizeValue maxValue;
 
         public MemorySizeValueParser(String key) {
             this.key = key;
+            this.minValue = new ByteSizeValue(-1);
+            this.maxValue = new ByteSizeValue(Long.MAX_VALUE);
+        }
+
+        public MemorySizeValueParser(String key, String minValue, String maxValue) {
+            this.key = key;
+            this.minValue = MemorySizeValue.parseBytesSizeValueOrHeapRatio(minValue, key);
+            this.maxValue = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxValue, key);
         }
 
         public MemorySizeValueParser(StreamInput in) throws IOException {
             key = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+                this.minValue = new ByteSizeValue(in);
+                this.maxValue = new ByteSizeValue(in);
+            } else {
+                this.minValue = new ByteSizeValue(-1);
+                this.maxValue = new ByteSizeValue(Long.MAX_VALUE);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
+            if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+                minValue.writeTo(out);
+                maxValue.writeTo(out);
+            }
         }
 
         public String getKey() {
             return key;
         }
 
+        public ByteSizeValue getMin() {
+            return minValue;
+        }
+
+        public ByteSizeValue getMax() {
+            return maxValue;
+        }
+
         @Override
         public ByteSizeValue apply(String s) {
-            return MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
+            ByteSizeValue parsedValue = MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
+            if (parsedValue.getBytes() < minValue.getBytes()) {
+                String err = "Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue.toString();
+                throw new IllegalArgumentException(err);
+            }
+            if (parsedValue.getBytes() > maxValue.getBytes()) {
+                String err = "Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue.toString();
+                throw new IllegalArgumentException(err);
+            }
+            return parsedValue;
         }
 
         public boolean equals(Object obj) {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             MemorySizeValueParser that = (MemorySizeValueParser) obj;
-            return Objects.equals(key, that.key);
+            return Objects.equals(key, that.key) && minValue.equals(that.minValue) && maxValue.equals(that.maxValue);
         }
 
         public int hashCode() {
-            return Objects.hash(key);
+            return Objects.hash(key, minValue, maxValue);
         }
     }
 

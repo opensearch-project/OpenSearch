@@ -45,6 +45,9 @@ import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
@@ -140,6 +143,73 @@ public class MemorySizeSettingsTests extends OpenSearchTestCase {
             ByteSizeUnit.KB.toBytes(500),
             1.0
         );
+    }
+
+    public void testMinMaxSettingValues() {
+        String key = "setting_key";
+        double minPercentage = 0.5;
+        double maxPercentage = 10;
+        long minBytes = (long) (minPercentage * 0.01 * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+        long maxBytes = (long) (maxPercentage * 0.01 * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+        double defaultPercentage = 1;
+        long defaultBytes = (long) (defaultPercentage * 0.01 * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+
+        // Test inputs both as percents and byte strings
+        Setting<ByteSizeValue> dummySettingWithPercents = Setting.memorySizeSetting(
+            key,
+            defaultPercentage + "%",
+            minPercentage + "%",
+            maxPercentage + "%",
+            Property.Dynamic
+        );
+        Setting<ByteSizeValue> dummySettingWithBytes = Setting.memorySizeSetting(
+            key,
+            defaultBytes + "b",
+            minBytes + "b",
+            maxBytes + "b",
+            Property.Dynamic
+        );
+        for (Setting<ByteSizeValue> dummySetting : List.of(dummySettingWithBytes, dummySettingWithPercents)) {
+            assertThrows(IllegalArgumentException.class, () -> { dummySetting.get(Settings.builder().put(key, "0.49%").build()); });
+            assertThrows(IllegalArgumentException.class, () -> { dummySetting.get(Settings.builder().put(key, "11%").build()); });
+
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> { dummySetting.get(Settings.builder().put(key, minBytes - 1 + "b").build()); }
+            );
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> { dummySetting.get(Settings.builder().put(key, maxBytes + 1 + "b").build()); }
+            );
+
+            Settings settings = Settings.builder().put(key, "10%").build();
+            ByteSizeValue value = dummySetting.get(settings);
+            assertEquals(value.getBytes(), (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.1));
+
+            settings = Settings.builder().put(key, "0.5%").build();
+            value = dummySetting.get(settings);
+            assertEquals(value.getBytes(), (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.005));
+
+            assertEquals(dummySetting.get(Settings.EMPTY).getBytes(), defaultBytes);
+
+            // Show we can't dynamically update it out of the bounds
+            AtomicReference<ByteSizeValue> reference = new AtomicReference<>(null);
+            ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = dummySetting.newUpdater(reference::set, logger);
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> { settingUpdater.apply(Settings.builder().put(key, "11%").build(), Settings.EMPTY); }
+            );
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> { settingUpdater.apply(Settings.builder().put(key, "0.49%").build(), Settings.EMPTY); }
+            );
+            assertThrows(IllegalArgumentException.class, () -> {
+                settingUpdater.apply(Settings.builder().put(key, minBytes - 1 + "b").build(), Settings.EMPTY);
+            });
+            assertThrows(IllegalArgumentException.class, () -> {
+                settingUpdater.apply(Settings.builder().put(key, maxBytes + 1 + "b").build(), Settings.EMPTY);
+            });
+        }
     }
 
     private void assertMemorySizeSetting(Setting<ByteSizeValue> setting, String settingKey, ByteSizeValue defaultValue) {
