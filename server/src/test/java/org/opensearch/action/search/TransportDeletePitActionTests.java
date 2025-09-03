@@ -719,6 +719,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
     }
 
     public void testResolveIndices() throws InterruptedException, ExecutionException {
+        NodeClient client = new NodeClient(settings, threadPool);
+        client.initialize(null, null, null, namedWriteableRegistry);
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
@@ -761,6 +763,8 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
     }
 
     public void testResolveIndices_allPits() throws InterruptedException, ExecutionException {
+        NodeClient client = new NodeClient(settings, threadPool);
+        client.initialize(null, null, null, namedWriteableRegistry);
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
