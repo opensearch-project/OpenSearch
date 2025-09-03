@@ -81,6 +81,7 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+        source.disableSkipping();
         /*
         Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and
         returns a custom sort field otherwise.
@@ -228,18 +229,6 @@ public class NonPruningSortedSetOrdinalsIndexFieldData extends SortedSetOrdinals
 
         public static Type readType(DataInput in) throws IOException {
             return SortField.readType(in);
-        }
-
-        @Override
-        public FieldComparatorSource getComparatorSource() {
-            FieldComparatorSource source = delegate.getComparatorSource();
-            return new FieldComparatorSource() {
-                @Override
-                public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
-                    // explictly disable pruning
-                    return source.newComparator(fieldname, numHits, Pruning.NONE, reversed);
-                }
-            };
         }
 
         @Override
