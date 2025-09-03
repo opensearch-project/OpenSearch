@@ -251,10 +251,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIndexingQueryingConsistency() throws IOException {
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-            "scaled_float",
-            100
-        );
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         // Index the problematic value
