@@ -72,6 +72,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private final String prefix;
         private final List<IndexableField> fields;
         private Map<Object, IndexableField> keyedFields;
+        private Map<String, Object> namespaceContext;
+        private String namespace;
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
@@ -112,6 +114,25 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
         public List<IndexableField> getFields() {
             return fields;
+        }
+
+        public void addNamespaceContext(final String fieldName, final Object value) {
+            if (namespaceContext == null) {
+                namespaceContext = new HashMap<>();
+            }
+            namespaceContext.put(fieldName, value);
+        }
+
+        public Map<String, Object> getNamespaceContext() {
+            return namespaceContext;
+        }
+
+        public void setNamespace(String namespace) {
+            this.namespace = namespace;
+        }
+
+        public String getNamespace() {
+            return namespace;
         }
 
         public void addAll(List<? extends IndexableField> fields) {
