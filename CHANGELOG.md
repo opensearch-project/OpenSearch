@@ -58,6 +58,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jsoup:jsoup` from 1.20.1 to 1.21.2 ([#19207](https://github.com/opensearch-project/OpenSearch/pull/19207))
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19203](https://github.com/opensearch-project/OpenSearch/pull/19203))
 - Bump `com.maxmind.geoip2:geoip2` from 4.3.1 to 4.4.0 ([#19205](https://github.com/opensearch-project/OpenSearch/pull/19205))
+- Replace commons-lang:commons-lang with org.apache.commons:commons-lang3 ([#19229](https://github.com/opensearch-project/OpenSearch/pull/19229))
 
 ### Deprecated
 
