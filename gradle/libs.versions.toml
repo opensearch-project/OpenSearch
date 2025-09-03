@@ -157,6 +157,24 @@ roaringbitmap = { group = "org.roaringbitmap", name = "RoaringBitmap", version.r
 spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
 tdigest = { group = "com.tdunning", name = "t-digest", version.ref = "tdigest" }
 
+# OpenTelemetry libraries
+opentelemetry-api = { group = "io.opentelemetry", name = "opentelemetry-api", version.ref = "opentelemetry" }
+opentelemetry-common = { group = "io.opentelemetry", name = "opentelemetry-common", version.ref = "opentelemetry" }
+opentelemetry-context = { group = "io.opentelemetry", name = "opentelemetry-context", version.ref = "opentelemetry" }
+opentelemetry-sdk = { group = "io.opentelemetry", name = "opentelemetry-sdk", version.ref = "opentelemetry" }
+opentelemetry-sdk-common = { group = "io.opentelemetry", name = "opentelemetry-sdk-common", version.ref = "opentelemetry" }
+opentelemetry-sdk-trace = { group = "io.opentelemetry", name = "opentelemetry-sdk-trace", version.ref = "opentelemetry" }
+opentelemetry-sdk-metrics = { group = "io.opentelemetry", name = "opentelemetry-sdk-metrics", version.ref = "opentelemetry" }
+opentelemetry-sdk-logs = { group = "io.opentelemetry", name = "opentelemetry-sdk-logs", version.ref = "opentelemetry" }
+opentelemetry-exporter-logging = { group = "io.opentelemetry", name = "opentelemetry-exporter-logging", version.ref = "opentelemetry" }
+opentelemetry-exporter-otlp = { group = "io.opentelemetry", name = "opentelemetry-exporter-otlp", version.ref = "opentelemetry" }
+opentelemetry-exporter-common = { group = "io.opentelemetry", name = "opentelemetry-exporter-common", version.ref = "opentelemetry" }
+opentelemetry-exporter-otlp-common = { group = "io.opentelemetry", name = "opentelemetry-exporter-otlp-common", version.ref = "opentelemetry" }
+opentelemetry-exporter-sender-okhttp = { group = "io.opentelemetry", name = "opentelemetry-exporter-sender-okhttp", version.ref = "opentelemetry" }
+opentelemetry-semconv = { group = "io.opentelemetry.semconv", name = "opentelemetry-semconv", version.ref = "opentelemetrysemconv" }
+opentelemetry-sdk-testing = { group = "io.opentelemetry", name = "opentelemetry-sdk-testing", version.ref = "opentelemetry" }
+kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
+
 [bundles]
 asm = [
     "asm-analysis",
@@ -207,4 +225,20 @@ bouncycastle = [
     "bouncycastle-pkix",
     "bouncycastle-pg",
     "bouncycastle-util"
+]
+
+opentelemetry = [
+    "opentelemetry-api",
+    "opentelemetry-common",
+    "opentelemetry-context",
+    "opentelemetry-sdk",
+    "opentelemetry-sdk-common",
+    "opentelemetry-sdk-trace",
+    "opentelemetry-sdk-metrics",
+    "opentelemetry-sdk-logs",
+    "opentelemetry-exporter-logging",
+    "opentelemetry-exporter-otlp",
+    "opentelemetry-exporter-common",
+    "opentelemetry-exporter-otlp-common",
+    "opentelemetry-semconv"
 ]
