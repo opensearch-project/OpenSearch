@@ -8,13 +8,18 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.admin.indices.delete.DeleteIndexAction;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -27,10 +32,16 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
     public void testOfNames() {
         ResolvedIndices resolvedIndices = ResolvedIndices.of("a", "b", "c");
         assertThat(resolvedIndices.local().names(), containsInAnyOrder("a", "b", "c"));
+        assertThat(resolvedIndices.local().names(ClusterState.EMPTY_STATE), containsInAnyOrder("a", "b", "c"));
         assertThat(Arrays.asList(resolvedIndices.local().namesAsArray()), containsInAnyOrder("a", "b", "c"));
         assertFalse(resolvedIndices.local().isEmpty());
         assertTrue(resolvedIndices.remote().isEmpty());
         assertFalse(resolvedIndices.isEmpty());
+    }
+
+    public void testOfNamesCollection() {
+        ResolvedIndices resolvedIndices = ResolvedIndices.of(List.of("a", "b"));
+        assertThat(resolvedIndices.local().names(), containsInAnyOrder("a", "b"));
     }
 
     public void testOfConcreteIndices() {
@@ -60,6 +71,18 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         assertTrue(resolvedIndices.isEmpty());
     }
 
+    public void testUnknown() {
+        OptionallyResolvedIndices resolvedIndices = ResolvedIndices.unknown();
+        assertFalse(resolvedIndices instanceof ResolvedIndices);
+        resolvedIndices = OptionallyResolvedIndices.unknown();
+        assertFalse(resolvedIndices instanceof ResolvedIndices);
+        assertFalse(resolvedIndices.local().isEmpty());
+        assertTrue(resolvedIndices.local().contains("whatever"));
+        assertTrue(resolvedIndices.local().containsAny(List.of("whatever")));
+        assertTrue(resolvedIndices.local().containsAny(i -> false));
+
+    }
+
     public void testWithRemoteIndices() {
         Map<String, OriginalIndices> remoteIndices = Map.of(
             "remote_cluster",
@@ -72,6 +95,12 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
             resolvedIndices.remote().asClusterToOriginalIndicesMap().get("remote_cluster").indices()
         );
         assertThat(resolvedIndices.remote().asRawExpressions(), containsInAnyOrder("remote_cluster:remote_index"));
+    }
+
+    public void testWithoutRemoteIndices() {
+        ResolvedIndices resolvedIndices = ResolvedIndices.of(new String[0]);
+        assertTrue(resolvedIndices.remote().asClusterToOriginalIndicesMap().isEmpty());
+        assertTrue(resolvedIndices.remote().asRawExpressions().isEmpty());
     }
 
     public void testLocalConcreteOf() {
@@ -96,4 +125,46 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         assertThat(concrete.concreteIndices(), containsInAnyOrder(new Index("index_a", "uuid_a"), new Index("index_b", "uuid_b")));
     }
 
+    public void testWithLocalSubActions() {
+        ResolvedIndices resolvedIndices = ResolvedIndices.of("a", "b", "c")
+            .withLocalSubActions(DeleteIndexAction.INSTANCE, ResolvedIndices.Local.of("x", "y", "z"));
+        assertThat(resolvedIndices.local().names(), containsInAnyOrder("a", "b", "c"));
+        assertThat(resolvedIndices.local().subActions().get(DeleteIndexAction.INSTANCE).names(), containsInAnyOrder("x", "y", "z"));
+    }
+
+    public void testLocalOf() {
+        ResolvedIndices.Local local = ResolvedIndices.Local.of(List.of("o", "p", "q"));
+        assertThat(local.names(), containsInAnyOrder("o", "p", "q"));
+    }
+
+    public void testNamesOfIndices() {
+        Metadata.Builder metadata = Metadata.builder()
+            .put(indexBuilder("index_a1").putAlias(AliasMetadata.builder("alias_a")))
+            .put(indexBuilder("index_a2").putAlias(AliasMetadata.builder("alias_a")))
+            .put(indexBuilder("index_b1"));
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ResolvedIndices resolvedIndices = ResolvedIndices.of("index_not_existing", "alias_a", "index_b1");
+        assertThat(
+            resolvedIndices.local().namesOfIndices(clusterState),
+            containsInAnyOrder("index_not_existing", "index_a1", "index_a2", "index_b1")
+        );
+    }
+
+    public void testContains() {
+        ResolvedIndices resolvedIndices = ResolvedIndices.of("a", "b", "c");
+        assertTrue(resolvedIndices.local().contains("a"));
+        assertFalse(resolvedIndices.local().contains("x"));
+        assertTrue(resolvedIndices.local().containsAny(List.of("a", "x")));
+        assertFalse(resolvedIndices.local().containsAny(List.of("x", "y")));
+        assertTrue(resolvedIndices.local().containsAny(i -> i.equals("a")));
+        assertFalse(resolvedIndices.local().containsAny(i -> i.equals("z")));
+
+    }
+
+    private static IndexMetadata.Builder indexBuilder(String index) {
+        return IndexMetadata.builder(index)
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            );
+    }
 }
