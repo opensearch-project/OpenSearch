@@ -66,13 +66,14 @@ import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.
  * Main class for the gRPC plugin.
  */
 public final class GrpcPlugin extends Plugin implements NetworkPlugin, ExtensiblePlugin {
-
     private static final Logger logger = LogManager.getLogger(GrpcPlugin.class);
-
     private Client client;
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
+
+    public interface GrpcServiceProvider extends Supplier<BindableService> {}
+    private final List<GrpcServiceProvider> servicesFactory = new ArrayList<>();
 
     /**
      * Creates a new GrpcPlugin instance.
@@ -102,6 +103,12 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             logger.info("Successfully loaded {} QueryBuilderProtoConverter extensions", extensions.size());
         } else {
             logger.info("No QueryBuilderProtoConverter extensions found from other plugins");
+        }
+
+        // Load gRPC service supplier lambdas from other plugins
+        List<GrpcServiceProvider> services = loader.loadExtensions(GrpcServiceProvider.class);
+        if (services != null) {
+            servicesFactory.addAll(services);
         }
     }
 
@@ -157,13 +164,19 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
         }
 
-        List<BindableService> grpcServices = registerGRPCServices(
-            new DocumentServiceImpl(client),
-            new SearchServiceImpl(client, queryUtils)
-        );
+
         return Collections.singletonMap(
             GRPC_TRANSPORT_SETTING_KEY,
-            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService)
+            () -> {
+                List<BindableService> grpcServices = new ArrayList<>(List.of(
+                    new DocumentServiceImpl(client),
+                    new SearchServiceImpl(client, queryUtils)
+                ));
+                for (GrpcServiceProvider service : servicesFactory) {
+                    grpcServices.add(service.get());
+                }
+                return new Netty4GrpcServerTransport(settings, grpcServices, networkService);
+            }
         );
     }
 
@@ -200,24 +213,19 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getSecureAuxTransports to initialize the registry");
         }
 
-        List<BindableService> grpcServices = registerGRPCServices(
-            new DocumentServiceImpl(client),
-            new SearchServiceImpl(client, queryUtils)
-        );
         return Collections.singletonMap(
             GRPC_SECURE_TRANSPORT_SETTING_KEY,
-            () -> new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider)
+            () -> {
+                List<BindableService> grpcServices = new ArrayList<>(List.of(
+                    new DocumentServiceImpl(client),
+                    new SearchServiceImpl(client, queryUtils)
+                ));
+                for (GrpcServiceProvider service : servicesFactory) {
+                    grpcServices.add(service.get());
+                }
+                return new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider);
+            }
         );
-    }
-
-    /**
-     * Registers gRPC services to be exposed by the transport.
-     *
-     * @param services The gRPC services to register
-     * @return A list of registered bindable services
-     */
-    private List<BindableService> registerGRPCServices(BindableService... services) {
-        return List.of(services);
     }
 
     /**
