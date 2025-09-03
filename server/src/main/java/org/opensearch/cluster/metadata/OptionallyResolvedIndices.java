@@ -53,6 +53,20 @@ public class OptionallyResolvedIndices {
         return "ResolvedIndices{unknown=true}";
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (!(other instanceof OptionallyResolvedIndices otherResolvedIndices)) {
+            return false;
+        }
+
+        return this.local() == otherResolvedIndices.local();
+    }
+
+    @Override
+    public int hashCode() {
+        return 92;
+    }
+
     /**
      * Represents the local (i.e., non-remote) indices referenced by the respective request.
      */
