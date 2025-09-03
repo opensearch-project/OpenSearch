@@ -354,6 +354,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+        System.setProperty("org.bouncycastle.native.cleanup_delay", "0");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
