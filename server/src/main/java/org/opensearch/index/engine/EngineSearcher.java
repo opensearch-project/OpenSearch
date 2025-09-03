@@ -8,28 +8,24 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.search.ReferenceManager;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.search.aggregations.SearchResultsCollector;
 
-import java.util.function.Function;
+import java.io.IOException;
+import java.util.List;
 
-public interface EngineSearcher {
+// TODO make this <Query, Collector> generic type
+public interface EngineSearcher extends Releasable {
+
     /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     * The source that caused this searcher to be acquired.
      */
-    Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper) throws EngineException;
+    String source();
+
     /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     * Search using substrait query plan bytes and call the result collectors
      */
-    Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope) throws EngineException;
-
-    Engine.Searcher acquireSearcher(String source) throws EngineException;
-
-    Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) throws EngineException;
-
-    public Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope, Function<Engine.Searcher, Engine.Searcher> wrapper) throws EngineException;
-
-    ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(Engine.SearcherScope scope);
-
-    boolean assertSearcherIsWarmedUp(String source, Engine.SearcherScope scope);
+    default void search(byte[] substraitInput, List<SearchResultsCollector<?>> collectors) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 }

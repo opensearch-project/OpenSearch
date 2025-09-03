@@ -739,6 +739,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 clusterService.getClusterApplierService(),
                 MergedSegmentPublisher.EMPTY,
                 ReferencedSegmentsPublisher.EMPTY,
+                null,
                 null
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);

@@ -1,0 +1,66 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.datafusion.search;
+
+import org.opensearch.index.engine.exec.FileMetadata;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.concurrent.atomic.AtomicInteger;
+
+// JNI from java to rust
+// substrait
+// Harcode --> file --> register as the table with the same name
+public class DatafusionReader implements Closeable {
+    public String directoryPath;
+    public Collection<FileMetadata> files;
+    public long cachePtr;
+    private AtomicInteger refCount = new AtomicInteger(0);
+
+    public DatafusionReader(String directoryPath, Collection<FileMetadata> files) {
+        this.directoryPath = directoryPath;
+        this.files = files;
+        this.cachePtr = createDatafusionReader(directoryPath, files);
+        incRef();
+    }
+
+    public long getCachePtr() {
+        return cachePtr;
+    }
+
+    public void incRef() {
+        refCount.getAndIncrement();
+    }
+
+    public void decRef() throws IOException {
+        if(refCount.get() == 0) {
+            throw new IllegalStateException("Listing table has been already closed");
+        }
+
+        int currRefCount = refCount.decrementAndGet();
+        if(currRefCount == 0) {
+            this.close();
+        }
+
+    }
+
+    private static native long createDatafusionReader(String path, Collection<FileMetadata> files);
+    private static native void closeDatafusionReader(long ptr);
+
+    @Override
+    public void close() throws IOException {
+        if(cachePtr == -1L) {
+            throw new IllegalStateException("Listing table has been already closed");
+        }
+
+        closeDatafusionReader(this.cachePtr);
+        this.cachePtr = -1;
+    }
+}

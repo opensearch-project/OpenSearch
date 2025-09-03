@@ -90,6 +90,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -494,6 +495,23 @@ public final class IndexModule {
      * The returned reader is closed once it goes out of scope.
      * </p>
      */
+    /**
+     * indexModule.setReaderWrapper(
+     *                 indexService -> new SecurityFlsDlsIndexSearcherWrapper(
+     *                     indexService,
+     *                     settings,
+     *                     adminDns,
+     *                     cs,
+     *                     auditLog,
+     *                     ciol,
+     *                     evaluator,
+     *                     dlsFlsValve::getCurrentConfig,
+     *                     dlsFlsBaseContext
+     *                 )
+     *             );
+     * Example reader wrapper used in security plugin
+     * @param indexReaderWrapperFactory
+     */
     public void setReaderWrapper(
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> indexReaderWrapperFactory
     ) {
@@ -670,6 +688,7 @@ public final class IndexModule {
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        PluginsService pluginsService,
         SearchEnginePlugin searchEnginePlugin
     ) throws IOException {
         return newIndexService(
@@ -699,7 +718,8 @@ public final class IndexModule {
             (s) -> {},
             shardId -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnceSupplier,
-            searchEnginePlugin
+            searchEnginePlugin,
+            pluginsService
         );
     }
 
@@ -730,7 +750,8 @@ public final class IndexModule {
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
-        SearchEnginePlugin searchEnginePlugin
+        SearchEnginePlugin searchEnginePlugin,
+        PluginsService pluginsService
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -803,7 +824,8 @@ public final class IndexModule {
                 replicator,
                 segmentReplicationStatsProvider,
                 clusterDefaultMaxMergeAtOnceSupplier,
-                searchEnginePlugin
+                searchEnginePlugin,
+                pluginsService
             );
             success = true;
             return indexService;

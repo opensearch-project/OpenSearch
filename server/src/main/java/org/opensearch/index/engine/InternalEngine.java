@@ -429,7 +429,8 @@ public class InternalEngine extends Engine {
      * @opensearch.internal
      */
     @SuppressForbidden(reason = "reference counting is required here")
-    private static final class ExternalReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
+    private static final class
+    ExternalReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
         private final BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener;
         private final OpenSearchReaderManager internalReaderManager;
         private boolean isWarmedUp; // guarded by refreshLock
@@ -442,6 +443,13 @@ public class InternalEngine extends Engine {
             this.internalReaderManager = internalReaderManager;
             this.current = internalReaderManager.acquire(); // steal the reference without warming up
         }
+
+        // t0 - i, e
+        // t1 - i
+        // t2 - i
+        // t3 - i
+        // t4 - i
+        // t5 - i,  e
 
         @Override
         protected OpenSearchDirectoryReader refreshIfNeeded(OpenSearchDirectoryReader referenceToRefresh) throws IOException {
@@ -488,7 +496,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    final boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
+    public final boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         if (scope == SearcherScope.EXTERNAL) {
             switch (source) {
                 // we can access segment_stats while a shard is still in the recovering state.
@@ -2300,7 +2308,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected final ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+    public final ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         switch (scope) {
             case INTERNAL:
                 return internalReaderManager;

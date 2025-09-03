@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public interface DataSourcePlugin {
-    default Optional<Map<String, DataSourceCodec>> getDataSourceCodecs() {
+    default Optional<Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
         return Optional.empty();
     }
 

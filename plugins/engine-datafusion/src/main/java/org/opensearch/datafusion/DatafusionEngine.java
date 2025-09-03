@@ -8,76 +8,69 @@
 
 package org.opensearch.datafusion;
 
-import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.datafusion.core.SessionContext;
-import org.opensearch.index.engine.SearchExecutionEngine;
-import org.opensearch.search.aggregations.SearchResultsCollector;
+import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.datafusion.search.DatafusionReaderManager;
+import org.opensearch.datafusion.search.DatafusionSearcher;
+import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.engine.EngineSearcherSupplier;
+import org.opensearch.index.engine.SearcherOperations;
+import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.vectorized.execution.search.DataFormat;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.function.Function;
 
-/**
- * DataFusion search execution engine implementation that executes Substrait query plans
- * using the DataFusion query engine for OpenSearch.
- */
-public class DatafusionEngine implements SearchExecutionEngine {
+public class DatafusionEngine implements SearcherOperations<DatafusionSearcher, DatafusionReaderManager> {
 
-    private static final Logger logger = LogManager.getLogger(DatafusionEngine.class);
-    private final DataFusionService dataFusionService;
+    private DataFormat dataFormat;
+    private DatafusionReaderManager datafusionReaderManager;
 
-    /**
-     * Constructs a new DatafusionEngine with the specified DataFusion service.
-     *
-     * @param dataFusionService the DataFusion service used for query execution
-     */
-    public DatafusionEngine(DataFusionService dataFusionService) {
-        this.dataFusionService = dataFusionService;
+    public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot) throws IOException {
+        this.dataFormat = dataFormat;
+        this.datafusionReaderManager = new DatafusionReaderManager("TODO://FigureOutPath", formatCatalogSnapshot);
     }
 
     @Override
-    public Map<String, Object[]> execute(byte[] queryPlanIR) {
-        Map<String, Object[]> finalRes = new HashMap<>();
-        try {
-            SessionContext defaultSessionContext = dataFusionService.getDefaultContext();
-            long streamPointer = dataFusionService.executeSubstraitQueryStream(queryPlanIR);
-            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-            RecordBatchStream stream = new RecordBatchStream(defaultSessionContext, streamPointer, allocator);
+    public EngineSearcherSupplier<DatafusionSearcher> acquireSearcherSupplier(Function<DatafusionSearcher, DatafusionSearcher> wrapper) throws EngineException {
+        return null;
+    }
 
-            // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
-            // Is the possible? need to check
-            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
-                @Override
-                public void collect(RecordBatchStream value) {
-                    VectorSchemaRoot root = value.getVectorSchemaRoot();
-                    for (Field field : root.getSchema().getFields()) {
-                        String filedName = field.getName();
-                        FieldVector fieldVector = root.getVector(filedName);
-                        Object[] fieldValues = new Object[fieldVector.getValueCount()];
-                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
-                            fieldValues[i] = fieldVector.getObject(i);
-                        }
-                        finalRes.put(filedName, fieldValues);
-                    }
-                }
-            };
+    @Override
+    public EngineSearcherSupplier<DatafusionSearcher> acquireSearcherSupplier(Function<DatafusionSearcher, DatafusionSearcher> wrapper, Engine.SearcherScope scope) throws EngineException {
+        return null;
+    }
 
-            while (stream.loadNextBatch().join()) {
-                collector.collect(stream);
-            }
+    @Override
+    public DatafusionSearcher acquireSearcher(String source) throws EngineException {
+        return null;
+    }
 
-            logger.info("Final Results:");
-            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-            }
+    @Override
+    public DatafusionSearcher acquireSearcher(String source, Engine.SearcherScope scope) throws EngineException {
+        return null;
+    }
 
-        } catch (Exception exception) {
-            logger.error("Failed to execute Substrait query plan", exception);
-        }
-        return finalRes;
+    @Override
+    public DatafusionSearcher acquireSearcher(String source, Engine.SearcherScope scope, Function<DatafusionSearcher, DatafusionSearcher> wrapper) throws EngineException {
+        return null;
+    }
+
+    @Override
+    public DatafusionReaderManager getReferenceManager(Engine.SearcherScope scope) {
+        return datafusionReaderManager;
+    }
+
+    @Override
+    public CatalogSnapshotAwareRefreshListener getRefreshListener(Engine.SearcherScope scope) {
+        return datafusionReaderManager;
+    }
+
+    @Override
+    public boolean assertSearcherIsWarmedUp(String source, Engine.SearcherScope scope) {
+        return false;
     }
 }

@@ -10,6 +10,7 @@ package org.opensearch.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 
 import java.util.ArrayList;
@@ -24,9 +25,9 @@ public class DataSourceRegistry {
 
     private static final Logger logger = LogManager.getLogger(DataSourceRegistry.class);
 
-    private final ConcurrentHashMap<String, DataSourceCodec> codecs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<DataFormat, DataSourceCodec> codecs = new ConcurrentHashMap<>();
 
-    public DataSourceRegistry(Map<String, DataSourceCodec> dataSourceCodecMap) {
+    public DataSourceRegistry(Map<DataFormat, DataSourceCodec> dataSourceCodecMap) {
         codecs.putAll(dataSourceCodecMap);
     }
 
@@ -44,7 +45,7 @@ public class DataSourceRegistry {
      *
      * @return list of codec names
      */
-    public List<String> getCodecNames() {
+    public List<DataFormat> getCodecNames() {
         return new ArrayList<>(codecs.keySet());
     }
 
