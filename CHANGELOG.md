@@ -8,15 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Reject close index requests, while remote store migration is in progress.([#18327](https://github.com/opensearch-project/OpenSearch/pull/18327))
 
 ### Dependencies
-- Bump `netty` from 4.1.118.Final to 4.1.121.Final ([#18192](https://github.com/opensearch-project/OpenSearch/pull/18192))
+- Bump `netty` from 4.1.118.Final to 4.1.125.Final ([#18192](https://github.com/opensearch-project/OpenSearch/pull/18192)) ([#19270](https://github.com/opensearch-project/OpenSearch/pull/19270))
 - Bump Apache Lucene to 9.12.3 ([#19444](https://github.com/opensearch-project/OpenSearch/pull/19444))
 - Bump `commons-beanutils:commons-beanutils` from 1.9.4 to 1.11.0 ([#18401](https://github.com/opensearch-project/OpenSearch/issues/18401))
 - Bump `org.apache.poi` version from 5.2.5 to 5.4.1 in /plugins/ingest-attachment ([#17887](https://github.com/opensearch-project/OpenSearch/pull/17887))
 - Bump `org.apache.tika` from 2.9.2 to 3.2.2 ([#19242](https://github.com/opensearch-project/OpenSearch/pull/19242))
 - Bump `org.apache.commons:commons-compress` from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
 - Bump `org.apache.commons:commonscodec` from 1.16.1 to 1.18.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
-- Bump netty from 4.1.121.Final to 4.1.125.Final ([#19270](https://github.com/opensearch-project/OpenSearch/pull/19270))
 - Bump bouncycastle from 1.79 to 1.82 ([#19552](https://github.com/opensearch-project/OpenSearch/pull/19552))
+- Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19605](https://github.com/opensearch-project/OpenSearch/pull/19605))
 
 ### Deprecated
 
