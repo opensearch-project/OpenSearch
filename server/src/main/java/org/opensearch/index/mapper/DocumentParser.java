@@ -47,6 +47,7 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.opensearch.script.ContextAwareGroupingScript;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -55,6 +56,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
@@ -417,6 +420,7 @@ final class DocumentParser {
         }
 
         innerParseObject(context, mapper, parser, currentFieldName, token);
+
         // restore the enable path flag
         if (nested.isNested()) {
             nested(context, nested);
@@ -462,8 +466,31 @@ final class DocumentParser {
                 }
                 token = parser.nextToken();
             }
+            generateGroupingCriteria(context);
         } finally {
             context.decrementFieldCurrentDepth();
+        }
+    }
+
+    private static void generateGroupingCriteria(ParseContext context) {
+        if (context.docMapper() != null && context.docMapper().mappers() != null) {
+            final Mapper mapper = context.docMapper().mappers().getMapper(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
+            if (mapper != null) {
+                final ContextAwareGroupingFieldMapper groupingFieldMapper = (ContextAwareGroupingFieldMapper) mapper;
+                final ContextAwareGroupingScript script = groupingFieldMapper.fieldType().compiledScript();
+                ParseContext.Document doc = context.doc();
+                if (script != null) {
+                    doc.setGroupingCriteria(script.execute(doc.getGroupingCriteriaParams()));
+                } else {
+                    Map<String, Object> groupingCriteriaParams = doc.getGroupingCriteriaParams();
+                    String criteria = groupingFieldMapper.fieldType()
+                        .fields()
+                        .stream()
+                        .map(field -> groupingCriteriaParams.get(field).toString())
+                        .collect(Collectors.joining("-"));
+                    doc.setGroupingCriteria(criteria);
+                }
+            }
         }
     }
 
