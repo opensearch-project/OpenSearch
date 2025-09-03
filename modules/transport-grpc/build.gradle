@@ -37,6 +37,8 @@ dependencies {
   implementation "io.perfmark:perfmark-api:0.27.0"
   implementation "org.opensearch:protobufs:0.6.0"
   testImplementation project(':test:framework')
+  testImplementation "io.grpc:grpc-testing:${versions.grpc}"
+  testImplementation "io.grpc:grpc-interop-testing:${versions.grpc}"
 }
 
 tasks.named("dependencyLicenses").configure {
