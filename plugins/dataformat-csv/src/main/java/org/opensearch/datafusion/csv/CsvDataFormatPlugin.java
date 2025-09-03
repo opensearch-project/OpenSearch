@@ -37,10 +37,11 @@ public class CsvDataFormatPlugin extends Plugin implements DataSourcePlugin {
 
     // TODO : move to vectorized exec specific plugin
     @Override
-    public Optional<Map<String, DataSourceCodec>> getDataSourceCodecs() {
-        Map<String, DataSourceCodec> codecs = new HashMap<>();
+    public Optional<Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
+        Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec> codecs = new HashMap<>();
+        CsvDataSourceCodec csvDataSourceCodec = new CsvDataSourceCodec();
         // TODO : version it correctly - similar to lucene codecs?
-        codecs.put("csv-v1", new CsvDataSourceCodec());
+        codecs.put(csvDataSourceCodec.getDataFormat(), new CsvDataSourceCodec());
         return Optional.of(codecs);
         // return Optional.empty();
     }

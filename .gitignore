@@ -68,3 +68,6 @@ testfixtures_shared/
 
 # build files generated
 doc-tools/missing-doclet/bin/
+/plugins/dataformat-csv/jni/target
+/plugins/dataformat-csv/jni/Cargo.lock
+

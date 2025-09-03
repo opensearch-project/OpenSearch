@@ -12,6 +12,7 @@ package org.opensearch.search.aggregations;
  * Experimental
  * @opensearch.internal
  */
+// TODO : account for sub collectors
 public interface SearchResultsCollector<T> {
 
     /**

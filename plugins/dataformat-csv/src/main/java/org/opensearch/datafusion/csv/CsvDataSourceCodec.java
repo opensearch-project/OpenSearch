@@ -10,6 +10,7 @@ package org.opensearch.datafusion.csv;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
@@ -129,6 +130,10 @@ public class CsvDataSourceCodec implements DataSourceCodec {
                 throw new CompletionException("Failed to close session context", e);
             }
         });
+    }
+
+    public DataFormat getDataFormat() {
+        return DataFormat.CSV;
     }
 
     // Native method declarations - these will be implemented in the JNI library

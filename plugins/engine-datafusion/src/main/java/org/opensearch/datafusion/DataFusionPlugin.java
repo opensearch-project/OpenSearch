@@ -20,8 +20,14 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.datafusion.action.DataFusionAction;
 import org.opensearch.datafusion.action.NodesDataFusionInfoAction;
 import org.opensearch.datafusion.action.TransportNodesDataFusionInfoAction;
+import org.opensearch.datafusion.search.DatafusionReaderManager;
+import org.opensearch.datafusion.search.DatafusionSearcher;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.engine.EngineReaderManager;
+import org.opensearch.index.engine.SearcherOperations;
+import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.DataSourceAwarePlugin;
 import org.opensearch.plugins.Plugin;
@@ -31,11 +37,14 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
+import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -44,7 +53,7 @@ import java.util.function.Supplier;
  * Main plugin class for OpenSearch DataFusion integration.
  *
  */
-public class DataFusionPlugin extends Plugin implements ActionPlugin, DataSourceAwarePlugin {
+public class DataFusionPlugin extends Plugin implements ActionPlugin, DataSourceAwarePlugin<DatafusionSearcher, DatafusionReaderManager> {
 
     private DataFusionService dataFusionService;
     private final boolean isDataFusionEnabled;
@@ -87,14 +96,38 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, DataSource
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Map<String, DataSourceCodec> dataSourceCodecs
+        Map<DataFormat, DataSourceCodec> dataSourceCodecs
     ) {
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
         dataFusionService = new DataFusionService(dataSourceCodecs);
+
+        for(DataFormat format : this.getSupportedFormats()) {
+            dataSourceCodecs.get(format);
+        }
         // return Collections.emptyList();
         return Collections.singletonList(dataFusionService);
+    }
+
+    @Override
+    public List<DataFormat> getSupportedFormats() {
+        return List.of(DataFormat.CSV);
+    }
+
+    @Override
+    public EngineReaderManager<DatafusionReaderManager> getReaderManager() {
+        return null;
+    }
+
+    /**
+     * Create engine per shard per format with initial view of catalog
+     */
+    // TODO : one engine per format, does that make sense ?
+    // TODO : Engine shouldn't just be SearcherOperations, it can be more ?
+    @Override
+    public SearcherOperations<DatafusionSearcher, DatafusionReaderManager> createEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot) throws IOException {
+        return new DatafusionEngine(dataFormat, formatCatalogSnapshot);
     }
 
     /**
@@ -134,10 +167,5 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, DataSource
             return Collections.emptyList();
         }
         return List.of(new ActionHandler<>(NodesDataFusionInfoAction.INSTANCE, TransportNodesDataFusionInfoAction.class));
-    }
-
-    @Override
-    public void registerDataSources(Map<String, DataSourceCodec> dataSourceCodecs) {
-        dataFusionService = new DataFusionService(dataSourceCodecs);
     }
 }

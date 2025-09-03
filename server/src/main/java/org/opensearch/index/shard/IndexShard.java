@@ -143,6 +143,7 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecutionEngine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.engine.exec.coord.IndexingExecutionCoordinator;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
 import org.opensearch.index.flush.FlushStats;
@@ -211,6 +212,7 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -391,7 +393,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
     private final SearchExecutionEngine searchExecutionEngine;
-
+    private final IndexingExecutionCoordinator indexingExecutionCoordinator;
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -432,7 +434,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
         @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
-        final SearchExecutionEngine searchExecutionEngine
+        final SearchExecutionEngine searchExecutionEngine,
+        PluginsService pluginsService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -557,6 +560,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 startRefreshTask();
             }
         }
+        this.indexingExecutionCoordinator = new IndexingExecutionCoordinator(mapperService, pluginsService);
         this.searchExecutionEngine = searchExecutionEngine;
     }
 
@@ -4265,10 +4269,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isSegRepEnabledOrRemoteNode()) {
             internalRefreshListener.add(new ReplicationCheckpointUpdater());
         }
+        // HERE
         if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 
+        // HERE
         if (isRemoteStoreEnabled() || isMigratingToRemote()) {
             internalRefreshListener.add(
                 new RemoteStoreRefreshListener(

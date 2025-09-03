@@ -8,6 +8,8 @@
 
 package org.opensearch.vectorized.execution.search.spi;
 
+import org.opensearch.vectorized.execution.search.DataFormat;
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -53,4 +55,9 @@ public interface DataSourceCodec {
      * @return a CompletableFuture that completes when the context is closed
      */
     CompletableFuture<Void> closeSessionContext(long sessionContextId);
+
+    /**
+     * Returns the data format name
+     */
+    DataFormat getDataFormat();
 }

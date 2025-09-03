@@ -1103,7 +1103,8 @@ public class IndicesService extends AbstractLifecycleComponent
             replicator,
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
-            getSearchEnginePlugin()
+            getSearchEnginePlugin(),
+            this.pluginsService
         );
     }
 

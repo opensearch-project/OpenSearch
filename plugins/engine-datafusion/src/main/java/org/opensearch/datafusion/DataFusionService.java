@@ -14,6 +14,7 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.datafusion.core.GlobalRuntimeEnv;
+import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
@@ -35,7 +36,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     /**
      * Creates a new DataFusion service instance.
      */
-    public DataFusionService(Map<String, DataSourceCodec> dataSourceCodecs) {
+    public DataFusionService(Map<DataFormat, DataSourceCodec> dataSourceCodecs) {
         this.dataSourceRegistry = new DataSourceRegistry(dataSourceCodecs);
 
         // to verify jni
@@ -187,7 +188,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         version.append("{\"codecs\":[");
 
         boolean first = true;
-        for (String engineName : this.dataSourceRegistry.getCodecNames()) {
+        for (DataFormat engineName : this.dataSourceRegistry.getCodecNames()) {
             if (!first) {
                 version.append(",");
             }
