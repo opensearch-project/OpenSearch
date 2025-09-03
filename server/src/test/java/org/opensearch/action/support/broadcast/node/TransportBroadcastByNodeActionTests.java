@@ -49,6 +49,8 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -628,5 +630,11 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         assertEquals("successful shards", totalSuccessfulShards, response.getSuccessfulShards());
         assertEquals("failed shards", totalFailedShards, response.getFailedShards());
         assertEquals("accumulated exceptions", totalFailedShards, response.getShardFailures().length);
+    }
+
+    public void testResolveIndices() {
+        Request request = new Request(TEST_INDEX);
+        OptionallyResolvedIndices resolvedIndices = action.resolveIndices(request);
+        assertEquals(ResolvedIndices.of(TEST_INDEX), resolvedIndices);
     }
 }

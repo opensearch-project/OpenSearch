@@ -138,6 +138,20 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
         return "ResolvedIndices{" + "local=" + local + ", remote=" + remote + '}';
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (!(other instanceof ResolvedIndices otherResolvedIndices)) {
+            return false;
+        }
+
+        return this.local.equals(otherResolvedIndices.local) && this.remote.equals(otherResolvedIndices.remote);
+    }
+
+    @Override
+    public int hashCode() {
+        return this.local.hashCode() + this.remote.hashCode();
+    }
+
     /**
      * Represents the local (i.e., non-remote) indices referenced by the respective request.
      */
@@ -150,6 +164,10 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
 
         public static Local of(Collection<String> names) {
             return new Local(Set.copyOf(names), null, Map.of());
+        }
+
+        public static Local of(String... names) {
+            return of(Arrays.asList(names));
         }
 
         /**
@@ -307,6 +325,20 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
             }
         }
 
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof ResolvedIndices.Local otherLocal)) {
+                return false;
+            }
+
+            return this.names.equals(otherLocal.names) && this.subActions.equals(otherLocal.subActions);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.names.hashCode() + this.subActions.hashCode();
+        }
+
         /**
          * This is a specialization of the {@link ResolvedIndices.Local} class which additionally
          * carries {@link Index} objects. The {@link IndexNameExpressionResolver} produces such objects.
@@ -420,6 +452,24 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
                 return new Concrete(this.concreteIndices, this.names(), this.originalIndices, this.subActions, List.of());
             }
 
+            @Override
+            public boolean equals(Object other) {
+                if (!super.equals(other)) {
+                    return false;
+                }
+
+                if (!(other instanceof ResolvedIndices.Local.Concrete otherLocal)) {
+                    return false;
+                }
+
+                return this.concreteIndices.equals(otherLocal.concreteIndices);
+            }
+
+            @Override
+            public int hashCode() {
+                return super.hashCode() + this.concreteIndices.hashCode() * 11;
+            }
+
             List<RuntimeException> resolutionErrors() {
                 return this.resolutionErrors;
             }
@@ -481,6 +531,20 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
         @Override
         public String toString() {
             return this.asRawExpressions().toString();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof ResolvedIndices.Remote otherRemote)) {
+                return false;
+            }
+
+            return this.asRawExpressions().equals(otherRemote.asRawExpressions());
+        }
+
+        @Override
+        public int hashCode() {
+            return this.asRawExpressions().hashCode();
         }
 
         private List<String> buildRawExpressions() {
