@@ -582,7 +582,7 @@ public class Lucene {
             // Which are through the SortField class or SortedSetSortField class
             // We will serialize the sort field based on the type of underlying sort field
             // Here the underlying sort field is SortedSetSortField, therefore, we will follow the
-            // logic in serializing SortedSetSortField.
+            // logic in serializing SortedSetSortField and also unwrap the SortField case.
             NonPruningSortField nonPruningSortField = (NonPruningSortField) sortField;
             if (nonPruningSortField.getDelegate().getClass() == SortedSetSortField.class) {
                 SortField newSortField = new SortField(
@@ -592,12 +592,12 @@ public class Lucene {
                 );
                 newSortField.setMissingValue(nonPruningSortField.getMissingValue());
                 sortField = newSortField;
+            } else if (nonPruningSortField.getDelegate().getClass() == SortField.class) {
+                sortField = nonPruningSortField.getDelegate();
             }
         }
 
-        if (sortField.getClass() != SortField.class
-            && (((sortField instanceof NonPruningSortField)
-                && (((NonPruningSortField) sortField).getDelegate().getClass() == SortField.class)) == false)) {
+        if (sortField.getClass() != SortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
         if (sortField.getField() == null) {
