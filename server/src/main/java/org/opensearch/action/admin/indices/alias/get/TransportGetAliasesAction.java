@@ -217,6 +217,10 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
         // which will be resolved by state.metadata().findAliases() to all aliases, but limited to the aliases
         // containing one of the specified indices
         // - both aliases and indices specified: this is then the intersection
+        //
+        // The consequence for the resolveIndices() method is that the semantics of the return value might be debatable.
+        // We resort to just the index names, because it is the most precise dimension. If we would include alias names,
+        // these could also refer to indices which were not requested.
 
         String[] concreteIndices;
 

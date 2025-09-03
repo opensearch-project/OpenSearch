@@ -1600,6 +1600,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
             indexNameExpressionResolver.resolveExpressions(state, "test-*", "alias-*")
         );
         assertEquals(new HashSet<>(Arrays.asList("test-1", "alias-1")), indexNameExpressionResolver.resolveExpressions(state, "*-1"));
+        expectThrows(InvalidIndexNameException.class, () -> indexNameExpressionResolver.resolveExpressions(state, "_invalid_index_name"));
     }
 
     public void testFilteringAliases() {
@@ -2306,6 +2307,16 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream")
             );
             assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
+        }
+        {
+            // Ignore data streams; use different overload
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            ResolvedIndices.Local.Concrete concreteResolvedIndices = indexNameExpressionResolver.concreteResolvedIndices(
+                state,
+                indicesOptions,
+                "my-data-stream"
+            );
+            assertThat(concreteResolvedIndices.resolutionErrors().getFirst().getMessage(), equalTo("no such index [my-data-stream]"));
         }
         {
             // Ignore data streams and allow no indices
