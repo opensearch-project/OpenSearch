@@ -857,6 +857,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         // sort the mappers so we get consistent serialization format
         Mapper[] derivedSortedMappers = mappers.values()
             .stream()
+            // remove namespace field mapper so it doesn't end up inside properties
             .filter(m -> m instanceof DerivedFieldMapper)
             .toArray(size -> new Mapper[size]);
         Arrays.sort(derivedSortedMappers, new Comparator<Mapper>() {
@@ -868,7 +869,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         Mapper[] sortedMappers = mappers.values()
             .stream()
-            .filter(m -> !(m instanceof DerivedFieldMapper))
+            .filter(m -> !(m instanceof DerivedFieldMapper || m instanceof ContextAwareGroupingFieldMapper))
             .toArray(size -> new Mapper[size]);
         Arrays.sort(sortedMappers, new Comparator<Mapper>() {
             @Override
@@ -897,8 +898,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 mapper.toXContent(builder, params);
             }
         }
+
         if (count > 0) {
             builder.endObject();
+        }
+
+        final Mapper namespaceMapper = mappers.get(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
+        if (namespaceMapper != null) {
+            namespaceMapper.toXContent(builder, params);
         }
         builder.endObject();
     }

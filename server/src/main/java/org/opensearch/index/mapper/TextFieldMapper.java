@@ -1035,13 +1035,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        final String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
-
+        final String value = getFieldValue(context);
         if (value == null) {
             return;
         }
@@ -1058,6 +1052,15 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             if (phraseFieldMapper != null) {
                 context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
             }
+        }
+    }
+
+    @Override
+    protected String getFieldValue(ParseContext context) throws IOException {
+        if (context.externalValueSet()) {
+            return context.externalValue().toString();
+        } else {
+            return context.parser().textOrNull();
         }
     }
 
