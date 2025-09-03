@@ -32,8 +32,6 @@
 
 package org.opensearch.index.reindex;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
@@ -84,7 +82,6 @@ import static org.mockito.Mockito.mock;
  * right SSL keys + trust settings.
  */
 @SuppressForbidden(reason = "use http server")
-@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
     private static final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/=";

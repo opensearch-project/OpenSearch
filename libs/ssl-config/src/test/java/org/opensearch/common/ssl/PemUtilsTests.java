@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.opensearch.test.OpenSearchTestCase;
@@ -58,7 +56,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
-@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class PemUtilsTests extends OpenSearchTestCase {
 
     private static final Supplier<char[]> EMPTY_PASSWORD = () -> new char[0];
