@@ -279,17 +279,13 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             Long lo = null;
             if (lowerTerm != null) {
                 double dValue = scale(lowerTerm);
-                if (includeLower == false) {
-                    dValue = Math.nextUp(dValue);
-                }
+                dValue = includeLower ? Math.nextDown(dValue) : Math.nextUp(dValue);
                 lo = Math.round(Math.ceil(dValue));
             }
             Long hi = null;
             if (upperTerm != null) {
                 double dValue = scale(upperTerm);
-                if (includeUpper == false) {
-                    dValue = Math.nextDown(dValue);
-                }
+                dValue = includeUpper ? Math.nextUp(dValue) : Math.nextDown(dValue);
                 hi = Math.round(Math.floor(dValue));
             }
             Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), isSearchable(), context);
