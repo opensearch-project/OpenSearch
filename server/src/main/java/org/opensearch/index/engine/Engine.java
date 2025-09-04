@@ -211,8 +211,6 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     public MergeStats getMergeStats() {
-        logger.info(getClass().getSimpleName() + "  | getMergeStats called");
-
         return new MergeStats();
     }
 

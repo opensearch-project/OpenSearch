@@ -91,10 +91,10 @@ public class MergeStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
             unreferencedFileCleanUpsPerformed = in.readOptionalVLong();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
             this.warmerStats = new MergedSegmentWarmerStats(in);
         } else {
-            this.warmerStats = null;
+            this.warmerStats = new MergedSegmentWarmerStats();
         }
     }
 
@@ -130,10 +130,11 @@ public class MergeStats implements Writeable, ToXContentFragment {
     }
 
     public void add(MergedSegmentWarmerStats warmerStats) {
-        if (this.getWarmerStats() == null) {
+        if (this.warmerStats == null) {
             return;
         }
-        this.getWarmerStats().add(warmerStats);
+        this.warmerStats.add(warmerStats);
+        this.warmerStats.addTotals(warmerStats);
     }
 
     public void add(MergeStats mergeStats) {
@@ -144,10 +145,8 @@ public class MergeStats implements Writeable, ToXContentFragment {
         this.currentNumDocs += mergeStats.currentNumDocs;
         this.currentSizeInBytes += mergeStats.currentSizeInBytes;
 
+        this.warmerStats.add(mergeStats.warmerStats);
         addTotals(mergeStats);
-        if (this.getWarmerStats() != null) {
-            this.getWarmerStats().add(mergeStats.getWarmerStats(), false);
-        }
     }
 
     public void addTotals(MergeStats mergeStats) {
@@ -166,9 +165,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         } else {
             this.totalBytesPerSecAutoThrottle += mergeStats.totalBytesPerSecAutoThrottle;
         }
-        if (this.getWarmerStats() != null) {
-            this.getWarmerStats().addTotals(mergeStats.getWarmerStats());
-        }
+        this.warmerStats.addTotals(mergeStats.warmerStats);
     }
 
     public void addUnreferencedFileCleanUpStats(long unreferencedFileCleanUpsPerformed) {
@@ -284,7 +281,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         }
         builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES, totalBytesPerSecAutoThrottle);
         builder.field(Fields.UNREFERENCED_FILE_CLEANUPS_PERFORMED, unreferencedFileCleanUpsPerformed);
-        getWarmerStats().toXContent(builder, params);
+        this.warmerStats.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -331,8 +328,8 @@ public class MergeStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
             out.writeOptionalVLong(unreferencedFileCleanUpsPerformed);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
-            getWarmerStats().writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            this.warmerStats.writeTo(out);
         }
     }
 }

@@ -57,6 +57,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         mergedSegmentTransferTracker.incrementOngoingWarms();
         // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
         assert leafReader instanceof SegmentReader;
+        assert indexShard.indexSettings().isSegRepLocalEnabled() || indexShard.indexSettings().isRemoteStoreEnabled();
         long startTime = System.currentTimeMillis();
         long elapsedTime = 0;
         try {
