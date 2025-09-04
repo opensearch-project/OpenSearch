@@ -52,6 +52,10 @@ allprojects {
         executionDataFiles.add("$buildDir/jacoco/javaRestTest.exec")
         sourceSetsList.add(sourceSets.javaRestTest)
       }
+      if (tasks.findByName('yamlRestTest')) {
+        executionDataFiles.add("$buildDir/jacoco/yamlRestTest.exec")
+        sourceSetsList.add(sourceSets.yamlRestTest)
+      }
       if (!executionDataFiles.isEmpty()) {
         executionData.setFrom(files(executionDataFiles).filter { it.exists() })
         sourceSets(*sourceSetsList)
@@ -59,7 +63,8 @@ allprojects {
       onlyIf {
         file("$buildDir/jacoco/test.exec").exists() ||
           file("$buildDir/jacoco/internalClusterTest.exec").exists() ||
-          file("$buildDir/jacoco/javaRestTest.exec").exists()
+          file("$buildDir/jacoco/javaRestTest.exec").exists() ||
+          file("$buildDir/jacoco/yamlRestTest.exec").exists()
       }
     }
   }
@@ -77,6 +82,9 @@ if (System.getProperty("tests.coverage")) {
       testCodeCoverageReportJavaRestTest(JacocoCoverageReport) {
         testSuiteName = "javaRestTest"
       }
+      testCodeCoverageReportYamlRestTest(JacocoCoverageReport) {
+        testSuiteName = "yamlRestTest"
+      }
     }
   }
 
@@ -85,7 +93,8 @@ if (System.getProperty("tests.coverage")) {
     dependsOn(
       tasks.named('testCodeCoverageReport', JacocoReport),
       tasks.named('testCodeCoverageReportInternalClusterTest', JacocoReport),
-      tasks.named('testCodeCoverageReportJavaRestTest', JacocoReport)
+      tasks.named('testCodeCoverageReportJavaRestTest', JacocoReport),
+      tasks.named('testCodeCoverageReportYamlRestTest', JacocoReport)
     )
   }
 }
