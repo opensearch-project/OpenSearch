@@ -34,6 +34,7 @@ package org.opensearch.common.ssl;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 

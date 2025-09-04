@@ -50,6 +50,7 @@ import org.opensearch.common.ssl.PemTrustConfig;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matchers;

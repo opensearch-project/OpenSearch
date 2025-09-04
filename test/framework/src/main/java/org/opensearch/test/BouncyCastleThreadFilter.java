@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.ssl;
+package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 
