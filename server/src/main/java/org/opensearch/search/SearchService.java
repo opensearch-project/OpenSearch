@@ -84,6 +84,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.SearchExecutionEngine;
+import org.opensearch.index.engine.ReadEngine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.query.InnerHitContextBuilder;
@@ -140,6 +141,7 @@ import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryRewriterRegistry;
+import org.opensearch.search.query.QueryPhaseExecutor;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
@@ -807,10 +809,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean isStreamSearch,
         ActionListener<SearchPhaseResult> listener
     ) throws Exception {
+        // Till here things are generic but for datafusion , we need to abstract out and get the read engine specific implementation
+        // it could be reusing existing
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        ReadEngine<?, ?, ?, ?, ?> readEngine = readerContext.indexShard()
+            .getIndexingExecutionCoordinator()
+            .getPrimaryReadEngine();
+
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
+            //SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
+
+            // Get engine-specific executor and context
+            // TODO : move this logic to work with Lucene
+            SearchContext context = readEngine.createContext(readerContext, request, task);
+            //SearchContext context = createContext(readerContext, request, task, true)
         ) {
 
             // TODO Execute plan here
@@ -827,6 +840,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                //QueryPhaseExecutor<?> queryPhaseExecutor = readEngine.getQueryPhaseExecutor();
+                //boolean success = queryPhaseExecutor.execute(context);
+                //loadOrExecuteQueryPhase(request, context);
                 queryPhase.execute(context);
                 // loadOrExecuteQueryPhase(request, context);
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {

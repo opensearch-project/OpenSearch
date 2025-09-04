@@ -8,9 +8,40 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.search.EngineReaderContext;
+import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.query.GenericQueryPhaseSearcher;
+import org.opensearch.search.query.QueryPhaseExecutor;
+
+import java.io.IOException;
+
 /**
- * TODO : will use read engine eventually if we need more functionalities other than SearcherOperations
+ * Generic read engine interface that provides searcher operations and query phase execution
+ * @param <C> Context type for query execution
+ * @param <S> Searcher type that extends EngineSearcher
+ * @param <R> Reference manager type
+ * @param <Q> Query type
  */
-public abstract class ReadEngine implements SearcherOperations<EngineSearcher, EngineReaderManager<?>> {
-  // No-OP
+@ExperimentalApi
+// TODO too many templatized types
+public abstract class ReadEngine<C extends SearchContext, S extends EngineSearcher, R, Q, CS> implements SearcherOperations<S, R> {
+
+    /**
+     * Get the query phase searcher for this engine
+     */
+    public abstract GenericQueryPhaseSearcher<C, CS, Q> getQueryPhaseSearcher();
+
+    /**
+     * Get the query phase executor for this engine
+     */
+    public abstract QueryPhaseExecutor<C> getQueryPhaseExecutor();
+
+    /**
+     * Create a search context for this engine
+     */
+    public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTask task) throws IOException;
 }

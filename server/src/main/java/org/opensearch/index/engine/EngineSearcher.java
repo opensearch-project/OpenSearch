@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.List;
 
 // TODO make this <Query, Collector> generic type
-public interface EngineSearcher extends Releasable {
+public interface EngineSearcher<Q> extends Releasable {
 
     /**
      * The source that caused this searcher to be acquired.
@@ -25,7 +25,7 @@ public interface EngineSearcher extends Releasable {
     /**
      * Search using substrait query plan bytes and call the result collectors
      */
-    default void search(byte[] substraitInput, List<SearchResultsCollector<?>> collectors) throws IOException {
+    default void search(Q query, List<SearchResultsCollector<?>> collectors) throws IOException {
         throw new UnsupportedOperationException();
     }
 }

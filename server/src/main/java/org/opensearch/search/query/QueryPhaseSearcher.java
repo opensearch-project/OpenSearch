@@ -23,6 +23,8 @@ import java.util.LinkedList;
  * The extension point which allows to plug in custom search implementation to be
  * used at {@link QueryPhase}.
  *
+ * TODO : Change this ? query phase searcher shouldn't rely on Lucene
+ *
  * @opensearch.api
  */
 @PublicApi(since = "2.0.0")

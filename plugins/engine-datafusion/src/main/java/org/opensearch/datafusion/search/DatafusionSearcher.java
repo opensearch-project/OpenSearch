@@ -15,7 +15,7 @@ import org.opensearch.search.aggregations.SearchResultsCollector;
 import java.io.IOException;
 import java.util.List;
 
-public class DatafusionSearcher implements EngineSearcher {
+public class DatafusionSearcher<DatafusionQuery> implements EngineSearcher<DatafusionQuery> {
     private final String source;
 
     public DatafusionSearcher(String source) {
@@ -28,7 +28,7 @@ public class DatafusionSearcher implements EngineSearcher {
     }
 
     @Override
-    public void search(byte[] substraitInput, List<SearchResultsCollector<?>> collectors) throws IOException {
+    public void search(DatafusionQuery datafusionQuery, List<SearchResultsCollector<?>> collectors) throws IOException {
         // TODO : call search here to native
     }
 
