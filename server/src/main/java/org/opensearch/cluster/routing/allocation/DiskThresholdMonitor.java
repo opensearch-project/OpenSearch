@@ -385,8 +385,8 @@ public class DiskThresholdMonitor {
             logger.trace("no reroute required");
             listener.onResponse(null);
         }
-        handleReadOnlyBlocks(state, indicesToMarkReadOnly, indicesNotToAutoRelease, listener);
         handleReadBlocks(state, indicesToBlockRead, listener);
+        handleReadOnlyBlocks(state, indicesToMarkReadOnly, indicesNotToAutoRelease, listener);
         handleClusterCreateIndexBlocks(state, nodes, listener);
     }
 

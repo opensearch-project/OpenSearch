@@ -51,6 +51,12 @@ import java.util.Map;
  */
 public class FileCacheThresholdSettings {
 
+    public static final Setting<Boolean> CLUSTER_FILECACHE_ACTIVEUSAGE_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.filecache.activeusage.threshold.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final Setting<String> CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING = new Setting<>(
         "cluster.filecache.activeusage.indexing.threshold",
         "90%",
@@ -70,12 +76,16 @@ public class FileCacheThresholdSettings {
 
     private volatile Double fileCacheIndexThreshold;
     private volatile Double fileCacheSearchThreshold;
+    private volatile boolean enabled;
 
     public FileCacheThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String index = CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.get(settings);
         final String searchStage = CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.get(settings);
+        final boolean enabled = CLUSTER_FILECACHE_ACTIVEUSAGE_THRESHOLD_ENABLED_SETTING.get(settings);
         setIndexThreshold(index);
         setSearchThreshold(searchStage);
+        setEnabled(enabled);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_FILECACHE_ACTIVEUSAGE_THRESHOLD_ENABLED_SETTING, this::setEnabled);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING, this::setIndexThreshold);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING, this::setSearchThreshold);
     }
@@ -175,12 +185,20 @@ public class FileCacheThresholdSettings {
         }
     }
 
+    private void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
     private void setIndexThreshold(String index) {
         this.fileCacheIndexThreshold = thresholdPercentageFromValue(index);
     }
 
     private void setSearchThreshold(String search) {
         this.fileCacheSearchThreshold = thresholdPercentageFromValue(search);
+    }
+
+    public Boolean isEnabled() {
+        return enabled;
     }
 
     public Double getFileCacheIndexThreshold() {

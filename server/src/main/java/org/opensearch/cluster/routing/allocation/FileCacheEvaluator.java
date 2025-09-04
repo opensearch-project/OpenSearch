@@ -24,11 +24,13 @@ public class FileCacheEvaluator implements FileCacheThresholdEvaluator {
 
     @Override
     public boolean isNodeExceedingIndexingThreshold(AggregateFileCacheStats aggregateFileCacheStats) {
-        return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFileCacheIndexThreshold();
+        return fileCacheThresholdSettings.isEnabled()
+            && aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFileCacheIndexThreshold();
     }
 
     @Override
     public boolean isNodeExceedingSearchThreshold(AggregateFileCacheStats aggregateFileCacheStats) {
-        return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFileCacheSearchThreshold();
+        return fileCacheThresholdSettings.isEnabled()
+            && aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFileCacheSearchThreshold();
     }
 }
