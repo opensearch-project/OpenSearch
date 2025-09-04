@@ -213,6 +213,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int numReducePhases
     ) {
         checkCancellation();
+        if (pendingMerges.hasFailure()) {
+            return lastMerge;
+        }
         // ensure consistent ordering
         Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
 
@@ -446,6 +449,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             MergeTask task = runningTask.get();
             runningTask.compareAndSet(task, null);
             onPartialMergeFailure.accept(exc);
+            clearPendingMerges(task);
+        }
+
+        void clearPendingMerges(MergeTask task) {
             List<MergeTask> toCancels = new ArrayList<>();
             if (task != null) {
                 toCancels.add(task);
@@ -467,10 +474,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         private void onAfterMerge(MergeTask task, MergeResult newResult, long estimatedSize) {
             synchronized (this) {
+                runningTask.compareAndSet(task, null);
                 if (hasFailure()) {
+                    task.cancel();
                     return;
                 }
-                runningTask.compareAndSet(task, null);
                 mergeResult = newResult;
                 if (hasAggs) {
                     // Update the circuit breaker to remove the size of the source aggregations
@@ -491,7 +499,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         private void tryExecuteNext() {
             final MergeTask task;
             synchronized (this) {
-                if (queue.isEmpty() || hasFailure() || runningTask.get() != null) {
+                if (hasFailure()) {
+                    clearPendingMerges(null);
+                    return;
+                }
+                if (queue.isEmpty() || runningTask.get() != null) {
                     return;
                 }
                 task = queue.poll();
@@ -507,6 +519,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     try {
                         final QuerySearchResult[] toConsume = task.consumeBuffer();
                         if (toConsume == null) {
+                            task.cancel();
                             return;
                         }
                         long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
