@@ -454,7 +454,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.isAssignedOnRemoteNode(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
-        this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker(shardId(), indexSettings);
+        this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker();
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats(threadPool);
