@@ -117,7 +117,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .endObject();
-        indexService = createIndex("index", Settings.EMPTY, "type", mapping);
+        indexService = createIndex("index", Settings.EMPTY, mapping);
         mapperService = indexService.mapperService();
     }
 
