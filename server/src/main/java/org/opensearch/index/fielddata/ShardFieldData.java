@@ -35,7 +35,6 @@ package org.opensearch.index.fielddata;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -56,8 +55,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     private final CounterMetric evictionsMetric = new CounterMetric();
     private final CounterMetric totalMetric = new CounterMetric();
-    // Tuple contains field memory size and field count, in that order
-    private final ConcurrentMap<String, Tuple<CounterMetric, CounterMetric>> perFieldInfo = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<String, FieldStats> perFieldStats = ConcurrentCollections.newConcurrentMap();
     private final CounterMetric countMetric = new CounterMetric();
 
     public FieldDataStats stats(String... fields) {
@@ -66,10 +64,10 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
         if (CollectionUtils.isEmpty(fields) == false) {
             fieldTotals = new HashMap<>();
             fieldCounts = new HashMap<>();
-            for (Map.Entry<String, Tuple<CounterMetric, CounterMetric>> entry : perFieldInfo.entrySet()) {
+            for (Map.Entry<String, FieldStats> entry : perFieldStats.entrySet()) {
                 if (Regex.simpleMatch(fields, entry.getKey())) {
-                    fieldTotals.put(entry.getKey(), entry.getValue().v1().count());
-                    fieldCounts.put(entry.getKey(), entry.getValue().v2().count());
+                    fieldTotals.put(entry.getKey(), entry.getValue().getMemorySize());
+                    fieldCounts.put(entry.getKey(), entry.getValue().getItems());
                 }
             }
         }
@@ -86,18 +84,16 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
     public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
         totalMetric.inc(ramUsage.ramBytesUsed());
         countMetric.inc();
-        Tuple<CounterMetric, CounterMetric> fieldInfo = perFieldInfo.get(fieldName);
-        if (fieldInfo != null) {
-            fieldInfo.v1().inc(ramUsage.ramBytesUsed());
-            fieldInfo.v2().inc();
+        long size = ramUsage.ramBytesUsed();
+        FieldStats fieldStats = perFieldStats.get(fieldName);
+        if (fieldStats != null) {
+            fieldStats.increment(size);
         } else {
-            fieldInfo = new Tuple<>(new CounterMetric(), new CounterMetric());
-            fieldInfo.v1().inc(ramUsage.ramBytesUsed());
-            fieldInfo.v2().inc();
-            Tuple<CounterMetric, CounterMetric> prev = perFieldInfo.putIfAbsent(fieldName, fieldInfo);
+            fieldStats = new FieldStats();
+            fieldStats.increment(size);
+            FieldStats prev = perFieldStats.putIfAbsent(fieldName, fieldStats);
             if (prev != null) {
-                prev.v1().inc(ramUsage.ramBytesUsed());
-                prev.v2().inc();
+                prev.increment(size);
             }
         }
     }
@@ -107,16 +103,42 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
         if (wasEvicted) {
             evictionsMetric.inc();
         }
-        Tuple<CounterMetric, CounterMetric> fieldInfo = perFieldInfo.get(fieldName);
+        FieldStats fieldStats = perFieldStats.get(fieldName);
         if (sizeInBytes != -1) {
             totalMetric.dec(sizeInBytes);
-            if (fieldInfo != null) {
-                fieldInfo.v1().dec(sizeInBytes);
+            if (fieldStats != null) {
+                fieldStats.memorySizeMetric.dec(sizeInBytes);
             }
         }
         countMetric.dec();
-        if (fieldInfo != null) {
-            fieldInfo.v2().dec();
+        if (fieldStats != null) {
+            fieldStats.itemsMetric.dec();
+        }
+    }
+
+    /**
+     * Memory + item stats counters for one field.
+     */
+    class FieldStats {
+        final CounterMetric memorySizeMetric;
+        final CounterMetric itemsMetric;
+
+        FieldStats() {
+            this.memorySizeMetric = new CounterMetric();
+            this.itemsMetric = new CounterMetric();
+        }
+
+        void increment(long sizeInBytes) {
+            memorySizeMetric.inc(sizeInBytes);
+            itemsMetric.inc();
+        }
+
+        long getMemorySize() {
+            return memorySizeMetric.count();
+        }
+
+        long getItems() {
+            return itemsMetric.count();
         }
     }
 }
