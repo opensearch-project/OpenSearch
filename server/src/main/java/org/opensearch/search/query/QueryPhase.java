@@ -102,6 +102,7 @@ public class QueryPhase {
     // TODO: remove this property
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("opensearch.search.rewrite_sort", "true"));
     public static final QueryPhaseSearcher DEFAULT_QUERY_PHASE_SEARCHER = new DefaultQueryPhaseSearcher();
+
     private final QueryPhaseSearcher queryPhaseSearcher;
     private final SuggestProcessor suggestProcessor;
     private final RescoreProcessor rescoreProcessor;

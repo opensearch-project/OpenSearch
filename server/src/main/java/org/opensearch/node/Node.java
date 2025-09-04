@@ -218,7 +218,7 @@ import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.CryptoPlugin;
-import org.opensearch.plugins.DataSourceAwarePlugin;
+import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
@@ -296,6 +296,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
+import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.WorkloadGroupService;
@@ -1117,14 +1118,16 @@ public class Node implements Closeable {
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
 
-            Map<String, DataSourceCodec> dataSourceCodecMap = new HashMap<>();
+            Map<DataFormat, DataSourceCodec> dataSourceCodecMap = new HashMap<>();
             for (DataSourcePlugin dataSourcePlugin : pluginsService.filterPlugins(DataSourcePlugin.class)) {
                 if (dataSourcePlugin.getDataSourceCodecs().isPresent()) {
                     dataSourceCodecMap.putAll(dataSourcePlugin.getDataSourceCodecs().get());
                 }
             }
 
-            Collection<Object> dataSourceAwareComponents = pluginsService.filterPlugins(DataSourceAwarePlugin.class)
+            // TODO : compilation issue
+
+            Collection<Object> dataSourceAwareComponents = pluginsService.filterPlugins(SearchEnginePlugin.class)
                 .stream()
                 .flatMap(
                     p -> p.createComponents(

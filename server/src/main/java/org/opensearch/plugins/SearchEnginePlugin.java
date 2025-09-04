@@ -8,23 +8,56 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.SearchExecutionEngine;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.engine.ReadEngine;
+import org.opensearch.index.engine.EngineReaderManager;
+import org.opensearch.index.engine.EngineSearcher;
+import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.vectorized.execution.search.DataFormat;
+import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
-/**
- * Plugin interface for extending OpenSearch engine functionality.
- * This interface allows plugins to extend the core engine capabilities.
- *
- * @opensearch.internal
- */
-@ExperimentalApi
-public interface SearchEnginePlugin {
+public interface SearchEnginePlugin<Q,S extends EngineSearcher<Q>,R> extends SearchPlugin{
+
     /**
-     * createEngine
-     * @return
-     * @throws IOException
+     * Make dataSourceCodecs available for the DataSourceAwarePlugin(s)
      */
-    SearchExecutionEngine createEngine() throws IOException;
+    default Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Map<DataFormat, DataSourceCodec> dataSourceCodecs
+    ) {
+        return Collections.emptyList();
+    }
+
+    List<DataFormat> getSupportedFormats();
+
+    EngineReaderManager<R> getReaderManager();
+
+    ReadEngine<?,?,?,?,?> createEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot) throws IOException;
 }

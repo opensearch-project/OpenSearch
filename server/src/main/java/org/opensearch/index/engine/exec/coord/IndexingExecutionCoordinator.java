@@ -8,12 +8,14 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.engine.SearcherOperations;
+import org.opensearch.index.engine.ReadEngine;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -21,7 +23,7 @@ import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.plugins.DataSourceAwarePlugin;
+import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.PluginsService;
 
 import java.io.IOException;
@@ -30,16 +32,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@ExperimentalApi
 public class IndexingExecutionCoordinator {
 
     private final CompositeIndexingExecutionEngine engine;
     private List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
     private CatalogSnapshot catalogSnapshot;
     private List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
-    private Map<org.opensearch.vectorized.execution.search.DataFormat, List<SearcherOperations<?,?>>> readEngines = new HashMap<>();
+    private Map<org.opensearch.vectorized.execution.search.DataFormat, List<ReadEngine<?, ?, ?, ?, ?>>> readEngines = new HashMap<>();
 
     public IndexingExecutionCoordinator(MapperService mapperService, PluginsService pluginsService) throws IOException {
-        List<DataSourceAwarePlugin> dataSourceAwarePlugins = pluginsService.filterPlugins(DataSourceAwarePlugin.class);
+        List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
         this.engine = new CompositeIndexingExecutionEngine(pluginsService, new Any(List.of(DataFormat.TEXT)));
 
         // Refresh here so that catalog snapshot gets initialized
@@ -47,9 +50,9 @@ public class IndexingExecutionCoordinator {
         refresh("start");
         // TODO : how to extend this for Lucene ? where engine is a r/w engine
         // Create read specific engines for each format which is associated with shard
-        for(DataSourceAwarePlugin<?,?> dataSourceAwarePlugin : dataSourceAwarePlugins) {
-            for(org.opensearch.vectorized.execution.search.DataFormat dataFormat : dataSourceAwarePlugin.getSupportedFormats()) {
-                SearcherOperations<?,?> readEngine = dataSourceAwarePlugin.createEngine(dataFormat,
+        for(SearchEnginePlugin<?,?,?> searchEnginePlugin : searchEnginePlugins) {
+            for(org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
+                ReadEngine<?,?,?,?,?> readEngine = searchEnginePlugin.createEngine(dataFormat,
                     catalogSnapshot.getSearchableFiles(dataFormat.toString()));
                 readEngines.getOrDefault(dataFormat, new ArrayList<>()).add(readEngine);
                 // TODO : figure out how to do internal and external refresh listeners
@@ -58,13 +61,24 @@ public class IndexingExecutionCoordinator {
                 // 60s as refresh interval -> ExternalReaderManager acquires a view every 60 seconds
                 // InternalReaderManager -> IndexingMemoryController , it keeps on refreshing internal maanger
                 //
-                catalogSnapshotAwareRefreshListeners.add(readEngine.getRefreshListener(Engine.SearcherScope.INTERNAL));
+                if(readEngine.getRefreshListener(Engine.SearcherScope.INTERNAL) != null) {
+                    catalogSnapshotAwareRefreshListeners.add(readEngine.getRefreshListener(Engine.SearcherScope.INTERNAL));
+                }
             }
         }
     }
 
-    public SearcherOperations<?,?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
+    public ReadEngine<?,?,?,?,?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
         return readEngines.getOrDefault(dataFormat, new ArrayList<>()).getFirst();
+    }
+
+    public ReadEngine<?,?,?,?,?> getPrimaryReadEngine() {
+        // Return the first available ReadEngine as primary
+        return readEngines.values().stream()
+            .filter(list -> !list.isEmpty())
+            .findFirst()
+            .map(list -> list.getFirst())
+            .orElse(null);
     }
 
     public CompositeDataFormatWriter.CompositeDocumentInput documentInput() throws IOException {

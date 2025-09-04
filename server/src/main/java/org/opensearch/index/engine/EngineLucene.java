@@ -13,6 +13,7 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 
 import java.util.function.Function;
 
+// Dummy impl
 public class EngineLucene implements SearcherOperations<Engine.Searcher, ReferenceManager<OpenSearchDirectoryReader>>{
     @Override
     public EngineSearcherSupplier<Engine.Searcher> acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper) throws EngineException {
@@ -47,5 +48,10 @@ public class EngineLucene implements SearcherOperations<Engine.Searcher, Referen
     @Override
     public boolean assertSearcherIsWarmedUp(String source, Engine.SearcherScope scope) {
         return false;
+    }
+
+    @Override
+    public CatalogSnapshotAwareRefreshListener getRefreshListener(Engine.SearcherScope searcherScope) {
+        return null;
     }
 }

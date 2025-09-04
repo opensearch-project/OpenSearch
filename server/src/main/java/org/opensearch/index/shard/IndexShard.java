@@ -572,6 +572,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return searchExecutionEngine;
     }
 
+    public IndexingExecutionCoordinator getIndexingExecutionCoordinator() {
+        return indexingExecutionCoordinator;
+    }
     /**
      * By default, UNASSIGNED_SEQ_NO is used as the initial global checkpoint for new shard initialization. Ingestion
      * source does not track sequence numbers explicitly and hence defaults to NO_OPS_PERFORMED for compatibility.

@@ -20,16 +20,19 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.datafusion.action.DataFusionAction;
 import org.opensearch.datafusion.action.NodesDataFusionInfoAction;
 import org.opensearch.datafusion.action.TransportNodesDataFusionInfoAction;
+import org.opensearch.datafusion.search.DatafusionContext;
+import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionReaderManager;
 import org.opensearch.datafusion.search.DatafusionSearcher;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.EngineReaderManager;
-import org.opensearch.index.engine.SearcherOperations;
+import org.opensearch.search.EngineReaderContext;
+import org.opensearch.search.ContextEngineSearcher;
+import org.opensearch.index.engine.ReadEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
-import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.plugins.ActionPlugin;
-import org.opensearch.plugins.DataSourceAwarePlugin;
+import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
@@ -44,7 +47,6 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -53,7 +55,8 @@ import java.util.function.Supplier;
  * Main plugin class for OpenSearch DataFusion integration.
  *
  */
-public class DataFusionPlugin extends Plugin implements ActionPlugin, DataSourceAwarePlugin<DatafusionSearcher, DatafusionReaderManager> {
+public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEnginePlugin<DatafusionQuery,
+    DatafusionSearcher<DatafusionQuery>, DatafusionReaderManager> {
 
     private DataFusionService dataFusionService;
     private final boolean isDataFusionEnabled;
@@ -126,7 +129,9 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, DataSource
     // TODO : one engine per format, does that make sense ?
     // TODO : Engine shouldn't just be SearcherOperations, it can be more ?
     @Override
-    public SearcherOperations<DatafusionSearcher, DatafusionReaderManager> createEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot) throws IOException {
+    public ReadEngine<DatafusionContext, DatafusionSearcher<DatafusionQuery>,
+        DatafusionReaderManager, DatafusionQuery, ContextEngineSearcher<DatafusionQuery>>
+        createEngine(DataFormat dataFormat,Collection<FileMetadata> formatCatalogSnapshot) throws IOException {
         return new DatafusionEngine(dataFormat, formatCatalogSnapshot);
     }
 

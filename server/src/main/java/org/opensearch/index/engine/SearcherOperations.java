@@ -33,4 +33,8 @@ public interface SearcherOperations<S extends EngineSearcher, R> {
 
     boolean assertSearcherIsWarmedUp(String source, Engine.SearcherScope scope);
 
+    default CatalogSnapshotAwareRefreshListener getRefreshListener(Engine.SearcherScope searcherScope) {
+        // default is no-op, TODO : revisit this
+        return null;
+    }
 }
