@@ -67,6 +67,8 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
     private NodeValidator nodeValidator;
     private ShardValidator shardValidator;
     private Integer allocatedProcessors;
+    private String nodeId;
+    private final AutoForceMergeMetrics autoForceMergeMetrics;
     private ResourceTrackerProvider.ResourceTrackers resourceTrackers;
     private final ForceMergeManagerSettings forceMergeManagerSettings;
     private final CommonStatsFlags flags = new CommonStatsFlags(CommonStatsFlags.Flag.Segments, CommonStatsFlags.Flag.Translog);
@@ -78,7 +80,8 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         ThreadPool threadPool,
         MonitorService monitorService,
         IndicesService indicesService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        AutoForceMergeMetrics autoForceMergeMetrics
     ) {
         this.threadPool = threadPool;
         this.osService = monitorService.osService();
@@ -86,6 +89,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         this.jvmService = monitorService.jvmService();
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.autoForceMergeMetrics = autoForceMergeMetrics;
         this.forceMergeManagerSettings = new ForceMergeManagerSettings(clusterService, this::modifySchedulerInterval);
         this.task = new AsyncForceMergeTask();
         this.mergingShards = new HashSet<>();
@@ -98,6 +102,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         this.shardValidator = new ShardValidator();
         this.allocatedProcessors = OpenSearchExecutors.allocatedProcessors(clusterService.getSettings());
         this.resourceTrackers = ResourceTrackerProvider.create(threadPool);
+        this.nodeId = clusterService.localNode().getId();
     }
 
     @Override
@@ -119,20 +124,44 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
     }
 
     private void triggerForceMerge() {
-        if (isValidForForceMerge() == false) {
-            return;
+        long startTime = System.currentTimeMillis();
+        try {
+            if (isValidForForceMerge() == false) {
+                return;
+            }
+            executeForceMergeOnShards();
+        } finally {
+            autoForceMergeMetrics.recordInHistogram(
+                autoForceMergeMetrics.totalSchedulerExecutionTime,
+                (double) System.currentTimeMillis() - startTime,
+                autoForceMergeMetrics.getTags(nodeId, null)
+            );
         }
-        executeForceMergeOnShards();
     }
 
     private boolean isValidForForceMerge() {
         if (configurationValidator.hasWarmNodes() == false) {
             resourceTrackers.stop();
             logger.debug("No warm nodes found. Skipping Auto Force merge.");
+            autoForceMergeMetrics.incrementCounter(
+                autoForceMergeMetrics.totalMergesSkipped,
+                1.0,
+                autoForceMergeMetrics.getTags(nodeId, null)
+            );
             return false;
         }
         if (nodeValidator.validate().isAllowed() == false) {
             logger.debug("Node capacity constraints are not allowing to trigger auto ForceMerge");
+            autoForceMergeMetrics.incrementCounter(
+                autoForceMergeMetrics.skipsFromNodeValidator,
+                1.0,
+                autoForceMergeMetrics.getTags(nodeId, null)
+            );
+            autoForceMergeMetrics.incrementCounter(
+                autoForceMergeMetrics.totalMergesSkipped,
+                1.0,
+                autoForceMergeMetrics.getTags(nodeId, null)
+            );
             return false;
         }
         return true;
@@ -157,14 +186,47 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
 
     private void executeForceMergeForShard(IndexShard shard) {
         CompletableFuture.runAsync(() -> {
+            long startTime = System.currentTimeMillis();
+            String shardId = String.valueOf(shard.shardId().getId());
             try {
                 mergingShards.add(shard.shardId().getId());
+                autoForceMergeMetrics.incrementCounter(
+                    autoForceMergeMetrics.totalMergesTriggered,
+                    1.0,
+                    autoForceMergeMetrics.getTags(nodeId, null)
+                );
+
+                CommonStats preStats = new CommonStats(indicesService.getIndicesQueryCache(), shard, flags);
+                if (preStats.getSegments() != null) {
+                    autoForceMergeMetrics.incrementCounter(
+                        autoForceMergeMetrics.segmentCount,
+                        (double) preStats.getSegments().getCount(),
+                        autoForceMergeMetrics.getTags(nodeId, shardId)
+                    );
+                    autoForceMergeMetrics.incrementCounter(
+                        autoForceMergeMetrics.shardSize,
+                        (double) preStats.getStore().getSizeInBytes(),
+                        autoForceMergeMetrics.getTags(nodeId, shardId)
+                    );
+                }
+
                 shard.forceMerge(new ForceMergeRequest().maxNumSegments(forceMergeManagerSettings.getSegmentCount()));
                 logger.debug("Merging is completed successfully for the shard {}", shard.shardId());
+
             } catch (Exception e) {
                 logger.error("Error during force merge for shard {}\nException: {}", shard.shardId(), e);
+                autoForceMergeMetrics.incrementCounter(
+                    autoForceMergeMetrics.totalMergesFailed,
+                    1.0,
+                    autoForceMergeMetrics.getTags(nodeId, null)
+                );
             } finally {
                 mergingShards.remove(shard.shardId().getId());
+                autoForceMergeMetrics.recordInHistogram(
+                    autoForceMergeMetrics.shardForceMergeLatency,
+                    (double) System.currentTimeMillis() - startTime,
+                    autoForceMergeMetrics.getTags(nodeId, shardId)
+                );
             }
         }, threadPool.executor(ThreadPool.Names.FORCE_MERGE));
         logger.info("Successfully triggered force merge for shard {}", shard.shardId());
