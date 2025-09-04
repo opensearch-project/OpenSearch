@@ -10,9 +10,6 @@ package org.opensearch.index.merge;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.shard.AbstractIndexShardComponent;
 
 /**
  * A component that tracks stats related to merged segment replication operations.
@@ -21,7 +18,7 @@ import org.opensearch.index.shard.AbstractIndexShardComponent;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class MergedSegmentTransferTracker extends AbstractIndexShardComponent {
+public class MergedSegmentTransferTracker {
 
     private final CounterMetric totalWarmInvocationsCount = new CounterMetric();
     private final CounterMetric totalWarmTimeMillis = new CounterMetric();
@@ -31,10 +28,6 @@ public class MergedSegmentTransferTracker extends AbstractIndexShardComponent {
     private final CounterMetric totalUploadTimeMillis = new CounterMetric();
     private final CounterMetric totalDownloadTimeMillis = new CounterMetric();
     private final CounterMetric ongoingWarms = new CounterMetric();
-
-    public MergedSegmentTransferTracker(ShardId shardId, IndexSettings indexSettings) {
-        super(shardId, indexSettings);
-    }
 
     public void incrementTotalWarmInvocationsCount() {
         totalWarmInvocationsCount.inc();

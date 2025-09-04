@@ -129,7 +129,16 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
                 new RemoteStorePublishMergedSegmentRequest(remoteStoreMergedSegmentCheckpoint),
                 "segrep_remote_publish_merged_segment",
                 true,
-                TimeValue.timeValueMillis(timeLeftMillis)
+                TimeValue.timeValueMillis(timeLeftMillis),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        indexShard.mergedSegmentTransferTracker().incrementTotalWarmFailureCount();
+                    }
+                }
             );
         } else {
             indexShard.mergedSegmentTransferTracker().incrementTotalWarmFailureCount();

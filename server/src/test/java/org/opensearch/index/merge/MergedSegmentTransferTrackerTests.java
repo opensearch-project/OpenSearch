@@ -9,6 +9,7 @@
 package org.opensearch.index.merge;
 
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -25,19 +26,21 @@ public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
         super.setUp();
         ShardId shardId = new ShardId("test", "uuid", 0);
         IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", builder().build()), builder().build());
-        tracker = new MergedSegmentTransferTracker(shardId, indexSettings);
+        tracker = new MergedSegmentTransferTracker();
     }
 
     public void testInitialStats() {
         MergedSegmentWarmerStats stats = tracker.stats();
-        assertEquals(0, stats.getTotalWarmInvocationsCount());
-        assertEquals(TimeValue.ZERO, stats.getTotalWarmTime());
-        assertEquals(0, stats.getTotalWarmFailureCount());
-        assertEquals(0, stats.getTotalSentSize());
-        assertEquals(0, stats.getTotalReceivedSize());
-        assertEquals(TimeValue.ZERO, stats.getTotalUploadTime());
-        assertEquals(TimeValue.ZERO, stats.getTotalDownloadTime());
-        assertEquals(0, stats.getOngoingWarms());
+        assertEquals(0, stats.getTotalInvocationsCount());
+        assertEquals(TimeValue.ZERO, stats.getTotalTime());
+        assertEquals(0, stats.getTotalFailureCount());
+        assertEquals(ByteSizeValue.class, stats.getTotalSentSize().getClass());
+        assertEquals(0, stats.getTotalSentSize().getBytes());
+        assertEquals(ByteSizeValue.class, stats.getTotalReceivedSize().getClass());
+        assertEquals(0, stats.getTotalReceivedSize().getBytes());
+        assertEquals(TimeValue.ZERO, stats.getTotalSendTime());
+        assertEquals(TimeValue.ZERO, stats.getTotalReceiveTime());
+        assertEquals(0, stats.getOngoingCount());
     }
 
     public void testIncrementCounters() {
@@ -45,17 +48,17 @@ public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
         tracker.incrementTotalWarmFailureCount();
 
         MergedSegmentWarmerStats stats = tracker.stats();
-        assertEquals(1, stats.getTotalWarmInvocationsCount());
-        assertEquals(1, stats.getTotalWarmFailureCount());
+        assertEquals(1, stats.getTotalInvocationsCount());
+        assertEquals(1, stats.getTotalFailureCount());
     }
 
     public void testOngoingWarms() {
         tracker.incrementOngoingWarms();
         tracker.incrementOngoingWarms();
-        assertEquals(2, tracker.stats().getOngoingWarms());
+        assertEquals(2, tracker.stats().getOngoingCount());
 
         tracker.decrementOngoingWarms();
-        assertEquals(1, tracker.stats().getOngoingWarms());
+        assertEquals(1, tracker.stats().getOngoingCount());
     }
 
     public void testAddTimeAndBytes() {
@@ -66,20 +69,20 @@ public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
         tracker.addTotalBytesDownloaded(2048);
 
         MergedSegmentWarmerStats stats = tracker.stats();
-        assertEquals(new TimeValue(100), stats.getTotalWarmTime());
-        assertEquals(new TimeValue(200), stats.getTotalUploadTime());
-        assertEquals(new TimeValue(300), stats.getTotalDownloadTime());
-        assertEquals(1024, stats.getTotalSentSize());
-        assertEquals(2048, stats.getTotalReceivedSize());
+        assertEquals(new TimeValue(100), stats.getTotalTime());
+        assertEquals(new TimeValue(200), stats.getTotalSendTime());
+        assertEquals(new TimeValue(300), stats.getTotalReceiveTime());
+        assertEquals(1024, stats.getTotalSentSize().getBytes());
+        assertEquals(2048, stats.getTotalReceivedSize().getBytes());
     }
 
-    public void testAccumulativeStats() {
+    public void testCumulativeStats() {
         tracker.addTotalWarmTimeMillis(100);
         tracker.addTotalWarmTimeMillis(50);
-        assertEquals(new TimeValue(150), tracker.stats().getTotalWarmTime());
+        assertEquals(new TimeValue(150), tracker.stats().getTotalTime());
 
         tracker.addTotalBytesUploaded(1000);
         tracker.addTotalBytesUploaded(500);
-        assertEquals(1500, tracker.stats().getTotalSentSize());
+        assertEquals(1500, tracker.stats().getTotalSentSize().getBytes());
     }
 }
