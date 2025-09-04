@@ -32,6 +32,8 @@
 
 package org.opensearch.common.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -51,6 +53,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class PemTrustConfigTests extends OpenSearchTestCase {
 
     public void testBuildTrustConfigFromSinglePemFile() throws Exception {

@@ -32,6 +32,8 @@
 
 package org.opensearch.common.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.settings.SecureString;
@@ -51,6 +53,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class SslConfigurationLoaderTests extends OpenSearchTestCase {
 
     private final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/=";

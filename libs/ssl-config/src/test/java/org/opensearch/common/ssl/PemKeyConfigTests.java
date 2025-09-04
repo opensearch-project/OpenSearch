@@ -32,6 +32,8 @@
 
 package org.opensearch.common.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -55,6 +57,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class PemKeyConfigTests extends OpenSearchTestCase {
     private static final int IP_NAME = 7;
     private static final int DNS_NAME = 2;
