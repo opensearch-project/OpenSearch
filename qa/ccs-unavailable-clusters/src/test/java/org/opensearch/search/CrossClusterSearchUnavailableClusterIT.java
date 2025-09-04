@@ -294,6 +294,63 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
         }
     }
 
+    public void testCrossClusterConnectionWithSkipUnavailable() throws IOException {
+        try (MockTransportService remoteTransport1 = startTransport("node1", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool);
+             MockTransportService remoteTransport2 = startTransport("node2", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
+
+            DiscoveryNode remoteNode1 = remoteTransport1.getLocalDiscoNode();
+            DiscoveryNode remoteNode2 = remoteTransport2.getLocalDiscoNode();
+
+            Map<String, Object> initialSettings = new HashMap<>();
+            initialSettings.put("seeds", remoteNode1.getAddress().toString());
+            initialSettings.put("skip_unavailable", true);
+            updateRemoteClusterSettings(initialSettings);
+
+            for (int i = 0; i < 5; i++) {
+                restHighLevelClient.index(
+                    new IndexRequest("index").id(String.valueOf(i)).source("field", "value"),
+                    RequestOptions.DEFAULT
+                );
+            }
+
+            Response refreshResponse = client().performRequest(new Request("POST", "/index/_refresh"));
+            assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
+
+            SearchResponse response1 = restHighLevelClient.search(
+                new SearchRequest("index", "remote1:index"),
+                RequestOptions.DEFAULT
+            );
+
+            assertEquals(2, response1.getClusters().getTotal());
+            assertEquals(2, response1.getClusters().getSuccessful());
+            assertEquals(0, response1.getClusters().getSkipped());
+            assertEquals(5, response1.getHits().getTotalHits().value());
+
+            Map<String, Object> clusterSettings = new HashMap<>();
+            clusterSettings.put("seeds", remoteNode2.getAddress().toString());
+            clusterSettings.put("skip_unavailable", true);
+            updateRemoteClusterSettings(clusterSettings);
+
+            remoteTransport1.close();
+            remoteTransport2.close();
+
+            SearchResponse response2 = restHighLevelClient.search(
+                new SearchRequest("index", "remote1:index"),
+                RequestOptions.DEFAULT
+            );
+
+            assertEquals(2, response2.getClusters().getTotal());
+            assertEquals(1, response2.getClusters().getSuccessful());
+            assertEquals(1, response2.getClusters().getSkipped());
+            assertEquals(5, response2.getHits().getTotalHits().value());
+
+            Map<String, Object> cleanupSettings = new HashMap<>();
+            cleanupSettings.put("seeds", null);
+            cleanupSettings.put("skip_unavailable", null);
+            updateRemoteClusterSettings(cleanupSettings);
+        }
+    }
+
     private static void assertSearchConnectFailure() {
         {
             OpenSearchException exception = expectThrows(OpenSearchException.class,

@@ -79,6 +79,7 @@ import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
@@ -151,6 +152,17 @@ public final class IndexModule {
     public static final Setting<String> INDEX_COMPOSITE_STORE_TYPE_SETTING = new Setting<>(
         "index.composite_store.type",
         "default",
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    /**
+     * Index setting that selects a custom StoreFactory provided by plugins. If empty, the default store is used
+     */
+    public static final Setting<String> INDEX_STORE_FACTORY_SETTING = new Setting<>(
+        "index.store.factory",
+        "",
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope
@@ -260,6 +272,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
 
@@ -283,6 +296,7 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories,
         final FileCache fileCache,
         final CompositeIndexSettings compositeIndexSettings
     ) {
@@ -297,6 +311,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.storeFactories = storeFactories;
         this.fileCache = fileCache;
         this.compositeIndexSettings = compositeIndexSettings;
     }
@@ -322,6 +337,7 @@ public final class IndexModule {
             allowExpensiveQueries,
             expressionResolver,
             recoveryStateFactories,
+            Collections.emptyMap(),
             null,
             null
         );
@@ -759,6 +775,7 @@ public final class IndexModule {
                 directoryFactory,
                 compositeDirectoryFactory,
                 remoteDirectoryFactory,
+                resolveStoreFactory(indexSettings, storeFactories),
                 eventListener,
                 readerWrapperFactory,
                 mapperRegistry,
@@ -855,6 +872,21 @@ public final class IndexModule {
             throw new IllegalArgumentException("Unknown recovery type [" + recoveryType + "]");
         }
 
+        return factory;
+    }
+
+    private static IndexStorePlugin.StoreFactory resolveStoreFactory(
+        final IndexSettings indexSettings,
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories
+    ) {
+        final String key = indexSettings.getValue(INDEX_STORE_FACTORY_SETTING);
+        if (key == null || key.isEmpty()) {
+            return Store::new;
+        }
+        final IndexStorePlugin.StoreFactory factory = storeFactories.get(key);
+        if (factory == null) {
+            throw new IllegalArgumentException("Unknown store factory [" + key + "]");
+        }
         return factory;
     }
 

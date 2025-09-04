@@ -15,8 +15,6 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.WriteStateException;
@@ -77,11 +75,7 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
 
     private static final Logger logger = LogManager.getLogger(FileCache.class);
 
-    private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-        1024 * 1024,
-        1,
-        new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-    );
+    private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024, 1);
     private final Map<ShardId, Path> files = new HashMap<>();
     private NodeEnvironment env;
     private FileCacheCleaner cleaner;
