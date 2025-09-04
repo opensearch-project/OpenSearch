@@ -65,6 +65,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix CodeQL workflow [(#963)](https://github.com/wazuh/wazuh-indexer/pull/963)
 - Fix auto-generated demo certificates naming [(#1010)](https://github.com/wazuh/wazuh-indexer/pull/1010)
 - Fix service status preservation during upgrade in RPM packages [(#1031)](https://github.com/wazuh/wazuh-indexer/pull/1031)
+- Fix Deprecation warning due to set-output command [(#1112)](https://github.com/wazuh/wazuh-indexer/pull/1112)
 
 ### Security
 - Reduce risk of GITHUB_TOKEN exposure [(#960)](https://github.com/wazuh/wazuh-indexer/pull/960)
