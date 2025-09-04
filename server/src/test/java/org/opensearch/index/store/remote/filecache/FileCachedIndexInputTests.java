@@ -14,8 +14,6 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -45,7 +43,7 @@ public class FileCachedIndexInputTests extends OpenSearchTestCase {
         indexOutput.close();
         filePath = basePath.resolve(TEST_FILE);
         underlyingIndexInput = fsDirectory.openInput(TEST_FILE, IOContext.DEFAULT);
-        fileCache = FileCacheFactory.createConcurrentLRUFileCache(FILE_CACHE_CAPACITY, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        fileCache = FileCacheFactory.createConcurrentLRUFileCache(FILE_CACHE_CAPACITY);
     }
 
     protected void setupIndexInputAndAddToFileCache() {
