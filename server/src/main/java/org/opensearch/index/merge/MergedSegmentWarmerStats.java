@@ -143,7 +143,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.TOTAL_BYTES_RECEIVED, Fields.TOTAL_RECEIVED_SIZE, getTotalReceivedSize());
         builder.humanReadableField(Fields.TOTAL_SEND_TIME_MILLIS, Fields.TOTAL_SEND_TIME, getTotalSendTime());
         builder.humanReadableField(Fields.TOTAL_RECEIVE_TIME_MILLIS, Fields.TOTAL_RECEIVE_TIME, getTotalReceiveTime());
-        builder.field(Fields.ONGOING_WARMS, ongoingCount);
+        builder.field(Fields.ONGOING_COUNT, ongoingCount);
         builder.endObject();
         return builder;
     }
@@ -162,7 +162,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         static final String TOTAL_BYTES_RECEIVED = "total_bytes_received";
         static final String TOTAL_SEND_TIME_MILLIS = "total_send_time_millis";
         static final String TOTAL_RECEIVE_TIME_MILLIS = "total_receive_time_millis";
-        static final String ONGOING_WARMS = "ongoing_warms";
+        static final String ONGOING_COUNT = "ongoing_count";
 
         public static final String TOTAL_TIME = "total_time";
         public static final String TOTAL_SEND_TIME = "total_send_time";
