@@ -149,7 +149,7 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
 
     @Override
     public int hashCode() {
-        return this.local.hashCode() + this.remote.hashCode();
+        return this.local.hashCode() + this.remote.hashCode() * 31;
     }
 
     /**
@@ -336,7 +336,7 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
 
         @Override
         public int hashCode() {
-            return this.names.hashCode() + this.subActions.hashCode();
+            return this.names.hashCode() + this.subActions.hashCode() * 31;
         }
 
         /**
@@ -467,7 +467,7 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
 
             @Override
             public int hashCode() {
-                return super.hashCode() + this.concreteIndices.hashCode() * 11;
+                return super.hashCode() * 31 + this.concreteIndices.hashCode();
             }
 
             List<RuntimeException> resolutionErrors() {
