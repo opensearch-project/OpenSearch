@@ -479,7 +479,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             return Optional.of(new IndexShardCacheEntity(indexService.getShardOrNull(shardId.id())));
         }), cacheService, threadPool, clusterService, nodeEnv);
-        this.indicesQueryCache = new IndicesQueryCache(settings);
+        this.indicesQueryCache = new IndicesQueryCache(settings, clusterService.getClusterSettings());
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
         indexingMemoryController = new IndexingMemoryController(
@@ -1210,7 +1210,7 @@ public class IndicesService extends AbstractLifecycleComponent
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             });
             closeables.add(indicesFieldDataCache);
-            IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
+            IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings, clusterService.getClusterSettings());
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service = createIndexService(

@@ -51,7 +51,7 @@ import java.util.Map;
 public class FiltersAggsRewriteIT extends OpenSearchSingleNodeTestCase {
 
     public void testWrapperQueryIsRewritten() throws IOException {
-        createIndex("test", Settings.EMPTY, "test", "title", "type=text");
+        createIndexWithSimpleMappings("test", Settings.EMPTY, "title", "type=text");
         client().prepareIndex("test").setId("1").setSource("title", "foo bar baz").get();
         client().prepareIndex("test").setId("2").setSource("title", "foo foo foo").get();
         client().prepareIndex("test").setId("3").setSource("title", "bar baz bax").get();
