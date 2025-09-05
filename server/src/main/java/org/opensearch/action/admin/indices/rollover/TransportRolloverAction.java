@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -277,13 +278,19 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                 true
             );
 
-            return ResolvedIndices.of(preResult.sourceIndexName, preResult.rolloverIndexName);
+            return ResolvedIndices.of(rolloverRequest.getRolloverTarget())
+                .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of(preResult.rolloverIndexName));
         } catch (Exception e) {
             // Exceptions are mostly occurring due to validation errors (e.g. non-existing indices).
             // These are not propagated to the caller because it should be still
             // the clusterManagerOperation() that should report these failures.
             // Instead, we return a basic result which still allows privilege evaluation.
-            return ResolvedIndices.ofNonNull(rolloverRequest.getNewIndexName(), rolloverRequest.getRolloverTarget());
+            if (rolloverRequest.getNewIndexName() != null) {
+                return ResolvedIndices.of(rolloverRequest.getRolloverTarget())
+                    .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of(rolloverRequest.getNewIndexName()));
+            } else {
+                return ResolvedIndices.of(rolloverRequest.getRolloverTarget());
+            }
         }
     }
 

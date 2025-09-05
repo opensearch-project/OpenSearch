@@ -80,7 +80,6 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         assertTrue(resolvedIndices.local().contains("whatever"));
         assertTrue(resolvedIndices.local().containsAny(List.of("whatever")));
         assertTrue(resolvedIndices.local().containsAny(i -> false));
-
     }
 
     public void testWithRemoteIndices() {
@@ -95,6 +94,7 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
             resolvedIndices.remote().asClusterToOriginalIndicesMap().get("remote_cluster").indices()
         );
         assertThat(resolvedIndices.remote().asRawExpressions(), containsInAnyOrder("remote_cluster:remote_index"));
+        assertEquals(resolvedIndices.remote().asRawExpressions(), Arrays.asList(resolvedIndices.remote().asRawExpressionsArray()));
     }
 
     public void testWithoutRemoteIndices() {
@@ -158,7 +158,43 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         assertFalse(resolvedIndices.local().containsAny(List.of("x", "y")));
         assertTrue(resolvedIndices.local().containsAny(i -> i.equals("a")));
         assertFalse(resolvedIndices.local().containsAny(i -> i.equals("z")));
+    }
 
+    public void testEqualsHashCode() {
+        ResolvedIndices resolvedIndices1 = ResolvedIndices.of("index")
+            .withRemoteIndices(Map.of("remote", new OriginalIndices(new String[] { "remote_index" }, IndicesOptions.LENIENT_EXPAND_OPEN)))
+            .withLocalSubActions(DeleteIndexAction.INSTANCE, ResolvedIndices.Local.of("other"));
+        ResolvedIndices resolvedIndices2 = ResolvedIndices.of("index")
+            .withRemoteIndices(Map.of("remote", new OriginalIndices(new String[] { "remote_index" }, IndicesOptions.LENIENT_EXPAND_OPEN)))
+            .withLocalSubActions(DeleteIndexAction.INSTANCE, ResolvedIndices.Local.of("other"));
+        assertEquals(resolvedIndices1.hashCode(), resolvedIndices2.hashCode());
+        assertTrue(resolvedIndices1 + " equals " + resolvedIndices2, resolvedIndices1.equals(resolvedIndices2));
+        assertTrue(resolvedIndices2 + " equals " + resolvedIndices1, resolvedIndices2.equals(resolvedIndices1));
+        ResolvedIndices resolvedIndices3 = resolvedIndices2.withRemoteIndices(
+            Map.of("remote2", new OriginalIndices(new String[] { "remote_index" }, IndicesOptions.LENIENT_EXPAND_OPEN))
+        );
+        assertNotEquals(resolvedIndices1.hashCode(), resolvedIndices3.hashCode());
+        assertFalse(resolvedIndices1.equals(resolvedIndices3));
+        assertFalse(resolvedIndices3.equals(resolvedIndices1));
+    }
+
+    public void testHashCodeForConcreteIndices() {
+        ResolvedIndices resolvedIndices1 = ResolvedIndices.of(ResolvedIndices.Local.Concrete.of(new Index("index", "index_uuid")))
+            .withRemoteIndices(Map.of("remote", new OriginalIndices(new String[] { "remote_index" }, IndicesOptions.LENIENT_EXPAND_OPEN)))
+            .withLocalSubActions(DeleteIndexAction.INSTANCE, ResolvedIndices.Local.of("other"));
+        ResolvedIndices resolvedIndices2 = ResolvedIndices.of(ResolvedIndices.Local.Concrete.of(new Index("index", "index_uuid")))
+            .withRemoteIndices(Map.of("remote", new OriginalIndices(new String[] { "remote_index" }, IndicesOptions.LENIENT_EXPAND_OPEN)))
+            .withLocalSubActions(DeleteIndexAction.INSTANCE, ResolvedIndices.Local.of("other"));
+        assertEquals(resolvedIndices1.hashCode(), resolvedIndices2.hashCode());
+        assertTrue(resolvedIndices1 + " equals " + resolvedIndices2, resolvedIndices1.equals(resolvedIndices2));
+        assertTrue(resolvedIndices2 + " equals " + resolvedIndices1, resolvedIndices2.equals(resolvedIndices1));
+        ResolvedIndices resolvedIndices3 = resolvedIndices2.withLocalSubActions(
+            DeleteIndexAction.INSTANCE,
+            ResolvedIndices.Local.of("other2")
+        );
+        assertNotEquals(resolvedIndices1.hashCode(), resolvedIndices3.hashCode());
+        assertFalse(resolvedIndices1.equals(resolvedIndices3));
+        assertFalse(resolvedIndices3.equals(resolvedIndices1));
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
