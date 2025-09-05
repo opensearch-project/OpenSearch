@@ -278,17 +278,22 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexedAndNoDocValues();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = scale(lowerTerm);
-                dValue = includeLower ? Math.nextDown(dValue) : Math.nextUp(dValue);
-                lo = Math.round(Math.ceil(dValue));
+                lo = Math.round(scale(lowerTerm));
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = scale(upperTerm);
-                dValue = includeUpper ? Math.nextUp(dValue) : Math.nextDown(dValue);
-                hi = Math.round(Math.floor(dValue));
+                hi = Math.round(scale(upperTerm));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), isSearchable(), context);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(
+                name(),
+                lo,
+                hi,
+                includeLower,
+                includeUpper,
+                hasDocValues(),
+                isSearchable(),
+                context
+            );
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
