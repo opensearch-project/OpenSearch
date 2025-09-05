@@ -84,7 +84,8 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.SearchExecutionEngine;
-import org.opensearch.index.engine.ReadEngine;
+import org.opensearch.index.engine.EngineSearcherSupplier;
+import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.query.InnerHitContextBuilder;
@@ -812,7 +813,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // Till here things are generic but for datafusion , we need to abstract out and get the read engine specific implementation
         // it could be reusing existing
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
-        ReadEngine<?, ?, ?, ?, ?> readEngine = readerContext.indexShard()
+        SearchExecEngine<?, ?, ?, ?> searchExecEngine = readerContext.indexShard()
             .getIndexingExecutionCoordinator()
             .getPrimaryReadEngine();
 
@@ -822,7 +823,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             // Get engine-specific executor and context
             // TODO : move this logic to work with Lucene
-            SearchContext context = readEngine.createContext(readerContext, request, task);
+            SearchContext context = searchExecEngine.createContext(readerContext, request, task);
             //SearchContext context = createContext(readerContext, request, task, true)
         ) {
 
@@ -1088,7 +1089,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());
         // TODO acquire search supplier
-        Engine.SearcherSupplier reader = shard.acquireSearcherSupplier();
+        EngineSearcherSupplier<?> reader = shard.acquireSearcherSupplier();
         return createAndPutReaderContext(request, indexService, shard, reader, keepStatesInContext);
     }
 
@@ -1096,7 +1097,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ShardSearchRequest request,
         IndexService indexService,
         IndexShard shard,
-        Engine.SearcherSupplier reader,
+        EngineSearcherSupplier<?> reader,
         boolean keepStatesInContext
     ) {
         assert request.readerId() == null;
@@ -1162,7 +1163,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
         shard.awaitShardSearchActive(ignored -> {
-            Engine.SearcherSupplier searcherSupplier = null;
+            EngineSearcherSupplier<?> searcherSupplier = null;
             ReaderContext readerContext = null;
             Releasable decreasePitContexts = openPitContexts::decrementAndGet;
             try {
@@ -1296,7 +1297,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, boolean validate) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+        final EngineSearcherSupplier<?> reader = indexShard.acquireSearcherSupplier();
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
             DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, validate);
@@ -1851,7 +1852,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final boolean hasRefreshPending;
             if (readerContext != null) {
                 indexService = readerContext.indexService();
-                canMatchSearcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+                canMatchSearcher = (Engine.Searcher) readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
                 hasRefreshPending = false;
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());

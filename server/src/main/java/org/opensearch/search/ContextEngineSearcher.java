@@ -11,8 +11,8 @@ import java.util.List;
  * Engine-agnostic equivalent of ContextIndexSearcher that wraps EngineSearcher
  * and provides search context awareness
  */
-public record ContextEngineSearcher<Q>(EngineSearcher<Q> engineSearcher,
-                                       SearchContext searchContext) implements EngineSearcher<Q> {
+public record ContextEngineSearcher<Q,C>(EngineSearcher<Q,C> engineSearcher,
+                                       SearchContext searchContext) implements EngineSearcher<Q,C> {
 
     @Override
     public String source() {
@@ -20,7 +20,7 @@ public record ContextEngineSearcher<Q>(EngineSearcher<Q> engineSearcher,
     }
 
     @Override
-    public void search(Q query, List<SearchResultsCollector<?>> collectors) throws IOException {
+    public void search(Q query, List<SearchResultsCollector<C>> collectors) throws IOException {
         engineSearcher.search(query, collectors);
     }
 

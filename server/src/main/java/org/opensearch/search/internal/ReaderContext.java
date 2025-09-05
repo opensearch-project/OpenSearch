@@ -38,6 +38,8 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineSearcher;
+import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.dfs.AggregatedDfs;
@@ -65,7 +67,7 @@ public class ReaderContext implements Releasable {
     private final ShardSearchContextId id;
     private final IndexService indexService;
     private final IndexShard indexShard;
-    protected final Engine.SearcherSupplier searcherSupplier;
+    protected final EngineSearcherSupplier<?> searcherSupplier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean singleSession;
 
@@ -84,7 +86,7 @@ public class ReaderContext implements Releasable {
         ShardSearchContextId id,
         IndexService indexService,
         IndexShard indexShard,
-        Engine.SearcherSupplier searcherSupplier,
+        EngineSearcherSupplier<?> searcherSupplier,
         long keepAliveInMillis,
         boolean singleSession
     ) {
@@ -150,7 +152,7 @@ public class ReaderContext implements Releasable {
         return indexShard;
     }
 
-    public Engine.Searcher acquireSearcher(String source) {
+    public EngineSearcher<?,?> acquireSearcher(String source) {
         return searcherSupplier.acquireSearcher(source);
     }
 

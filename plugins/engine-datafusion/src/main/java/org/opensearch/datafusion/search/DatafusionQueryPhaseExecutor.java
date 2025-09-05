@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion.search;
 
+import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.search.query.QueryPhaseExecutor;
 import org.opensearch.search.query.QueryPhaseExecutionException;
 import org.opensearch.datafusion.search.DatafusionContext;
@@ -15,6 +16,7 @@ import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.search.ContextEngineSearcher;
 import org.opensearch.search.query.GenericQueryPhase;
 import org.opensearch.search.query.GenericQueryPhaseSearcher;
+import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
 /**
  * Query phase executor for Datafusion engine
@@ -24,17 +26,18 @@ public class DatafusionQueryPhaseExecutor implements QueryPhaseExecutor<Datafusi
     @Override
     public boolean execute(DatafusionContext context) throws QueryPhaseExecutionException {
         if (!canHandle(context)) {
-            throw new QueryPhaseExecutionException("Cannot handle datafusion context");
+            // TODO : throw new QueryPhaseExecutionException("Cannot handle datafusion context");
         }
 
-        GenericQueryPhaseSearcher<DatafusionContext, ContextEngineSearcher<DatafusionQuery>, DatafusionQuery> searcher =
+        GenericQueryPhaseSearcher<DatafusionContext, DatafusionSearcher, DatafusionQuery> searcher =
             context.readEngine().getQueryPhaseSearcher();
 
-        GenericQueryPhase<DatafusionContext, ContextEngineSearcher<DatafusionQuery>, DatafusionQuery> queryPhase =
+        GenericQueryPhase<DatafusionContext, DatafusionSearcher, DatafusionQuery> queryPhase =
             new GenericQueryPhase<>(searcher);
 
-        DatafusionQuery query = context.query();
-        return queryPhase.executeInternal(context, context.contextEngineSearcher(), query);
+        DatafusionQuery query = context.getDatafusionQuery();
+        // TODO : rework interfaces as context itself has many objects
+        return queryPhase.executeInternal(context, context.getEngineSearcher(), query);
     }
 
     @Override

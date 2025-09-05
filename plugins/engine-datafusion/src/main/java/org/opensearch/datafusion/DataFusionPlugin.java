@@ -26,10 +26,8 @@ import org.opensearch.datafusion.search.DatafusionReaderManager;
 import org.opensearch.datafusion.search.DatafusionSearcher;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.engine.EngineReaderManager;
-import org.opensearch.search.EngineReaderContext;
 import org.opensearch.search.ContextEngineSearcher;
-import org.opensearch.index.engine.ReadEngine;
+import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.SearchEnginePlugin;
@@ -42,6 +40,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.vectorized.execution.search.DataFormat;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
@@ -55,8 +54,7 @@ import java.util.function.Supplier;
  * Main plugin class for OpenSearch DataFusion integration.
  *
  */
-public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEnginePlugin<DatafusionQuery,
-    DatafusionSearcher<DatafusionQuery>, DatafusionReaderManager> {
+public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEnginePlugin {
 
     private DataFusionService dataFusionService;
     private final boolean isDataFusionEnabled;
@@ -118,19 +116,14 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         return List.of(DataFormat.CSV);
     }
 
-    @Override
-    public EngineReaderManager<DatafusionReaderManager> getReaderManager() {
-        return null;
-    }
-
     /**
      * Create engine per shard per format with initial view of catalog
      */
     // TODO : one engine per format, does that make sense ?
     // TODO : Engine shouldn't just be SearcherOperations, it can be more ?
     @Override
-    public ReadEngine<DatafusionContext, DatafusionSearcher<DatafusionQuery>,
-        DatafusionReaderManager, DatafusionQuery, ContextEngineSearcher<DatafusionQuery>>
+    public SearchExecEngine<DatafusionContext, DatafusionSearcher,
+            DatafusionReaderManager, DatafusionQuery>
         createEngine(DataFormat dataFormat,Collection<FileMetadata> formatCatalogSnapshot) throws IOException {
         return new DatafusionEngine(dataFormat, formatCatalogSnapshot);
     }

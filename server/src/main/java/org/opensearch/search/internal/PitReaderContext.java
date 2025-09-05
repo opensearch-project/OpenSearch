@@ -14,6 +14,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
 
@@ -43,7 +44,7 @@ public class PitReaderContext extends ReaderContext {
         ShardSearchContextId id,
         IndexService indexService,
         IndexShard indexShard,
-        Engine.SearcherSupplier searcherSupplier,
+        EngineSearcherSupplier<?> searcherSupplier,
         long keepAliveInMillis,
         boolean singleSession
     ) {

@@ -21,4 +21,12 @@ public class DatafusionQuery {
         this.substraitBytes = substraitBytes;
         this.searchExecutors = searchExecutors;
     }
+
+    public byte[] getSubstraitBytes() {
+        return substraitBytes;
+    }
+
+    public List<SearchExecutor> getSearchExecutors() {
+        return searchExecutors;
+    }
 }

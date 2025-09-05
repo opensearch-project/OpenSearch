@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.RefreshResult;
@@ -16,6 +17,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+@ExperimentalApi
 public class CatalogSnapshot extends AbstractRefCounted {
 
     // shard1  - r1 -  f1, f2 -> refresh -> f1,f2

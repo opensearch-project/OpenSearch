@@ -134,6 +134,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
@@ -143,7 +144,7 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecutionEngine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
-import org.opensearch.index.engine.exec.coord.IndexingExecutionCoordinator;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
 import org.opensearch.index.flush.FlushStats;
@@ -392,8 +393,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
-    private final SearchExecutionEngine searchExecutionEngine;
-    private final IndexingExecutionCoordinator indexingExecutionCoordinator;
+    private final CompositeEngine compositeEngine;
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -560,20 +560,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 startRefreshTask();
             }
         }
-        this.indexingExecutionCoordinator = new IndexingExecutionCoordinator(mapperService, pluginsService);
-        this.searchExecutionEngine = searchExecutionEngine;
+        this.compositeEngine = new CompositeEngine(mapperService, pluginsService);
     }
 
-    /**
-     * Returns search execution engine
-     * @return SearchExecutionEngine
-     */
-    public SearchExecutionEngine getSearchExecutionEngine() {
-        return searchExecutionEngine;
-    }
-
-    public IndexingExecutionCoordinator getIndexingExecutionCoordinator() {
-        return indexingExecutionCoordinator;
+    public CompositeEngine getIndexingExecutionCoordinator() {
+        return compositeEngine;
     }
     /**
      * By default, UNASSIGNED_SEQ_NO is used as the initial global checkpoint for new shard initialization. Ingestion
@@ -2173,7 +2164,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public Engine.SearcherSupplier acquireSearcherSupplier() {
+    public EngineSearcherSupplier<Engine.Searcher> acquireSearcherSupplier() {
         return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL);
     }
 
@@ -2184,6 +2175,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
+        compositeEngine.getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 

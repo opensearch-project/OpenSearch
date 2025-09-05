@@ -7,12 +7,14 @@
  */
 
 package org.opensearch.search.aggregations;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * Experimental
  * @opensearch.internal
  */
 // TODO : account for sub collectors
+@ExperimentalApi
 public interface SearchResultsCollector<T> {
 
     /**

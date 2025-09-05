@@ -10,7 +10,6 @@ package org.opensearch.index.engine;
 
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.search.EngineReaderContext;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -28,12 +27,12 @@ import java.io.IOException;
  */
 @ExperimentalApi
 // TODO too many templatized types
-public abstract class ReadEngine<C extends SearchContext, S extends EngineSearcher, R, Q, CS> implements SearcherOperations<S, R> {
+public abstract class SearchExecEngine<C extends SearchContext, S extends EngineSearcher<?,?>, R, Q> implements SearcherOperations<S, R> {
 
     /**
      * Get the query phase searcher for this engine
      */
-    public abstract GenericQueryPhaseSearcher<C, CS, Q> getQueryPhaseSearcher();
+    public abstract GenericQueryPhaseSearcher<C,S, Q> getQueryPhaseSearcher();
 
     /**
      * Get the query phase executor for this engine

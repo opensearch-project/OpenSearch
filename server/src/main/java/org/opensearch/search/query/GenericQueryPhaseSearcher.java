@@ -1,5 +1,6 @@
 package org.opensearch.search.query;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.aggregations.AggregationProcessor;
 
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.util.LinkedList;
  * @param <Q> Query type (Query for Lucene, byte[] for DataFusion Substrait)
  */
 // TODO make this part of QueryPhaseSearcher
+    @ExperimentalApi
 public interface GenericQueryPhaseSearcher<C, S, Q> {
 
     boolean searchWith(

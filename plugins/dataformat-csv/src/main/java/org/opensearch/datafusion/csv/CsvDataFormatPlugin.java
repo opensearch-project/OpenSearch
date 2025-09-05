@@ -48,7 +48,16 @@ public class CsvDataFormatPlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine() {
-        return (IndexingExecutionEngine<T>) new CsvEngine();
+        if (CsvDataFormat.class.equals(getDataFormatType())) {
+            @SuppressWarnings("unchecked")
+            IndexingExecutionEngine<T> engine = (IndexingExecutionEngine<T>) new CsvEngine();
+            return engine;
+        }
+        throw new IllegalArgumentException("Unsupported data format type: " + getDataFormatType());
+    }
+
+    private Class<? extends DataFormat> getDataFormatType() {
+        return CsvDataFormat.class;
     }
 
     @Override

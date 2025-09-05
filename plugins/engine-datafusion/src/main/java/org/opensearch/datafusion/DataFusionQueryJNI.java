@@ -8,6 +8,10 @@
 
 package org.opensearch.datafusion;
 
+import org.opensearch.index.engine.exec.FileMetadata;
+
+import java.util.Collection;
+
 /**
  * JNI wrapper for DataFusion operations
  */
@@ -103,11 +107,15 @@ public class DataFusionQueryJNI {
 
     /**
      * Execute a Substrait query plan
-     * @param contextId the session context ID
+     * @param cachePtr the session context ID
      * @param substraitPlan the serialized Substrait query plan
      * @return stream pointer for result iteration
      */
-    public static native long executeSubstraitQuery(long contextId, byte[] substraitPlan);
+    public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan);
+
+    public static native long createDatafusionReader(String path, Collection<FileMetadata> files);
+
+    public static native void closeDatafusionReader(long ptr);
 
     /**
      * Register a directory with CSV files
