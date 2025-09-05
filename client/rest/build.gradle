@@ -105,9 +105,6 @@ testingConventions {
 thirdPartyAudit {
   ignoreMissingClasses(
       'org.conscrypt.Conscrypt',
-      'org.slf4j.impl.StaticLoggerBinder',
-      'org.slf4j.impl.StaticMDCBinder',
-      'org.slf4j.impl.StaticMarkerBinder',
       //commons-logging optional dependencies
       'org.apache.avalon.framework.logger.Logger',
       'org.apache.log.Hierarchy',

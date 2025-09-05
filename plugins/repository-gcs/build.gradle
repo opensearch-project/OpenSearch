@@ -56,8 +56,8 @@ dependencies {
 
   // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.55.0'
   implementation "com.google.cloud:google-cloud-storage:2.55.0"
-  implementation "com.google.cloud:google-cloud-core:2.59.0"
-  implementation "com.google.cloud:google-cloud-core-http:2.59.0"
+  implementation "com.google.cloud:google-cloud-core:2.60.0"
+  implementation "com.google.cloud:google-cloud-core-http:2.60.0"
 
   runtimeOnly "com.google.guava:guava:${guava_version}"
   runtimeOnly "com.google.guava:failureaccess:1.0.2"
@@ -277,11 +277,6 @@ thirdPartyAudit {
     'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
     'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
     'org.graalvm.nativeimage.hosted.RuntimeReflection',
-    //slf4j dependencies
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
-    'org.slf4j.spi.LoggingEventBuilder',
   )
 }
 
