@@ -50,7 +50,7 @@ import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
@@ -77,7 +77,7 @@ final class Compiler {
     static {
         try {
             // Setup the code privileges.
-            CODESOURCE = new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null);
+            CODESOURCE = new CodeSource(URI.create("file:" + BootstrapInfo.UNTRUSTED_CODEBASE).toURL(), (Certificate[]) null);
         } catch (MalformedURLException impossible) {
             throw new RuntimeException(impossible);
         }

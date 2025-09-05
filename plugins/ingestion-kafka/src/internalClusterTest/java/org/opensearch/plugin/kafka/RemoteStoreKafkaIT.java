@@ -191,11 +191,13 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         produceData("2", "name2", "20");
         internalCluster().startClusterManagerOnlyNode();
         final String nodeA = internalCluster().startDataOnlyNode();
-        final String nodeB = internalCluster().startDataOnlyNode();
 
         createIndexWithDefaultSettings(1, 1);
+        ensureYellowAndNoInitializingShards(indexName);
+        waitForSearchableDocs(2, Arrays.asList(nodeA));
+        final String nodeB = internalCluster().startDataOnlyNode();
         ensureGreen(indexName);
-        waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
 
         // pause ingestion
         PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
@@ -219,12 +221,13 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         client().admin().cluster().prepareReroute().add(new AllocateReplicaAllocationCommand(indexName, 0, nodeC)).get();
         ensureGreen(indexName);
         assertTrue(nodeC.equals(replicaNodeName(indexName)));
-        assertEquals(2, getSearchableDocCount(nodeB));
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
         });
+        assertEquals(2, getSearchableDocCount(nodeB));
 
         // resume ingestion
         ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);

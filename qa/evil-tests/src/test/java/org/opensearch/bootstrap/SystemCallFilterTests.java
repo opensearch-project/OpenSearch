@@ -39,7 +39,7 @@ import org.opensearch.test.OpenSearchTestCase;
 public class SystemCallFilterTests extends OpenSearchTestCase {
 
     /** command to try to run in tests */
-    static final String EXECUTABLE = Constants.WINDOWS ? "calc" : "ls";
+    static final String[] EXECUTABLE = new String[] { Constants.WINDOWS ? "calc" : "ls" };
 
     @SuppressWarnings("removal")
     @Override
