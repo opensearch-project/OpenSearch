@@ -159,7 +159,7 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
     public static class Local extends OptionallyResolvedIndices.Local {
         protected final Set<String> names;
         protected final OriginalIndices originalIndices;
-        protected final Map<ActionType<?>, Local> subActions;
+        protected final Map<String, Local> subActions;
         private Set<String> namesOfIndices;
 
         public static Local of(Collection<String> names) {
@@ -177,7 +177,7 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
          * For this reason, this constructor is private. This contract is guaranteed by the static
          * constructor methods in this file.
          */
-        private Local(Set<String> names, OriginalIndices originalIndices, Map<ActionType<?>, Local> subActions) {
+        private Local(Set<String> names, OriginalIndices originalIndices, Map<String, Local> subActions) {
             this.names = names;
             this.originalIndices = originalIndices;
             this.subActions = subActions;
@@ -266,7 +266,7 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
          * For example, the swiss-army-knife IndicesAliases action can delete indices. The subActions() property
          * can be used to specify indices with such special roles.
          */
-        public Map<ActionType<?>, Local> subActions() {
+        public Map<String, Local> subActions() {
             return this.subActions;
         }
 
@@ -310,10 +310,14 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
             return new Local(this.names, originalIndices, this.subActions);
         }
 
-        public ResolvedIndices.Local withSubActions(ActionType<?> actionType, ResolvedIndices.Local local) {
-            Map<ActionType<?>, Local> subActions = new HashMap<>(this.subActions);
-            subActions.put(actionType, local);
+        public ResolvedIndices.Local withSubActions(String key, ResolvedIndices.Local local) {
+            Map<String, Local> subActions = new HashMap<>(this.subActions);
+            subActions.put(key, local);
             return new Local(this.names, this.originalIndices, Collections.unmodifiableMap(subActions));
+        }
+
+        public ResolvedIndices.Local withSubActions(ActionType<?> actionType, ResolvedIndices.Local local) {
+            return this.withSubActions(actionType.name(), local);
         }
 
         @Override
@@ -384,7 +388,7 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
                 Set<Index> concreteIndices,
                 Set<String> names,
                 OriginalIndices originalIndices,
-                Map<ActionType<?>, Local> subActions,
+                Map<String, Local> subActions,
                 List<RuntimeException> resolutionErrors
             ) {
                 super(names, originalIndices, subActions);
@@ -420,12 +424,14 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
                 return this.concreteIndices().stream().map(Index::getName).toArray(String[]::new);
             }
 
+            @Override
             public ResolvedIndices.Local.Concrete withOriginalIndices(OriginalIndices originalIndices) {
                 return new Concrete(this.concreteIndices, this.names, originalIndices, this.subActions, resolutionErrors);
             }
 
-            public ResolvedIndices.Local withSubActions(ActionType<?> actionType, ResolvedIndices.Local local) {
-                Map<ActionType<?>, Local> subActions = new HashMap<>(this.subActions);
+            @Override
+            public ResolvedIndices.Local withSubActions(String actionType, ResolvedIndices.Local local) {
+                Map<String, Local> subActions = new HashMap<>(this.subActions);
                 subActions.put(actionType, local);
                 return new Concrete(this.concreteIndices, this.names, this.originalIndices, subActions, resolutionErrors);
             }
