@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
@@ -231,9 +232,13 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
 
     }
 
+    /**
+     * Reports the resize source index as the main resolved index. The target index is reported as sub-action "indices:admin/create".
+     */
     @Override
     public ResolvedIndices resolveIndices(ResizeRequest resizeRequest) {
-        return ResolvedIndices.of(resolveSourceIndex(resizeRequest), resolveTargetIndex(resizeRequest));
+        return ResolvedIndices.of(resolveSourceIndex(resizeRequest))
+            .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of(resolveTargetIndex(resizeRequest)));
     }
 
     // static for unittesting this method
