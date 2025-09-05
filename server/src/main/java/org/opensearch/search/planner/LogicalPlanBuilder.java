@@ -36,7 +36,6 @@ import org.opensearch.search.planner.nodes.TermPlanNode;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Builds logical query plans from OpenSearch QueryBuilder.
@@ -209,22 +208,16 @@ public class LogicalPlanBuilder {
     }
 
     private QueryNodeType determineNodeType(Query query) {
-        String className = query.getClass().getSimpleName();
-
-        // Map query class names to node types
-        for (QueryNodeType type : QueryNodeType.values()) {
-            if (type == QueryNodeType.OTHER) continue;
-
-            String typeName = type.name();
-            if (type == QueryNodeType.VECTOR && className.contains("KNN")) {
-                return type;
-            }
-
-            // Convert enum name to class name pattern (e.g., FUNCTION_SCORE -> FunctionScore)
-            String pattern = typeName.replace("_", "");
-            if (className.toUpperCase(Locale.ROOT).contains(pattern)) {
-                return type;
-            }
+        // We only handle specific types in our plan nodes currently
+        // Add more specific cases as we implement specialized plan nodes
+        if (query instanceof org.apache.lucene.search.WildcardQuery) {
+            return QueryNodeType.WILDCARD;
+        } else if (query instanceof org.apache.lucene.search.PrefixQuery) {
+            return QueryNodeType.PREFIX;
+        } else if (query instanceof org.apache.lucene.search.FuzzyQuery) {
+            return QueryNodeType.FUZZY;
+        } else if (query instanceof org.apache.lucene.search.RegexpQuery) {
+            return QueryNodeType.REGEXP;
         }
 
         return QueryNodeType.OTHER;

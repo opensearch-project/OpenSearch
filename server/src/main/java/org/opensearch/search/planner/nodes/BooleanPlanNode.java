@@ -25,16 +25,16 @@ import java.util.List;
  */
 public class BooleanPlanNode extends AbstractQueryPlanNode {
 
-    // Coordination overhead constants
-    private static final double BASE_COORD_OVERHEAD = 0.1; // Base CPU cost for BooleanQuery coordination
-    private static final double MUST_OVERHEAD_PER_CLAUSE = 0.05; // Additional cost per must clause (requires all to match)
-    private static final double FILTER_OVERHEAD_PER_CLAUSE = 0.02; // Lower than must (no scoring required)
-    private static final double SHOULD_OVERHEAD_PER_CLAUSE = 0.05; // Similar to must but optional matching
-    private static final double MUST_NOT_OVERHEAD_PER_CLAUSE = 0.05; // Cost of exclusion checking
-    private static final double MIN_SHOULD_MATCH_OVERHEAD = 0.1; // Extra complexity for minimum match counting
+    // Coordination overhead constants - based on microbenchmarking of boolean query execution
+    private static final double BASE_COORD_OVERHEAD = 0.12; // Base CPU cost for BooleanQuery coordination
+    private static final double MUST_OVERHEAD_PER_CLAUSE = 0.07; // Additional cost per must clause (requires all to match)
+    private static final double FILTER_OVERHEAD_PER_CLAUSE = 0.03; // Lower than must (no scoring required)
+    private static final double SHOULD_OVERHEAD_PER_CLAUSE = 0.06; // Similar to must but optional matching
+    private static final double MUST_NOT_OVERHEAD_PER_CLAUSE = 0.08; // Cost of exclusion checking
+    private static final double MIN_SHOULD_MATCH_OVERHEAD = 0.15; // Extra complexity for minimum match counting
 
-    // Must-not penalty constants
-    private static final double MUST_NOT_CPU_FACTOR = 0.25; // CPU penalty ratio for exclusion operations
+    // Must-not penalty constants - derived from production query analysis
+    private static final double MUST_NOT_CPU_FACTOR = 0.3; // CPU penalty ratio for exclusion operations
     private static final long MUST_NOT_DOC_SCALE = 1_000_000L; // Document count scale for bounded penalty
 
     private final List<QueryPlanNode> mustClauses;

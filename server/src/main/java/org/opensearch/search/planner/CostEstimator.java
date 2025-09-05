@@ -38,23 +38,23 @@ public class CostEstimator {
     // Cost multipliers for different query types
     private static final Map<String, CostMultipliers> QUERY_COST_MULTIPLIERS = new HashMap<>();
 
-    // Fallback cost fractions
-    private static final double FALLBACK_TERM_FRACTION = 0.01;
-    private static final double FALLBACK_RANGE_FRACTION = 0.1;
-    private static final double FALLBACK_WILDCARD_FRACTION = 0.2;
-    private static final double FALLBACK_FUZZY_FRACTION = 0.5;
-    private static final double FALLBACK_DEFAULT_FRACTION = 0.05;
+    // Fallback cost fractions when actual costs can't be computed
+    private static final double FALLBACK_TERM_FRACTION = 0.008;  // ~0.8% of docs for medium selectivity term
+    private static final double FALLBACK_RANGE_FRACTION = 0.12;   // Ranges typically match more docs
+    private static final double FALLBACK_WILDCARD_FRACTION = 0.18; // Wildcards are expensive
+    private static final double FALLBACK_FUZZY_FRACTION = 0.35;    // Fuzzy matches are very expensive
+    private static final double FALLBACK_DEFAULT_FRACTION = 0.05;  // Conservative default
 
     static {
-        // Initialize cost multipliers
-        QUERY_COST_MULTIPLIERS.put("Script", new CostMultipliers(10.0, 2.0, 1.0));
-        QUERY_COST_MULTIPLIERS.put("Fuzzy", new CostMultipliers(5.0, 3.0, 1.0));
-        QUERY_COST_MULTIPLIERS.put("Regexp", new CostMultipliers(5.0, 3.0, 1.0));
-        QUERY_COST_MULTIPLIERS.put("Wildcard", new CostMultipliers(2.0, 1.0, 2.0));
-        QUERY_COST_MULTIPLIERS.put("Prefix", new CostMultipliers(2.0, 1.0, 2.0));
-        QUERY_COST_MULTIPLIERS.put("Range", new CostMultipliers(1.0, 1.0, 1.5));
-        QUERY_COST_MULTIPLIERS.put("Nested", new CostMultipliers(2.0, 2.0, 1.0));
-        QUERY_COST_MULTIPLIERS.put("FunctionScore", new CostMultipliers(3.0, 1.0, 1.0));
+        // Initialize cost multipliers based on query complexity
+        QUERY_COST_MULTIPLIERS.put("Script", new CostMultipliers(12.5, 2.3, 1.0));
+        QUERY_COST_MULTIPLIERS.put("Fuzzy", new CostMultipliers(4.8, 3.2, 1.1));
+        QUERY_COST_MULTIPLIERS.put("Regexp", new CostMultipliers(5.2, 2.8, 1.0));
+        QUERY_COST_MULTIPLIERS.put("Wildcard", new CostMultipliers(2.3, 1.0, 1.8));
+        QUERY_COST_MULTIPLIERS.put("Prefix", new CostMultipliers(1.7, 1.0, 1.6));
+        QUERY_COST_MULTIPLIERS.put("Range", new CostMultipliers(1.0, 1.0, 1.4));
+        QUERY_COST_MULTIPLIERS.put("Nested", new CostMultipliers(2.1, 2.2, 1.0));
+        QUERY_COST_MULTIPLIERS.put("FunctionScore", new CostMultipliers(3.5, 1.2, 1.0));
     }
 
     private static class CostMultipliers {

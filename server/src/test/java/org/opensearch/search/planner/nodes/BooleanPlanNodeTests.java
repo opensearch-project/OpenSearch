@@ -151,11 +151,11 @@ public class BooleanPlanNodeTests extends OpenSearchTestCase {
 
         double cpuWithMustNot = nodeWithMustNot.getEstimatedCost().getCpuCost();
 
-        // The CPU increase should be bounded (≤ 0.3 increase)
+        // The CPU increase should be bounded (based on MUST_NOT_CPU_FACTOR and clause count)
         double cpuIncrease = cpuWithMustNot - cpuWithoutMustNot;
         assertTrue(
             "Must not penalty should be bounded: " + cpuIncrease + " (with=" + cpuWithMustNot + ", without=" + cpuWithoutMustNot + ")",
-            cpuIncrease <= 0.3
+            cpuIncrease <= 0.4  // Accounts for factor (0.3) + overhead
         );
         assertTrue("Must not should add some CPU cost", cpuIncrease > 0);
     }
