@@ -67,13 +67,11 @@ import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.
  */
 public final class GrpcPlugin extends Plugin implements NetworkPlugin, ExtensiblePlugin {
     private static final Logger logger = LogManager.getLogger(GrpcPlugin.class);
-    private Client client;
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
+    private final List<GrpcServiceFactory> servicesFactory = new ArrayList<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
-
-    public interface GrpcServiceProvider extends Supplier<BindableService> {}
-    private final List<GrpcServiceProvider> servicesFactory = new ArrayList<>();
+    private Client client;
 
     /**
      * Creates a new GrpcPlugin instance.
@@ -106,7 +104,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         }
 
         // Load gRPC service supplier lambdas from other plugins
-        List<GrpcServiceProvider> services = loader.loadExtensions(GrpcServiceProvider.class);
+        List<GrpcServiceFactory> services = loader.loadExtensions(GrpcServiceFactory.class);
         if (services != null) {
             servicesFactory.addAll(services);
         }
@@ -172,7 +170,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                     new DocumentServiceImpl(client),
                     new SearchServiceImpl(client, queryUtils)
                 ));
-                for (GrpcServiceProvider service : servicesFactory) {
+                for (GrpcServiceFactory service : servicesFactory) {
                     grpcServices.add(service.get());
                 }
                 return new Netty4GrpcServerTransport(settings, grpcServices, networkService);
