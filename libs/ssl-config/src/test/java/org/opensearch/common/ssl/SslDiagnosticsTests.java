@@ -32,7 +32,10 @@
 
 package org.opensearch.common.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.common.Nullable;
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -59,6 +62,7 @@ import java.util.stream.Stream;
 
 import org.mockito.Mockito;
 
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class SslDiagnosticsTests extends OpenSearchTestCase {
 
     // Some constants for use in mock certificates

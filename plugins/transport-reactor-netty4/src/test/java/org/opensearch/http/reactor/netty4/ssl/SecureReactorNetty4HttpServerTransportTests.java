@@ -8,6 +8,8 @@
 
 package org.opensearch.http.reactor.netty4.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
@@ -35,6 +37,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.KeyStoreUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -97,6 +100,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the secure {@link ReactorNetty4HttpServerTransport} class.
  */
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
     private NetworkService networkService;
