@@ -129,7 +129,7 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         ResolvedIndices resolvedIndices = ResolvedIndices.of("a", "b", "c")
             .withLocalSubActions(DeleteIndexAction.INSTANCE, ResolvedIndices.Local.of("x", "y", "z"));
         assertThat(resolvedIndices.local().names(), containsInAnyOrder("a", "b", "c"));
-        assertThat(resolvedIndices.local().subActions().get(DeleteIndexAction.INSTANCE).names(), containsInAnyOrder("x", "y", "z"));
+        assertThat(resolvedIndices.local().subActions().get(DeleteIndexAction.NAME).names(), containsInAnyOrder("x", "y", "z"));
     }
 
     public void testLocalOf() {
