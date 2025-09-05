@@ -197,6 +197,9 @@ public class ReproduceInfoPrinter extends RunListener {
             if (FipsMode.CHECK.isFipsEnabled()) {
                 appendProperties("org.bouncycastle.fips.approved_only");
             }
+            if (System.getProperty("java.security.properties") != null) {
+                appendProperties("java.security.properties");
+            }
             return this;
         }
 
