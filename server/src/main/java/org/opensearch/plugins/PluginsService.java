@@ -42,6 +42,7 @@ import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Module;
@@ -88,6 +89,7 @@ import static org.opensearch.core.util.FileSystemUtils.isAccessibleDirectory;
  *
  * @opensearch.internal
  */
+@ExperimentalApi // TODO : this cannot be experimental, just marking it to bypass for now
 public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);

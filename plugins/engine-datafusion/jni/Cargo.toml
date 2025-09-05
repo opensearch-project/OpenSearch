@@ -47,7 +47,7 @@ log = "0.4"
 parquet = "53.0.0"
 
 # Object store for file access
-object_store = "0.11"
+object_store = "=0.12.3"
 url = "2.0"
 
 # Substrait support
@@ -56,6 +56,7 @@ prost = "0.13"
 
 # Temporary directory support
 tempfile = "3.0"
+chrono = "0.4.41"
 
 [build-dependencies]
 cbindgen = "0.27"

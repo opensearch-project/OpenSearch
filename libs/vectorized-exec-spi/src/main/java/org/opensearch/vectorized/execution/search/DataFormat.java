@@ -8,6 +8,9 @@
 
 package org.opensearch.vectorized.execution.search;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
+@ExperimentalApi
 public enum DataFormat {
     CSV,
     Text

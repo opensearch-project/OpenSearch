@@ -5,7 +5,7 @@ import java.util.LinkedList;
 /**
  * Generic query phase that can work with different context and searcher types
  * @param <C> Context type
- * @param <S> Searcher type  
+ * @param <S> Searcher type
  * @param <Q> Query type
  */
 public class GenericQueryPhase<C, S, Q> {
@@ -17,7 +17,7 @@ public class GenericQueryPhase<C, S, Q> {
 
     public boolean executeInternal(C context, S searcher, Q query) throws QueryPhaseExecutionException {
         try {
-            return queryPhaseSearcher.searchWith(context, searcher, query, new LinkedList<>(), false, false);
+            return queryPhaseSearcher.searchWith(context, searcher, query, new LinkedList<>() /* Figure out how to pass collectors */, false, false);
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(null, "Failed to execute query", e);
         }

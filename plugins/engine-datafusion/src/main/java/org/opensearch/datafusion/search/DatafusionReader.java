@@ -8,12 +8,15 @@
 
 package org.opensearch.datafusion.search;
 
+import org.opensearch.datafusion.DataFusionQueryJNI;
 import org.opensearch.index.engine.exec.FileMetadata;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.opensearch.datafusion.DataFusionQueryJNI.closeDatafusionReader;
 
 // JNI from java to rust
 // substrait
@@ -27,7 +30,7 @@ public class DatafusionReader implements Closeable {
     public DatafusionReader(String directoryPath, Collection<FileMetadata> files) {
         this.directoryPath = directoryPath;
         this.files = files;
-        this.cachePtr = createDatafusionReader(directoryPath, files);
+        this.cachePtr = DataFusionQueryJNI.createDatafusionReader(directoryPath, files /* Make this jarray to be compatible with rust*/);
         incRef();
     }
 
@@ -50,9 +53,6 @@ public class DatafusionReader implements Closeable {
         }
 
     }
-
-    private static native long createDatafusionReader(String path, Collection<FileMetadata> files);
-    private static native void closeDatafusionReader(long ptr);
 
     @Override
     public void close() throws IOException {

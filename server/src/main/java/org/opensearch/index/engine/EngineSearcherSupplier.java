@@ -9,10 +9,12 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@ExperimentalApi
 public abstract class EngineSearcherSupplier<T extends EngineSearcher> implements Releasable {
     private final AtomicBoolean released = new AtomicBoolean(false);
 

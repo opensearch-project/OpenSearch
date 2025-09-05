@@ -14,9 +14,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.engine.ReadEngine;
-import org.opensearch.index.engine.EngineReaderManager;
-import org.opensearch.index.engine.EngineSearcher;
+import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -33,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public interface SearchEnginePlugin<Q,S extends EngineSearcher<Q>,R> extends SearchPlugin{
+public interface SearchEnginePlugin extends SearchPlugin{
 
     /**
      * Make dataSourceCodecs available for the DataSourceAwarePlugin(s)
@@ -57,7 +55,5 @@ public interface SearchEnginePlugin<Q,S extends EngineSearcher<Q>,R> extends Sea
 
     List<DataFormat> getSupportedFormats();
 
-    EngineReaderManager<R> getReaderManager();
-
-    ReadEngine<?,?,?,?,?> createEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot) throws IOException;
+    SearchExecEngine<?,?,?,?> createEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot) throws IOException;
 }

@@ -570,6 +570,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         return indexSortConfig.hasPrimarySortOnField(field);
     }
 
+    // This converts the QB to query
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
         return toQuery(queryBuilder, q -> {
             Query query = q.toQuery(this);
@@ -580,6 +581,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         });
     }
 
+    // This converts the QB to query
     private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query, IOException> filterOrQuery) {
         reset();
         try {

@@ -34,6 +34,8 @@ package org.opensearch.search.internal;
 
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineSearcher;
+import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.dfs.AggregatedDfs;
@@ -57,7 +59,7 @@ public class LegacyReaderContext extends ReaderContext {
         ShardSearchContextId id,
         IndexService indexService,
         IndexShard indexShard,
-        Engine.SearcherSupplier reader,
+        EngineSearcherSupplier<?> reader,
         ShardSearchRequest shardSearchRequest,
         long keepAliveInMillis
     ) {
@@ -70,7 +72,7 @@ public class LegacyReaderContext extends ReaderContext {
             // to reuse the searcher created on the request that initialized the scroll.
             // This ensures that we wrap the searcher's reader with the user's permissions
             // when they are available.
-            final Engine.Searcher delegate = searcherSupplier.acquireSearcher("search");
+            final Engine.Searcher delegate = (Engine.Searcher) searcherSupplier.acquireSearcher("search");
             addOnClose(delegate);
             // wrap the searcher so that closing is a noop, the actual closing happens when this context is closed
             this.searcher = new Engine.Searcher(
@@ -89,7 +91,7 @@ public class LegacyReaderContext extends ReaderContext {
     }
 
     @Override
-    public Engine.Searcher acquireSearcher(String source) {
+    public EngineSearcher<?,?> acquireSearcher(String source) {
         if (scrollContext != null) {
             assert Engine.SEARCH_SOURCE.equals(source) : "scroll context should not acquire searcher for " + source;
             return searcher;

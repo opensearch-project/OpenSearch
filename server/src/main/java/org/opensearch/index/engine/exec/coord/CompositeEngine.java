@@ -15,7 +15,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.engine.ReadEngine;
+import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -33,15 +33,15 @@ import java.util.List;
 import java.util.Map;
 
 @ExperimentalApi
-public class IndexingExecutionCoordinator {
+public class CompositeEngine {
 
     private final CompositeIndexingExecutionEngine engine;
     private List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
     private CatalogSnapshot catalogSnapshot;
     private List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
-    private Map<org.opensearch.vectorized.execution.search.DataFormat, List<ReadEngine<?, ?, ?, ?, ?>>> readEngines = new HashMap<>();
+    private Map<org.opensearch.vectorized.execution.search.DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines = new HashMap<>();
 
-    public IndexingExecutionCoordinator(MapperService mapperService, PluginsService pluginsService) throws IOException {
+    public CompositeEngine(MapperService mapperService, PluginsService pluginsService) throws IOException {
         List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
         this.engine = new CompositeIndexingExecutionEngine(pluginsService, new Any(List.of(DataFormat.TEXT)));
 
@@ -50,29 +50,29 @@ public class IndexingExecutionCoordinator {
         refresh("start");
         // TODO : how to extend this for Lucene ? where engine is a r/w engine
         // Create read specific engines for each format which is associated with shard
-        for(SearchEnginePlugin<?,?,?> searchEnginePlugin : searchEnginePlugins) {
+        for(SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
             for(org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
-                ReadEngine<?,?,?,?,?> readEngine = searchEnginePlugin.createEngine(dataFormat,
+                SearchExecEngine<?,?,?,?> searchExecEngine = searchEnginePlugin.createEngine(dataFormat,
                     catalogSnapshot.getSearchableFiles(dataFormat.toString()));
-                readEngines.getOrDefault(dataFormat, new ArrayList<>()).add(readEngine);
+                readEngines.getOrDefault(dataFormat, new ArrayList<>()).add(searchExecEngine);
                 // TODO : figure out how to do internal and external refresh listeners
                 // Maybe external refresh should be managed in opensearch core and plugins should always give
                 // internal refresh managers
                 // 60s as refresh interval -> ExternalReaderManager acquires a view every 60 seconds
                 // InternalReaderManager -> IndexingMemoryController , it keeps on refreshing internal maanger
                 //
-                if(readEngine.getRefreshListener(Engine.SearcherScope.INTERNAL) != null) {
-                    catalogSnapshotAwareRefreshListeners.add(readEngine.getRefreshListener(Engine.SearcherScope.INTERNAL));
+                if(searchExecEngine.getRefreshListener(Engine.SearcherScope.INTERNAL) != null) {
+                    catalogSnapshotAwareRefreshListeners.add(searchExecEngine.getRefreshListener(Engine.SearcherScope.INTERNAL));
                 }
             }
         }
     }
 
-    public ReadEngine<?,?,?,?,?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
+    public SearchExecEngine<?,?,?,?> getReadEngine(org.opensearch.vectorized.execution.search.DataFormat dataFormat) {
         return readEngines.getOrDefault(dataFormat, new ArrayList<>()).getFirst();
     }
 
-    public ReadEngine<?,?,?,?,?> getPrimaryReadEngine() {
+    public SearchExecEngine<?,?,?,?> getPrimaryReadEngine() {
         // Return the first available ReadEngine as primary
         return readEngines.values().stream()
             .filter(list -> !list.isEmpty())
@@ -148,6 +148,7 @@ public class IndexingExecutionCoordinator {
 
 
 
+    @ExperimentalApi
     public static abstract class ReleasableRef<T> implements AutoCloseable {
         private T t;
 
@@ -161,7 +162,7 @@ public class IndexingExecutionCoordinator {
     }
 
     public static void main(String[] args) throws Exception {
-        IndexingExecutionCoordinator coordinator = new IndexingExecutionCoordinator(null, null);
+        CompositeEngine coordinator = new CompositeEngine(null, null);
 
         for (int i = 0; i < 5; i++) {
 

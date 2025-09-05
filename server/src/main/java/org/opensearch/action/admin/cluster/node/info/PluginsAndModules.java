@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.node.info;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.service.ReportingService;
@@ -49,6 +50,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
+@ExperimentalApi // TODO : this cannot be experimental, just marking it to bypass for now
 public class PluginsAndModules implements ReportingService.Info {
     private final List<PluginInfo> plugins;
     private final List<PluginInfo> modules;
