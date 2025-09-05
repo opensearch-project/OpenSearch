@@ -22,6 +22,7 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -78,6 +79,13 @@ public class StreamTransportSearchAction extends TransportSearchAction {
             taskResourceTrackingService
         );
     }
+    
+    @Override
+    protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        // Enable streaming scoring for stream search requests
+        searchRequest.setStreamingScoring(true);
+        super.doExecute(task, searchRequest, listener);
+    }
 
     AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
         SearchTask task,
@@ -99,10 +107,23 @@ public class StreamTransportSearchAction extends TransportSearchAction {
         if (preFilter) {
             throw new IllegalStateException("Search pre-filter is not supported in streaming");
         } else {
+            // Wrap the listener to support streaming responses
+            ActionListener<SearchResponse> streamingListener = listener;
+            if (searchRequest.isStreamingScoring() && searchRequest.source() != null && searchRequest.source().size() > 0) {
+                streamingListener = new StreamingSearchResponseListener(listener, searchRequest);
+            }
+            
+            // Create a streaming progress listener that can send partial TopDocs
+            SearchProgressListener progressListener = task.getProgressListener();
+            if (searchRequest.isStreamingScoring() && searchRequest.source() != null && searchRequest.source().size() > 0) {
+                // Use streaming listener for search queries with hits
+                progressListener = new StreamingSearchProgressListener(streamingListener, searchPhaseController, searchRequest);
+            }
+            
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newStreamSearchPhaseResults(
                 executor,
                 circuitBreaker,
-                task.getProgressListener(),
+                progressListener,
                 searchRequest,
                 shardIterators.size(),
                 exc -> cancelTask(task, exc)
@@ -121,7 +142,7 @@ public class StreamTransportSearchAction extends TransportSearchAction {
                         executor,
                         queryResultConsumer,
                         searchRequest,
-                        listener,
+                        streamingListener,  // Use the streaming-aware listener
                         shardIterators,
                         timeProvider,
                         clusterState,

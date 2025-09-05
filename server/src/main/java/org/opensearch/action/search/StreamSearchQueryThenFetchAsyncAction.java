@@ -15,6 +15,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
@@ -188,4 +189,5 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             onPhaseFailure(this, "The phase has failed", ex);
         }
     }
+    
 }
