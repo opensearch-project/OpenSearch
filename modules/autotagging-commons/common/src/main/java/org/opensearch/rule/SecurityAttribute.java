@@ -60,6 +60,16 @@ public enum SecurityAttribute implements Attribute {
         return ALLOWED_SUBFIELDS;
     }
 
+    /**
+     * Parses the attribute values for security attribute
+     * Example:
+     * {
+     *     "username": ["alice"],
+     *     "role": ["all_access"]
+     * }
+     * will be parsed into a set with values "username|alice" and "role|all_access"
+     * @param parser the XContent parser
+     */
     @Override
     public Set<String> fromXContentParseAttributeValues(XContentParser parser) throws IOException {
         Set<String> resultSet = new HashSet<>();
@@ -87,8 +97,8 @@ public enum SecurityAttribute implements Attribute {
             }
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    // prefix each value with the subFieldName (e.g., "username_name1")
-                    resultSet.add(String.join("_", subFieldName, parser.text()));
+                    // prefix each value with the subFieldName (e.g., "username|name1")
+                    resultSet.add(String.join("|", subFieldName, parser.text()));
                 } else {
                     throw new XContentParseException(
                         parser.getTokenLocation(),
@@ -110,7 +120,7 @@ public enum SecurityAttribute implements Attribute {
         // parts[0] is the prefix (e.g., "username" or "role")
         // parts[1] is the actual value (e.g., "name1", "role1")
         for (String value : values) {
-            String[] parts = value.split("_", 2);
+            String[] parts = value.split("\\|", 2);
             if (parts.length == 2) {
                 grouped.computeIfAbsent(parts[0], k -> new HashSet<>()).add(parts[1]);
             }

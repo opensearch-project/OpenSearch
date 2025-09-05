@@ -53,7 +53,7 @@ public class FeatureValueMatcher {
                 if (result == null) {
                     result = candidateValues;
                 } else {
-                    result = candidateValues.merge(result, attributeExtractor.getCombinationStyle());
+                    result = candidateValues.merge(result, attributeExtractor.getLogicalOperator());
                 }
             }
         }

@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.opensearch.rule.attribute_extractor.AttributeExtractor.CombinationStyle.AND;
+import static org.opensearch.rule.attribute_extractor.AttributeExtractor.LogicalOperator.AND;
 
 public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     InMemoryRuleProcessingService sut;
@@ -138,7 +138,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             }
 
             @Override
-            public CombinationStyle getCombinationStyle() {
+            public LogicalOperator getLogicalOperator() {
                 return AND;
             }
         });

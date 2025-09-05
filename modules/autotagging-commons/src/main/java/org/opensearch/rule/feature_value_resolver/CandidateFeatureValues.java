@@ -69,7 +69,7 @@ public class CandidateFeatureValues {
      * @param other            Other CandidateFeatureValues to merge with.
      * @param combinationStyle Combination style (AND / OR) for merging.
      */
-    public CandidateFeatureValues merge(CandidateFeatureValues other, AttributeExtractor.CombinationStyle combinationStyle) {
+    public CandidateFeatureValues merge(CandidateFeatureValues other, AttributeExtractor.LogicalOperator combinationStyle) {
         return switch (combinationStyle) {
             case AND -> mergeAnd(other);
             case OR -> mergeOr(other);

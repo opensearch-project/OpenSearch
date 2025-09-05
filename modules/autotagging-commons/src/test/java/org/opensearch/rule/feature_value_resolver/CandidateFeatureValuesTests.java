@@ -34,7 +34,7 @@ public class CandidateFeatureValuesTests extends OpenSearchTestCase {
         CandidateFeatureValues cfv1 = new CandidateFeatureValues(List.of(Set.of("A"), Set.of("B")));
         CandidateFeatureValues cfv2 = new CandidateFeatureValues(List.of(Set.of("C"), Set.of("D"), Set.of("E")));
 
-        CandidateFeatureValues merged = cfv1.merge(cfv2, AttributeExtractor.CombinationStyle.OR);
+        CandidateFeatureValues merged = cfv1.merge(cfv2, AttributeExtractor.LogicalOperator.OR);
         assertEquals(
             Set.of("A", "C"),
             merged.getFlattenedValues()
@@ -49,7 +49,7 @@ public class CandidateFeatureValuesTests extends OpenSearchTestCase {
         CandidateFeatureValues cfv1 = new CandidateFeatureValues(List.of(Set.of("A", "B"), Set.of("C")));
         CandidateFeatureValues cfv2 = new CandidateFeatureValues(List.of(Set.of("B", "C"), Set.of("C", "D")));
 
-        CandidateFeatureValues merged = cfv1.merge(cfv2, AttributeExtractor.CombinationStyle.AND);
+        CandidateFeatureValues merged = cfv1.merge(cfv2, AttributeExtractor.LogicalOperator.AND);
         assertTrue(merged.getFlattenedValues().containsAll(Set.of("B", "C")));
         assertFalse(merged.getFlattenedValues().contains("A"));
         assertFalse(merged.getFlattenedValues().contains("D"));

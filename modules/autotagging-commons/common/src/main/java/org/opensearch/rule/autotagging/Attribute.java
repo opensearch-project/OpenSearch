@@ -60,7 +60,9 @@ public interface Attribute extends Writeable {
     }
 
     /**
-     * Parses attribute values for specific attributes
+     * Parses attribute values for specific attributes. This default function takes in parser
+     * and returns a set of string.
+     * For example, ["index1", "index2"] will be parsed to a set with values "index1" and "index2"
      * @param parser the XContent parser
      */
     default Set<String> fromXContentParseAttributeValues(XContentParser parser) throws IOException {
