@@ -82,3 +82,22 @@ sample-data-management:
   users:
     - "wazuh-dashboard"
   and_backend_roles: [ ]
+
+# To allow the AI assistant deployment from the UI.
+ml_config_read:
+  reserved: true
+  hidden: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "admin"
+  and_backend_roles: []
+
+ml_config_write:
+  reserved: true
+  hidden: false
+  backend_roles: []
+  hosts: []
+  users:
+  - "admin"
+  and_backend_roles: []

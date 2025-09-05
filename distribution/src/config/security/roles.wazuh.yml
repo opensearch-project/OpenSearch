@@ -135,3 +135,40 @@ sample-data-management:
         - "manage"
   tenant_permissions: []
   static: true
+
+# Role to grant read access to ML related indices. Used to configure the AI assistant from the UI.
+ml_config_read:
+  reserved: true
+  hidden: false
+  cluster_permissions: []
+  index_permissions:
+  - index_patterns:
+    - ".plugins-ml-model"
+    - ".plugins-ml-connector"
+    - ".plugins-ml-agent"
+    - ".plugins-ml-config"
+    dls: ""
+    fls: []
+    masked_fields: []
+    allowed_actions:
+    - "read"
+    - "system:admin/system_index"
+  tenant_permissions: []
+  static: false
+
+# Role to grant write access to ML related indices. Used to configure the AI assistant from the UI.
+ml_config_write:
+  reserved: true
+  hidden: false
+  cluster_permissions: []
+  index_permissions:
+  - index_patterns:
+    - ".plugins-ml-config"
+    dls: ""
+    fls: []
+    masked_fields: []
+    allowed_actions:
+    - "write"
+    - "system:admin/system_index"
+  tenant_permissions: []
+  static: false
