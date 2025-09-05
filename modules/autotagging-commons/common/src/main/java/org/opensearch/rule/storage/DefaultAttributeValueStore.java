@@ -10,7 +10,6 @@ package org.opensearch.rule.storage;
 
 import org.apache.commons.collections4.trie.PatriciaTrie;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -72,19 +71,17 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     @Override
     public List<Set<V>> get(String key) {
         readLock.lock();
-        List<Set<V>> results = new ArrayList<>();
         try {
-            for (int len = key.length(); len >= 0; len--) {
-                String prefix = key.substring(0, len);
-                Set<V> values = trie.get(prefix);
-                if (values != null && !values.isEmpty()) {
-                    results.add(values);
-                }
-            }
+            return trie.keySet()
+                .stream()
+                .filter(k -> key.startsWith(k))
+                .sorted((a, b) -> Integer.compare(b.length(), a.length()))
+                .map(trie::get)
+                .filter(v -> v != null && !v.isEmpty())
+                .toList();
         } finally {
             readLock.unlock();
         }
-        return results;
     }
 
     @Override

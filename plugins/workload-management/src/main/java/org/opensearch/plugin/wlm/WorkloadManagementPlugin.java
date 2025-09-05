@@ -138,7 +138,7 @@ public class WorkloadManagementPlugin extends Plugin
         );
         InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
             attributeValueStoreFactory,
-            featureType.getPrioritizedAttributesList()
+            featureType.getPrioritizedTopLevelAttributes()
         );
         rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,

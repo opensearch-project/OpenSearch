@@ -15,7 +15,7 @@ import org.opensearch.rule.autotagging.Attribute;
 
 import java.util.List;
 
-import static org.opensearch.rule.attribute_extractor.AttributeExtractor.CombinationStyle.AND;
+import static org.opensearch.rule.attribute_extractor.AttributeExtractor.LogicalOperator.AND;
 
 /**
  * This class extracts the indices from a request
@@ -42,7 +42,7 @@ public class IndicesExtractor implements AttributeExtractor<String> {
     }
 
     @Override
-    public CombinationStyle getCombinationStyle() {
+    public LogicalOperator getLogicalOperator() {
         return AND;
     }
 }

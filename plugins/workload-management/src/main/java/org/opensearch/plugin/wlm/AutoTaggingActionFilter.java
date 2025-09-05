@@ -79,7 +79,7 @@ public class AutoTaggingActionFilter implements ActionFilter {
         if (principalExtension != null) {
             attributeExtractors.add(principalExtension.getAttributeExtractor());
         }
-        Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
+        Optional<String> label = ruleProcessingService.evaluateFeatureValue(attributeExtractors);
         label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
         chain.proceed(task, action, request, listener);
     }

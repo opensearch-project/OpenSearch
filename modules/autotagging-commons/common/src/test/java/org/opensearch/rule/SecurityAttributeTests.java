@@ -45,13 +45,13 @@ public class SecurityAttributeTests extends OpenSearchTestCase {
 
         parser.nextToken();
         Set<String> result = SecurityAttribute.PRINCIPAL.fromXContentParseAttributeValues(parser);
-        assertTrue(result.contains("username_alice"));
-        assertTrue(result.contains("username_bob"));
-        assertTrue(result.contains("role_admin"));
+        assertTrue(result.contains("username|alice"));
+        assertTrue(result.contains("username|bob"));
+        assertTrue(result.contains("role|admin"));
     }
 
     public void testToXContent() throws IOException {
-        Set<String> input = Set.of("username_alice", "username_bob_lastname", "role_admin_admin");
+        Set<String> input = Set.of("username|alice", "username|bob_lastname", "role|admin|admin");
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         SecurityAttribute.PRINCIPAL.toXContentWriteAttributeValues(builder, input);
@@ -59,6 +59,6 @@ public class SecurityAttributeTests extends OpenSearchTestCase {
         String json = builder.toString();
         assertTrue(json.contains("alice"));
         assertTrue(json.contains("bob_lastname"));
-        assertTrue(json.contains("admin_admin"));
+        assertTrue(json.contains("admin|admin"));
     }
 }
