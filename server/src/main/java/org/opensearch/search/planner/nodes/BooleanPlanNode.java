@@ -25,6 +25,18 @@ import java.util.List;
  */
 public class BooleanPlanNode extends AbstractQueryPlanNode {
 
+    // Coordination overhead constants
+    private static final double BASE_COORD_OVERHEAD = 0.1; // Base CPU cost for BooleanQuery coordination
+    private static final double MUST_OVERHEAD_PER_CLAUSE = 0.05; // Additional cost per must clause (requires all to match)
+    private static final double FILTER_OVERHEAD_PER_CLAUSE = 0.02; // Lower than must (no scoring required)
+    private static final double SHOULD_OVERHEAD_PER_CLAUSE = 0.05; // Similar to must but optional matching
+    private static final double MUST_NOT_OVERHEAD_PER_CLAUSE = 0.05; // Cost of exclusion checking
+    private static final double MIN_SHOULD_MATCH_OVERHEAD = 0.1; // Extra complexity for minimum match counting
+
+    // Must-not penalty constants
+    private static final double MUST_NOT_CPU_FACTOR = 0.25; // CPU penalty ratio for exclusion operations
+    private static final long MUST_NOT_DOC_SCALE = 1_000_000L; // Document count scale for bounded penalty
+
     private final List<QueryPlanNode> mustClauses;
     private final List<QueryPlanNode> filterClauses;
     private final List<QueryPlanNode> shouldClauses;
@@ -96,8 +108,8 @@ public class BooleanPlanNode extends AbstractQueryPlanNode {
             // Must not clauses add overhead proportional to the number of docs that need checking
             long estimatedDocs = allCosts.isEmpty() ? 0 : allCosts.stream().mapToLong(c -> c.getLuceneCost()).min().orElse(0);
             // Bounded, doc-sensitive CPU increment
-            double docFactor = Math.min(1.0, estimatedDocs / 1_000_000.0);
-            mustNotPenalty = docFactor * 0.25 * mustNotClauses.size();
+            double docFactor = Math.min(1.0, estimatedDocs / (double) MUST_NOT_DOC_SCALE);
+            mustNotPenalty = docFactor * MUST_NOT_CPU_FACTOR * mustNotClauses.size();
         }
 
         QueryCost combined = QueryCost.combine(allCosts, coordinationOverhead);
@@ -113,18 +125,17 @@ public class BooleanPlanNode extends AbstractQueryPlanNode {
     }
 
     private double calculateCoordinationOverhead() {
-        // Base overhead for boolean query coordination
-        double overhead = 0.1;
+        double overhead = BASE_COORD_OVERHEAD;
 
         // Add overhead for each clause type present
-        if (!mustClauses.isEmpty()) overhead += 0.05 * mustClauses.size();
-        if (!filterClauses.isEmpty()) overhead += 0.02 * filterClauses.size(); // Filters are cheaper
-        if (!shouldClauses.isEmpty()) overhead += 0.05 * shouldClauses.size();
-        if (!mustNotClauses.isEmpty()) overhead += 0.05 * mustNotClauses.size(); // Reduced from 0.1 to 0.05
+        if (!mustClauses.isEmpty()) overhead += MUST_OVERHEAD_PER_CLAUSE * mustClauses.size();
+        if (!filterClauses.isEmpty()) overhead += FILTER_OVERHEAD_PER_CLAUSE * filterClauses.size();
+        if (!shouldClauses.isEmpty()) overhead += SHOULD_OVERHEAD_PER_CLAUSE * shouldClauses.size();
+        if (!mustNotClauses.isEmpty()) overhead += MUST_NOT_OVERHEAD_PER_CLAUSE * mustNotClauses.size();
 
         // Additional overhead for complex minimum should match
         if (minimumShouldMatch > 1) {
-            overhead += 0.1 * minimumShouldMatch;
+            overhead += MIN_SHOULD_MATCH_OVERHEAD * minimumShouldMatch;
         }
 
         return overhead;

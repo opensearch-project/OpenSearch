@@ -8,6 +8,8 @@
 
 package org.opensearch.search.planner;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -16,6 +18,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -29,19 +33,21 @@ import org.opensearch.search.planner.nodes.MatchPlanNode;
 import org.opensearch.search.planner.nodes.RangePlanNode;
 import org.opensearch.search.planner.nodes.TermPlanNode;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Builds a logical query plan from OpenSearch QueryBuilder.
- * This converts the query structure into a tree of QueryPlanNodes
- * that can be analyzed and optimized.
- *
+ * Builds logical query plans from OpenSearch QueryBuilder.
  * @opensearch.experimental
  */
 @ExperimentalApi
 public class LogicalPlanBuilder {
+
+    private static final Logger logger = LogManager.getLogger(LogicalPlanBuilder.class);
+
+    private static final int MAX_MATCH_TERM_COUNT = 10; // Upper bound for term count estimation in match queries
 
     private final QueryShardContext queryShardContext;
     private final CostEstimator costEstimator;
@@ -56,28 +62,37 @@ public class LogicalPlanBuilder {
      *
      * @param queryBuilder The query to build a plan for
      * @return The root node of the query plan
-     * @throws Exception If the query cannot be converted to Lucene query
+     * @throws IllegalArgumentException if queryBuilder is null
+     * @throws IOException If the query cannot be converted to Lucene query
      */
-    public QueryPlanNode build(QueryBuilder queryBuilder) throws Exception {
+    public QueryPlanNode build(QueryBuilder queryBuilder) throws IOException {
         if (queryBuilder == null) {
-            return null;
+            throw new IllegalArgumentException("QueryBuilder cannot be null");
         }
 
-        // Try to build directly from QueryBuilder for known types
-        if (queryBuilder instanceof BoolQueryBuilder
-            || queryBuilder instanceof TermQueryBuilder
-            || queryBuilder instanceof RangeQueryBuilder
-            || queryBuilder instanceof MatchQueryBuilder) {
-            return buildFromQueryBuilder(queryBuilder);
-        }
+        logger.trace("Building query plan for QueryBuilder: {}", queryBuilder.getClass().getSimpleName());
+        long startTime = System.nanoTime();
 
-        // Fallback: Rewrite and convert to Lucene query
-        QueryBuilder rewritten = queryBuilder.rewrite(queryShardContext);
-        Query luceneQuery = rewritten.toQuery(queryShardContext);
-        return buildNode(luceneQuery, rewritten);
+        try {
+            // Try to build directly from QueryBuilder for known types to preserve context
+            if (queryBuilder instanceof BoolQueryBuilder
+                || queryBuilder instanceof TermQueryBuilder
+                || queryBuilder instanceof RangeQueryBuilder
+                || queryBuilder instanceof MatchQueryBuilder) {
+                return buildFromQueryBuilder(queryBuilder);
+            }
+
+            // Fallback: Rewrite and convert to Lucene query
+            QueryBuilder rewritten = queryBuilder.rewrite(queryShardContext);
+            Query luceneQuery = rewritten.toQuery(queryShardContext);
+            return buildNode(luceneQuery, rewritten);
+        } finally {
+            long duration = System.nanoTime() - startTime;
+            logger.debug("Query plan building took {}", TimeValue.timeValueNanos(duration));
+        }
     }
 
-    private QueryPlanNode buildNode(Query query, QueryBuilder queryBuilder) throws Exception {
+    private QueryPlanNode buildNode(Query query, QueryBuilder queryBuilder) throws IOException {
         if (query instanceof BooleanQuery) {
             return buildBooleanNode((BooleanQuery) query, queryBuilder);
         } else if (query instanceof TermQuery) {
@@ -92,12 +107,14 @@ public class LogicalPlanBuilder {
         }
     }
 
-    private QueryPlanNode buildBooleanNode(BooleanQuery boolQuery, QueryBuilder queryBuilder) throws Exception {
+    private QueryPlanNode buildBooleanNode(BooleanQuery boolQuery, QueryBuilder queryBuilder) throws IOException {
         // If we have the original BoolQueryBuilder, use it to preserve context
         if (queryBuilder instanceof BoolQueryBuilder) {
+            logger.trace("Building BooleanPlanNode from BoolQueryBuilder");
             return buildFromBoolQueryBuilder((BoolQueryBuilder) queryBuilder);
         }
 
+        logger.trace("Building BooleanPlanNode from Lucene BooleanQuery");
         // Otherwise fall back to processing Lucene query
         List<QueryPlanNode> mustClauses = new ArrayList<>();
         List<QueryPlanNode> filterClauses = new ArrayList<>();
@@ -135,8 +152,8 @@ public class LogicalPlanBuilder {
         if (queryBuilder instanceof TermQueryBuilder) {
             try {
                 return buildFromTermQueryBuilder((TermQueryBuilder) queryBuilder);
-            } catch (Exception e) {
-                // Fall back to Lucene query processing
+            } catch (IOException e) {
+                logger.trace("Failed to build from TermQueryBuilder, falling back to Lucene query", e);
             }
         }
 
@@ -158,8 +175,8 @@ public class LogicalPlanBuilder {
         if (queryBuilder instanceof RangeQueryBuilder) {
             try {
                 return buildFromRangeQueryBuilder((RangeQueryBuilder) queryBuilder);
-            } catch (Exception e) {
-                // Fall back to Lucene query processing
+            } catch (IOException e) {
+                logger.trace("Failed to build from RangeQueryBuilder, falling back to Lucene query", e);
             }
         }
 
@@ -169,7 +186,7 @@ public class LogicalPlanBuilder {
         Object to = null;
         boolean includeFrom = true;
         boolean includeTo = true;
-        
+
         if (query instanceof PointRangeQuery) {
             PointRangeQuery prq = (PointRangeQuery) query;
             field = prq.getField();
@@ -182,9 +199,8 @@ public class LogicalPlanBuilder {
             includeFrom = trq.includesLower();
             includeTo = trq.includesUpper();
         }
-        
-        long estimatedDocs = costEstimator.estimateGenericCost(query);
-        return new RangePlanNode(query, field, from, to, includeFrom, includeTo, estimatedDocs);
+
+        return createRangeNode(query, field, from, to, includeFrom, includeTo);
     }
 
     private QueryPlanNode buildGenericNode(Query query, QueryBuilder queryBuilder) {
@@ -218,7 +234,7 @@ public class LogicalPlanBuilder {
      * Builds a query plan node directly from a QueryBuilder without converting to Lucene query.
      * This preserves field names, values, and other metadata.
      */
-    private QueryPlanNode buildFromQueryBuilder(QueryBuilder queryBuilder) throws Exception {
+    private QueryPlanNode buildFromQueryBuilder(QueryBuilder queryBuilder) throws IOException {
         if (queryBuilder instanceof BoolQueryBuilder) {
             return buildFromBoolQueryBuilder((BoolQueryBuilder) queryBuilder);
         } else if (queryBuilder instanceof TermQueryBuilder) {
@@ -235,7 +251,7 @@ public class LogicalPlanBuilder {
         return buildNode(luceneQuery, rewritten);
     }
 
-    private QueryPlanNode buildFromBoolQueryBuilder(BoolQueryBuilder boolQuery) throws Exception {
+    private QueryPlanNode buildFromBoolQueryBuilder(BoolQueryBuilder boolQuery) throws IOException {
         List<QueryPlanNode> mustClauses = new ArrayList<>();
         List<QueryPlanNode> filterClauses = new ArrayList<>();
         List<QueryPlanNode> shouldClauses = new ArrayList<>();
@@ -258,12 +274,8 @@ public class LogicalPlanBuilder {
         // Get minimum should match
         String minimumShouldMatch = boolQuery.minimumShouldMatch();
         int minShouldMatch = 0;
-        if (minimumShouldMatch != null) {
-            try {
-                minShouldMatch = Integer.parseInt(minimumShouldMatch);
-            } catch (NumberFormatException e) {
-                // Handle percentage or other formats - for now default to 0
-            }
+        if (minimumShouldMatch != null && !shouldClauses.isEmpty()) {
+            minShouldMatch = Queries.calculateMinShouldMatch(shouldClauses.size(), minimumShouldMatch);
         }
 
         Query luceneQuery = boolQuery.rewrite(queryShardContext).toQuery(queryShardContext);
@@ -271,7 +283,7 @@ public class LogicalPlanBuilder {
         return new BooleanPlanNode((BooleanQuery) luceneQuery, mustClauses, filterClauses, shouldClauses, mustNotClauses, minShouldMatch);
     }
 
-    private QueryPlanNode buildFromTermQueryBuilder(TermQueryBuilder termQuery) throws Exception {
+    private QueryPlanNode buildFromTermQueryBuilder(TermQueryBuilder termQuery) throws IOException {
         String field = termQuery.fieldName();
         Object value = termQuery.value();
 
@@ -284,7 +296,7 @@ public class LogicalPlanBuilder {
         return new TermPlanNode(luceneQuery, field, value, estimatedDocFreq);
     }
 
-    private QueryPlanNode buildFromRangeQueryBuilder(RangeQueryBuilder rangeQuery) throws Exception {
+    private QueryPlanNode buildFromRangeQueryBuilder(RangeQueryBuilder rangeQuery) throws IOException {
         String field = rangeQuery.fieldName();
         Object from = rangeQuery.from();
         Object to = rangeQuery.to();
@@ -292,33 +304,27 @@ public class LogicalPlanBuilder {
         boolean includeTo = rangeQuery.includeUpper();
 
         Query luceneQuery = rangeQuery.rewrite(queryShardContext).toQuery(queryShardContext);
-        
-        long estimatedDocs;
-        try {
-            estimatedDocs = costEstimator.estimateGenericCost(luceneQuery);
-        } catch (Exception e) {
-            estimatedDocs = costEstimator.getTotalDocs() / 10;
-        }
-
-        return new RangePlanNode(luceneQuery, field, from, to, includeFrom, includeTo, estimatedDocs);
+        return createRangeNode(luceneQuery, field, from, to, includeFrom, includeTo);
     }
 
-    private QueryPlanNode buildFromMatchQueryBuilder(MatchQueryBuilder matchQuery) throws Exception {
+    private QueryPlanNode buildFromMatchQueryBuilder(MatchQueryBuilder matchQuery) throws IOException {
         String field = matchQuery.fieldName();
         String text = matchQuery.value().toString();
         String analyzer = matchQuery.analyzer();
 
-        int termCount = Math.max(1, Math.min(10, text.split("\\s+").length));
-        
         Query luceneQuery = matchQuery.rewrite(queryShardContext).toQuery(queryShardContext);
-        
-        long estimatedDocs;
-        try {
-            estimatedDocs = costEstimator.estimateGenericCost(luceneQuery);
-        } catch (Exception e) {
-            estimatedDocs = costEstimator.getTotalDocs() / 20;
-        }
+        return createMatchNode(luceneQuery, field, text, analyzer);
+    }
 
-        return new MatchPlanNode(luceneQuery, field, text, analyzer, termCount, estimatedDocs);
+    // Helper methods to reduce duplication
+    private RangePlanNode createRangeNode(Query lucene, String field, Object from, Object to, boolean incFrom, boolean incTo) {
+        long estimatedDocs = costEstimator.estimateGenericCost(lucene);
+        return new RangePlanNode(lucene, field, from, to, incFrom, incTo, estimatedDocs);
+    }
+
+    private MatchPlanNode createMatchNode(Query lucene, String field, String text, String analyzer) {
+        int termCount = Math.max(1, Math.min(MAX_MATCH_TERM_COUNT, text.split("\\s+").length));
+        long estimatedDocs = costEstimator.estimateGenericCost(lucene);
+        return new MatchPlanNode(lucene, field, text, analyzer, termCount, estimatedDocs);
     }
 }

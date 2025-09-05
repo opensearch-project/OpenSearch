@@ -8,10 +8,14 @@
 
 package org.opensearch.search.planner;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.opensearch.index.query.QueryShardContext;
 
@@ -20,11 +24,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Estimates query costs by combining Lucene's cost model with OpenSearch-specific heuristics.
- *
+ * Estimates query costs using Lucene's scorer costs and OpenSearch heuristics.
  * @opensearch.internal
  */
 public class CostEstimator {
+
+    private static final Logger logger = LogManager.getLogger(CostEstimator.class);
 
     private final QueryShardContext queryShardContext;
     private final IndexSearcher searcher;
@@ -32,6 +37,13 @@ public class CostEstimator {
 
     // Cost multipliers for different query types
     private static final Map<String, CostMultipliers> QUERY_COST_MULTIPLIERS = new HashMap<>();
+
+    // Fallback cost fractions
+    private static final double FALLBACK_TERM_FRACTION = 0.01;
+    private static final double FALLBACK_RANGE_FRACTION = 0.1;
+    private static final double FALLBACK_WILDCARD_FRACTION = 0.2;
+    private static final double FALLBACK_FUZZY_FRACTION = 0.5;
+    private static final double FALLBACK_DEFAULT_FRACTION = 0.05;
 
     static {
         // Initialize cost multipliers
@@ -69,13 +81,17 @@ public class CostEstimator {
     public long estimateTermDocFrequency(String field, String value) {
         if (reader == null) {
             // Default estimate if no reader available
+            logger.trace("No reader available for term frequency estimation, using default");
             return 100;
         }
 
         try {
             Term term = new Term(field, value);
-            return reader.docFreq(term);
+            long docFreq = reader.docFreq(term);
+            logger.trace("Term frequency for field '{}' value '{}': {}", field, value, docFreq);
+            return docFreq;
         } catch (IOException e) {
+            logger.debug("Error estimating term frequency for field '{}': {}", field, e.getMessage());
             // Fall back to estimate
             return 100;
         }
@@ -97,6 +113,7 @@ public class CostEstimator {
     public long estimateGenericCost(Query query) {
         if (searcher == null) {
             // Fallback estimate based on query type
+            logger.trace("No searcher available, using fallback cost estimation");
             return estimateFallbackCost(query);
         }
 
@@ -107,17 +124,22 @@ public class CostEstimator {
             // Aggregate costs across all leaves
             if (reader != null && !reader.leaves().isEmpty()) {
                 long totalCost = 0;
-                for (var leafContext : reader.leaves()) {
-                    var scorer = weight.scorer(leafContext);
+                int leafCount = 0;
+                for (LeafReaderContext leafContext : reader.leaves()) {
+                    Scorer scorer = weight.scorer(leafContext);
                     if (scorer != null) {
-                        totalCost += scorer.iterator().cost();
+                        long leafCost = scorer.iterator().cost();
+                        totalCost += leafCost;
+                        leafCount++;
                     }
                 }
                 if (totalCost > 0) {
+                    logger.trace("Lucene cost for {} across {} leaves: {}", query.getClass().getSimpleName(), leafCount, totalCost);
                     return totalCost;
                 }
             }
         } catch (IOException e) {
+            logger.debug("Error estimating Lucene cost for query {}: {}", query.getClass().getSimpleName(), e.getMessage());
             // Fall back to estimate
         }
 
@@ -134,22 +156,18 @@ public class CostEstimator {
         if (queryType.contains("MatchAllDocs")) {
             return totalDocs;
         } else if (queryType.contains("Term")) {
-            return totalDocs / 100; // ~1% of docs
+            return (long) (totalDocs * FALLBACK_TERM_FRACTION);
         } else if (queryType.contains("Range")) {
-            return totalDocs / 10; // ~10% of docs
+            return (long) (totalDocs * FALLBACK_RANGE_FRACTION);
         } else if (queryType.contains("Wildcard") || queryType.contains("Prefix")) {
-            return totalDocs / 5; // ~20% of docs
+            return (long) (totalDocs * FALLBACK_WILDCARD_FRACTION);
         } else if (queryType.contains("Fuzzy") || queryType.contains("Regexp")) {
-            return totalDocs / 2; // ~50% of docs (expensive)
+            return (long) (totalDocs * FALLBACK_FUZZY_FRACTION);
         }
 
-        // Default: 5% of docs
-        return totalDocs / 20;
+        return (long) (totalDocs * FALLBACK_DEFAULT_FRACTION);
     }
 
-    /**
-     * Estimates additional costs beyond Lucene's document-based cost.
-     */
     public QueryCost estimateFullCost(Query query, long luceneCost) {
         String queryType = query.getClass().getSimpleName();
 
