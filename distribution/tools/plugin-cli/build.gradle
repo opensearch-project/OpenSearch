@@ -81,5 +81,10 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.tukaani.xz.XZOutputStream',
   'org.apache.commons.codec.digest.PureJavaCrc32C',
   'org.apache.commons.codec.digest.XXHash32',
-  'org.apache.commons.lang3.reflect.FieldUtils'
+  'org.apache.commons.lang3.reflect.FieldUtils',
+  'org.apache.commons.lang3.ArrayFill',
+  'org.apache.commons.lang3.ArrayUtils',
+  'org.apache.commons.lang3.StringUtils',
+  'org.apache.commons.lang3.SystemProperties',
+  'org.apache.commons.lang3.function.Suppliers'
 )

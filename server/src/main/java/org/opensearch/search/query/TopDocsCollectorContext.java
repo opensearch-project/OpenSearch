@@ -331,8 +331,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     sort,
                     0,
                     numHits,
-                    topFieldDocs.toArray(new CollapseTopFieldDocs[0]),
-                    true
+                    topFieldDocs.toArray(new CollapseTopFieldDocs[0])
                 );
                 result.topDocs(new TopDocsAndMaxScore(topDocs, maxScore), sortFmt);
             };

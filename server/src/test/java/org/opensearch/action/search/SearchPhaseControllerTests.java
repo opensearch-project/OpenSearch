@@ -1747,7 +1747,11 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
         SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
         AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
-        AtomicInteger cancelAfterRequest = new AtomicInteger(expectedNumResults / 2);
+        // To make it deterministic, we can count the number of times the partialReduce and reduce are called
+        // The exception is only thrown during the call to reduce which will happen once all shard level
+        // results have arrived
+        int partialReduceMethodCallCount = expectedNumResults / batchedReduceSize;
+        AtomicInteger checkCount = new AtomicInteger(expectedNumResults + partialReduceMethodCallCount);
 
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
@@ -1757,7 +1761,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             expectedNumResults,
             exc -> {},
             () -> {
-                return cancelAfterRequest.decrementAndGet() <= 0;
+                return checkCount.decrementAndGet() <= 0;
             }
         );
 
@@ -1774,8 +1778,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
         // making sure circuit breaker trips first
         circuitBreaker.shouldBreak.set(true);
-        AtomicInteger cancelAfterRequest = new AtomicInteger(expectedNumResults + 1);
-
+        int partialReduceMethodCallCount = expectedNumResults / batchedReduceSize;
+        AtomicInteger checkCount = new AtomicInteger(expectedNumResults + partialReduceMethodCallCount);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             circuitBreaker,
@@ -1784,7 +1788,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             expectedNumResults,
             exc -> {},
             () -> {
-                return cancelAfterRequest.decrementAndGet() <= 0;
+                return checkCount.decrementAndGet() <= 0;
             }
         );
 
