@@ -28,9 +28,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.mock;
@@ -53,7 +54,12 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
             DefaultAttributeValueStore::new
         );
         ruleProcessingService = spy(new InMemoryRuleProcessingService(attributeValueStoreFactory, null));
-        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool, null);
+        autoTaggingActionFilter = new AutoTaggingActionFilter(
+            ruleProcessingService,
+            threadPool,
+            new HashMap<>(),
+            mock(WlmClusterSettingValuesProvider.class)
+        );
     }
 
     public void tearDown() throws Exception {
@@ -70,11 +76,11 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         ActionFilterChain<ActionRequest, ActionResponse> mockFilterChain = mock(TestActionFilterChain.class);
         when(request.indices()).thenReturn(new String[] { "foo" });
         try (ThreadContext.StoredContext context = threadPool.getThreadContext().stashContext()) {
-            when(ruleProcessingService.evaluateLabel(anyList())).thenReturn(Optional.of("TestQG_ID"));
+            when(ruleProcessingService.evaluateFeatureValue(anyList())).thenReturn(Optional.of("TestQG_ID"));
             autoTaggingActionFilter.apply(mock(Task.class), "Test", request, null, mockFilterChain);
 
             assertEquals("TestQG_ID", threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER));
-            verify(ruleProcessingService, times(1)).evaluateLabel(anyList());
+            verify(ruleProcessingService, times(1)).evaluateFeatureValue(anyList());
         }
     }
 
@@ -83,7 +89,7 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         CancelTasksRequest request = new CancelTasksRequest();
         autoTaggingActionFilter.apply(mock(Task.class), "Test", request, null, mockFilterChain);
 
-        verify(ruleProcessingService, times(0)).evaluateLabel(anyList());
+        verify(ruleProcessingService, times(0)).evaluateFeatureValue(anyList());
     }
 
     public enum WLMFeatureType implements FeatureType {
@@ -95,13 +101,8 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
-        }
-
-        @Override
-        public List<Attribute> getPrioritizedAttributesList() {
-            return List.of(TestAttribute.TEST_ATTRIBUTE);
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return Map.of(TestAttribute.TEST_ATTRIBUTE, 1);
         }
     }
 
@@ -118,6 +119,11 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         @Override
         public String getName() {
             return name;
+        }
+
+        @Override
+        public TreeMap<Integer, String> getPrioritizedSubfields() {
+            return new TreeMap<>();
         }
 
         @Override

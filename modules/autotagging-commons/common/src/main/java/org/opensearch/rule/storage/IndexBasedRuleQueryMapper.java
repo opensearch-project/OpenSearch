@@ -14,7 +14,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rule.RuleQueryMapper;
 import org.opensearch.rule.action.GetRuleRequest;
-import org.opensearch.rule.autotagging.Attribute;
 
 import java.util.Map;
 import java.util.Set;
@@ -33,20 +32,20 @@ public class IndexBasedRuleQueryMapper implements RuleQueryMapper<QueryBuilder> 
     @Override
     public QueryBuilder from(GetRuleRequest request) {
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
-        final Map<Attribute, Set<String>> attributeFilters = request.getAttributeFilters();
+        final Map<String, Set<String>> attributeFilters = request.getAttributeFilters();
         final String id = request.getId();
 
         boolQuery.filter(QueryBuilders.existsQuery(request.getFeatureType().getName()));
         if (id != null) {
             return boolQuery.must(QueryBuilders.termQuery("_id", id));
         }
-        for (Map.Entry<Attribute, Set<String>> entry : attributeFilters.entrySet()) {
-            Attribute attribute = entry.getKey();
+        for (Map.Entry<String, Set<String>> entry : attributeFilters.entrySet()) {
+            String attribute = entry.getKey();
             Set<String> values = entry.getValue();
             if (values != null && !values.isEmpty()) {
                 BoolQueryBuilder attributeQuery = QueryBuilders.boolQuery();
                 for (String value : values) {
-                    attributeQuery.should(QueryBuilders.matchQuery(attribute.getName(), value));
+                    attributeQuery.should(QueryBuilders.matchQuery(attribute, value));
                 }
                 boolQuery.must(attributeQuery);
             }

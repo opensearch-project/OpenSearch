@@ -20,7 +20,7 @@ public interface AttributeExtractor<V> {
      * Defines the combination style used when a request contains multiple values
      * for an attribute.
      */
-    enum CombinationStyle {
+    enum LogicalOperator {
         /**
          * Logical AND
          */
@@ -44,11 +44,11 @@ public interface AttributeExtractor<V> {
     Iterable<V> extract();
 
     /**
-     * Returns the combination style used when a request contains multiple values
+     * Returns the logical operator used when a request contains multiple values
      * for an attribute.
      * For example, if the request targets both index A and B, then a rule must
-     * have both index A and B as attributes, requiring an AND combination.
-     * @return the combination style (e.g., AND, OR)
+     * have both index A and B as attributes, requiring an AND operator.
+     * @return the logical operator (e.g., AND, OR)
      */
-    CombinationStyle getCombinationStyle();
+    LogicalOperator getLogicalOperator();
 }

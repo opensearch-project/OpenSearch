@@ -18,9 +18,9 @@ import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_2;
@@ -71,6 +71,11 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         public String getName() {
             return name;
         }
+
+        @Override
+        public TreeMap<Integer, String> getPrioritizedSubfields() {
+            return new TreeMap<>();
+        }
     }
 
     public static class TestFeatureType implements FeatureType {
@@ -97,6 +102,11 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         }
 
         @Override
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return Map.of(TEST_ATTRIBUTE_1, 1, TEST_ATTRIBUTE_2, 2);
+        }
+
+        @Override
         public int getMaxNumberOfValuesPerAttribute() {
             return MAX_ATTRIBUTE_VALUES;
         }
@@ -109,11 +119,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         @Override
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return ALLOWED_ATTRIBUTES;
-        }
-
-        @Override
-        public List<Attribute> getPrioritizedAttributesList() {
-            return List.of(TEST_ATTRIBUTE_1, TEST_ATTRIBUTE_2);
         }
     }
 

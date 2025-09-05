@@ -72,19 +72,25 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     @Override
     public List<Set<V>> get(String key) {
         readLock.lock();
-        List<Set<V>> results = new ArrayList<>();
         try {
-            for (int len = key.length(); len >= 0; len--) {
-                String prefix = key.substring(0, len);
-                Set<V> values = trie.get(prefix);
-                if (values != null && !values.isEmpty()) {
-                    results.add(values);
+            List<Set<V>> results = new ArrayList<>();
+            StringBuilder prefixBuilder = new StringBuilder(key);
+
+            for (int i = key.length(); i >= 0; i--) {
+                String prefix = prefixBuilder.toString();
+                Set<V> value = trie.get(prefix);
+                if (value != null && !value.isEmpty()) {
+                    results.add(value);
+                }
+                if (!prefixBuilder.isEmpty()) {
+                    prefixBuilder.deleteCharAt(prefixBuilder.length() - 1);
                 }
             }
+
+            return results;
         } finally {
             readLock.unlock();
         }
-        return results;
     }
 
     @Override

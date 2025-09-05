@@ -11,12 +11,11 @@ package org.opensearch.rule;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.Rule;
-import org.opensearch.rule.feature_value_resolver.FeatureValueAggregator;
+import org.opensearch.rule.feature_value_resolver.FeatureValueResolver;
 import org.opensearch.rule.storage.AttributeValueStore;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,17 +35,20 @@ public class InMemoryRuleProcessingService {
     public static final String WILDCARD = "*";
     private final AttributeValueStoreFactory attributeValueStoreFactory;
     /**
-     * List of attributes from most priority to least priority.
+     * Map of prioritized attributes
      */
-    private final List<Attribute> prioritizedAttributes;
+    private final Map<Attribute, Integer> prioritizedAttributes;
 
     /**
      * Constructs an InMemoryRuleProcessingService with the given
      * attribute value store factory and a prioritized list of attributes.
      * @param attributeValueStoreFactory Factory to create attribute value stores.
-     * @param prioritizedAttributes      List of attributes ordered by priority for processing.
+     * @param prioritizedAttributes      Map of prioritized attributes
      */
-    public InMemoryRuleProcessingService(AttributeValueStoreFactory attributeValueStoreFactory, List<Attribute> prioritizedAttributes) {
+    public InMemoryRuleProcessingService(
+        AttributeValueStoreFactory attributeValueStoreFactory,
+        Map<Attribute, Integer> prioritizedAttributes
+    ) {
         this.attributeValueStoreFactory = attributeValueStoreFactory;
         this.prioritizedAttributes = prioritizedAttributes;
     }
@@ -90,31 +92,18 @@ public class InMemoryRuleProcessingService {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
             valueStore.put(value.replace(WILDCARD, ""), rule.getFeatureValue());
-            List<Set<String>> result = valueStore.get("my-index");
         }
     }
 
     /**
-     * Evaluates the label for the current request. It finds the matches for each attribute value and then it is an
-     * intersection of all the matches
-     * @param attributeExtractors list of extractors which are used to get the attribute values to find the
-     *                           matching rule
-     * @return a label if there is unique label otherwise empty
+     * Determines the final feature value for the given request
+     * @param attributeExtractors list of attribute extractors
      */
-    public Optional<String> evaluateLabel(List<AttributeExtractor<String>> attributeExtractors) {
-        sortExtractorsByPriority(attributeExtractors);
-        FeatureValueAggregator aggregator = new FeatureValueAggregator(attributeValueStoreFactory);
-        FeatureValueAggregator.AggregationResult result = aggregator.collect(attributeExtractors);
-        return result.resolveLabel();
-    }
-
-    private void sortExtractorsByPriority(List<AttributeExtractor<String>> attributeExtractors) {
-        Map<Attribute, Integer> priorityMap = new HashMap<>();
-        for (int i = 0; i < prioritizedAttributes.size(); i++) {
-            priorityMap.put(prioritizedAttributes.get(i), i);
-        }
+    public Optional<String> evaluateFeatureValue(List<AttributeExtractor<String>> attributeExtractors) {
         attributeExtractors.sort(
-            Comparator.comparingInt(extractor -> priorityMap.getOrDefault(extractor.getAttribute(), Integer.MAX_VALUE))
+            Comparator.comparingInt(extractor -> prioritizedAttributes.getOrDefault(extractor.getAttribute(), Integer.MAX_VALUE))
         );
+        FeatureValueResolver featureValueResolver = new FeatureValueResolver(attributeValueStoreFactory);
+        return featureValueResolver.resolve(attributeExtractors).resolveLabel();
     }
 }

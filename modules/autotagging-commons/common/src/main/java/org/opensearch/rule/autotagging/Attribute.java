@@ -16,10 +16,9 @@ import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Represents an attribute within the auto-tagging feature. Attributes define characteristics that can
@@ -37,11 +36,9 @@ public interface Attribute extends Writeable {
     String getName();
 
     /**
-     * Returns the allowed subfields ordered from highest to lowest priority
+     * Returns a map of subfields ordered by priority, where 1 represents the highest priority.
      */
-    default List<String> getPrioritizedSubfields() {
-        return new ArrayList<>();
-    }
+    TreeMap<Integer, String> getPrioritizedSubfields();
 
     /**
      * Ensure that `validateAttribute` is called in the constructor of attribute implementations
@@ -60,7 +57,9 @@ public interface Attribute extends Writeable {
     }
 
     /**
-     * Parses attribute values for specific attributes
+     * Parses attribute values for specific attributes. This default function takes in parser
+     * and returns a set of string.
+     * For example, ["index1", "index2"] will be parsed to a set with values "index1" and "index2"
      * @param parser the XContent parser
      */
     default Set<String> fromXContentParseAttributeValues(XContentParser parser) throws IOException {

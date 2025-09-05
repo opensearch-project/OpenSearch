@@ -14,7 +14,6 @@ import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.FeatureValueValidator;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,11 +27,11 @@ public class WorkloadGroupFeatureType implements FeatureType {
     public static final String NAME = "workload_group";
     private static final int MAX_ATTRIBUTE_VALUES = 10;
     private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
-    private static final Map<String, Attribute> ALLOWED_ATTRIBUTES = Map.of(
-        SecurityAttribute.PRINCIPAL.getName(),
+    private static final Map<Attribute, Integer> PRIORITIZED_ATTRIBUTES = Map.of(
         SecurityAttribute.PRINCIPAL,
-        RuleAttribute.INDEX_PATTERN.getName(),
-        RuleAttribute.INDEX_PATTERN
+        1,
+        RuleAttribute.INDEX_PATTERN,
+        2
     );
     private final FeatureValueValidator featureValueValidator;
 
@@ -60,13 +59,8 @@ public class WorkloadGroupFeatureType implements FeatureType {
     }
 
     @Override
-    public Map<String, Attribute> getAllowedAttributesRegistry() {
-        return ALLOWED_ATTRIBUTES;
-    }
-
-    @Override
-    public List<Attribute> getPrioritizedAttributesList() {
-        return List.of(SecurityAttribute.PRINCIPAL, RuleAttribute.INDEX_PATTERN);
+    public Map<Attribute, Integer> getOrderedAttributes() {
+        return PRIORITIZED_ATTRIBUTES;
     }
 
     @Override

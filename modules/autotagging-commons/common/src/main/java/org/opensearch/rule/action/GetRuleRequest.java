@@ -13,7 +13,6 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.autotagging.RuleValidator;
@@ -34,7 +33,7 @@ import java.util.Set;
 @ExperimentalApi
 public class GetRuleRequest extends ActionRequest {
     private final String id;
-    private final Map<Attribute, Set<String>> attributeFilters;
+    private final Map<String, Set<String>> attributeFilters;
     private final String searchAfter;
     private final FeatureType featureType;
 
@@ -45,7 +44,7 @@ public class GetRuleRequest extends ActionRequest {
      * @param searchAfter - The sort value used for pagination.
      * @param featureType - The feature type related to rule.
      */
-    public GetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter, FeatureType featureType) {
+    public GetRuleRequest(String id, Map<String, Set<String>> attributeFilters, String searchAfter, FeatureType featureType) {
         this.id = id;
         this.attributeFilters = attributeFilters;
         this.searchAfter = searchAfter;
@@ -60,7 +59,7 @@ public class GetRuleRequest extends ActionRequest {
         super(in);
         id = in.readOptionalString();
         featureType = FeatureType.from(in);
-        attributeFilters = in.readMap(i -> Attribute.from(i, featureType), i -> new HashSet<>(i.readStringList()));
+        attributeFilters = in.readMap(StreamInput::readString, i -> new HashSet<>(i.readStringList()));
         searchAfter = in.readOptionalString();
     }
 
@@ -80,7 +79,7 @@ public class GetRuleRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(id);
         featureType.writeTo(out);
-        out.writeMap(attributeFilters, (output, attribute) -> attribute.writeTo(output), StreamOutput::writeStringCollection);
+        out.writeMap(attributeFilters, StreamOutput::writeString, StreamOutput::writeStringCollection);
         out.writeOptionalString(searchAfter);
     }
 
@@ -94,7 +93,7 @@ public class GetRuleRequest extends ActionRequest {
     /**
      * attributeFilters getter
      */
-    public Map<Attribute, Set<String>> getAttributeFilters() {
+    public Map<String, Set<String>> getAttributeFilters() {
         return attributeFilters;
     }
 

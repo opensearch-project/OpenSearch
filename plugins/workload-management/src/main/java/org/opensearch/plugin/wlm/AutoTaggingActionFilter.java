@@ -23,6 +23,7 @@ import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
@@ -37,21 +38,25 @@ public class AutoTaggingActionFilter implements ActionFilter {
     private final InMemoryRuleProcessingService ruleProcessingService;
     private final ThreadPool threadPool;
     private final Map<Attribute, AttributeExtension> attributeExtensions;
+    private final WlmClusterSettingValuesProvider wlmClusterSettingValuesProvider;
 
     /**
      * Main constructor
      * @param ruleProcessingService provides access to in memory view of rules
      * @param threadPool to access assign the label
      * @param attributeExtensions
+     * @param wlmClusterSettingValuesProvider
      */
     public AutoTaggingActionFilter(
         InMemoryRuleProcessingService ruleProcessingService,
         ThreadPool threadPool,
-        Map<Attribute, AttributeExtension> attributeExtensions
+        Map<Attribute, AttributeExtension> attributeExtensions,
+        WlmClusterSettingValuesProvider wlmClusterSettingValuesProvider
     ) {
         this.ruleProcessingService = ruleProcessingService;
         this.threadPool = threadPool;
         this.attributeExtensions = attributeExtensions;
+        this.wlmClusterSettingValuesProvider = wlmClusterSettingValuesProvider;
     }
 
     @Override
@@ -69,7 +74,7 @@ public class AutoTaggingActionFilter implements ActionFilter {
     ) {
         final boolean isValidRequest = request instanceof SearchRequest;
 
-        if (!isValidRequest) {
+        if (!isValidRequest || wlmClusterSettingValuesProvider.getWlmMode() == WlmMode.DISABLED) {
             chain.proceed(task, action, request, listener);
             return;
         }
@@ -79,7 +84,7 @@ public class AutoTaggingActionFilter implements ActionFilter {
         if (principalExtension != null) {
             attributeExtractors.add(principalExtension.getAttributeExtractor());
         }
-        Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
+        Optional<String> label = ruleProcessingService.evaluateFeatureValue(attributeExtractors);
         label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
         chain.proceed(task, action, request, listener);
     }

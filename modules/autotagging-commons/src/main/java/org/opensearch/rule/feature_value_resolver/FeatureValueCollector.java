@@ -15,45 +15,50 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Matches feature values for a given attribute extractor and subfield
- * by querying an attribute value store.
+ * Collects candidate feature values for a specified subfield of a given attribute extractor.
+ * For example, the "principal" attribute may contain subfields such as "username" and "role":
+ * principal: {
+ *   "username": ["alice", "bob"],
+ *   "role": ["admin"]
+ * }
+ * If the attribute does not define any subfields, then the subfield name is represented
+ * by an empty string ""
  */
-public class FeatureValueMatcher {
+public class FeatureValueCollector {
 
     private final AttributeValueStore<String, String> attributeValueStore;
     private final AttributeExtractor<String> attributeExtractor;
-    private final String subField;
+    private final String subfield;
 
     /**
-     * Constructs a FeatureValueMatcher with the given store, extractor, and subfield.
-     * @param attributeValueStore The store to retrieve candidate labels from.
+     * Constructs a FeatureValueCollector with the given store, extractor, and subfield.
+     * @param attributeValueStore The store to retrieve candidate feature values from.
      * @param attributeExtractor  The extractor to extract attribute values.
-     * @param subField            The subfield prefix used for filtering values.
+     * @param subfield            The subfield attribute
      */
-    public FeatureValueMatcher(
+    public FeatureValueCollector(
         AttributeValueStore<String, String> attributeValueStore,
         AttributeExtractor<String> attributeExtractor,
-        String subField
+        String subfield
     ) {
         this.attributeValueStore = attributeValueStore;
         this.attributeExtractor = attributeExtractor;
-        this.subField = subField;
+        this.subfield = subfield;
     }
 
     /**
-     * Matches and aggregates candidate feature values from the attribute extractor
-     * whose values start with the specified subfield.
+     * Collects feature values for the subfield from the attribute extractor.
      */
-    public CandidateFeatureValues match() {
+    public CandidateFeatureValues collect() {
         CandidateFeatureValues result = null;
         for (String value : attributeExtractor.extract()) {
-            if (value.startsWith(subField)) {
+            if (value.startsWith(subfield)) {
                 List<Set<String>> candidateLabels = attributeValueStore.get(value);
                 CandidateFeatureValues candidateValues = new CandidateFeatureValues(candidateLabels);
                 if (result == null) {
                     result = candidateValues;
                 } else {
-                    result = candidateValues.merge(result, attributeExtractor.getCombinationStyle());
+                    result = candidateValues.merge(result, attributeExtractor.getLogicalOperator());
                 }
             }
         }
