@@ -55,37 +55,45 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     private final CounterMetric evictionsMetric = new CounterMetric();
     private final CounterMetric totalMetric = new CounterMetric();
-    private final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<String, FieldStats> perFieldStats = ConcurrentCollections.newConcurrentMap();
+    private final CounterMetric countMetric = new CounterMetric();
 
     public FieldDataStats stats(String... fields) {
         Map<String, Long> fieldTotals = null;
+        Map<String, Long> fieldCounts = null;
         if (CollectionUtils.isEmpty(fields) == false) {
             fieldTotals = new HashMap<>();
-            for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
+            fieldCounts = new HashMap<>();
+            for (Map.Entry<String, FieldStats> entry : perFieldStats.entrySet()) {
                 if (Regex.simpleMatch(fields, entry.getKey())) {
-                    fieldTotals.put(entry.getKey(), entry.getValue().count());
+                    fieldTotals.put(entry.getKey(), entry.getValue().getMemorySize());
+                    fieldCounts.put(entry.getKey(), entry.getValue().getItems());
                 }
             }
         }
         return new FieldDataStats(
             totalMetric.count(),
             evictionsMetric.count(),
-            fieldTotals == null ? null : new FieldMemoryStats(fieldTotals)
+            fieldTotals == null ? null : new FieldMemoryStats(fieldTotals),
+            countMetric.count(),
+            fieldCounts == null ? null : new FieldMemoryStats(fieldCounts)
         );
     }
 
     @Override
     public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
         totalMetric.inc(ramUsage.ramBytesUsed());
-        CounterMetric total = perFieldTotals.get(fieldName);
-        if (total != null) {
-            total.inc(ramUsage.ramBytesUsed());
+        countMetric.inc();
+        long size = ramUsage.ramBytesUsed();
+        FieldStats fieldStats = perFieldStats.get(fieldName);
+        if (fieldStats != null) {
+            fieldStats.increment(size);
         } else {
-            total = new CounterMetric();
-            total.inc(ramUsage.ramBytesUsed());
-            CounterMetric prev = perFieldTotals.putIfAbsent(fieldName, total);
+            fieldStats = new FieldStats();
+            fieldStats.increment(size);
+            FieldStats prev = perFieldStats.putIfAbsent(fieldName, fieldStats);
             if (prev != null) {
-                prev.inc(ramUsage.ramBytesUsed());
+                prev.increment(size);
             }
         }
     }
@@ -95,13 +103,42 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
         if (wasEvicted) {
             evictionsMetric.inc();
         }
+        FieldStats fieldStats = perFieldStats.get(fieldName);
         if (sizeInBytes != -1) {
             totalMetric.dec(sizeInBytes);
-
-            CounterMetric total = perFieldTotals.get(fieldName);
-            if (total != null) {
-                total.dec(sizeInBytes);
+            if (fieldStats != null) {
+                fieldStats.memorySizeMetric.dec(sizeInBytes);
             }
+        }
+        countMetric.dec();
+        if (fieldStats != null) {
+            fieldStats.itemsMetric.dec();
+        }
+    }
+
+    /**
+     * Memory + item stats counters for one field.
+     */
+    class FieldStats {
+        final CounterMetric memorySizeMetric;
+        final CounterMetric itemsMetric;
+
+        FieldStats() {
+            this.memorySizeMetric = new CounterMetric();
+            this.itemsMetric = new CounterMetric();
+        }
+
+        void increment(long sizeInBytes) {
+            memorySizeMetric.inc(sizeInBytes);
+            itemsMetric.inc();
+        }
+
+        long getMemorySize() {
+            return memorySizeMetric.count();
+        }
+
+        long getItems() {
+            return itemsMetric.count();
         }
     }
 }

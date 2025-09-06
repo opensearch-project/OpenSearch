@@ -43,7 +43,10 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map);
+        // test both ctors
+        FieldDataStats stats = randomBoolean()
+            ? new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map)
+            : new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map, randomNonNegativeLong(), map);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();
@@ -52,5 +55,7 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
         assertEquals(stats.getEvictions(), read.getEvictions());
         assertEquals(stats.getMemorySize(), read.getMemorySize());
         assertEquals(stats.getFields(), read.getFields());
+        assertEquals(stats.getItemCount(), read.getItemCount());
+        assertEquals(stats.getFieldItemCounts(), read.getFieldItemCounts());
     }
 }
