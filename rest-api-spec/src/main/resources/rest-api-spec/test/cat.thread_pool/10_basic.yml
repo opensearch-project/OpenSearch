@@ -1,7 +1,7 @@
 "Test cat thread_pool total_wait_time output":
   - skip:
-      version: " - 2.10.99"
-      reason: thread_pool total_wait_time stats were introduced in V_2.11.0
+      version: " - 2.10.99,3.2.0 -"
+      reason: thread_pool total_wait_time stats were introduced in V_2.11.0; ForkJoinPool thread pool support was introduced in 3.2.0 and is tested separately.
 
   - do:
       cat.thread_pool: {}
@@ -27,8 +27,8 @@
 ---
 "Test cat thread_pool total_wait_time output with concurrent search thread_pool":
   - skip:
-      version: " - 2.11.99"
-      reason: index_search thread_pool was introduced in V_2.12.0
+      version: " - 2.11.99,3.2.0 -"
+      reason: index_search thread_pool was introduced in V_2.12.0; ForkJoinPool thread pool support was introduced in 3.2.0 and is tested separately.
 
   - do:
       cat.thread_pool: {}
@@ -54,6 +54,9 @@
 
 ---
 "Test cat thread_pool output":
+  - skip:
+      version: "3.2.0 -,"
+      reason: ForkJoinPool thread pool support was introduced in 3.2.0 and is tested separately.
 
   - do:
       cat.thread_pool: {}
