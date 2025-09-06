@@ -77,11 +77,13 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -580,6 +582,44 @@ public class LuceneTests extends OpenSearchTestCase {
             VersionUtils.randomVersion(random())
         );
         assertEquals(sortFieldTuple.v2(), deserialized);
+    }
+
+    public void testNonpruningSortFieldSerialization() throws IOException {
+        NonPruningSortedSetOrdinalsIndexFieldData fieldData = new NonPruningSortedSetOrdinalsIndexFieldData(
+            null,
+            "field",
+            null,
+            null,
+            null
+        );
+
+        SortField nonPruningSortedSetField = fieldData.sortField(null, MultiValueMode.MAX, null, true);
+        SortField expected = new SortField(
+            nonPruningSortedSetField.getField(),
+            SortField.Type.STRING,
+            nonPruningSortedSetField.getReverse()
+        );
+        expected.setMissingValue(SortField.STRING_FIRST);
+        SortField deserialized1 = copyInstance(
+            nonPruningSortedSetField,
+            EMPTY_REGISTRY,
+            Lucene::writeSortField,
+            Lucene::readSortField,
+            VersionUtils.randomVersion(random())
+        );
+        assertEquals(expected, deserialized1);
+
+        SortField nonPruningSortField = fieldData.sortField(SortField.STRING_FIRST, MultiValueMode.SUM, null, true);
+        XFieldComparatorSource source = new BytesRefFieldComparatorSource(null, SortField.STRING_FIRST, MultiValueMode.SUM, null);
+        expected = new SortField(nonPruningSortField.getField(), source.reducedType(), nonPruningSortField.getReverse());
+        SortField deserialized2 = copyInstance(
+            nonPruningSortField,
+            EMPTY_REGISTRY,
+            Lucene::writeSortField,
+            Lucene::readSortField,
+            VersionUtils.randomVersion(random())
+        );
+        assertEquals(expected, deserialized2);
     }
 
     public void testSortValueSerialization() throws IOException {

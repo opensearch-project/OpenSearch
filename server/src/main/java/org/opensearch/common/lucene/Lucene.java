@@ -92,6 +92,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
 
 import java.io.IOException;
@@ -576,6 +577,24 @@ public class Lucene {
             );
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
+        } else if (sortField instanceof NonPruningSortField) {
+            // There are 2 cases of how NonPruningSortField wraps around its underlying sort field.
+            // Which are through the SortField class or SortedSetSortField class
+            // We will serialize the sort field based on the type of underlying sort field
+            // Here the underlying sort field is SortedSetSortField, therefore, we will follow the
+            // logic in serializing SortedSetSortField and also unwrap the SortField case.
+            NonPruningSortField nonPruningSortField = (NonPruningSortField) sortField;
+            if (nonPruningSortField.getDelegate().getClass() == SortedSetSortField.class) {
+                SortField newSortField = new SortField(
+                    nonPruningSortField.getField(),
+                    SortField.Type.STRING,
+                    nonPruningSortField.getReverse()
+                );
+                newSortField.setMissingValue(nonPruningSortField.getMissingValue());
+                sortField = newSortField;
+            } else if (nonPruningSortField.getDelegate().getClass() == SortField.class) {
+                sortField = nonPruningSortField.getDelegate();
+            }
         }
 
         if (sortField.getClass() != SortField.class) {
