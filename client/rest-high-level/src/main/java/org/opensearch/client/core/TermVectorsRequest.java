@@ -278,6 +278,7 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         if (requestFieldStatistics == false) builder.field("field_statistics", false);
         if (requestTermStatistics) builder.field("term_statistics", true);
         if (perFieldAnalyzer != null) builder.field("per_field_analyzer", perFieldAnalyzer);
+        if (routing != null) builder.field("routing", routing);
 
         if (docBuilder != null) {
             BytesReference doc = BytesReference.bytes(docBuilder);
