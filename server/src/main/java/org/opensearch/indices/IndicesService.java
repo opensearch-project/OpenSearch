@@ -217,6 +217,7 @@ import static org.opensearch.index.TieredMergePolicyProvider.DEFAULT_MAX_MERGE_A
 import static org.opensearch.index.TieredMergePolicyProvider.MIN_DEFAULT_MAX_MERGE_AT_ONCE;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING;
+import static org.opensearch.indices.fielddata.cache.IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
@@ -503,6 +504,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
             }
         });
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(INDICES_FIELDDATA_CACHE_SIZE_KEY, indicesFieldDataCache::updateMaximumWeight);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
