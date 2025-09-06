@@ -47,6 +47,7 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.opensearch.script.NamespaceScript;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -55,6 +56,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
@@ -417,6 +420,7 @@ final class DocumentParser {
         }
 
         innerParseObject(context, mapper, parser, currentFieldName, token);
+
         // restore the enable path flag
         if (nested.isNested()) {
             nested(context, nested);
@@ -462,8 +466,26 @@ final class DocumentParser {
                 }
                 token = parser.nextToken();
             }
+            generateNamespace(context);
         } finally {
             context.decrementFieldCurrentDepth();
+        }
+    }
+
+    private static void generateNamespace(ParseContext context) {
+        final Mapper mapper = context.docMapper().mappers().getMapper(NamespaceFieldMapper.CONTENT_TYPE);
+        if (mapper != null) {
+            final NamespaceFieldMapper namespaceMapper = (NamespaceFieldMapper) mapper;
+            final NamespaceScript script = namespaceMapper.fieldType().compiledScript();
+            ParseContext.Document doc = context.doc();
+            if (script != null) {
+                doc.setNamespace(script.execute(doc.getNamespaceContext()));
+            } else {
+                Map<String, Object> namespaceContext = doc.getNamespaceContext();
+                String namespace = namespaceMapper.fieldType().fields().stream().map(field -> namespaceContext.get(field).toString())
+                    .collect(Collectors.joining("-"));
+                doc.setNamespace(namespace);
+            }
         }
     }
 

@@ -32,6 +32,8 @@
 
 package org.opensearch.index.mapper;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
@@ -57,6 +59,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
@@ -633,38 +636,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        Object addressAsObject;
-        if (context.externalValueSet()) {
-            addressAsObject = context.externalValue();
-        } else {
-            addressAsObject = context.parser().textOrNull();
-        }
-
-        if (addressAsObject == null) {
-            addressAsObject = nullValue;
-        }
-
-        if (addressAsObject == null) {
-            return;
-        }
-
-        String addressAsString = addressAsObject.toString();
-        InetAddress address;
-        if (addressAsObject instanceof InetAddress) {
-            address = (InetAddress) addressAsObject;
-        } else {
-            try {
-                address = InetAddresses.forString(addressAsString);
-            } catch (IllegalArgumentException e) {
-                if (ignoreMalformed().value()) {
-                    context.addIgnoredField(fieldType().name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
-        }
-
+        final InetAddress address = getFieldValue(context);
         if (indexed && hasDocValues) {
             context.doc().add(new InetAddressField(fieldType().name(), address));
         } else if (indexed) {
@@ -677,6 +649,40 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+        }
+    }
+
+    @Override
+    protected InetAddress getFieldValue(ParseContext context) throws IOException {
+        Object addressAsObject;
+        if (context.externalValueSet()) {
+            addressAsObject = context.externalValue();
+        } else {
+            addressAsObject = context.parser().textOrNull();
+        }
+
+        if (addressAsObject == null) {
+            addressAsObject = nullValue;
+        }
+
+        if (addressAsObject == null) {
+            return null;
+        }
+
+        if (addressAsObject instanceof InetAddress) {
+            return (InetAddress) addressAsObject;
+        } else {
+            try {
+                String addressAsString = addressAsObject.toString();
+                return InetAddresses.forString(addressAsString);
+            } catch (IllegalArgumentException e) {
+                if (ignoreMalformed().value()) {
+                    context.addIgnoredField(fieldType().name());
+                    return null;
+                } else {
+                    throw e;
+                }
+            }
         }
     }
 
