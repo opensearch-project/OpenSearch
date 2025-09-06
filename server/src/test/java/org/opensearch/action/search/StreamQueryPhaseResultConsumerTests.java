@@ -120,7 +120,8 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
             e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                 if (prev != null) curr.addSuppressed(prev);
                 return curr;
-            })
+            }),
+            null // No ClusterSettings in test
         );
 
         // CountDownLatch to track when all results are consumed

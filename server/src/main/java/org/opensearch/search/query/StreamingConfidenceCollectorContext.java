@@ -1,5 +1,7 @@
 package org.opensearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
@@ -21,16 +23,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Streaming collector context for CONFIDENCE_BASED mode.
- * For now, identical to SCORED_UNSORTED - can be enhanced later with confidence logic.
+ * Collector context for confidence-based streaming mode.
  */
 public class StreamingConfidenceCollectorContext extends TopDocsCollectorContext {
+    
+    private static final Logger logger = LogManager.getLogger(StreamingConfidenceCollectorContext.class);
 
-    private final AtomicInteger totalCollected = new AtomicInteger(0);
     private final CircuitBreaker circuitBreaker;
-    private static final long SCORE_DOC_BYTES = 24L;
-    private final AtomicLong memoryUsed = new AtomicLong(0);
-    private final SearchContext searchContext; // Add SearchContext access
+    private final SearchContext searchContext;
 
     public StreamingConfidenceCollectorContext(String profilerName, int numHits, SearchContext searchContext) {
         super(profilerName, numHits);
@@ -57,15 +57,11 @@ public class StreamingConfidenceCollectorContext extends TopDocsCollectorContext
 
     @Override
     public void postProcess(org.opensearch.search.query.QuerySearchResult result) throws IOException {
-        // CRITICAL: Check if already consumed before accessing topDocs()
         if (result.hasConsumedTopDocs()) {
-            // Result already consumed, nothing to do
             return;
         }
 
-        // For single-threaded execution path, ensure TopDocs is set
         if (result.topDocs() == null) {
-            // Create a basic TopDocs if none exists
             ScoreDoc[] scoreDocs = new ScoreDoc[0];
             TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
             TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
@@ -85,54 +81,44 @@ public class StreamingConfidenceCollectorContext extends TopDocsCollectorContext
 
         @Override
         public ReduceableSearchResult reduce(Collection<StreamingConfidenceCollector> collectors) throws IOException {
-            List<ScoreDoc> allDocs = new ArrayList<>();
+            // Merge topK across collectors and cap to K
+            List<ScoreDoc> mergedTopK = new ArrayList<>();
             float maxScore = Float.NEGATIVE_INFINITY;
+            int totalHitsCount = 0;
 
-            // Combine all collected documents from all collectors
             for (StreamingConfidenceCollector collector : collectors) {
-                List<ScoreDoc> collectorDocs = collector.getCollectedDocs();
-                allDocs.addAll(collectorDocs);
-
-                // Track max score
-                for (ScoreDoc doc : collectorDocs) {
-                    if (!Float.isNaN(doc.score) && doc.score > maxScore) {
-                        maxScore = doc.score;
+                totalHitsCount += collector.getTotalHitsCount();
+                for (ScoreDoc d : collector.getTopKDocs()) {
+                    mergedTopK.add(d);
+                    if (!Float.isNaN(d.score) && d.score > maxScore) {
+                        maxScore = d.score;
                     }
                 }
             }
 
-            // NO SORTING for CONFIDENCE_BASED mode - keep in encounter order (for now)
-
-            // Limit to numHits if we collected more
-            if (allDocs.size() > numHits()) {
-                allDocs = allDocs.subList(0, numHits());
+            if (mergedTopK.size() > numHits()) {
+                mergedTopK.sort((a, b) -> Float.compare(b.score, a.score));
+                mergedTopK = mergedTopK.subList(0, numHits());
             }
 
-            // Create TopDocs with actual scores but no sorting
-            ScoreDoc[] scoreDocs = allDocs.toArray(new ScoreDoc[0]);
-            TotalHits totalHits = new TotalHits(allDocs.size(), TotalHits.Relation.EQUAL_TO);
-
+            ScoreDoc[] scoreDocs = mergedTopK.toArray(new ScoreDoc[0]);
+            TotalHits totalHits = new TotalHits(totalHitsCount, TotalHits.Relation.EQUAL_TO);
             TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
 
-            // Use actual maxScore if we found any, otherwise Float.NaN
             float finalMaxScore = (maxScore > Float.NEGATIVE_INFINITY) ? maxScore : Float.NaN;
-
-            // Return a ReduceableSearchResult that can set the TopDocs
-            return result -> {
-                // CRITICAL: Set the TopDocs in the QuerySearchResult
-                result.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, finalMaxScore), null);
-            };
+            return result -> result.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, finalMaxScore), null);
         }
     }
 
     /**
-     * Collector that actually collects documents with scores but no sorting
-     * TODO: Can be enhanced later with confidence calculation methods for partial emission
+     * Collector for confidence-based document collection.
      */
     private class StreamingConfidenceCollector implements Collector {
 
-        private final List<ScoreDoc> collectedDocs = new ArrayList<>();
-        private final List<ScoreDoc> allCollectedDocs = new ArrayList<>(); // Keep track of all docs for final result
+        private final int batchSize = Math.max(1, searchContext != null ? searchContext.getStreamingBatchSize() : 10);
+        private final List<ScoreDoc> currentBatch = new ArrayList<>(batchSize);
+        private final List<ScoreDoc> topK = new ArrayList<>(numHits());
+        private int totalHitsCount = 0;
 
         @Override
         public ScoreMode scoreMode() {
@@ -146,72 +132,69 @@ public class StreamingConfidenceCollectorContext extends TopDocsCollectorContext
 
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    // Scoring needed for CONFIDENCE_BASED mode
                     this.scorer = scorer;
                 }
 
                 @Override
                 public void collect(int doc) throws IOException {
-                    if (collectedDocs.size() < numHits()) {
-                        // Get actual score from scorer
-                        float score = this.scorer.score();
-                        ScoreDoc scoreDoc = new ScoreDoc(doc + context.docBase, score);
-                        collectedDocs.add(scoreDoc);
-                        allCollectedDocs.add(scoreDoc); // Keep track of all docs for final result
-                        totalCollected.incrementAndGet();
+                    totalHitsCount++;
+                    float score = this.scorer.score();
+                    ScoreDoc scoreDoc = new ScoreDoc(doc + context.docBase, score);
 
-                        // NEW: Emit batch when threshold reached (every 10 docs)
-                        if (collectedDocs.size() % 10 == 0) {
-                            emitCurrentBatch(false);
-                        }
+                    currentBatch.add(scoreDoc);
+                    if (currentBatch.size() >= batchSize) {
+                        emitCurrentBatch(false);
+                        currentBatch.clear();
+                    }
 
-                        // NEW: Add memory check every 100 docs
-                        if (circuitBreaker != null && collectedDocs.size() % 100 == 0) {
-                            long bytesNeeded = collectedDocs.size() * SCORE_DOC_BYTES;
-                            long bytesToAdd = bytesNeeded - memoryUsed.get();
-                            try {
-                                circuitBreaker.addEstimateBytesAndMaybeBreak(bytesToAdd, "streaming_collector");
-                                memoryUsed.set(bytesNeeded);
-                            } catch (CircuitBreakingException e) {
-                                // Clean up and rethrow
-                                collectedDocs.clear();
-                                throw e;
+                    if (topK.size() < numHits()) {
+                        topK.add(scoreDoc);
+                    } else {
+                        int minIdx = 0;
+                        float minScore = topK.get(0).score;
+                        for (int i = 1; i < topK.size(); i++) {
+                            if (topK.get(i).score < minScore) {
+                                minScore = topK.get(i).score;
+                                minIdx = i;
                             }
+                        }
+                        if (score > minScore) {
+                            topK.set(minIdx, scoreDoc);
                         }
                     }
                 }
             };
         }
 
-        public List<ScoreDoc> getCollectedDocs() {
-            return allCollectedDocs;
+        public List<ScoreDoc> getTopKDocs() {
+            return topK;
+        }
+        
+        public int getTotalHitsCount() {
+            return totalHitsCount;
         }
 
         /**
          * Emit current batch of collected documents through streaming channel
          */
         private void emitCurrentBatch(boolean isFinal) {
-            if (collectedDocs.isEmpty()) return;
+            if (currentBatch.isEmpty()) return;
             
             try {
                 // Create partial result
                 QuerySearchResult partial = new QuerySearchResult();
                 TopDocs topDocs = new TopDocs(
-                    new TotalHits(collectedDocs.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                    collectedDocs.toArray(new ScoreDoc[0])
+                    new TotalHits(currentBatch.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                    currentBatch.toArray(new ScoreDoc[0])
                 );
                 partial.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
                 partial.setPartial(!isFinal);
 
-                // Emit through listener if available
                 if (searchContext != null && searchContext.getStreamChannelListener() != null) {
                     searchContext.getStreamChannelListener().onStreamResponse(partial, isFinal);
-                    System.out.println("DEBUG: Emitted confidence batch of " + collectedDocs.size() + " docs, isFinal: " + isFinal);
-                } else {
-                    System.out.println("DEBUG: No stream channel listener available for confidence emission");
                 }
             } catch (Exception e) {
-                System.err.println("ERROR: Failed to emit confidence batch: " + e.getMessage());
+                logger.trace("Failed to emit streaming batch", e);
             }
         }
     }

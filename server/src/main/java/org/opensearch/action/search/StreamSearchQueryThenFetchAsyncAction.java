@@ -97,10 +97,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             protected void innerOnStreamResponse(SearchPhaseResult result) {
                 try {
                     int count = streamResultsReceived.incrementAndGet();
-                    logger.info("🚀 STREAMING: Received streaming result #{} from shard {}, partial={}", 
-                               count, result.getShardIndex(), result.queryResult().isPartial());
                     onStreamResult(result, shardIt, () -> successfulStreamExecution());
-                    logger.info("✅ STREAMING: Processed streaming result #{} from shard {}", count, result.getShardIndex());
                 } finally {
                     executeNext(pendingExecutions, thread);
                 }

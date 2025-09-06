@@ -18,28 +18,26 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Streaming collector context for SCORED_SORTED mode.
- * Collects documents with scores and proper sorting.
+ * Collector context for sorted streaming mode.
  */
 public class StreamingSortedCollectorContext extends TopDocsCollectorContext {
 
     private final Sort sort;
     private final CircuitBreaker circuitBreaker;
-    private final SearchContext searchContext; // Access to context if needed later
+    private final SearchContext searchContext;
 
     public StreamingSortedCollectorContext(String profilerName, int numHits, SearchContext searchContext) {
         super(profilerName, numHits);
         this.searchContext = searchContext;
-        // Default to relevance if no sort specified
         this.sort = Sort.RELEVANCE;
-        this.circuitBreaker = null; // Will work but no protection
+        this.circuitBreaker = null;
     }
 
     public StreamingSortedCollectorContext(String profilerName, int numHits, SearchContext searchContext, Sort sort) {
         super(profilerName, numHits);
         this.searchContext = searchContext;
         this.sort = sort != null ? sort : Sort.RELEVANCE;
-        this.circuitBreaker = null; // Will work but no protection
+        this.circuitBreaker = null;
     }
 
     public StreamingSortedCollectorContext(String profilerName, int numHits, SearchContext searchContext, Sort sort, CircuitBreaker breaker) {
@@ -69,15 +67,11 @@ public class StreamingSortedCollectorContext extends TopDocsCollectorContext {
 
     @Override
     public void postProcess(org.opensearch.search.query.QuerySearchResult result) throws IOException {
-        // CRITICAL: Check if already consumed before accessing topDocs()
         if (result.hasConsumedTopDocs()) {
-            // Result already consumed, nothing to do
             return;
         }
 
-        // For single-threaded execution path, ensure TopDocs is set
         if (result.topDocs() == null) {
-            // Create a basic TopDocs if none exists
             ScoreDoc[] scoreDocs = new ScoreDoc[0];
             TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
             TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
@@ -93,7 +87,6 @@ public class StreamingSortedCollectorContext extends TopDocsCollectorContext {
         private final CollectorManager<? extends TopDocsCollector<?>, ? extends TopDocs> manager;
 
         private StreamingSortedCollectorManager() {
-            // Score-sorted collection using Lucene manager
             this.manager = new TopScoreDocCollectorManager(numHits(), null, Integer.MAX_VALUE);
         }
 

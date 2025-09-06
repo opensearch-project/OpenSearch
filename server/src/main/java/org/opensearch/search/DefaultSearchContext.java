@@ -112,6 +112,7 @@ import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
+import org.opensearch.search.streaming.StreamingSearchSettings;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -239,6 +240,9 @@ final class DefaultSearchContext extends SearchContext {
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
     private StreamingSearchMode streamingMode;
+
+    // Streaming settings cache (simple read-through to cluster settings for now)
+    private volatile Integer streamingBatchSizeOverride;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -1355,5 +1359,22 @@ final class DefaultSearchContext extends SearchContext {
 
     public void setStreamingMode(StreamingSearchMode mode) {
         this.streamingMode = mode;
+    }
+
+    @Override
+    public int getStreamingBatchSize() {
+        // If we have cluster service available, prefer the dynamic setting when present
+        try {
+            if (streamingBatchSizeOverride != null) {
+                return streamingBatchSizeOverride;
+            }
+            if (clusterService != null) {
+                // Use dynamic cluster setting if available; otherwise falls back to default
+                return clusterService.getClusterSettings().get(StreamingSearchSettings.STREAMING_BATCH_SIZE);
+            }
+        } catch (Exception ignore) {
+            // Fall through to default
+        }
+        return 10;
     }
 }
