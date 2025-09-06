@@ -14,6 +14,7 @@ import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Wrapper for SearchResponseProcessor to track execution details.
@@ -83,7 +84,7 @@ public class TrackingSearchResponseProcessorWrapper implements SearchResponsePro
         }
         wrappedProcessor.processResponseAsync(request, response, requestContext, ActionListener.wrap(result -> {
             detail.addOutput(Arrays.asList(result.getHits().deepCopy().getHits()));
-            long took = System.nanoTime() - start;
+            long took = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
             detail.addTook(took);
             requestContext.addProcessorExecutionDetail(detail);
             responseListener.onResponse(result);
