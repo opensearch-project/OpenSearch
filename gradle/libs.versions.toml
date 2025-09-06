@@ -52,6 +52,7 @@ commonscodec      = "1.18.0"
 commonslang       = "3.18.0"
 commonscompress   = "1.28.0"
 commonsio         = "2.16.0"
+commonscollections4 = "4.5.0"
 # plugin dependencies
 aws               = "2.30.31"
 awscrt            = "0.35.0"

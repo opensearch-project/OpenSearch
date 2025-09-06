@@ -109,6 +109,11 @@ public class RuleTestUtils {
                 MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO
             );
         }
+
+        @Override
+        public List<Attribute> getPrioritizedAttributesList() {
+            return List.of(MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE, MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO);
+        }
     }
 
     public enum MockRuleAttributes implements Attribute {

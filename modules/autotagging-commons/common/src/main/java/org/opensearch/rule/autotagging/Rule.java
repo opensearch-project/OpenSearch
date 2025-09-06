@@ -177,7 +177,7 @@ public class Rule implements Writeable, ToXContentObject {
         builder.field(ID_STRING, id);
         builder.field(DESCRIPTION_STRING, description);
         for (Map.Entry<Attribute, Set<String>> entry : attributeMap.entrySet()) {
-            builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
+            entry.getKey().toXContentWriteAttributeValues(builder, entry.getValue());
         }
         builder.field(featureType.getName(), featureValue);
         builder.field(UPDATED_AT_STRING, updatedAt);
@@ -258,14 +258,14 @@ public class Rule implements Writeable, ToXContentObject {
                         builder.featureType(featureType);
                         builder.featureValue(parser.text());
                     }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    fromXContentParseArray(parser, fieldName, featureType, attributeMap1);
+                } else if (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT) {
+                    fromXContentParseAttribute(parser, fieldName, featureType, attributeMap1);
                 }
             }
             return builder.attributeMap(attributeMap1);
         }
 
-        private static void fromXContentParseArray(
+        private static void fromXContentParseAttribute(
             XContentParser parser,
             String fieldName,
             FeatureType featureType,
@@ -275,15 +275,7 @@ public class Rule implements Writeable, ToXContentObject {
             if (attribute == null) {
                 throw new XContentParseException(fieldName + " is not a valid attribute within the " + featureType.getName() + " feature.");
             }
-            Set<String> attributeValueSet = new HashSet<>();
-            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    attributeValueSet.add(parser.text());
-                } else {
-                    throw new XContentParseException("Unexpected token in array: " + parser.currentToken());
-                }
-            }
-            attributeMap.put(attribute, attributeValueSet);
+            attributeMap.put(attribute, attribute.fromXContentParseAttributeValues(parser));
         }
 
         /**

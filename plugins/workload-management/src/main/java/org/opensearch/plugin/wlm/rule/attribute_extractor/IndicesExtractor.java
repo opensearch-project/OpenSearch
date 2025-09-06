@@ -15,6 +15,8 @@ import org.opensearch.rule.autotagging.Attribute;
 
 import java.util.List;
 
+import static org.opensearch.rule.attribute_extractor.AttributeExtractor.LogicalOperator.AND;
+
 /**
  * This class extracts the indices from a request
  */
@@ -37,5 +39,10 @@ public class IndicesExtractor implements AttributeExtractor<String> {
     @Override
     public Iterable<String> extract() {
         return List.of(indicesRequest.indices());
+    }
+
+    @Override
+    public LogicalOperator getLogicalOperator() {
+        return AND;
     }
 }
