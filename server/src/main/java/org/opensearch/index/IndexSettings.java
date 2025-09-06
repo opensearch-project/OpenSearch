@@ -950,6 +950,8 @@ public final class IndexSettings {
      */
     private final boolean isCompositeIndex;
 
+    private boolean isRemoteStoreSSEnabled;
+
     /**
      * Denotes whether search via star tree index is enabled for this index
      */
@@ -1035,12 +1037,15 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isRemoteStoreSSEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, false);
 
         isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
 
-        remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        remoteStoreRepository = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(indexMetadata.getSettings());
+        remoteStoreTranslogRepository = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(indexMetadata.getSettings());
+
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
-        remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
+
         this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
         String rawPrefix = IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(settings);
         // Only set the prefix if it's explicitly set and not empty
@@ -1239,6 +1244,9 @@ public final class IndexSettings {
         );
         scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
         scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, this::setRemoteStoreEnabled);
+
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING, this::setRemoteStoreSseEnabled);
+
         scopedSettings.addSettingsUpdateConsumer(
             IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
             this::setRemoteStoreRepository
@@ -1425,6 +1433,13 @@ public final class IndexSettings {
      */
     public boolean isRemoteStoreEnabled() {
         return isRemoteStoreEnabled;
+    }
+
+    /**
+     * Returns if remote store is enabled for this index.
+     */
+    public boolean isRemoteStoreSSEnabled() {
+        return isRemoteStoreSSEnabled;
     }
 
     public boolean isAssignedOnRemoteNode() {
@@ -2135,6 +2150,10 @@ public final class IndexSettings {
 
     public void setRemoteStoreEnabled(boolean isRemoteStoreEnabled) {
         this.isRemoteStoreEnabled = isRemoteStoreEnabled;
+    }
+
+    public void setRemoteStoreSseEnabled(boolean sseEnabled) {
+        this.isRemoteStoreSSEnabled = sseEnabled;
     }
 
     public void setRemoteStoreRepository(String remoteStoreRepository) {
