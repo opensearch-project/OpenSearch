@@ -157,6 +157,7 @@ import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.streaming.StreamingSearchSettings;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
@@ -452,6 +453,35 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
                 HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
+                // Streaming search settings
+                StreamingSearchSettings.STREAMING_SEARCH_ENABLED,
+                StreamingSearchSettings.STREAMING_SEARCH_ENABLED_FOR_EXPENSIVE_QUERIES,
+                StreamingSearchSettings.STREAMING_BLOCK_SIZE,
+                StreamingSearchSettings.STREAMING_BATCH_SIZE,
+                StreamingSearchSettings.STREAMING_NO_SCORING_BATCH_MULTIPLIER,
+                StreamingSearchSettings.STREAMING_SCORED_UNSORTED_BATCH_MULTIPLIER,
+                StreamingSearchSettings.STREAMING_CONFIDENCE_BATCH_MULTIPLIER,
+                StreamingSearchSettings.STREAMING_SCORED_SORTED_BATCH_MULTIPLIER,
+                StreamingSearchSettings.STREAMING_EMISSION_INTERVAL,
+                StreamingSearchSettings.STREAMING_INITIAL_CONFIDENCE,
+                StreamingSearchSettings.STREAMING_CONFIDENCE_DECAY_RATE,
+                StreamingSearchSettings.STREAMING_MIN_CONFIDENCE,
+                StreamingSearchSettings.STREAMING_MIN_DOCS_FOR_STREAMING,
+                StreamingSearchSettings.STREAMING_MIN_SHARD_RESPONSE_RATIO,
+                StreamingSearchSettings.STREAMING_OUTLIER_THRESHOLD_SIGMA,
+                StreamingSearchSettings.STREAMING_MAX_BUFFER_SIZE,
+                StreamingSearchSettings.STREAMING_MAX_CONCURRENT_STREAMS,
+                StreamingSearchSettings.STREAMING_CLIENT_TIMEOUT,
+                StreamingSearchSettings.STREAMING_COMPRESSION_ENABLED,
+                StreamingSearchSettings.STREAMING_CIRCUIT_BREAKER_LIMIT,
+                StreamingSearchSettings.STREAMING_CIRCUIT_BREAKER_OVERHEAD,
+                StreamingSearchSettings.STREAMING_METRICS_ENABLED,
+                StreamingSearchSettings.STREAMING_METRICS_INTERVAL,
+                StreamingSearchSettings.STREAMING_BLOCK_SKIP_THRESHOLD_RATIO,
+                StreamingSearchSettings.STREAMING_MIN_COMPETITIVE_DOCS,
+                StreamingSearchSettings.STREAMING_SCORE_MODE,
+                StreamingSearchSettings.STREAMING_ADAPTIVE_BATCHING,
+                StreamingSearchSettings.STREAMING_PREDICTIVE_SCORING,
                 TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND,
                 TransportReplicationAction.REPLICATION_RETRY_TIMEOUT,
                 PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT,

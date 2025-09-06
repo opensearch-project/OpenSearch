@@ -58,6 +58,43 @@ public final class StreamingSearchSettings {
         Setting.Property.Dynamic
     );
 
+    // Batch reduce size multipliers per mode (coordinator-side)
+    public static final Setting<Integer> STREAMING_NO_SCORING_BATCH_MULTIPLIER = Setting.intSetting(
+        "search.streaming.no_scoring.batch_multiplier",
+        1,
+        1,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> STREAMING_SCORED_UNSORTED_BATCH_MULTIPLIER = Setting.intSetting(
+        "search.streaming.scored_unsorted.batch_multiplier",
+        2,
+        1,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> STREAMING_CONFIDENCE_BATCH_MULTIPLIER = Setting.intSetting(
+        "search.streaming.confidence.batch_multiplier",
+        3,
+        1,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> STREAMING_SCORED_SORTED_BATCH_MULTIPLIER = Setting.intSetting(
+        "search.streaming.scored_sorted.batch_multiplier",
+        10,
+        1,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<TimeValue> STREAMING_EMISSION_INTERVAL = Setting.timeSetting(
         "search.streaming.emission_interval",
         TimeValue.timeValueMillis(50),
@@ -241,6 +278,10 @@ public final class StreamingSearchSettings {
             STREAMING_SEARCH_ENABLED_FOR_EXPENSIVE_QUERIES,
             STREAMING_BLOCK_SIZE,
             STREAMING_BATCH_SIZE,
+            STREAMING_NO_SCORING_BATCH_MULTIPLIER,
+            STREAMING_SCORED_UNSORTED_BATCH_MULTIPLIER,
+            STREAMING_CONFIDENCE_BATCH_MULTIPLIER,
+            STREAMING_SCORED_SORTED_BATCH_MULTIPLIER,
             STREAMING_EMISSION_INTERVAL,
             STREAMING_INITIAL_CONFIDENCE,
             STREAMING_CONFIDENCE_DECAY_RATE,

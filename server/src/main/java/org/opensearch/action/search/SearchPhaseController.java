@@ -48,6 +48,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -783,7 +784,7 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
-        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, () -> false);
+        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, () -> false, null);
     }
 
     /**
@@ -798,11 +799,28 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure,
         BooleanSupplier isTaskCancelled
     ) {
+        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, isTaskCancelled, null);
+    }
+
+    /**
+     * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
+     */
+    QueryPhaseResultConsumer newSearchPhaseResults(
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchProgressListener listener,
+        SearchRequest request,
+        int numShards,
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled,
+        ClusterSettings clusterSettings
+    ) {
         // Check if this is a streaming search request
         String streamingMode = request.getStreamingSearchMode();
-        logger.info("🔍 STREAMING: SearchPhaseController - request.getStreamingSearchMode() = {}", streamingMode);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Streaming mode on request: {}", streamingMode);
+        }
         if (streamingMode != null) {
-            logger.info("🔍 STREAMING: Creating StreamQueryPhaseResultConsumer for mode: {}", streamingMode);
             return new StreamQueryPhaseResultConsumer(
                 request,
                 executor,
@@ -811,7 +829,8 @@ public final class SearchPhaseController {
                 listener,
                 namedWriteableRegistry,
                 numShards,
-                onPartialMergeFailure
+                onPartialMergeFailure,
+                clusterSettings
             );
         } else {
             // Regular QueryPhaseResultConsumer
@@ -848,7 +867,8 @@ public final class SearchPhaseController {
             listener,
             namedWriteableRegistry,
             numShards,
-            onPartialMergeFailure
+            onPartialMergeFailure,
+            null // No ClusterSettings in this legacy path
         );
     }
 

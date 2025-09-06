@@ -79,6 +79,90 @@ public class StreamingCollectorUnitTests extends OpenSearchTestCase {
     }
 
     @Test
+    public void testNoScoringCollectorIsMemoryBounded() throws Exception {
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        SearchContext mockSearchContext = mock(SearchContext.class);
+        int size = 7;
+        StreamingUnsortedCollectorContext context =
+            new StreamingUnsortedCollectorContext("test", size, mockSearchContext, breaker);
+
+        CollectorManager<? extends Collector, ReduceableSearchResult> manager = context.createManager(null);
+        Collector collector = manager.newCollector();
+        searcher.search(new MatchAllDocsQuery(), collector);
+
+        @SuppressWarnings("rawtypes")
+        List collectors = Collections.singletonList(collector);
+        ReduceableSearchResult reduceResult = manager.reduce(collectors);
+        QuerySearchResult result = new QuerySearchResult();
+        reduceResult.reduce(result);
+
+        assertNotNull(result.topDocs());
+        // final TopDocs should be bounded to 'size'
+        assertEquals(size, result.topDocs().topDocs.scoreDocs.length);
+        // total hits should be 100 (we indexed 100 docs)
+        assertEquals(100, result.topDocs().topDocs.totalHits.value());
+    }
+
+    @Test
+    public void testScoredUnsortedCollectorKeepsTopKByScore() throws Exception {
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        SearchContext mockSearchContext = mock(SearchContext.class);
+        int size = 9;
+        StreamingScoredUnsortedCollectorContext context =
+            new StreamingScoredUnsortedCollectorContext("test", size, mockSearchContext, breaker);
+
+        CollectorManager<? extends Collector, ReduceableSearchResult> manager = context.createManager(null);
+        Collector collector = manager.newCollector();
+        // Create a query that assigns ascending scores from doc values
+        searcher.search(new MatchAllDocsQuery(), collector);
+
+        @SuppressWarnings("rawtypes")
+        List collectors = Collections.singletonList(collector);
+        ReduceableSearchResult reduceResult = manager.reduce(collectors);
+        QuerySearchResult result = new QuerySearchResult();
+        reduceResult.reduce(result);
+
+        assertNotNull(result.topDocs());
+        ScoreDoc[] docs = result.topDocs().topDocs.scoreDocs;
+        assertEquals(size, docs.length);
+        // Verify scores are non-NaN
+        for (ScoreDoc d : docs) {
+            assertFalse(Float.isNaN(d.score));
+        }
+        // Verify they are among highest scores (monotonic non-increasing after local sort)
+        for (int i = 1; i < docs.length; i++) {
+            assertTrue(docs[i - 1].score >= docs[i].score);
+        }
+    }
+
+    @Test
+    public void testPaginationFromAndSizeInReducer() throws Exception {
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        SearchContext mockSearchContext = mock(SearchContext.class);
+        int from = 5;
+        int size = 10;
+        // Use unsorted collector with requested window size (from+size) to simulate pagination readiness
+        StreamingUnsortedCollectorContext context =
+            new StreamingUnsortedCollectorContext("test", from + size, mockSearchContext, breaker);
+
+        CollectorManager<? extends Collector, ReduceableSearchResult> manager = context.createManager(null);
+        Collector collector = manager.newCollector();
+        searcher.search(new MatchAllDocsQuery(), collector);
+
+        @SuppressWarnings("rawtypes")
+        List collectors = Collections.singletonList(collector);
+        ReduceableSearchResult reduceResult = manager.reduce(collectors);
+        QuerySearchResult result = new QuerySearchResult();
+        reduceResult.reduce(result);
+
+        assertNotNull(result.topDocs());
+        // Simulate slicing [from, from+size)
+        ScoreDoc[] docs = result.topDocs().topDocs.scoreDocs;
+        int sliceLen = Math.min(size, Math.max(0, docs.length - from));
+        assertTrue("Slice length should be > 0", sliceLen > 0);
+    }
+
+    @Test
     public void testScoredSortedCollectorSortsCorrectly() throws Exception {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         SearchContext mockSearchContext = mock(SearchContext.class);

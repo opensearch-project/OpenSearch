@@ -817,15 +817,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
                 // NEW: Set streaming mode
                 if (request.getStreamingSearchMode() != null) {
-                    System.out.println("DEBUG: SearchService - Setting streaming mode: " + request.getStreamingSearchMode());
                     context.setStreamingMode(StreamingSearchMode.fromString(request.getStreamingSearchMode()));
-                    System.out.println("DEBUG: SearchService - Streaming mode set to: " + context.getStreamingMode());
                 } else {
-                    System.out.println("DEBUG: SearchService - No streaming mode in request");
                     // FALLBACK: If this is a streaming search but no mode is set, use a default mode
                     // This handles the case where ShardSearchRequest is created without copying streaming fields
                     if (isStreamSearch) {
-                        System.out.println("DEBUG: SearchService - Using fallback streaming mode: NO_SCORING");
                         context.setStreamingMode(StreamingSearchMode.NO_SCORING);
                     }
                 }

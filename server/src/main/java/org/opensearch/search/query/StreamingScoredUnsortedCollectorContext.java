@@ -21,16 +21,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Streaming collector context for SCORED_UNSORTED mode.
- * Collects documents with scores but no sorting for faster emission.
+ * Collector context for scored unsorted streaming mode.
  */
 public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorContext {
 
-    private final AtomicInteger totalCollected = new AtomicInteger(0);
     private final CircuitBreaker circuitBreaker;
-    private static final long SCORE_DOC_BYTES = 24L;
-    private final AtomicLong memoryUsed = new AtomicLong(0);
-    private final SearchContext searchContext; // Add SearchContext access
+    private final SearchContext searchContext;
 
     public StreamingScoredUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext) {
         super(profilerName, numHits);
@@ -57,15 +53,11 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
 
     @Override
     public void postProcess(org.opensearch.search.query.QuerySearchResult result) throws IOException {
-        // CRITICAL: Check if already consumed before accessing topDocs()
         if (result.hasConsumedTopDocs()) {
-            // Result already consumed, nothing to do
             return;
         }
 
-        // For single-threaded execution path, ensure TopDocs is set
         if (result.topDocs() == null) {
-            // Create a basic TopDocs if none exists
             ScoreDoc[] scoreDocs = new ScoreDoc[0];
             TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
             TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
@@ -87,43 +79,33 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
 
         @Override
         public ReduceableSearchResult reduce(Collection<StreamingScoredUnsortedCollector> collectors) throws IOException {
-            List<ScoreDoc> allDocs = new ArrayList<>();
+            // Keep top K by score across collectors (min-heap behavior simulated by linear merge due to small K)
+            List<ScoreDoc> mergedTopK = new ArrayList<>();
+            int totalHits = 0;
             float maxScore = Float.NEGATIVE_INFINITY;
 
-            // Combine all collected documents from all collectors
             for (StreamingScoredUnsortedCollector collector : collectors) {
-                List<ScoreDoc> collectorDocs = collector.getCollectedDocs();
-                allDocs.addAll(collectorDocs);
-
-                // Track max score
-                for (ScoreDoc doc : collectorDocs) {
-                    if (!Float.isNaN(doc.score) && doc.score > maxScore) {
-                        maxScore = doc.score;
+                List<ScoreDoc> topK = collector.getTopKDocs();
+                totalHits += collector.getTotalHitsCount();
+                for (ScoreDoc d : topK) {
+                    mergedTopK.add(d);
+                    if (!Float.isNaN(d.score) && d.score > maxScore) {
+                        maxScore = d.score;
                     }
                 }
             }
 
-            // NO SORTING for SCORED_UNSORTED mode - keep in encounter order
-
-            // Limit to numHits if we collected more
-            if (allDocs.size() > numHits()) {
-                allDocs = allDocs.subList(0, numHits());
+            // If more than K, keep highest scores only
+            if (mergedTopK.size() > numHits()) {
+                mergedTopK.sort((a, b) -> Float.compare(b.score, a.score));
+                mergedTopK = mergedTopK.subList(0, numHits());
             }
 
-            // Create TopDocs with actual scores but no sorting
-            ScoreDoc[] scoreDocs = allDocs.toArray(new ScoreDoc[0]);
-            TotalHits totalHits = new TotalHits(allDocs.size(), TotalHits.Relation.EQUAL_TO);
-
-            TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
-
-            // Use actual maxScore if we found any, otherwise Float.NaN
+            ScoreDoc[] scoreDocs = mergedTopK.toArray(new ScoreDoc[0]);
+            TopDocs topDocs = new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
             float finalMaxScore = (maxScore > Float.NEGATIVE_INFINITY) ? maxScore : Float.NaN;
 
-            // Return a ReduceableSearchResult that can set the TopDocs
-            return result -> {
-                // CRITICAL: Set the TopDocs in the QuerySearchResult
-                result.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, finalMaxScore), null);
-            };
+            return result -> result.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, finalMaxScore), null);
         }
     }
 
@@ -132,8 +114,10 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
      */
     private class StreamingScoredUnsortedCollector implements Collector {
 
-        private final List<ScoreDoc> collectedDocs = new ArrayList<>();
-        private final List<ScoreDoc> allCollectedDocs = new ArrayList<>(); // Keep track of all docs for final result
+        private final int batchSize = Math.max(1, searchContext != null ? searchContext.getStreamingBatchSize() : 10);
+        private final List<ScoreDoc> currentBatch = new ArrayList<>(batchSize);
+        private final List<ScoreDoc> topK = new ArrayList<>(numHits());
+        private int totalHitsCount = 0;
 
         @Override
         public ScoreMode scoreMode() {
@@ -147,72 +131,69 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
 
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    // Scoring needed for SCORED_UNSORTED mode
                     this.scorer = scorer;
                 }
 
                 @Override
                 public void collect(int doc) throws IOException {
-                    if (collectedDocs.size() < numHits()) {
-                        // Get actual score from scorer
-                        float score = this.scorer.score();
-                        ScoreDoc scoreDoc = new ScoreDoc(doc + context.docBase, score);
-                        collectedDocs.add(scoreDoc);
-                        allCollectedDocs.add(scoreDoc); // Keep track of all docs for final result
-                        totalCollected.incrementAndGet();
+                    totalHitsCount++;
+                    float score = this.scorer.score();
+                    ScoreDoc scoreDoc = new ScoreDoc(doc + context.docBase, score);
 
-                        // NEW: Emit batch when threshold reached (every 10 docs)
-                        if (collectedDocs.size() % 10 == 0) {
-                            emitCurrentBatch(false);
-                        }
+                    currentBatch.add(scoreDoc);
+                    if (currentBatch.size() >= batchSize) {
+                        emitCurrentBatch(false);
+                        currentBatch.clear();
+                    }
 
-                        // NEW: Add memory check every 100 docs
-                        if (circuitBreaker != null && collectedDocs.size() % 100 == 0) {
-                            long bytesNeeded = collectedDocs.size() * SCORE_DOC_BYTES;
-                            long bytesToAdd = bytesNeeded - memoryUsed.get();
-                            try {
-                                circuitBreaker.addEstimateBytesAndMaybeBreak(bytesToAdd, "streaming_collector");
-                                memoryUsed.set(bytesNeeded);
-                            } catch (CircuitBreakingException e) {
-                                // Clean up and rethrow
-                                collectedDocs.clear();
-                                throw e;
+                    if (topK.size() < numHits()) {
+                        topK.add(scoreDoc);
+                    } else {
+                        int minIdx = 0;
+                        float minScore = topK.get(0).score;
+                        for (int i = 1; i < topK.size(); i++) {
+                            if (topK.get(i).score < minScore) {
+                                minScore = topK.get(i).score;
+                                minIdx = i;
                             }
+                        }
+                        if (score > minScore) {
+                            topK.set(minIdx, scoreDoc);
                         }
                     }
                 }
             };
         }
 
-        public List<ScoreDoc> getCollectedDocs() {
-            return allCollectedDocs;
+        public List<ScoreDoc> getTopKDocs() {
+            return topK;
+        }
+
+        public int getTotalHitsCount() {
+            return totalHitsCount;
         }
 
         /**
          * Emit current batch of collected documents through streaming channel
          */
         private void emitCurrentBatch(boolean isFinal) {
-            if (collectedDocs.isEmpty()) return;
+            if (currentBatch.isEmpty()) return;
             
             try {
                 // Create partial result
                 QuerySearchResult partial = new QuerySearchResult();
                 TopDocs topDocs = new TopDocs(
-                    new TotalHits(collectedDocs.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                    collectedDocs.toArray(new ScoreDoc[0])
+                    new TotalHits(currentBatch.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                    currentBatch.toArray(new ScoreDoc[0])
                 );
                 partial.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
                 partial.setPartial(!isFinal);
 
-                // Emit through listener if available
                 if (searchContext != null && searchContext.getStreamChannelListener() != null) {
                     searchContext.getStreamChannelListener().onStreamResponse(partial, isFinal);
-                    System.out.println("DEBUG: Emitted scored batch of " + collectedDocs.size() + " docs, isFinal: " + isFinal);
-                } else {
-                    System.out.println("DEBUG: No stream channel listener available for scored emission");
                 }
             } catch (Exception e) {
-                System.err.println("ERROR: Failed to emit scored batch: " + e.getMessage());
+                // Silently ignore - streaming is best effort
             }
         }
     }

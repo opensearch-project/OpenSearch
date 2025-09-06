@@ -582,4 +582,13 @@ public abstract class SearchContext implements Releasable {
     public boolean isStreamingSearch() {
         return getStreamingMode() != null;
     }
+
+    /**
+     * Returns the configured batch size for streaming emissions.
+     * Default implementation returns 10. Implementations may override to pull dynamic settings.
+     * @return the batch size for streaming collection
+     */
+    public int getStreamingBatchSize() {
+        return 10;
+    }
 }
