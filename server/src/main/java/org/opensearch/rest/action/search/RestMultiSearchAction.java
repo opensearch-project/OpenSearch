@@ -144,6 +144,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             maxConcurrentShardRequests = null;
         }
 
+        Boolean includeNamedQueriesScore = null;
+        if (restRequest.hasParam("include_named_queries_score")) {
+            includeNamedQueriesScore = restRequest.paramAsBoolean("include_named_queries_score", false);
+        }
+
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
             RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
@@ -170,6 +175,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
             // multi search request level will be used
             if (request.getCancelAfterTimeInterval() == null) {
                 request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
+            }
+
+            // If the `include_named_queries_score` URL parameter is set on the msearch request but not in the individual
+            // search body, copy it to the individual request's search body. The search body parameter determines whether
+            // the scores are computed during query execution.
+            if (includeNamedQueriesScore != null && request.source().includeNamedQueriesScore() == null) {
+                request.source().includeNamedQueriesScores(includeNamedQueriesScore);
             }
         }
         return multiRequest;
