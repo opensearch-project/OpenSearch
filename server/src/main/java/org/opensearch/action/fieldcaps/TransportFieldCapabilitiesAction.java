@@ -35,13 +35,14 @@ package org.opensearch.action.fieldcaps;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.Strings;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
@@ -63,7 +64,9 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
+public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse>
+    implements
+        TransportIndicesResolvingAction<FieldCapabilitiesRequest> {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportFieldCapabilitiesIndexAction shardAction;
@@ -91,21 +94,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
-        final ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
-            request.indicesOptions(),
-            request.indices(),
-            idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState)
-        );
-        final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
-        if (localIndices == null) {
-            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-            concreteIndices = Strings.EMPTY_ARRAY;
-        } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
-        }
-        final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
+        ResolvedIndices allResolvedIndices = resolveIndices(request, clusterService.state());
+        Set<String> concreteIndices = ((ResolvedIndices.Local.Concrete) allResolvedIndices.local()).namesOfConcreteIndices();
+        Map<String, OriginalIndices> remoteClusterIndices = allResolvedIndices.remote().asClusterToOriginalIndicesMap();
+        OriginalIndices localIndices = allResolvedIndices.local().originalIndices();
+        final int totalNumRequest = concreteIndices.size() + remoteClusterIndices.size();
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
         final Runnable onResponse = () -> {
@@ -169,6 +162,29 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }, failure -> onResponse.run()));
             }
         }
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(FieldCapabilitiesRequest request) {
+        return resolveIndices(request, clusterService.state());
+    }
+
+    private ResolvedIndices resolveIndices(FieldCapabilitiesRequest request, ClusterState clusterState) {
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+            request.indicesOptions(),
+            request.indices(),
+            idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState)
+        );
+        final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        final ResolvedIndices.Local.Concrete concreteIndices;
+        if (localIndices == null) {
+            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
+            concreteIndices = ResolvedIndices.Local.Concrete.empty();
+        } else {
+            concreteIndices = indexNameExpressionResolver.concreteResolvedIndices(clusterState, localIndices);
+        }
+
+        return ResolvedIndices.of(concreteIndices).withLocalOriginalIndices(localIndices).withRemoteIndices(remoteClusterIndices);
     }
 
     private FieldCapabilitiesResponse merge(List<FieldCapabilitiesIndexResponse> indexResponses, boolean includeUnmapped) {

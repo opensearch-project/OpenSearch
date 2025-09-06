@@ -33,11 +33,13 @@
 package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
@@ -65,7 +67,7 @@ import java.util.Set;
  */
 public class TransportClusterSearchShardsAction extends TransportClusterManagerNodeReadAction<
     ClusterSearchShardsRequest,
-    ClusterSearchShardsResponse> {
+    ClusterSearchShardsResponse> implements TransportIndicesResolvingAction<ClusterSearchShardsRequest> {
 
     private final IndicesService indicesService;
 
@@ -100,7 +102,7 @@ public class TransportClusterSearchShardsAction extends TransportClusterManagerN
     @Override
     protected ClusterBlockException checkBlock(ClusterSearchShardsRequest request, ClusterState state) {
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, resolveIndices(state, request).namesOfConcreteIndicesAsArray());
     }
 
     @Override
@@ -115,7 +117,7 @@ public class TransportClusterSearchShardsAction extends TransportClusterManagerN
         final ActionListener<ClusterSearchShardsResponse> listener
     ) {
         ClusterState clusterState = clusterService.state();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        String[] concreteIndices = resolveIndices(clusterState, request).namesOfConcreteIndicesAsArray();
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
         Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
@@ -154,5 +156,14 @@ public class TransportClusterSearchShardsAction extends TransportClusterManagerN
             nodes[currentNode++] = clusterState.getNodes().get(nodeId);
         }
         listener.onResponse(new ClusterSearchShardsResponse(groupResponses, nodes, indicesAndFilters));
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(ClusterSearchShardsRequest request) {
+        return ResolvedIndices.of(resolveIndices(clusterService.state(), request));
+    }
+
+    private ResolvedIndices.Local.Concrete resolveIndices(ClusterState clusterState, ClusterSearchShardsRequest request) {
+        return this.indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 }
