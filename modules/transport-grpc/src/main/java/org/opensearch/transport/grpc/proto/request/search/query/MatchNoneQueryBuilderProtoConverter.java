@@ -9,6 +9,7 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 
 /**
  * Converter for MatchNone queries.
