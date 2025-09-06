@@ -19,5 +19,5 @@ jobs:
           changeIsMissingMessage: |
             ❌ ERROR: No update to CHANGELOG.md found!
             This project requires a changelog entry for every user-facing change.
-            Please add a note about your change to the 'Unreleased' section of the CHANGELOG.md file.
-            You can find the file here: https://github.com/opensearch-project/OpenSearch/blob/main/CHANGELOG.md
+            Please add an entry to the changelog or ask a maintainer to add the skip-changelog label.
+            See https://github.com/opensearch-project/OpenSearch/blob/main/CONTRIBUTING.md#changelog for more details.
