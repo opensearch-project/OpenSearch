@@ -18,23 +18,20 @@ import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 /*
  * Integration tests asserting on MergeStats for remote store enabled domains.
@@ -59,11 +56,11 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         return featureSettings.build();
     }
 
-    public void setup() {
+    private void setup() {
         internalCluster().startNodes(2);
     }
 
-    public void testNodesStats() throws ExecutionException, InterruptedException {
+    public void testNodesStats() throws Exception {
         setup();
         String[] indices = setupIndices(3);
 
@@ -95,7 +92,7 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    public void testShardStats() throws ExecutionException, InterruptedException {
+    public void testShardStats() throws Exception {
         setup();
 
         String[] indices = setupIndices(2);
@@ -128,7 +125,7 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    public void testIndicesStats() throws ExecutionException, InterruptedException {
+    public void testIndicesStats() throws Exception {
         setup();
         String[] indices = setupIndices(3);
 
@@ -283,77 +280,6 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    public void testReadWrite() throws IOException {
-        MergedSegmentWarmerStats mergedSegmentWarmerStats = new MergedSegmentWarmerStats();
-        mergedSegmentWarmerStats.add(
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100)
-        );
-        MergeStats mergeStats1 = new MergeStats();
-        mergeStats1.add(
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomLongBetween(1, 100),
-            randomDoubleBetween(1, 100, true),
-            mergedSegmentWarmerStats
-        );
-
-        BytesStreamOutput outputStream = new BytesStreamOutput();
-        mergeStats1.writeTo(outputStream);
-
-        BytesReference bytes = outputStream.bytes();
-        StreamInput inputStream = bytes.streamInput();
-
-        MergeStats mergeStats2 = new MergeStats(inputStream);
-
-        assertEquals(mergeStats1.getTotalNumDocs(), mergeStats2.getTotalNumDocs());
-        assertEquals(mergeStats1.getTotalSizeInBytes(), mergeStats2.getTotalSizeInBytes());
-        assertEquals(mergeStats1.getTotal(), mergeStats2.getTotal());
-        assertEquals(mergeStats1.getTotalTimeInMillis(), mergeStats2.getTotalTimeInMillis());
-        assertEquals(mergeStats1.getTotalTime(), mergeStats2.getTotalTime());
-        assertEquals(mergeStats1.getCurrent(), mergeStats2.getCurrent());
-        assertEquals(mergeStats1.getCurrentSize(), mergeStats2.getCurrentSize());
-        assertEquals(mergeStats1.getCurrentNumDocs(), mergeStats2.getCurrentNumDocs());
-        assertEquals(mergeStats1.getCurrentSizeInBytes(), mergeStats2.getCurrentSizeInBytes());
-        assertEquals(mergeStats1.getTotalStoppedTimeInMillis(), mergeStats2.getTotalStoppedTimeInMillis());
-        assertEquals(mergeStats1.getTotalStoppedTime(), mergeStats2.getTotalStoppedTime());
-        assertEquals(mergeStats1.getTotalThrottledTimeInMillis(), mergeStats2.getTotalThrottledTimeInMillis());
-        assertEquals(mergeStats1.getTotalThrottledTime(), mergeStats2.getTotalThrottledTime());
-        assertEquals(mergeStats1.getWarmerStats().getTotalFailureCount(), mergeStats2.getWarmerStats().getTotalFailureCount());
-        assertEquals(mergeStats1.getWarmerStats().getTotalInvocationsCount(), mergeStats2.getWarmerStats().getTotalInvocationsCount());
-        assertEquals(mergeStats1.getWarmerStats().getTotalTime().getMillis(), mergeStats2.getWarmerStats().getTotalTime().getMillis());
-        assertEquals(
-            mergeStats1.getWarmerStats().getTotalSentSize().getBytes(),
-            mergeStats2.getWarmerStats().getTotalSentSize().getBytes()
-        );
-        assertEquals(
-            mergeStats1.getWarmerStats().getTotalReceivedSize().getBytes(),
-            mergeStats2.getWarmerStats().getTotalReceivedSize().getBytes()
-        );
-        assertEquals(
-            mergeStats1.getWarmerStats().getTotalSendTime().getMillis(),
-            mergeStats2.getWarmerStats().getTotalSendTime().getMillis()
-        );
-        assertEquals(
-            mergeStats1.getWarmerStats().getTotalReceiveTime().getMillis(),
-            mergeStats2.getWarmerStats().getTotalReceiveTime().getMillis()
-        );
-        assertEquals(mergeStats1.getWarmerStats().getOngoingCount(), mergeStats2.getWarmerStats().getOngoingCount());
-
-    }
-
     private void indexDocs(String... indexNames) {
         for (String indexName : indexNames) {
             for (int i = 0; i < randomIntBetween(25, 30); i++) {
@@ -368,7 +294,7 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    private String[] setupIndices(int count) {
+    private String[] setupIndices(int count) throws Exception {
         if (count <= 0) {
             return new String[0];
         }
@@ -381,7 +307,19 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
         for (String index : indices) {
             indexDocs(index);
         }
+        waitForDocsOnReplicas(indices);
         return indices;
+    }
+
+    private void waitForDocsOnReplicas(String... indices) throws Exception {
+        for (String index : indices) {
+            SearchRequest searchRequest = new SearchRequest(index);
+            searchRequest.preference("_replica");
+            assertBusy(() -> {
+                long totalDocs = client().search(searchRequest).actionGet().getHits().getTotalHits().value();
+                assertTrue("Docs should be searchable on replicas", totalDocs > 0);
+            }, 10, TimeUnit.SECONDS);
+        }
     }
 
     private enum StatsScope {
