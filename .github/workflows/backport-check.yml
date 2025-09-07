@@ -1,0 +1,24 @@
+name: Backport Conflict Check Test
+
+jobs:
+  check-backport:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract backport label
+        id: extract
+        run: |
+          echo 'Extracting backport label...'
+          version=$(jq -r '
+            .pull_request.labels // []
+            | map(.name // empty)
+            | map(select(startswith("backport ")))
+            | first // ""
+            | sub("^backport "; "")
+            ' "$GITHUB_EVENT_PATH")
+          if [[ -z "$version" || "$version" == "null" ]]; then
+            echo "No backport label found. Skipping."
+            echo "version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Backport version: '$version'"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
