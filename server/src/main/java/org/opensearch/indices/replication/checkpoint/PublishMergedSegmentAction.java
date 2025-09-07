@@ -85,7 +85,7 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
             TASK_ACTION_NAME,
             true,
             indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout(),
-            ActionListener.noop()
+            ActionListener.noOp()
         );
     }
 

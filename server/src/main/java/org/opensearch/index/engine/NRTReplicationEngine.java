@@ -67,7 +67,6 @@ public class NRTReplicationEngine extends Engine {
     private final WriteOnlyTranslogManager translogManager;
     private final Lock flushLock = new ReentrantLock();
     protected final ReplicaFileTracker replicaFileTracker;
-    private final MergeStats mergeStats;
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -75,7 +74,6 @@ public class NRTReplicationEngine extends Engine {
 
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
-        mergeStats = new MergeStats();
         store.incRef();
         NRTReplicationReaderManager readerManager = null;
         WriteOnlyTranslogManager translogManagerRef = null;
@@ -504,8 +502,9 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public MergeStats getMergeStats() {
-        this.mergeStats.add(engineConfig.getMergedSegmentTransferTracker().stats());
-        return this.mergeStats;
+        MergeStats mergeStats = new MergeStats();
+        mergeStats.add(engineConfig.getMergedSegmentTransferTracker().stats());
+        return mergeStats;
     }
 
     @Override
