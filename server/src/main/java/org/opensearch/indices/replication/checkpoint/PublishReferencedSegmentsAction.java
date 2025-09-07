@@ -80,7 +80,7 @@ public class PublishReferencedSegmentsAction extends AbstractPublishCheckpointAc
             TASK_ACTION_NAME,
             false,
             indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout(),
-            ActionListener.noop()
+            ActionListener.noOp()
         );
     }
 

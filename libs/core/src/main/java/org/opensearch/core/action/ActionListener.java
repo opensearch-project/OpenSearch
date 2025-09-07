@@ -359,7 +359,7 @@ public interface ActionListener<Response> {
         }
     }
 
-    static <T> ActionListener<T> noop() {
+    static <T> ActionListener<T> noOp() {
         return ActionListener.wrap(response -> {}, exception -> {});
     }
 }
