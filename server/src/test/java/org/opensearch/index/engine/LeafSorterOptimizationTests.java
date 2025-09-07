@@ -150,7 +150,7 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                     // and that it can acquire a searcher successfully
                     assertThat("Leaf sorter should be configured", readOnlyEngine.config().getLeafSorter(), notNullValue());
                     assertThat("Leaf sorter should match the configured one", readOnlyEngine.config().getLeafSorter(), equalTo(leafSorter));
-                    
+
                     // Verify basic functionality - we can read from the engine
                     assertThat("Should have at least one leaf", reader.leaves().size(), greaterThan(0));
                 }
