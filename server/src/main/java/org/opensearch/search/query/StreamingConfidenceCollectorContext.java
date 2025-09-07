@@ -23,7 +23,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Collector context for confidence-based streaming mode.
+ * Streaming collector context for CONFIDENCE_BASED mode.
+ * Collects documents with scores for progressive confidence-based emission.
+ * 
+ * Implements memory-bounded collection using a "topK" pattern where the best K
+ * documents by score are retained. Documents are collected in batches controlled
+ * by search.streaming.batch_size setting (default: 10, max: 100).
+ * 
+ * Memory footprint: O(K + batchSize) where K is the requested number of hits.
+ * 
+ * Circuit Breaker Policy:
+ * - Batch buffers: No CB checks as they're strictly bounded (10-100 docs) and cleared after emission  
+ * - TopK list: Protected by parent QueryPhaseResultConsumer's circuit breaker during final reduction
+ * - Max memory per collector: ~8KB for batch (100 docs * 16 bytes) + ~80KB for topK (10000 docs * 16 bytes)
+ * - Decision rationale: The overhead of CB checks (atomic operations) would exceed the memory saved
+ *   for such small, bounded allocations that are immediately released
  */
 public class StreamingConfidenceCollectorContext extends TopDocsCollectorContext {
     
