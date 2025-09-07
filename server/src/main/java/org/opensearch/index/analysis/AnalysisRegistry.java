@@ -54,6 +54,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -305,7 +306,7 @@ public final class AnalysisRegistry implements Closeable {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            });
+            }, null);
             tokenFilterFactories.add(tff);
         }
 
@@ -362,7 +363,30 @@ public final class AnalysisRegistry implements Closeable {
 
     private Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> analyzersSettings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
-        return buildMapping(Component.ANALYZER, indexSettings, analyzersSettings, analyzers, prebuiltAnalysis.analyzerProviderFactories);
+
+        // Some analyzers depend on others that need to be built first
+        // Sort by 'order', default to 1000
+        List<Map.Entry<String, Settings>> sortedEntries = analyzersSettings.entrySet().stream().sorted((a, b) -> {
+            int orderA = a.getValue().getAsInt("order", 100);
+            int orderB = b.getValue().getAsInt("order", 100);
+            if (orderA != orderB) {
+                return Integer.compare(orderA, orderB);
+            }
+            return a.getKey().compareTo(b.getKey());
+        }).collect(Collectors.toList());
+
+        Map<String, Settings> sortedAnalyzersSettings = new LinkedHashMap<>();
+        for (Map.Entry<String, Settings> entry : sortedEntries) {
+            sortedAnalyzersSettings.put(entry.getKey(), entry.getValue());
+        }
+
+        return buildMapping(
+            Component.ANALYZER,
+            indexSettings,
+            sortedAnalyzersSettings,
+            analyzers,
+            prebuiltAnalysis.analyzerProviderFactories
+        );
     }
 
     private Map<String, AnalyzerProvider<?>> buildNormalizerFactories(IndexSettings indexSettings) throws IOException {
@@ -486,7 +510,7 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance
     ) throws IOException {
         Settings defaultSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
-        Map<String, T> factories = new HashMap<>();
+        Map<String, T> factories = new LinkedHashMap<>(); // keep insertion order
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
             String name = entry.getKey();
             Settings currentSettings = entry.getValue();
@@ -637,21 +661,27 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
+        Map<String, Exception> buildErrors = new LinkedHashMap<>();
+        Map<String, Analyzer> analyzersBuiltSoFar = new HashMap<>();
         for (Map.Entry<String, AnalyzerProvider<?>> entry : analyzerProviders.entrySet()) {
-            analyzers.merge(
-                entry.getKey(),
-                produceAnalyzer(
+            try {
+                NamedAnalyzer namedAnalyzer = produceAnalyzer(
                     entry.getKey(),
                     entry.getValue(),
                     tokenFilterFactoryFactories,
                     charFilterFactoryFactories,
-                    tokenizerFactoryFactories
-                ),
-                (k, v) -> {
+                    tokenizerFactoryFactories,
+                    analyzersBuiltSoFar
+                );
+                analyzers.merge(entry.getKey(), namedAnalyzer, (k, v) -> {
                     throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
-                }
-            );
+                });
+                analyzersBuiltSoFar.put(entry.getKey(), namedAnalyzer);
+            } catch (Exception e) {
+                buildErrors.put(entry.getKey(), e);
+            }
         }
+
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(
                 entry.getKey(),
@@ -707,6 +737,14 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
+
+        if (!buildErrors.isEmpty()) {
+            IllegalArgumentException aggregated = new IllegalArgumentException("Failed to build analyzers: " + buildErrors.keySet());
+            buildErrors.forEach(
+                (name, ex) -> aggregated.addSuppressed(new IllegalArgumentException("[" + name + "] " + ex.getMessage(), ex))
+            );
+            throw aggregated;
+        }
         return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
@@ -717,6 +755,17 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, CharFilterFactory> charFilters,
         Map<String, TokenizerFactory> tokenizers
     ) {
+        return produceAnalyzer(name, analyzerFactory, tokenFilters, charFilters, tokenizers, Collections.emptyMap());
+    }
+
+    private static NamedAnalyzer produceAnalyzer(
+        String name,
+        AnalyzerProvider<?> analyzerFactory,
+        Map<String, TokenFilterFactory> tokenFilters,
+        Map<String, CharFilterFactory> charFilters,
+        Map<String, TokenizerFactory> tokenizers,
+        Map<String, Analyzer> analyzersBuiltSoFar
+    ) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0
@@ -725,7 +774,7 @@ public final class AnalysisRegistry implements Closeable {
          */
         int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         if (analyzerFactory instanceof CustomAnalyzerProvider customAnalyzerProvider) {
-            customAnalyzerProvider.build(tokenizers, charFilters, tokenFilters);
+            customAnalyzerProvider.build(tokenizers, charFilters, tokenFilters, analyzersBuiltSoFar);
             /*
              * Custom analyzers already default to the correct, version
              * dependent positionIncrementGap and the user is be able to

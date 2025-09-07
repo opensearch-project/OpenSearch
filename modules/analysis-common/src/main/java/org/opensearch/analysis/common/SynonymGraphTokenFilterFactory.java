@@ -70,9 +70,10 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        Function<String, Analyzer> analyzersBuiltSoFar
     ) {
-        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
+        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters, analyzersBuiltSoFar);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();
         return new TokenFilterFactory() {
