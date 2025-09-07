@@ -112,9 +112,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        Function<String, Analyzer> analyzersBuiltSoFar
     ) {
-        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
+        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters, analyzersBuiltSoFar);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();
         return new TokenFilterFactory() {
@@ -147,10 +148,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> tokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        Function<String, Analyzer> analyzersBuiltSoFar
     ) {
         if (synonymAnalyzerName != null) {
-            Analyzer customSynonymAnalyzer;
+            // first, check settings analyzers
+            Analyzer customSynonymAnalyzer = analyzersBuiltSoFar.apply(synonymAnalyzerName);
+            if (customSynonymAnalyzer != null) {
+                return customSynonymAnalyzer;
+            }
             try {
                 customSynonymAnalyzer = analysisRegistry.getAnalyzer(synonymAnalyzerName);
             } catch (IOException e) {
