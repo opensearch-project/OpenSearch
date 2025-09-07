@@ -18,7 +18,22 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Collector context for sorted streaming mode.
+ * Streaming collector context for SCORED_SORTED mode.
+ * Collects and maintains documents in sorted order (by score or custom sort).
+ * 
+ * Uses Lucene's TopScoreDocCollectorManager for efficient sorted collection with
+ * incremental merging. Documents are collected in larger batches (10x default multiplier)
+ * to amortize sorting costs, controlled by search.streaming.scored_sorted.batch_multiplier.
+ * 
+ * Memory footprint: O(K) where K is the requested number of hits.
+ * The TopScoreDocCollector maintains a min-heap of size K.
+ * 
+ * Circuit Breaker Policy:
+ * - Heap structure: Protected by TopScoreDocCollector's internal memory management
+ * - Parent reduction: Protected by QueryPhaseResultConsumer's circuit breaker
+ * - Max memory per collector: ~80KB for topK heap (10000 docs * 16 bytes)
+ * - Decision rationale: Sorting requires maintaining all K docs in memory, but Lucene's
+ *   collectors are already optimized for memory efficiency
  */
 public class StreamingSortedCollectorContext extends TopDocsCollectorContext {
 

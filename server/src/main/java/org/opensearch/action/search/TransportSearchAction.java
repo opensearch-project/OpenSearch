@@ -1312,9 +1312,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                     break;
                 case QUERY_THEN_FETCH:
-                    System.out.println("DEBUG: isStreamingRequest=" + isStreamingRequest + ", streamSearchTransportService=" + (streamSearchTransportService != null));
                     if (isStreamingRequest && streamSearchTransportService != null) {
-                        System.out.println("DEBUG: Using StreamSearchQueryThenFetchAsyncAction!");
                         searchAsyncAction = new StreamSearchQueryThenFetchAsyncAction(
                             logger,
                             streamSearchTransportService,

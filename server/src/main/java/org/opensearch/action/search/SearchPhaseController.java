@@ -848,29 +848,6 @@ public final class SearchPhaseController {
         }
     }
 
-    /**
-     * Returns a new {@link StreamQueryPhaseResultConsumer} instance that reduces search responses incrementally.
-     */
-    StreamQueryPhaseResultConsumer newStreamSearchPhaseResults(
-        Executor executor,
-        CircuitBreaker circuitBreaker,
-        SearchProgressListener listener,
-        SearchRequest request,
-        int numShards,
-        Consumer<Exception> onPartialMergeFailure
-    ) {
-        return new StreamQueryPhaseResultConsumer(
-            request,
-            executor,
-            circuitBreaker,
-            this,
-            listener,
-            namedWriteableRegistry,
-            numShards,
-            onPartialMergeFailure,
-            null // No ClusterSettings in this legacy path
-        );
-    }
 
     /**
      * The top docs statistics

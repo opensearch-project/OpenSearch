@@ -21,7 +21,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Collector context for scored unsorted streaming mode.
+ * Streaming collector context for SCORED_UNSORTED mode.
+ * Collects documents with scores but without sorting for fast emission with relevance.
+ * 
+ * Implements memory-bounded collection using a "firstK" pattern where only the first K
+ * documents are retained for the final result. Documents are collected in batches
+ * controlled by search.streaming.batch_size setting (default: 10, max: 100).
+ * 
+ * Memory footprint: O(K + batchSize) where K is the requested number of hits.
+ * 
+ * Circuit Breaker Policy:
+ * - Batch buffers: No CB checks as they're strictly bounded (10-100 docs) and cleared after emission
+ * - FirstK list: Protected by parent QueryPhaseResultConsumer's circuit breaker during final reduction
+ * - Max memory per collector: ~8KB for batch (100 docs * 16 bytes) + ~80KB for firstK (10000 docs * 16 bytes)
+ * - Decision rationale: The overhead of CB checks (atomic operations) would exceed the memory saved
+ *   for such small, bounded allocations that are immediately released
  */
 public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorContext {
 
