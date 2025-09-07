@@ -108,8 +108,10 @@ public class MergeStats implements Writeable, ToXContentFragment {
         long currentSizeInBytes,
         long stoppedTimeMillis,
         long throttledTimeMillis,
-        double mbPerSecAutoThrottle) {
-        add(totalMerges,
+        double mbPerSecAutoThrottle
+    ) {
+        add(
+            totalMerges,
             totalMergeTime,
             totalNumDocs,
             totalSizeInBytes,
@@ -119,7 +121,8 @@ public class MergeStats implements Writeable, ToXContentFragment {
             stoppedTimeMillis,
             throttledTimeMillis,
             mbPerSecAutoThrottle,
-            new MergedSegmentWarmerStats());
+            new MergedSegmentWarmerStats()
+        );
     }
 
     public void add(
