@@ -54,6 +54,21 @@ public class MergeStatsTests extends OpenSearchTestCase {
         assertEquals(20, stats.getTotalThrottledTimeInMillis());
     }
 
+    public void testAddWithoutMergedSegmentWarmer() {
+        MergeStats stats = new MergeStats();
+        stats.add(5, 100, 50, 1024, 2, 25, 512, 10, 20, 1.5);
+
+        assertEquals(5, stats.getTotal());
+        assertEquals(100, stats.getTotalTimeInMillis());
+        assertEquals(50, stats.getTotalNumDocs());
+        assertEquals(1024, stats.getTotalSizeInBytes());
+        assertEquals(2, stats.getCurrent());
+        assertEquals(25, stats.getCurrentNumDocs());
+        assertEquals(512, stats.getCurrentSizeInBytes());
+        assertEquals(10, stats.getTotalStoppedTimeInMillis());
+        assertEquals(20, stats.getTotalThrottledTimeInMillis());
+    }
+
     public void testAddMergeStats() {
         MergeStats stats1 = new MergeStats();
         MergeStats stats2 = new MergeStats();
