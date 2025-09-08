@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.cache.clear;
 
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -133,6 +134,11 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
             request.fields()
         );
         return EmptyResult.INSTANCE;
+    }
+
+    @Override
+    protected void nodeOperation(List<EmptyResult> results, List<BroadcastShardOperationFailedException> accumulatedExceptions) {
+        indicesService.forceClearNodewideCaches();
     }
 
     /**
