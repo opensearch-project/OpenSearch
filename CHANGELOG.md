@@ -14,7 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Use S3CrtClient for higher throughput while uploading files to S3 ([#18800](https://github.com/opensearch-project/OpenSearch/pull/18800))
 - Add a dynamic setting to change skip_cache_factor and min_frequency for querycache ([#18351](https://github.com/opensearch-project/OpenSearch/issues/18351))
 - Add overload constructor for Translog to accept Channel Factory as a parameter ([#18918](https://github.com/opensearch-project/OpenSearch/pull/18918))
-
+- Add subdirectory-aware store module with recovery support ([#19132](https://github.com/opensearch-project/OpenSearch/pull/19132))
+- Add a dynamic cluster setting to control the enablement of the merged segment warmer ([#18929](https://github.com/opensearch-project/OpenSearch/pull/18929))
 ### Changed
 - Add CompletionStage variants to methods in the Client Interface and default to ActionListener impl ([#18998](https://github.com/opensearch-project/OpenSearch/pull/18998))
 - IllegalArgumentException when scroll ID references a node not found in Cluster ([#19031](https://github.com/opensearch-project/OpenSearch/pull/19031))
@@ -34,6 +35,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix assertion error when collapsing search results with concurrent segment search enabled ([#19053](https://github.com/opensearch-project/OpenSearch/pull/19053))
 - Fix skip_unavailable setting changing to default during node drop issue ([#18766](https://github.com/opensearch-project/OpenSearch/pull/18766))
 - Add reference count control in NRTReplicationEngine#acquireLastIndexCommit ([#19214](https://github.com/opensearch-project/OpenSearch/pull/19214))
+- Fix pull-based ingestion pause state initialization during replica promotion ([#19212](https://github.com/opensearch-project/OpenSearch/pull/19212))
+- Fix QueryPhaseResultConsumer incomplete callback loops ([#19231](https://github.com/opensearch-project/OpenSearch/pull/19231))
+- Fix the `scaled_float` precision issue ([#19188](https://github.com/opensearch-project/OpenSearch/pull/19188))
 
 ### Dependencies
 - Bump `com.netflix.nebula.ospackage-base` from 12.0.0 to 12.1.0 ([#19019](https://github.com/opensearch-project/OpenSearch/pull/19019))
@@ -52,6 +56,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Slf4j from 1.7.36 to 2.0.17 ([#19136](https://github.com/opensearch-project/OpenSearch/pull/19136))
 - Bump `org.apache.tika` from 2.9.2 to 3.2.2 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
 - Bump `org.apache.commons:commons-compress` from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19125))
+- Bump `io.projectreactor.netty:reactor_netty` from `1.2.5` to `1.2.9` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
+- Bump `org.bouncycastle:bouncycastle_jce` from `2.0.0` to `2.1.1` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
+- Bump `org.bouncycastle:bouncycastle_tls` from `2.0.20` to `2.1.20` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
+- Bump `org.bouncycastle:bouncycastle_pkix` from `2.0.8` to `2.1.9` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
+- Bump `org.bouncycastle:bouncycastle_pg` from `2.0.11` to `2.1.11` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
+- Bump `org.bouncycastle:bouncycastle_util` from `2.0.3` to `2.1.4` ([#19222](https://github.com/opensearch-project/OpenSearch/pull/19222))
+- Bump `com.azure:azure-core` from 1.55.5 to 1.56.0 ([#19206](https://github.com/opensearch-project/OpenSearch/pull/19206))
+- Bump `com.google.cloud:google-cloud-core` from 2.59.0 to 2.60.0 ([#19208](https://github.com/opensearch-project/OpenSearch/pull/19208))
+- Bump `org.jsoup:jsoup` from 1.20.1 to 1.21.2 ([#19207](https://github.com/opensearch-project/OpenSearch/pull/19207))
+- Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19203](https://github.com/opensearch-project/OpenSearch/pull/19203))
+- Bump `com.maxmind.geoip2:geoip2` from 4.3.1 to 4.4.0 ([#19205](https://github.com/opensearch-project/OpenSearch/pull/19205))
 
 ### Deprecated
 
