@@ -197,9 +197,9 @@ public class NRTReplicationEngine extends Engine {
         store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
         synchronized (lastCommittedSegmentInfosMutex) {
             this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            // incref the latest on-disk commit.
+            replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
         }
-        // incref the latest on-disk commit.
-        replicaFileTracker.incRef(this.lastCommittedSegmentInfos.files(true));
         // decref the prev commit.
         replicaFileTracker.decRef(previousCommitFiles);
         translogManager.syncTranslog();
