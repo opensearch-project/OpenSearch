@@ -83,6 +83,8 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
                 new OversampleRequestProcessor.Factory(),
                 HierarchicalRoutingSearchProcessor.TYPE,
                 new HierarchicalRoutingSearchProcessor.Factory(),
+                TemporalRoutingSearchProcessor.TYPE,
+                new TemporalRoutingSearchProcessor.Factory(),
                 AclRoutingSearchProcessor.TYPE,
                 new AclRoutingSearchProcessor.Factory()
             )

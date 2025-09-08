@@ -28,11 +28,6 @@ import java.util.Map;
 
 public class FetchProfilerIT extends OpenSearchIntegTestCase {
 
-    @Override
-    protected int numberOfShards() {
-        return 1; // Use a single shard to ensure all documents are in one shard
-    }
-
     /**
      * This test verifies that the fetch profiler returns reasonable results for a simple match_all query
      */
@@ -286,64 +281,98 @@ public class FetchProfilerIT extends OpenSearchIntegTestCase {
             .get();
         ensureGreen("test");
 
-        // Index a document with nested fields
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startArray("nested_field")
-                    .startObject()
-                    .field("nested_text", "first nested value")
-                    .endObject()
-                    .startObject()
-                    .field("nested_text", "second nested value")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
-        refresh();
+        // Index many documents to ensure all shards have data
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test")
+                .setId(String.valueOf(i))
+                .setSource(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startArray("nested_field")
+                        .startObject()
+                        .field("nested_text", "nested value " + i)
+                        .endObject()
+                        .endArray()
+                        .endObject()
+                );
+        }
+        indexRandom(true, docs);
 
         SearchResponse resp = client().prepareSearch("test")
             .setQuery(
                 QueryBuilders.nestedQuery("nested_field", QueryBuilders.matchAllQuery(), org.apache.lucene.search.join.ScoreMode.None)
-                    .innerHit(new InnerHitBuilder())
+                    .innerHit(new InnerHitBuilder().setName("inner_hits_1"))
             )
             .setProfile(true)
             .get();
 
-        assertFalse(resp.getHits().getAt(0).getInnerHits().isEmpty());
-
-        assertFetchPhase(resp, "FetchSourcePhase", 1);
-
-        // InnerHitsPhase should no longer be profiled
+        assertTrue("Should have at least one hit", resp.getHits().getHits().length > 0);
+        assertFalse("Should have inner hits", resp.getHits().getAt(0).getInnerHits().isEmpty());
+        assertEquals("Should have 1 inner hit", 1, resp.getHits().getAt(0).getInnerHits().size());
 
         Map<String, ProfileShardResult> profileResults = resp.getProfileResults();
+        assertNotNull("Profile results should not be null", profileResults);
+        assertFalse("Profile results should not be empty", profileResults.isEmpty());
 
-        boolean foundInnerHitsPhase = false;
-        boolean foundFetchInnerHits = false;
+        int shardsWithDocuments = 0;
+        int shardsWithCorrectProfile = 0;
 
         for (ProfileShardResult shardResult : profileResults.values()) {
             FetchProfileShardResult fetchProfileResult = shardResult.getFetchProfileResult();
+            if (fetchProfileResult != null && !fetchProfileResult.getFetchProfileResults().isEmpty()) {
+                shardsWithDocuments++;
+                List<ProfileResult> fetchProfileResults = fetchProfileResult.getFetchProfileResults();
 
-            for (ProfileResult fetchResult : fetchProfileResult.getFetchProfileResults()) {
-                for (ProfileResult phase : fetchResult.getProfiledChildren()) {
-                    if ("InnerHitsPhase".equals(phase.getQueryName())) {
+                assertEquals(
+                    "Every shard with documents should have 2 fetch operations (1 main + 1 inner hit)",
+                    2,
+                    fetchProfileResults.size()
+                );
 
-                        foundInnerHitsPhase = true;
-                        Map<String, Long> breakdown = phase.getTimeBreakdown();
-                        assertTrue(breakdown.containsKey(FetchTimingType.PROCESS.toString()));
-                        assertTrue(breakdown.containsKey(FetchTimingType.SET_NEXT_READER.toString()));
-                    }
+                ProfileResult mainFetch = fetchProfileResults.getFirst();
+                assertEquals("fetch", mainFetch.getQueryName());
+                assertNotNull(mainFetch.getTimeBreakdown());
+                assertTrue("Main fetch should have children", !mainFetch.getProfiledChildren().isEmpty());
+
+                ProfileResult innerHitsFetch = fetchProfileResults.get(1);
+                assertTrue("Should be inner hits fetch", innerHitsFetch.getQueryName().startsWith("fetch_inner_hits"));
+                assertNotNull(innerHitsFetch.getTimeBreakdown());
+                assertEquals("Inner hits fetch should have 1 child (FetchSourcePhase)", 1, innerHitsFetch.getProfiledChildren().size());
+                assertEquals("FetchSourcePhase", innerHitsFetch.getProfiledChildren().getFirst().getQueryName());
+
+                for (ProfileResult fetchResult : fetchProfileResults) {
+                    Map<String, Long> breakdown = fetchResult.getTimeBreakdown();
+                    assertTrue(
+                        "CREATE_STORED_FIELDS_VISITOR timing should be present",
+                        breakdown.containsKey(FetchTimingType.CREATE_STORED_FIELDS_VISITOR.toString())
+                    );
+                    assertTrue(
+                        "BUILD_SUB_PHASE_PROCESSORS timing should be present",
+                        breakdown.containsKey(FetchTimingType.BUILD_SUB_PHASE_PROCESSORS.toString())
+                    );
+                    assertTrue(
+                        "GET_NEXT_READER timing should be present",
+                        breakdown.containsKey(FetchTimingType.GET_NEXT_READER.toString())
+                    );
+                    assertTrue(
+                        "LOAD_STORED_FIELDS timing should be present",
+                        breakdown.containsKey(FetchTimingType.LOAD_STORED_FIELDS.toString())
+                    );
+                    assertTrue("LOAD_SOURCE timing should be present", breakdown.containsKey(FetchTimingType.LOAD_SOURCE.toString()));
                 }
-                if ("fetch_inner_hits".equals(fetchResult.getQueryName())) {
-                    foundFetchInnerHits = true;
-                }
+
+                shardsWithCorrectProfile++;
             }
         }
-        assertFalse("InnerHitsPhase should be absent", foundInnerHitsPhase);
-        assertFalse("fetch_inner_hits profile should be absent", foundFetchInnerHits);
+
+        assertTrue("Should have at least one shard with documents", shardsWithDocuments > 0);
+        assertEquals(
+            "All shards with documents should have correct fetch profile structure",
+            shardsWithDocuments,
+            shardsWithCorrectProfile
+        );
     }
 
     private void assertFetchPhase(SearchResponse resp, String phaseName, int expectedChildren) {

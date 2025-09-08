@@ -71,6 +71,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.settings.Settings;
@@ -82,7 +83,12 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.metrics.InternalSum;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -101,7 +107,10 @@ import static org.opensearch.search.internal.ExitableDirectoryReader.ExitableTer
 import static org.opensearch.search.internal.IndexReaderUtils.getLeaves;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ContextIndexSearcherTests extends OpenSearchTestCase {
@@ -602,6 +611,161 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         @Override
         public void visit(QueryVisitor visitor) {
             visitor.visitLeaf(this);
+        }
+    }
+
+    public void testSendBatchWithSingleAggregation() throws Exception {
+        try (
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()))
+        ) {
+
+            Document doc = new Document();
+            doc.add(new StringField("field", "value", Field.Store.NO));
+            writer.addDocument(doc);
+            writer.commit();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchContext searchContext = mock(SearchContext.class);
+                ShardSearchContextId contextId = new ShardSearchContextId("test-session", 1L);
+                QuerySearchResult queryResult = new QuerySearchResult(contextId, null, null);
+                FetchSearchResult fetchResult = new FetchSearchResult(contextId, null);
+                StreamSearchChannelListener listener = mock(StreamSearchChannelListener.class);
+                IndexShard indexShard = mock(IndexShard.class);
+
+                when(searchContext.indexShard()).thenReturn(indexShard);
+                when(indexShard.getSearchOperationListener()).thenReturn(mock(SearchOperationListener.class));
+                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+                when(searchContext.queryResult()).thenReturn(queryResult);
+                when(searchContext.fetchResult()).thenReturn(fetchResult);
+                when(searchContext.getStreamChannelListener()).thenReturn(listener);
+
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    searchContext
+                );
+
+                // Create a mock internal aggregation
+                InternalAggregation mockAggregation = mock(InternalSum.class);
+                when(mockAggregation.getName()).thenReturn("test_sum");
+
+                List<InternalAggregation> batch = Collections.singletonList(mockAggregation);
+
+                // Call sendBatch
+                searcher.sendBatch(batch);
+
+                // Verify that the listener was called with the correct result
+                verify(listener).onStreamResponse(any(QueryFetchSearchResult.class), eq(false));
+            }
+        }
+    }
+
+    public void testSendBatchWithMultipleAggregations() throws Exception {
+        try (
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()))
+        ) {
+
+            Document doc = new Document();
+            doc.add(new StringField("field", "value", Field.Store.NO));
+            writer.addDocument(doc);
+            writer.commit();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchContext searchContext = mock(SearchContext.class);
+                ShardSearchContextId contextId = new ShardSearchContextId("test-session", 2L);
+                QuerySearchResult queryResult = new QuerySearchResult(contextId, null, null);
+                FetchSearchResult fetchResult = new FetchSearchResult(contextId, null);
+                StreamSearchChannelListener listener = mock(StreamSearchChannelListener.class);
+                IndexShard indexShard = mock(IndexShard.class);
+
+                when(searchContext.indexShard()).thenReturn(indexShard);
+                when(indexShard.getSearchOperationListener()).thenReturn(mock(SearchOperationListener.class));
+                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+                when(searchContext.queryResult()).thenReturn(queryResult);
+                when(searchContext.fetchResult()).thenReturn(fetchResult);
+                when(searchContext.getStreamChannelListener()).thenReturn(listener);
+
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    searchContext
+                );
+
+                // Create multiple mock internal aggregations
+                InternalAggregation mockAggregation1 = mock(InternalSum.class);
+                when(mockAggregation1.getName()).thenReturn("sum_agg");
+
+                InternalAggregation mockAggregation2 = mock(InternalSum.class);
+                when(mockAggregation2.getName()).thenReturn("count_agg");
+
+                InternalAggregation mockAggregation3 = mock(InternalSum.class);
+                when(mockAggregation3.getName()).thenReturn("avg_agg");
+
+                List<InternalAggregation> batch = List.of(mockAggregation1, mockAggregation2, mockAggregation3);
+
+                // Call sendBatch
+                searcher.sendBatch(batch);
+
+                // Verify that the listener was called with the correct result
+                verify(listener).onStreamResponse(any(QueryFetchSearchResult.class), eq(false));
+            }
+        }
+    }
+
+    public void testSendBatchWithEmptyBatch() throws Exception {
+        try (
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()))
+        ) {
+
+            Document doc = new Document();
+            doc.add(new StringField("field", "value", Field.Store.NO));
+            writer.addDocument(doc);
+            writer.commit();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchContext searchContext = mock(SearchContext.class);
+                ShardSearchContextId contextId = new ShardSearchContextId("test-session", 3L);
+                QuerySearchResult queryResult = new QuerySearchResult(contextId, null, null);
+                FetchSearchResult fetchResult = new FetchSearchResult(contextId, null);
+                StreamSearchChannelListener listener = mock(StreamSearchChannelListener.class);
+                IndexShard indexShard = mock(IndexShard.class);
+
+                when(searchContext.indexShard()).thenReturn(indexShard);
+                when(indexShard.getSearchOperationListener()).thenReturn(mock(SearchOperationListener.class));
+                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+                when(searchContext.queryResult()).thenReturn(queryResult);
+                when(searchContext.fetchResult()).thenReturn(fetchResult);
+                when(searchContext.getStreamChannelListener()).thenReturn(listener);
+
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    searchContext
+                );
+
+                List<InternalAggregation> emptyBatch = Collections.emptyList();
+
+                // Call sendBatch with empty batch
+                searcher.sendBatch(emptyBatch);
+
+                // Verify that the listener was called even with empty batch
+                verify(listener).onStreamResponse(any(QueryFetchSearchResult.class), eq(false));
+            }
         }
     }
 }

@@ -50,6 +50,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.UpdatePitContextRequest;
 import org.opensearch.action.search.UpdatePitContextResponse;
+import org.opensearch.action.support.StreamSearchChannelListener;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
@@ -135,6 +136,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.QueryRewriterRegistry;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
@@ -275,6 +277,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Deprecated
     );
 
+    public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
+        "search.query_rewriting.enabled",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Controls the threshold for the number of term queries on the same field that triggers
+     * the TermsMergingRewriter to combine them into a single terms query. For example,
+     * if set to 16 (default), when 16 or more term queries target the same field within
+     * a boolean clause, they will be merged into a single terms query for better performance.
+     */
+    public static final Setting<Integer> QUERY_REWRITING_TERMS_THRESHOLD_SETTING = Setting.intSetting(
+        "search.query_rewriting.terms_threshold",
+        16,
+        2,  // minimum value
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // Allow concurrent segment search for all requests
     public static final String CONCURRENT_SEGMENT_SEARCH_MODE_ALL = "all";
 
@@ -366,6 +389,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         false,
         Property.Dynamic,
         Property.NodeScope
+    );
+
+    public static final int DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR = 5;
+    public static final Setting<Integer> BUCKET_SELECTION_STRATEGY_FACTOR_SETTING = Setting.intSetting(
+        "search.aggregation.bucket_selection_strategy_factor",
+        DEFAULT_BUCKET_SELECTION_STRATEGY_FACTOR,
+        0,
+        10,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     public static final int DEFAULT_SIZE = 10;
@@ -496,6 +529,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
 
         this.pluginProfilers = pluginProfilers;
+
+        // Initialize QueryRewriterRegistry with cluster settings so TermsMergingRewriter
+        // can register its settings update consumer
+        QueryRewriterRegistry.INSTANCE.initialize(settings, clusterService.getClusterSettings());
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -698,6 +735,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<SearchPhaseResult> listener,
         String executorName
     ) {
+        executeQueryPhase(request, keepStatesInContext, task, listener, executorName, false);
+    }
+
+    public void executeQueryPhase(
+        ShardSearchRequest request,
+        boolean keepStatesInContext,
+        SearchShardTask task,
+        ActionListener<SearchPhaseResult> listener,
+        String executorName,
+        boolean isStreamSearch
+    ) {
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
@@ -721,7 +769,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 }
                 // fork the execution in the search thread pool
-                runAsync(getExecutor(executorName, shard), () -> executeQueryPhase(orig, task, keepStatesInContext), listener);
+                runAsync(
+                    getExecutor(executorName, shard),
+                    () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener),
+                    listener
+                );
             }
 
             @Override
@@ -743,13 +795,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         executor.execute(ActionRunnable.supply(listener, executable::get));
     }
 
-    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task, boolean keepStatesInContext)
-        throws Exception {
+    private SearchPhaseResult executeQueryPhase(
+        ShardSearchRequest request,
+        SearchShardTask task,
+        boolean keepStatesInContext,
+        boolean isStreamSearch,
+        ActionListener<SearchPhaseResult> listener
+    ) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true)
+            SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
         ) {
+            if (isStreamSearch) {
+                assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
+                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
+            }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 loadOrExecuteQueryPhase(request, context);
@@ -944,6 +1005,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
                 ) {
                     fetchPhase.execute(searchContext);
+                    if (searchContext.getProfilers() != null) {
+                        ProfileShardResult shardResults = SearchProfileShardResults.buildFetchOnlyShardResults(
+                            searchContext.getProfilers(),
+                            searchContext.request()
+                        );
+                        searchContext.fetchResult().profileResults(shardResults);
+                    }
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
                     }
@@ -1157,7 +1225,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         boolean includeAggregations
     ) throws IOException {
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, false);
+        return createContext(readerContext, request, task, includeAggregations, false);
+    }
+
+    private SearchContext createContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTask task,
+        boolean includeAggregations,
+        boolean isStreamSearch
+    ) throws IOException {
+        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, false, isStreamSearch);
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -1205,6 +1283,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private DefaultSearchContext createSearchContext(ReaderContext reader, ShardSearchRequest request, TimeValue timeout, boolean validate)
         throws IOException {
+        return createSearchContext(reader, request, timeout, validate, false);
+    }
+
+    private DefaultSearchContext createSearchContext(
+        ReaderContext reader,
+        ShardSearchRequest request,
+        TimeValue timeout,
+        boolean validate,
+        boolean isStreamSearch
+    ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
         try {
@@ -1228,7 +1316,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 validate,
                 indexSearcherExecutor,
                 this::aggReduceContextBuilder,
-                concurrentSearchDeciderFactories
+                concurrentSearchDeciderFactories,
+                isStreamSearch
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1425,8 +1514,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
-            InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
-            context.parsedQuery(queryShardContext.toQuery(source.query()));
+            QueryBuilder query = source.query();
+
+            // Apply query rewriting optimizations
+            query = QueryRewriterRegistry.INSTANCE.rewrite(query, queryShardContext);
+
+            InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
+            context.parsedQuery(queryShardContext.toQuery(query));
         }
         if (source.postFilter() != null) {
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);

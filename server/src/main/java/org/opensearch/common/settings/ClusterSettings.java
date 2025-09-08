@@ -299,6 +299,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
+                IndicesQueryCache.INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR,
+                IndicesQueryCache.INDICES_QUERY_CACHE_MIN_FREQUENCY,
+                IndicesQueryCache.INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY,
                 IndicesService.CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING,
                 IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING,
                 IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING,
@@ -556,6 +559,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_KEEPALIVE_SETTING,
                 SearchService.ALLOW_EXPENSIVE_QUERIES,
                 MultiBucketConsumerService.MAX_BUCKET_SETTING,
+                SearchService.BUCKET_SELECTION_STRATEGY_FACTOR_SETTING,
                 SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
                 SearchService.MAX_OPEN_PIT_CONTEXT,
@@ -800,6 +804,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
+                SearchService.QUERY_REWRITING_ENABLED_SETTING,
+                SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,

@@ -15,10 +15,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.breaker.TestCircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
@@ -52,17 +48,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     private FileCache createFileCache(long capacity) {
-        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
-    }
-
-    private FileCache createFileCache(long capacity, CircuitBreaker circuitBreaker) {
-        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, circuitBreaker);
-    }
-
-    private FileCache createCircuitBreakingFileCache(long capacity) {
-        TestCircuitBreaker testCircuitBreaker = new TestCircuitBreaker();
-        testCircuitBreaker.startBreaking();
-        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, testCircuitBreaker);
+        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL);
     }
 
     private Path createPath(String middle) {
@@ -182,13 +168,6 @@ public class FileCacheTests extends OpenSearchTestCase {
         });
     }
 
-    public void testPutThrowCircuitBreakingException() {
-        FileCache fileCache = createCircuitBreakingFileCache(MEGA_BYTES);
-        Path path = createPath("0");
-        assertThrows(CircuitBreakingException.class, () -> fileCache.put(path, new StubCachedIndexInput(8 * MEGA_BYTES)));
-        assertNull(fileCache.get(path));
-    }
-
     public void testCompute() {
         FileCache fileCache = createFileCache(MEGA_BYTES);
         Path path = createPath("0");
@@ -204,27 +183,6 @@ public class FileCacheTests extends OpenSearchTestCase {
             FileCache fileCache = createFileCache(MEGA_BYTES);
             fileCache.compute(null, null);
         });
-    }
-
-    public void testComputeThrowCircuitBreakingException() {
-        FileCache fileCache = createCircuitBreakingFileCache(MEGA_BYTES);
-        Path path = createPath("0");
-        assertThrows(CircuitBreakingException.class, () -> fileCache.compute(path, (p, i) -> new StubCachedIndexInput(8 * MEGA_BYTES)));
-        assertNull(fileCache.get(path));
-    }
-
-    public void testEntryNotRemovedCircuitBreaker() {
-        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        FileCache fileCache = createFileCache(MEGA_BYTES, circuitBreaker);
-        Path path = createPath("0");
-        fileCache.put(path, new StubCachedIndexInput(8 * MEGA_BYTES));
-        // put should succeed since circuit breaker hasn't tripped yet
-        assertEquals(fileCache.get(path).length(), 8 * MEGA_BYTES);
-        circuitBreaker.startBreaking();
-        // compute should throw CircuitBreakingException but shouldn't remove entry already present
-        assertThrows(CircuitBreakingException.class, () -> fileCache.compute(path, (p, i) -> new StubCachedIndexInput(2 * MEGA_BYTES)));
-        assertNotNull(fileCache.get(path));
-        assertEquals(fileCache.get(path).length(), 8 * MEGA_BYTES);
     }
 
     public void testRemove() {
@@ -347,11 +305,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testUsage() {
-        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-            16 * MEGA_BYTES,
-            1,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-        );
+        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(16 * MEGA_BYTES, 1);
         putAndDecRef(fileCache, 0, 16 * MEGA_BYTES);
 
         long expectedCacheUsage = 16 * MEGA_BYTES;
