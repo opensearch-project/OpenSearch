@@ -1106,7 +1106,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testPluginCompatibilityWithSemverRange() {
         // Compatible plugin and core versions
-        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("1.0.0"), Version.fromString("1.0.0")));
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("^1.0.0"), Version.fromString("1.1.9")));
+        
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("^3.0.0"), Version.fromString("3.2.0")));
+
 
         assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("=1.0.0"), Version.fromString("1.0.0")));
 
@@ -1138,8 +1141,8 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "plugin1",
             "version",
             "1.0",
-            "opensearch.version",
-            Version.CURRENT.toString(),
+            "dependencies",
+            "{ opensearch: \"^3.0.0\" }",
             "java.version",
             "1.8",
             "classname",
