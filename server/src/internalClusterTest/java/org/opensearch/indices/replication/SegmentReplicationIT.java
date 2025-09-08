@@ -164,13 +164,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         waitForSearchableDocs(2, primaryNode, replicaNode);
 
         // primary and replica generate index commit
-        flush();
-
         IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+        primaryShard.flush(new FlushRequest(INDEX_NAME));
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+        replicaShard.flush(new FlushRequest(INDEX_NAME));
+
         logger.info("primary {} acquire last IndexCommit", primaryShard.shardId());
         GatedCloseable<IndexCommit> primaryIndexCommit = primaryShard.acquireLastIndexCommit(false);
 
-        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
         logger.info("replica {} acquire last IndexCommit", replicaShard.shardId());
         GatedCloseable<IndexCommit> replicaIndexCommit = replicaShard.acquireLastIndexCommit(false);
 
@@ -194,6 +195,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // generate _2.si
         client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1));
         waitForSegmentCount(INDEX_NAME, 1, logger);
+        primaryShard.flush(new FlushRequest(INDEX_NAME));
+        replicaShard.flush(new FlushRequest(INDEX_NAME));
 
         logger.info("Verify that after merge, primary and replica contain _0.si, _1.si and _2.si");
         Set<String> primaryFilesAfterMerge = Sets.newHashSet(primaryDirectory.listAll());
