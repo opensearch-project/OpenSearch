@@ -12,11 +12,12 @@ import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.Timer;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Simplified profiling tree for fetch phase operations. Each fetch phase is
@@ -49,32 +50,56 @@ class FlatFetchProfileTree {
         final String element;
         final FetchProfileBreakdown breakdown;
         final List<Node> children = new ArrayList<>();
+        int references;
 
         Node(String element) {
             this.element = element;
             this.breakdown = new FetchProfileBreakdown();
+            this.references = 0;
         }
     }
 
     private final List<Node> roots = new ArrayList<>();
-    private final Map<String, Node> phaseMap = new HashMap<>();
+    private final ConcurrentMap<String, Node> rootsMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Node> phaseMap = new ConcurrentHashMap<>();
 
     /** Start profiling a new fetch phase and return its breakdown. */
     FetchProfileBreakdown startFetchPhase(String element) {
-        Node node = new Node(element);
-        roots.add(node);
-        phaseMap.put(element, node);
+        // Make phase name unique for concurrent slices by including thread info
+        String uniqueElement = element + "_" + Thread.currentThread().threadId();
+
+        Node node = rootsMap.get(uniqueElement);
+        if (node == null) {
+            node = new Node(element); // Keep original element name for display
+            roots.add(node);
+            rootsMap.put(uniqueElement, node);
+        }
+        node.references++;
+        phaseMap.put(uniqueElement, node);
         return node.breakdown;
     }
 
     /** Start profiling a fetch sub-phase under the specified parent phase. */
     FetchProfileBreakdown startSubPhase(String element, String parentElement) {
-        Node parent = phaseMap.get(parentElement);
+        // Make phase names unique for concurrent slices
+        String uniqueParentElement = parentElement + "_" + Thread.currentThread().threadId();
+        String uniqueElement = element + "_" + Thread.currentThread().threadId();
+
+        Node parent = phaseMap.get(uniqueParentElement);
         if (parent == null) {
             throw new IllegalStateException("Parent phase '" + parentElement + "' does not exist for sub-phase '" + element + "'");
         }
-        Node child = new Node(element);
-        parent.children.add(child);
+        Node child = null;
+        for (Node existing : parent.children) {
+            if (existing.element.equals(element)) {
+                child = existing;
+                break;
+            }
+        }
+        if (child == null) {
+            child = new Node(element);
+            parent.children.add(child);
+        }
         return child.breakdown;
     }
 
@@ -82,7 +107,17 @@ class FlatFetchProfileTree {
      * Finish profiling of the specified fetch phase.
      */
     void endFetchPhase(String element) {
-        phaseMap.remove(element);
+        // Make phase name unique for concurrent slices
+        String uniqueElement = element + "_" + Thread.currentThread().threadId();
+
+        Node node = phaseMap.get(uniqueElement);
+        if (node == null) {
+            throw new IllegalStateException("Fetch phase '" + element + "' does not exist");
+        }
+        node.references--;
+        if (node.references == 0) {
+            phaseMap.remove(uniqueElement);
+        }
     }
 
     /**
