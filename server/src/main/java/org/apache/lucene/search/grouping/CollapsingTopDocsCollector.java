@@ -204,7 +204,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         Sort sort,
         int topN
     ) {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType), collapseField, sort, topN, null);
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType), collapseField, sort, topN);
     }
 
     /**
@@ -251,7 +251,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         Sort sort,
         int topN
     ) {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType), collapseField, sort, topN, null);
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType), collapseField, sort, topN);
     }
 
     /**
