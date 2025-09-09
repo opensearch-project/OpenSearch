@@ -48,10 +48,22 @@ import java.util.stream.Stream;
  */
 @ExperimentalApi
 public class ResolvedIndices extends OptionallyResolvedIndices {
+
+    /**
+     * Creates a ResolvedIndices object with a ResolvedIndices.Local object that returns the given indicesAliasesAndDataStreams
+     * as names().
+     *
+     * @param indicesAliasesAndDataStreams An array of strings. The strings must be not null. No further validation will be performed.
+     */
     public static ResolvedIndices of(String... indicesAliasesAndDataStreams) {
         return new ResolvedIndices(new Local(Set.of(indicesAliasesAndDataStreams), null, Map.of()), Remote.EMPTY);
     }
 
+    /**
+     * Creates a ResolvedIndices object with a ResolvedIndices.Local.Concrete object that returns the given indices
+     * by its concreteIndices() and namesOfConcreteIndices() method. The names() method will return the same names as
+     * namesOfConcreteIndices().
+     */
     public static ResolvedIndices of(Index... indices) {
         return new ResolvedIndices(
             new Local.Concrete(
@@ -65,18 +77,37 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
         );
     }
 
+    /**
+     * Creates a ResolvedIndices object with a ResolvedIndices.Local object that returns the given indicesAliasesAndDataStreams
+     * as names().
+     *
+     * @param indicesAliasesAndDataStreams A collection of strings. The strings must be not null. No further validation will be performed.
+     */
     public static ResolvedIndices of(Collection<String> indicesAliasesAndDataStreams) {
         return new ResolvedIndices(new Local(Set.copyOf(indicesAliasesAndDataStreams), null, Map.of()), Remote.EMPTY);
     }
 
+    /**
+     * Creates a ResolvedIndices object where local() returns the given Local object.
+     */
     public static ResolvedIndices of(Local local) {
         return new ResolvedIndices(local, Remote.EMPTY);
     }
 
+    /**
+     * Returns an OptionallyResolvedIndices object which is not a ResolvedIndices object. This represents the case
+     * that indices cannot be determined.
+     */
     public static OptionallyResolvedIndices unknown() {
         return OptionallyResolvedIndices.unknown();
     }
 
+    /**
+     * Creates a ResolvedIndices object with a ResolvedIndices.Local object that returns the given indicesAliasesAndDataStreams
+     * as names().
+     *
+     * @param indicesAliasesAndDataStreams An array of strings. Any string that is null will be not included in this object. No further validation will be performed.
+     */
     public static ResolvedIndices ofNonNull(String... indicesAliasesAndDataStreams) {
         Set<String> indexSet = new HashSet<>(indicesAliasesAndDataStreams.length);
 
@@ -106,6 +137,9 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
         return this.remote;
     }
 
+    /**
+     * Creates a new copy of this ResolvedIndices object which has the given remote indices associated.
+     */
     public ResolvedIndices withRemoteIndices(Map<String, OriginalIndices> remoteIndices) {
         if (remoteIndices.isEmpty()) {
             return this;
@@ -125,10 +159,25 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
         return new ResolvedIndices(this.local.withOriginalIndices(originalIndices), this.remote);
     }
 
+    /**
+     * Creates a new copy of this ResolvedIndices object which has the given ResolvedIndices.Local instance associated
+     * by the given actionType.
+     */
     public ResolvedIndices withLocalSubActions(ActionType<?> actionType, ResolvedIndices.Local local) {
         return new ResolvedIndices(this.local.withSubActions(actionType, local), this.remote);
     }
 
+    /**
+     * Creates a new copy of this ResolvedIndices object which has the given ResolvedIndices.Local instance associated
+     * by the given actionType.
+     */
+    public ResolvedIndices withLocalSubActions(String actionType, ResolvedIndices.Local local) {
+        return new ResolvedIndices(this.local.withSubActions(actionType, local), this.remote);
+    }
+
+    /**
+     * Returns true if both the local and the remote indices do not refer to any names (existing or non-existing).
+     */
     public boolean isEmpty() {
         return this.local.isEmpty() && this.remote.isEmpty();
     }
@@ -162,12 +211,22 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
         protected final Map<String, Local> subActions;
         private Set<String> namesOfIndices;
 
-        public static Local of(Collection<String> names) {
-            return new Local(Set.copyOf(names), null, Map.of());
+        /**
+         * Creates a ResolvedIndices.Local object that returns the given indicesAliasesAndDataStreams as names().
+         *
+         * @param indicesAliasesAndDataStreams A collection of strings. The strings must be not null. No further validation will be performed.
+         */
+        public static Local of(Collection<String> indicesAliasesAndDataStreams) {
+            return new Local(Set.copyOf(indicesAliasesAndDataStreams), null, Map.of());
         }
 
-        public static Local of(String... names) {
-            return of(Arrays.asList(names));
+        /**
+         * Creates a ResolvedIndices.Local object that returns the given indicesAliasesAndDataStreams as names().
+         *
+         * @param indicesAliasesAndDataStreams An array of strings. The strings must be not null. No further validation will be performed.
+         */
+        public static Local of(String... indicesAliasesAndDataStreams) {
+            return of(Arrays.asList(indicesAliasesAndDataStreams));
         }
 
         /**
@@ -398,7 +457,12 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
 
             /**
              * Returns the concrete indices. This might throw an exception if there were issues during index resolution.
-             * If you need access to index information while avoiding exceptions, use the names() method instead.
+             * <p>
+             * If you need access to index information while avoiding exceptions, you can use the following approaches:
+             * <ul>
+             *     <li>Use the names() method instead. This might also contain of non-existing indices or invalid names</li>
+             *     <li>Use withoutResolutionErrors().concreteIndices(). This will only contain existing indices.</li>
+             * </ul>
              *
              * @throws org.opensearch.index.IndexNotFoundException This exception is thrown for several conditions:
              * 1. If one of the index expression pointed to a missing index, alias or data stream and the IndicesOptions
@@ -412,14 +476,62 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
                 return this.concreteIndices;
             }
 
+            /**
+             * Returns the concrete indices. This might throw an exception if there were issues during index resolution.
+             * <p>
+             * If you need access to index information while avoiding exceptions, you can use the following approaches:
+             * <ul>
+             *     <li>Use the names() method instead. This might also contain of non-existing indices or invalid names</li>
+             *     <li>Use withoutResolutionErrors().concreteIndices(). This will only contain existing indices.</li>
+             * </ul>
+             *
+             * @throws org.opensearch.index.IndexNotFoundException This exception is thrown for several conditions:
+             * 1. If one of the index expression pointed to a missing index, alias or data stream and the IndicesOptions
+             * used during resolution do not allow such a case. 2. If the set of resolved concrete indices is empty and
+             * the IndicesOptions used during resolution do not allow such a case.
+             * @throws IllegalArgumentException if one of the aliases resolved to multiple indices and
+             * IndicesOptions.FORBID_ALIASES_TO_MULTIPLE_INDICES was set.
+             */
             public Index[] concreteIndicesAsArray() {
                 return this.concreteIndices().toArray(Index.EMPTY_ARRAY);
             }
 
+            /**
+             * Returns the concrete indices. This might throw an exception if there were issues during index resolution.
+             * <p>
+             * If you need access to index information while avoiding exceptions, you can use the following approaches:
+             * <ul>
+             *     <li>Use the names() method instead. This might also contain of non-existing indices or invalid names</li>
+             *     <li>Use withoutResolutionErrors().concreteIndices(). This will only contain existing indices.</li>
+             * </ul>
+             *
+             * @throws org.opensearch.index.IndexNotFoundException This exception is thrown for several conditions:
+             * 1. If one of the index expression pointed to a missing index, alias or data stream and the IndicesOptions
+             * used during resolution do not allow such a case. 2. If the set of resolved concrete indices is empty and
+             * the IndicesOptions used during resolution do not allow such a case.
+             * @throws IllegalArgumentException if one of the aliases resolved to multiple indices and
+             * IndicesOptions.FORBID_ALIASES_TO_MULTIPLE_INDICES was set.
+             */
             public Set<String> namesOfConcreteIndices() {
                 return this.concreteIndices().stream().map(Index::getName).collect(Collectors.toSet());
             }
 
+            /**
+             * Returns the concrete indices. This might throw an exception if there were issues during index resolution.
+             * <p>
+             * If you need access to index information while avoiding exceptions, you can use the following approaches:
+             * <ul>
+             *     <li>Use the names() method instead. This might also contain of non-existing indices or invalid names</li>
+             *     <li>Use withoutResolutionErrors().concreteIndices(). This will only contain existing indices.</li>
+             * </ul>
+             *
+             * @throws org.opensearch.index.IndexNotFoundException This exception is thrown for several conditions:
+             * 1. If one of the index expression pointed to a missing index, alias or data stream and the IndicesOptions
+             * used during resolution do not allow such a case. 2. If the set of resolved concrete indices is empty and
+             * the IndicesOptions used during resolution do not allow such a case.
+             * @throws IllegalArgumentException if one of the aliases resolved to multiple indices and
+             * IndicesOptions.FORBID_ALIASES_TO_MULTIPLE_INDICES was set.
+             */
             public String[] namesOfConcreteIndicesAsArray() {
                 return this.concreteIndices().stream().map(Index::getName).toArray(String[]::new);
             }
@@ -436,6 +548,10 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
                 return new Concrete(this.concreteIndices, this.names, this.originalIndices, subActions, resolutionErrors);
             }
 
+            /**
+             * Returns a new copy of this ResolvedIndices.Local.Concrete instances which has the given resolutionErrors
+             * associated.
+             */
             public ResolvedIndices.Local.Concrete withResolutionErrors(List<RuntimeException> resolutionErrors) {
                 if (resolutionErrors.isEmpty()) {
                     return this;
@@ -450,10 +566,18 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
                 }
             }
 
+            /**
+             * Returns a new copy of this ResolvedIndices.Local.Concrete instances which has the given resolutionErrors
+             * associated.
+             */
             public ResolvedIndices.Local.Concrete withResolutionErrors(RuntimeException... resolutionErrors) {
                 return withResolutionErrors(Arrays.asList(resolutionErrors));
             }
 
+            /**
+             * Returns a new copy of this ResolvedIndices.Local.Concrete instances which does not have any resolutionErrors
+             * associated.
+             */
             public ResolvedIndices.Local.Concrete withoutResolutionErrors() {
                 return new Concrete(this.concreteIndices, this.names(), this.originalIndices, this.subActions, List.of());
             }
@@ -512,10 +636,16 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
             this.rawExpressions = rawExpressions;
         }
 
+        /**
+         * Returns a map with remote cluster names as keys and an OriginalIndices object specifying index expressions as values.
+         */
         public Map<String, OriginalIndices> asClusterToOriginalIndicesMap() {
             return this.clusterToOriginalIndicesMap;
         }
 
+        /**
+         * Returns the remote clusters in the format ["remote_1:index_1", "remote_1:index_2", "remote_2:index_3"]
+         */
         public List<String> asRawExpressions() {
             List<String> result = this.rawExpressions;
 
@@ -526,10 +656,16 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
             return result;
         }
 
+        /**
+         * Returns the remote clusters in the format ["remote_1:index_1", "remote_1:index_2", "remote_2:index_3"]
+         */
         public String[] asRawExpressionsArray() {
             return this.asRawExpressions().toArray(new String[0]);
         }
 
+        /**
+         * Returns true if no remote indices are present
+         */
         public boolean isEmpty() {
             return this.clusterToOriginalIndicesMap.isEmpty();
         }
@@ -554,11 +690,7 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
         }
 
         private List<String> buildRawExpressions() {
-            if (this.clusterToOriginalIndicesMap.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            List<String> result = new ArrayList<>();
+            List<String> result = new ArrayList<>(this.clusterToOriginalIndicesMap.size());
 
             for (Map.Entry<String, OriginalIndices> entry : this.clusterToOriginalIndicesMap.entrySet()) {
                 for (String remoteIndex : entry.getValue().indices()) {
@@ -569,5 +701,4 @@ public class ResolvedIndices extends OptionallyResolvedIndices {
             return Collections.unmodifiableList(result);
         }
     }
-
 }
