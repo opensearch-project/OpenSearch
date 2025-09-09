@@ -80,6 +80,7 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         assertTrue(resolvedIndices.local().contains("whatever"));
         assertTrue(resolvedIndices.local().containsAny(List.of("whatever")));
         assertTrue(resolvedIndices.local().containsAny(i -> false));
+        assertEquals("ResolvedIndices{unknown=true}", resolvedIndices.toString());
     }
 
     public void testWithRemoteIndices() {
@@ -137,6 +138,17 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         assertThat(local.names(), containsInAnyOrder("o", "p", "q"));
     }
 
+    public void testNamesWithClusterState() {
+        Metadata.Builder metadata = Metadata.builder()
+            .put(indexBuilder("index_a1").putAlias(AliasMetadata.builder("alias_a")))
+            .put(indexBuilder("index_a2").putAlias(AliasMetadata.builder("alias_a")))
+            .put(indexBuilder("index_b1"));
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ResolvedIndices resolvedIndices = ResolvedIndices.of("index_not_existing", "alias_a", "index_b1");
+        assertThat(resolvedIndices.local().names(clusterState), containsInAnyOrder("index_not_existing", "alias_a", "index_b1"));
+        assertThat(ResolvedIndices.unknown().local().names(clusterState), containsInAnyOrder("index_a1", "index_a2", "index_b1"));
+    }
+
     public void testNamesOfIndices() {
         Metadata.Builder metadata = Metadata.builder()
             .put(indexBuilder("index_a1").putAlias(AliasMetadata.builder("alias_a")))
@@ -176,6 +188,8 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         assertNotEquals(resolvedIndices1.hashCode(), resolvedIndices3.hashCode());
         assertFalse(resolvedIndices1.equals(resolvedIndices3));
         assertFalse(resolvedIndices3.equals(resolvedIndices1));
+        assertFalse(resolvedIndices1.equals(ResolvedIndices.unknown()));
+        assertNotEquals(resolvedIndices1.hashCode(), ResolvedIndices.unknown().hashCode());
     }
 
     public void testHashCodeForConcreteIndices() {

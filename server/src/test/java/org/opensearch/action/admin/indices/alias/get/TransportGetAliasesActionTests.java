@@ -271,13 +271,19 @@ public class TransportGetAliasesActionTests extends OpenSearchTestCase {
         {
             // Request an alias: Return the indices in the alias
             ResolvedIndices resolvedIndices = action.resolveIndices(new GetAliasesRequest("d"));
-            assertEquals(ResolvedIndices.of("c"), resolvedIndices);
+            assertEquals(
+                ResolvedIndices.of("c").withLocalSubActions("indices:admin/aliases/get[aliases]", ResolvedIndices.Local.of("d")),
+                resolvedIndices
+            );
         }
 
         {
             // Request an index: Return the index itself
             ResolvedIndices resolvedIndices = action.resolveIndices(new GetAliasesRequest().indices("c"));
-            assertEquals(ResolvedIndices.of("c"), resolvedIndices);
+            assertEquals(
+                ResolvedIndices.of("c").withLocalSubActions("indices:admin/aliases/get[aliases]", ResolvedIndices.Local.of("d")),
+                resolvedIndices
+            );
         }
     }
 

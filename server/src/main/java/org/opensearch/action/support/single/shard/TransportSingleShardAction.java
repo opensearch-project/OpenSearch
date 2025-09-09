@@ -160,7 +160,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     @Override
     public ResolvedIndices resolveIndices(Request request) {
-        return ResolvedIndices.of(resolveToConcreteSingleIndex(request, clusterService.state()));
+        return ResolvedIndices.ofNonNull(resolveToConcreteSingleIndex(request, clusterService.state()));
     }
 
     private String resolveToConcreteSingleIndex(Request request, ClusterState clusterState) {

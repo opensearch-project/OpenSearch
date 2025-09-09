@@ -32,6 +32,8 @@
 
 package org.opensearch.action.admin.indices.create;
 
+import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -50,6 +52,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 /**
  * Create index action.
@@ -149,7 +152,16 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
 
     @Override
     public ResolvedIndices resolveIndices(CreateIndexRequest request) {
-        return ResolvedIndices.of(resolveIndexName(request));
+        ResolvedIndices result = ResolvedIndices.of(resolveIndexName(request));
+
+        if (request.aliases().isEmpty()) {
+            return result;
+        } else {
+            return result.withLocalSubActions(
+                IndicesAliasesAction.INSTANCE,
+                ResolvedIndices.Local.of(request.aliases().stream().map(Alias::name).collect(Collectors.toSet()))
+            );
+        }
     }
 
     private String resolveIndexName(CreateIndexRequest request) {
