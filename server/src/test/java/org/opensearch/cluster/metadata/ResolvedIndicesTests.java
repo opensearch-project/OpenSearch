@@ -146,7 +146,10 @@ public class ResolvedIndicesTests extends OpenSearchTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         ResolvedIndices resolvedIndices = ResolvedIndices.of("index_not_existing", "alias_a", "index_b1");
         assertThat(resolvedIndices.local().names(clusterState), containsInAnyOrder("index_not_existing", "alias_a", "index_b1"));
-        assertThat(ResolvedIndices.unknown().local().names(clusterState), containsInAnyOrder("index_a1", "index_a2", "index_b1"));
+        assertThat(
+            ResolvedIndices.unknown().local().names(clusterState),
+            containsInAnyOrder("index_a1", "index_a2", "index_b1", "alias_a")
+        );
     }
 
     public void testNamesOfIndices() {
