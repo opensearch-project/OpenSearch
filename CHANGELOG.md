@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add subdirectory-aware store module with recovery support ([#19132](https://github.com/opensearch-project/OpenSearch/pull/19132))
 - Field collapsing supports search_after ([#19261](https://github.com/opensearch-project/OpenSearch/pull/19261))
 
+- Add a dynamic cluster setting to control the enablement of the merged segment warmer ([#18929](https://github.com/opensearch-project/OpenSearch/pull/18929))
 ### Changed
 - Add CompletionStage variants to methods in the Client Interface and default to ActionListener impl ([#18998](https://github.com/opensearch-project/OpenSearch/pull/18998))
 - IllegalArgumentException when scroll ID references a node not found in Cluster ([#19031](https://github.com/opensearch-project/OpenSearch/pull/19031))
@@ -67,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jsoup:jsoup` from 1.20.1 to 1.21.2 ([#19207](https://github.com/opensearch-project/OpenSearch/pull/19207))
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19203](https://github.com/opensearch-project/OpenSearch/pull/19203))
 - Bump `com.maxmind.geoip2:geoip2` from 4.3.1 to 4.4.0 ([#19205](https://github.com/opensearch-project/OpenSearch/pull/19205))
+- Bump `org.jboss.xnio:xnio-nio` from 3.8.16.Final to 3.8.17.Final ([#19252](https://github.com/opensearch-project/OpenSearch/pull/19252))
 
 ### Deprecated
 
