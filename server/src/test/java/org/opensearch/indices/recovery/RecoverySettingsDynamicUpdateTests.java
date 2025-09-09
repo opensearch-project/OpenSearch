@@ -35,6 +35,7 @@ package org.opensearch.indices.recovery;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
@@ -44,6 +45,12 @@ import java.util.concurrent.TimeUnit;
 public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterSettings);
+
+    @Override
+    public void tearDown() throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        super.tearDown();
+    }
 
     public void testZeroBytesPerSecondIsNoRateLimit() {
         clusterSettings.applySettings(
@@ -178,5 +185,37 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
                 .build()
         );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionRetryTimeout());
+    }
+
+    public void testMergedSegmentReplicationWarmerEnabledSetting() {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build()
+        );
+        assertTrue(recoverySettings.isMergedSegmentReplicationWarmerEnabled());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), false).build()
+        );
+        assertFalse(recoverySettings.isMergedSegmentReplicationWarmerEnabled());
+    }
+
+    public void testMergedSegmentReplicationWarmerEnabledSettingInvalidUpdate() {
+        Exception e = assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true).build()
+            )
+        );
+        assertEquals(
+            "illegal value can't update [indices.replication.merged_segment_warmer_enabled] from [false] to [true]",
+            e.getMessage()
+        );
+        assertEquals(IllegalArgumentException.class, e.getCause().getClass());
+        assertEquals(
+            "FeatureFlag opensearch.experimental.feature.merged_segment_warmer.enabled must be enabled to set this property to true.",
+            e.getCause().getMessage()
+        );
     }
 }

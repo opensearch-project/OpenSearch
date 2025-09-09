@@ -65,7 +65,6 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -279,21 +278,22 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexedAndNoDocValues();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = scale(lowerTerm);
-                if (includeLower == false) {
-                    dValue = Math.nextUp(dValue);
-                }
-                lo = Math.round(Math.ceil(dValue));
+                lo = Math.round(scale(lowerTerm));
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = scale(upperTerm);
-                if (includeUpper == false) {
-                    dValue = Math.nextDown(dValue);
-                }
-                hi = Math.round(Math.floor(dValue));
+                hi = Math.round(scale(upperTerm));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), isSearchable(), context);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(
+                name(),
+                lo,
+                hi,
+                includeLower,
+                includeUpper,
+                hasDocValues(),
+                isSearchable(),
+                context
+            );
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -360,15 +360,16 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         /**
          * Parses input value and multiplies it with the scaling factor.
-         * Uses the round-trip of creating a {@link BigDecimal} from the stringified {@code double}
-         * input to ensure intuitively exact floating point operations.
-         * (e.g. for a scaling factor of 100, JVM behaviour results in {@code 79.99D * 100 ==> 7998.99..} compared to
-         * {@code scale(79.99) ==> 7999})
+         * Note: Uses direct floating-point multiplication for consistency
+         * between indexing and querying. While this may result in
+         * floating-point imprecision (e.g., 79.99 * 100 = 7998.999...),
+         * the consistent behavior ensures search queries work correctly.
+         *
          * @param input Input value to parse floating point num from
          * @return Scaled value
          */
         private double scale(Object input) {
-            return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
+            return parse(input) * scalingFactor;
         }
 
         @Override
