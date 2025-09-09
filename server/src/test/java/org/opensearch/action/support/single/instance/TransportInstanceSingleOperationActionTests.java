@@ -388,4 +388,12 @@ public class TransportInstanceSingleOperationActionTests extends OpenSearchTestC
         ResolvedIndices resolvedIndices = action.resolveIndices(request);
         assertEquals(ResolvedIndices.of("concrete_value"), resolvedIndices);
     }
+
+    public void testResolveIndices_nonExisting() {
+        Request request = new Request().index("test_non_existing");
+        request.shardId = new ShardId("test_non_existing", "_na_", 0);
+        setState(clusterService, ClusterStateCreationUtils.state("test", true, ShardRoutingState.STARTED));
+        ResolvedIndices resolvedIndices = action.resolveIndices(request);
+        assertEquals(ResolvedIndices.of("test_non_existing"), resolvedIndices);
+    }
 }
