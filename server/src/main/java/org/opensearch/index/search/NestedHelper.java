@@ -126,8 +126,7 @@ public final class NestedHelper {
             case MatchAllDocsQuery ignored -> true;
             case MatchNoDocsQuery ignored -> false;
             case TermQuery tq -> mightMatchNonNestedDocs(tq.getTerm().field(), nestedPath);
-            case TermInSetQuery tisq ->
-                tisq.getTermsCount() > 0 && mightMatchNonNestedDocs(tisq.getField(), nestedPath);
+            case TermInSetQuery tisq -> tisq.getTermsCount() > 0 && mightMatchNonNestedDocs(tisq.getField(), nestedPath);
             case PointRangeQuery prq -> mightMatchNonNestedDocs(prq.getField(), nestedPath);
             case IndexOrDocValuesQuery iorvq -> mightMatchNonNestedDocs(iorvq.getIndexQuery(), nestedPath);
             case ApproximateScoreQuery asq -> mightMatchNonNestedDocs(asq.getOriginalQuery(), nestedPath);
