@@ -70,6 +70,14 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     private LeafFieldComparator leafComparator;
     private final int reverseMul;
 
+    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN) {
+        super(groupSelector, sort, topN);
+        this.collapseField = collapseField;
+        this.sort = sort;
+        this.after = null;
+        this.reverseMul = 1;
+    }
+
     CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN, FieldDoc after) {
         super(groupSelector, sort, topN);
         this.collapseField = collapseField;

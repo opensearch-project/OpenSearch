@@ -245,6 +245,42 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             CollapseContext collapseContext,
             @Nullable SortAndFormats sortAndFormats,
             int numHits,
+            boolean trackMaxScore
+        ) {
+            super(REASON_SEARCH_TOP_HITS, numHits);
+            assert numHits > 0;
+            assert collapseContext != null;
+            this.sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
+            this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
+            this.collapseContext = collapseContext;
+            this.searchAfter = null;
+            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits);
+            this.trackMaxScore = trackMaxScore;
+
+            MaxScoreCollector maxScoreCollector;
+            if (trackMaxScore) {
+                maxScoreCollector = new MaxScoreCollector();
+                maxScoreSupplier = maxScoreCollector::getMaxScore;
+            } else {
+                maxScoreCollector = null;
+                maxScoreSupplier = () -> Float.NaN;
+            }
+
+            this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
+        }
+
+        /**
+         * Ctr
+         * @param collapseContext The collapsing context
+         * @param sortAndFormats The query sort
+         * @param numHits The number of collapsed top hits to retrieve.
+         * @param trackMaxScore True if max score should be tracked
+         * @param searchAfter The search after value
+         */
+        private CollapsingTopDocsCollectorContext(
+            CollapseContext collapseContext,
+            @Nullable SortAndFormats sortAndFormats,
+            int numHits,
             boolean trackMaxScore,
             FieldDoc searchAfter
         ) {
@@ -258,7 +294,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, searchAfter);
             this.trackMaxScore = trackMaxScore;
 
-            MaxScoreCollector maxScoreCollector = null;
+            MaxScoreCollector maxScoreCollector;
             if (trackMaxScore) {
                 maxScoreCollector = new MaxScoreCollector();
                 maxScoreSupplier = maxScoreCollector::getMaxScore;
