@@ -68,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19203](https://github.com/opensearch-project/OpenSearch/pull/19203))
 - Bump `com.maxmind.geoip2:geoip2` from 4.3.1 to 4.4.0 ([#19205](https://github.com/opensearch-project/OpenSearch/pull/19205))
 - Bump `org.jboss.xnio:xnio-nio` from 3.8.16.Final to 3.8.17.Final ([#19252](https://github.com/opensearch-project/OpenSearch/pull/19252))
+- Bump `actions/setup-java` from 4 to 5 ([#19143](https://github.com/opensearch-project/OpenSearch/pull/19143))
 
 ### Deprecated
 
