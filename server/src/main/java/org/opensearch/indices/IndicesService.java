@@ -2117,7 +2117,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Clears the caches for the given shard id if the shard is still allocated on this node
-     * Query cache keys are cleared immediately by this method; field data and request cache keys are only marked for cleanup
+     * Query cache and field data cache keys are cleared immediately by this method; request cache keys are only marked for cleanup
+     * TODO: In a future PR field data cache keys will also only be marked for cleanup.
      */
     public void clearIndexShardCache(ShardId shardId, boolean queryCache, boolean fieldDataCache, boolean requestCache, String... fields) {
         final IndexService service = indexService(shardId.getIndex());
@@ -2131,11 +2132,11 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Force clear node-wide field data and request caches, which will remove any keys which have been previously marked for cleanup.
+     * Force clear node-wide request cache, which will remove any keys which have been previously marked for cleanup.
      */
     public void forceClearNodewideCaches() {
         indicesRequestCache.forceCleanCache();
-        // TODO: FDC can come after, as it relies on other PRs.
+        // TODO: Field data cache will also be cleared here in a future PR. 
     }
 
     /**
