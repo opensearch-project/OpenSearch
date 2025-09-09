@@ -2136,7 +2136,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public void forceClearNodewideCaches() {
         indicesRequestCache.forceCleanCache();
-        // TODO: Field data cache will also be cleared here in a future PR. 
+        // TODO: Field data cache will also be cleared here in a future PR.
     }
 
     /**
