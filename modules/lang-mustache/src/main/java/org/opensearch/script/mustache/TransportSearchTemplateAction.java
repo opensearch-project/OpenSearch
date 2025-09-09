@@ -38,6 +38,7 @@ import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -191,7 +192,12 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     }
 
     @Override
-    public ResolvedIndices resolveIndices(SearchTemplateRequest request) {
-        return transportSearchAction.resolveIndices(request.getRequest());
+    public OptionallyResolvedIndices resolveIndices(SearchTemplateRequest request) {
+        if (request.getRequest() != null) {
+            return transportSearchAction.resolveIndices(request.getRequest());
+        } else {
+            // For the RenderSearchTemplateAction, request.getRequest() will be null.
+            return ResolvedIndices.unknown();
+        }
     }
 }

@@ -218,16 +218,27 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
         // containing one of the specified indices
         // - both aliases and indices specified: this is then the intersection
         //
+        // For both indices and aliases, patterns can be specified. The indicesOptions of the request only apply to the indices.
+        //
         // The consequence for the resolveIndices() method is that the semantics of the return value might be debatable.
-        // We resort to just the index names, because it is the most precise dimension. If we would include alias names,
-        // these could also refer to indices which were not requested.
+        // We resort to have just the index names on the top level, because it is the most precise dimension.
+        // Alias names are included as a sub action named "indices:admin/aliases/get[aliases]"
 
         String[] concreteIndices;
 
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext(false)) {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
+            concreteIndices = indexNameExpressionResolver.concreteResolvedIndices(state, request)
+                .withoutResolutionErrors()
+                .namesOfConcreteIndicesAsArray();
         }
+        Map<String, List<AliasMetadata>> indexToAliasesMap = state.metadata().findAliases(request, concreteIndices);
 
-        return ResolvedIndices.of(state.metadata().findAliases(request, concreteIndices).keySet());
+        return ResolvedIndices.of(indexToAliasesMap.keySet())
+            .withLocalSubActions(
+                GetAliasesAction.NAME + "[aliases]",
+                ResolvedIndices.Local.of(
+                    indexToAliasesMap.values().stream().flatMap(l -> l.stream()).map(alias -> alias.alias()).collect(Collectors.toSet())
+                )
+            );
     }
 }
