@@ -180,7 +180,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
             @Override
             public void onSuccess(String file) {
                 localToRemoteStoreFilenames.put(file, indexShard.getRemoteDirectory().getExistingRemoteFilename(file));
-                indexShard.mergedSegmentTransferTracker().addTotalBytesUploaded(checkpoint.getMetadataMap().get(file).length());
+                indexShard.mergedSegmentTransferTracker().addTotalBytesSent(checkpoint.getMetadataMap().get(file).length());
             }
 
             @Override

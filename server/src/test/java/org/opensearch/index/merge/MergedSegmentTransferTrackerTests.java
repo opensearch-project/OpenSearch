@@ -65,8 +65,8 @@ public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
         tracker.addTotalWarmTimeMillis(100);
         tracker.addTotalUploadTimeMillis(200);
         tracker.addTotalDownloadTimeMillis(300);
-        tracker.addTotalBytesUploaded(1024);
-        tracker.addTotalBytesDownloaded(2048);
+        tracker.addTotalBytesSent(1024);
+        tracker.addTotalBytesReceived(2048);
 
         MergedSegmentWarmerStats stats = tracker.stats();
         assertEquals(new TimeValue(100), stats.getTotalTime());
@@ -81,8 +81,8 @@ public class MergedSegmentTransferTrackerTests extends OpenSearchTestCase {
         tracker.addTotalWarmTimeMillis(50);
         assertEquals(new TimeValue(150), tracker.stats().getTotalTime());
 
-        tracker.addTotalBytesUploaded(1000);
-        tracker.addTotalBytesUploaded(500);
+        tracker.addTotalBytesSent(1000);
+        tracker.addTotalBytesSent(500);
         assertEquals(1500, tracker.stats().getTotalSentSize().getBytes());
     }
 }

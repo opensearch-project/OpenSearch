@@ -27,6 +27,7 @@ public class MergedSegmentTransferTracker {
     private final CounterMetric totalBytesDownloaded = new CounterMetric();
     private final CounterMetric totalUploadTimeMillis = new CounterMetric();
     private final CounterMetric totalDownloadTimeMillis = new CounterMetric();
+    private final CounterMetric totalRejectedCount = new CounterMetric();
     private final CounterMetric ongoingWarms = new CounterMetric();
 
     public void incrementTotalWarmInvocationsCount() {
@@ -45,6 +46,10 @@ public class MergedSegmentTransferTracker {
         totalWarmFailureCount.inc();
     }
 
+    public void incrementTotalRejectedCount() {
+        totalRejectedCount.inc();
+    }
+
     public void addTotalWarmTimeMillis(long time) {
         totalWarmTimeMillis.inc(time);
     }
@@ -57,11 +62,11 @@ public class MergedSegmentTransferTracker {
         totalDownloadTimeMillis.inc(time);
     }
 
-    public void addTotalBytesUploaded(long bytes) {
+    public void addTotalBytesSent(long bytes) {
         totalBytesUploaded.inc(bytes);
     }
 
-    public void addTotalBytesDownloaded(long bytes) {
+    public void addTotalBytesReceived(long bytes) {
         totalBytesDownloaded.inc(bytes);
     }
 
@@ -75,6 +80,7 @@ public class MergedSegmentTransferTracker {
             totalBytesDownloaded.count(),
             totalUploadTimeMillis.count(),
             totalDownloadTimeMillis.count(),
+            totalRejectedCount.count(),
             ongoingWarms.count()
         );
         return stats;

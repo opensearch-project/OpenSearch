@@ -48,7 +48,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -158,9 +157,9 @@ import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.merge.MergedSegmentWarmerPressureService;
 import org.opensearch.index.merge.MergedSegmentWarmerStats;
-import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
@@ -1573,7 +1572,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public MergedSegmentWarmerStats mergedSegmentWarmerStats() {
-        return mergedSegmentReplicationTracker.stats();
+        return mergedSegmentTransferTracker.stats();
     }
 
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {

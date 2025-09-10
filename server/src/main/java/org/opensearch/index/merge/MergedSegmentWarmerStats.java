@@ -57,27 +57,27 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
     public MergedSegmentWarmerStats() {}
 
     public MergedSegmentWarmerStats(StreamInput in) throws IOException {
-        totalWarmInvocationsCount = in.readVLong();
-        totalWarmTimeMillis = in.readVLong();
-        totalWarmFailureCount = in.readVLong();
-        totalBytesUploaded = in.readVLong();
-        totalBytesDownloaded = in.readVLong();
-        totalUploadTimeMillis = in.readVLong();
-        totalDownloadTimeMillis = in.readVLong();
+        totalInvocationsCount = in.readVLong();
+        totalTimeMillis = in.readVLong();
+        totalFailureCount = in.readVLong();
+        totalBytesSent = in.readVLong();
+        totalBytesReceived = in.readVLong();
+        totalSendTimeMillis = in.readVLong();
+        totalReceiveTimeMillis = in.readVLong();
         totalRejectedCount = in.readVLong();
-        ongoingWarms = in.readVLong();
+        ongoingCount = in.readVLong();
     }
 
     public synchronized void add(
-        long totalWarmInvocationsCount,
-        long totalWarmTimeMillis,
-        long totalWarmFailureCount,
-        long totalBytesUploaded,
-        long totalBytesDownloaded,
-        long totalUploadTimeMillis,
-        long totalDownloadTimeMillis,
+        long totalInvocationsCount,
+        long totalTimeMillis,
+        long totalFailureCount,
+        long totalBytesSent,
+        long totalBytesReceived,
+        long totalSendTimeMillis,
+        long totalReceiveTimeMillis,
         long totalRejectedCount,
-        long ongoingWarms
+        long ongoingCount
     ) {
         this.totalInvocationsCount += totalInvocationsCount;
         this.totalTimeMillis += totalTimeMillis;
@@ -86,7 +86,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         this.totalBytesReceived += totalBytesReceived;
         this.totalSendTimeMillis += totalSendTimeMillis;
         this.totalReceiveTimeMillis += totalReceiveTimeMillis;
-        this.totalRejectedCount += totalRejectedWarms;
+        this.totalRejectedCount += totalRejectedCount;
         this.ongoingCount += ongoingCount;
     }
 
@@ -98,14 +98,14 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
         if (mergedSegmentWarmerStats == null) {
             return;
         }
-        this.totalWarmInvocationsCount += mergedSegmentWarmerStats.totalWarmInvocationsCount;
-        this.totalWarmTimeMillis += mergedSegmentWarmerStats.totalWarmTimeMillis;
-        this.totalWarmFailureCount += mergedSegmentWarmerStats.totalWarmFailureCount;
-        this.totalBytesUploaded += mergedSegmentWarmerStats.totalBytesUploaded;
-        this.totalBytesDownloaded += mergedSegmentWarmerStats.totalBytesDownloaded;
-        this.totalUploadTimeMillis += mergedSegmentWarmerStats.totalUploadTimeMillis;
-        this.totalDownloadTimeMillis += mergedSegmentWarmerStats.totalDownloadTimeMillis;
-        this.totalRejectedCount += mergedSegmentWarmerStats.totalRejectedWarms;
+        this.totalInvocationsCount += mergedSegmentWarmerStats.totalInvocationsCount;
+        this.totalTimeMillis += mergedSegmentWarmerStats.totalTimeMillis;
+        this.totalFailureCount += mergedSegmentWarmerStats.totalFailureCount;
+        this.totalBytesSent += mergedSegmentWarmerStats.totalBytesSent;
+        this.totalBytesReceived += mergedSegmentWarmerStats.totalBytesReceived;
+        this.totalSendTimeMillis += mergedSegmentWarmerStats.totalSendTimeMillis;
+        this.totalReceiveTimeMillis += mergedSegmentWarmerStats.totalReceiveTimeMillis;
+        this.totalRejectedCount += mergedSegmentWarmerStats.totalRejectedCount;
     }
 
     public long getTotalInvocationsCount() {
@@ -147,13 +147,13 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.MERGED_SEGMENT_WARMER);
-        builder.field(Fields.TOTAL_WARM_INVOCATIONS_COUNT, totalWarmInvocationsCount);
-        builder.field(Fields.TOTAL_WARM_TIME_MILLIS, totalWarmTimeMillis);
-        builder.field(Fields.TOTAL_WARM_FAILURE_COUNT, totalWarmFailureCount);
-        builder.humanReadableField(Fields.TOTAL_BYTES_UPLOADED, Fields.TOTAL_BYTES_UPLOADED, new ByteSizeValue(totalBytesUploaded));
-        builder.humanReadableField(Fields.TOTAL_BYTES_DOWNLOADED, Fields.TOTAL_BYTES_DOWNLOADED, new ByteSizeValue(totalBytesDownloaded));
-        builder.field(Fields.TOTAL_UPLOAD_TIME_MILLIS, totalUploadTimeMillis);
-        builder.field(Fields.TOTAL_DOWNLOAD_TIME_MILLIS, totalDownloadTimeMillis);
+        builder.field(Fields.TOTAL_INVOCATIONS_COUNT, totalInvocationsCount);
+        builder.field(Fields.TOTAL_TIME_MILLIS, totalTimeMillis);
+        builder.field(Fields.TOTAL_FAILURE_COUNT, totalFailureCount);
+        builder.humanReadableField(Fields.TOTAL_BYTES_SENT, Fields.TOTAL_SENT_SIZE, getTotalSentSize());
+        builder.humanReadableField(Fields.TOTAL_BYTES_RECEIVED, Fields.TOTAL_RECEIVED_SIZE, getTotalReceivedSize());
+        builder.humanReadableField(Fields.TOTAL_SEND_TIME_MILLIS, Fields.TOTAL_SEND_TIME, getTotalSendTime());
+        builder.humanReadableField(Fields.TOTAL_RECEIVE_TIME_MILLIS, Fields.TOTAL_RECEIVE_TIME, getTotalReceiveTime());
         builder.field(Fields.TOTAL_REJECTED_COUNT, totalRejectedCount);
         builder.field(Fields.ONGOING_COUNT, ongoingCount);
         builder.endObject();
@@ -167,7 +167,7 @@ public class MergedSegmentWarmerStats implements Writeable, ToXContentFragment {
      */
     static final class Fields {
         static final String MERGED_SEGMENT_WARMER = "merged_segment_warmer";
-        static final String WARM_INVOCATIONS_COUNT = "total_invocations_count";
+        static final String TOTAL_INVOCATIONS_COUNT = "total_invocations_count";
         static final String TOTAL_TIME_MILLIS = "total_time_millis";
         static final String TOTAL_FAILURE_COUNT = "total_failure_count";
         static final String TOTAL_BYTES_SENT = "total_bytes_sent";

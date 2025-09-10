@@ -16,8 +16,8 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.index.merge.MergedSegmentWarmerPressureService;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
+import org.opensearch.index.merge.MergedSegmentWarmerPressureService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.transport.TransportService;
@@ -99,9 +99,9 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
             return false;
         }
 
-        if (mergedSegmentWarmerPressureService.isEnabled() &&
-            mergedSegmentWarmerPressureService.shouldWarm(mergedSegmentReplicationTracker.stats()) == false) {
-            mergedSegmentReplicationTracker.incrementTotalRejectedWarms();
+        if (mergedSegmentWarmerPressureService.isEnabled()
+            && mergedSegmentWarmerPressureService.shouldWarm(mergedSegmentTransferTracker.stats()) == false) {
+            mergedSegmentTransferTracker.incrementTotalRejectedCount();
             return false;
         }
 

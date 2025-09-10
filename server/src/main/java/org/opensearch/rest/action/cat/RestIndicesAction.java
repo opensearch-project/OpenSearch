@@ -665,10 +665,13 @@ public class RestIndicesAction extends AbstractListAction {
         );
 
         table.addCell(
-            "merged_segment_warmer.total_rejected_warms",
-            "alias:mswtrw,mergedSegmentWarmerTotalRejectedWarms;default:false;text-align:right;desc:UPDATE"
+            "merged_segment_warmer.total_rejected_count",
+            "alias:mswtrc,mergedSegmentWarmerTotalRejectedCount;default:false;text-align:right;desc:total number of merged segment warm operations rejected by the pressure service"
         );
-        table.addCell("pri.merged_segment_warmer.total_rejected_warms", "default:false;text-align:right;desc:UPDATE");
+        table.addCell(
+            "pri.merged_segment_warmer.total_rejected_count",
+            "default:false;text-align:right;desc:total number of merged segment warm operations rejected by the pressure service"
+        );
 
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
@@ -1091,11 +1094,9 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalSendTime());
             table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalSendTime());
 
+            table.addCell(totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalRejectedCount());
             table.addCell(
-                totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalRejectedWarms()
-            );
-            table.addCell(
-                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalRejectedWarms()
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalRejectedCount()
             );
 
             table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());

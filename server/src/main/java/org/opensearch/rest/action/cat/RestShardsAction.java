@@ -248,8 +248,8 @@ public class RestShardsAction extends AbstractListAction {
             "alias:mswtst,mergedSegmentWarmerTotalSendTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
         );
         table.addCell(
-            "merged_segment_warmer.total_rejected_warms",
-            "alias:mswtrw,mergedSegmentWarmerTotalRejectedWarms;default:false;text-align:right;desc:UPDATE"
+            "merged_segment_warmer.total_rejected_count",
+            "alias:mswtrc,mergedSegmentWarmerTotalRejectedCount;default:false;text-align:right;desc:total number of merged segment warm operations rejected by the pressure service"
         );
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
