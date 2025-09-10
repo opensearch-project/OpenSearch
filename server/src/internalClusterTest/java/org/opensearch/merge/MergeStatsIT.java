@@ -26,9 +26,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.MergedSegmentWarmerStats;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +42,14 @@ import java.util.concurrent.TimeUnit;
 public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "test-idx";
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            .build();
+    }
 
     @Override
     public Settings indexSettings() {
@@ -203,19 +213,23 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
             // the node might have both primaries and replicas, only primaries, or only replicas
             boolean primaryShardStatsResult = false;
             boolean replicaShardStatsResult = false;
-
+            List<AssertionError> errors = new ArrayList<>();
             try {
                 assertMergeStats(stats, StatsScope.PRIMARY_SHARD);
                 primaryShardStatsResult = true;
-            } catch (AssertionError ignored) {}
+            } catch (AssertionError error) {
+                errors.add(error);
+            }
 
             try {
                 assertMergeStats(stats, StatsScope.REPLICA_SHARD);
                 replicaShardStatsResult = true;
-            } catch (AssertionError ignored) {}
+            } catch (AssertionError error) {
+                errors.add(error);
+            }
 
             assertTrue(
-                "Stats should match either primary or replica shard patterns or both.",
+                "Stats should match either primary or replica shard patterns or both. Errors: " + errors,
                 primaryShardStatsResult || replicaShardStatsResult
             );
         }
@@ -263,18 +277,24 @@ public class MergeStatsIT extends RemoteStoreBaseIntegTestCase {
                 return;
             }
 
+            List<AssertionError> errors = new ArrayList<>();
+
             try {
                 assertMergedSegmentWarmerStats(stats, StatsScope.PRIMARY_SHARD);
-                primaryShardStatsResult = true;
-            } catch (AssertionError ignored) {}
+                primaryShardStatsResult = true; // would be true if the node contains only primary shard
+            } catch (AssertionError error) {
+                errors.add(error);
+            }
 
             try {
                 assertMergedSegmentWarmerStats(stats, StatsScope.REPLICA_SHARD);
                 replicaShardStatsResult = true; // would be true if the node only contains replica shards
-            } catch (AssertionError ignored) {}
+            } catch (AssertionError error) {
+                errors.add(error);
+            }
 
             assertTrue(
-                "Stats should match either primary or replica shard or patterns both.",
+                "Stats should match either primary or replica shard or patterns both. Errors: " + errors,
                 primaryShardStatsResult || replicaShardStatsResult
             );
         }
