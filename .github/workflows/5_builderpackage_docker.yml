@@ -1,5 +1,5 @@
 run-name: Build Wazuh Indexer Docker image | ${{ inputs.id }}
-name: Build and push Docker image
+name: (5.x) Build Docker image
 
 # This workflow runs when any of the following occur:
 # - Run manually

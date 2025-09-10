@@ -1,5 +1,5 @@
-name: Repository bumper
 run-name: Bump ${{ github.ref_name }} (${{ inputs.id }})
+name: (5.x) Repository bumper
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Build and push Docker image (on push)
+name: (5.x) Build Docker image (on push)
 
 # This workflow runs when any of the following occur:
 # - Push

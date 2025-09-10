@@ -1,4 +1,4 @@
-name: Build packages (on push)
+name: (5.x) Build packages (on push)
 
 # This workflow runs when any of the following occur:
 # - Push

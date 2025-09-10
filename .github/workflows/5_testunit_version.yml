@@ -1,4 +1,4 @@
-name: Version file integrity check
+name: (5.x) Check version file
 
 on:
   push:

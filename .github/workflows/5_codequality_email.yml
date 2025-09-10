@@ -1,4 +1,4 @@
-name: "Email Checker"
+name: (5.x) Check email
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]

@@ -1,5 +1,5 @@
 run-name: Build ${{ inputs.distribution }} Wazuh Indexer on ${{ inputs.architecture }} | ${{ inputs.id }}
-name: Build packages
+name: (6.x) Build packages
 
 # This workflow runs when any of the following occur:
 # - Run manually

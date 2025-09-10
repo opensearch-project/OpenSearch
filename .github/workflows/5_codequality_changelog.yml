@@ -1,4 +1,4 @@
-name: "Changelog Verifier"
+name: (5.x) Check changelog
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]

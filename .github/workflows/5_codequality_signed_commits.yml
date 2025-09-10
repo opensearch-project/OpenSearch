@@ -1,4 +1,4 @@
-name: "Signed commits checker"
+name: (5.x) Check signed commits
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
