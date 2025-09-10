@@ -337,8 +337,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             mergedSegmentCheckpoint,
             filesToFetch,
             replicaShard,
-            (fileName, bytesRecovered) -> {
-            },
+            (fileName, bytesRecovered) -> {},
             listener
         );
         latch.await();
