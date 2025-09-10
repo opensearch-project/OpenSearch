@@ -53,6 +53,10 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     @Override
     public void warm(LeafReader leafReader) throws IOException {
+        if (shouldWarm() == false) {
+            return;
+        }
+
         mergedSegmentTransferTracker.incrementTotalWarmInvocationsCount();
         mergedSegmentTransferTracker.incrementOngoingWarms();
         // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
