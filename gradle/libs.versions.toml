@@ -33,13 +33,13 @@ json_smart        = "2.5.2"
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.16.0"
 
-netty             = "4.1.124.Final"
+netty             = "4.2.6.Final"
 joda              = "2.12.7"
 roaringbitmap     = "1.3.0"
 
 # project reactor
-reactor_netty     = "1.2.9"
-reactor           = "3.7.5"
+reactor_netty     = "1.3.0-M7"
+reactor           = "3.8.0-M7"
 
 # client dependencies
 httpclient5       = "5.4.4"
@@ -137,9 +137,12 @@ lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", ver
 lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
 netty-buffer = { group = "io.netty", name = "netty-buffer", version.ref = "netty" }
 netty-codec = { group = "io.netty", name = "netty-codec", version.ref = "netty" }
+netty-codec-base = { group = "io.netty", name = "netty-codec-base", version.ref = "netty" }
+netty-codec-compression = { group = "io.netty", name = "netty-codec-compression", version.ref = "netty" }
 netty-codec-dns = { group = "io.netty", name = "netty-codec-dns", version.ref = "netty" }
 netty-codec-http = { group = "io.netty", name = "netty-codec-http", version.ref = "netty" }
 netty-codec-http2 = { group = "io.netty", name = "netty-codec-http2", version.ref = "netty" }
+netty-codec-http3 = { group = "io.netty", name = "netty-codec-http3", version.ref = "netty" }
 netty-common = { group = "io.netty", name = "netty-common", version.ref = "netty" }
 netty-handler = { group = "io.netty", name = "netty-handler", version.ref = "netty" }
 netty-resolver-dns = { group = "io.netty", name = "netty-resolver-dns", version.ref = "netty" }
@@ -184,7 +187,9 @@ lucene = [
 
 netty = [
     "netty-buffer",
+    "netty-codec-base",
     "netty-codec",
+    "netty-codec-compression",
     "netty-codec-dns",
     "netty-codec-http",
     "netty-codec-http2",

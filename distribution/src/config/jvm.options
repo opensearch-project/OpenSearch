@@ -86,3 +86,6 @@ ${error.file}
 
 21-:-javaagent:agent/opensearch-agent.jar
 21-:--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
+
+# See please https://github.com/netty/netty/issues/1563
+-Dio.netty.allocator.type=pooled
