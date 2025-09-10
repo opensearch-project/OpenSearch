@@ -63,6 +63,28 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
  *     unluckily suddenly requires a large merge will see that merge aggressively
  *     throttled, while an application doing heavy indexing will see the throttle
  *     move higher to allow merges to keep up with ongoing indexing.
+ *
+ * <li><code>index.merge.scheduler.max_force_merge_mb_per_sec</code>:
+ * <p>
+ *     Controls the rate limiting for forced merges in MB per second at the index level.
+ *     The default value of Double.POSITIVE_INFINITY means no rate limiting is applied.
+ *     Setting a finite positive value will limit the throughput of forced merge operations
+ *     to the specified rate. This setting takes precedence over the cluster-level setting.
+ *
+ * <li><code>cluster.merge.scheduler.max_force_merge_mb_per_sec</code>:
+ * <p>
+ *     Controls the rate limiting for forced merges in MB per second at the cluster level.
+ *     The default value of Double.POSITIVE_INFINITY means no rate limiting is applied.
+ *     This setting is used as a fallback when the index-level setting is not specified.
+ *     Index-level settings take precedence over this cluster-level setting.
+ * </ul>
+ *
+ * <p><b>Setting Precedence:</b>
+ * <ul>
+ * <li>If only index-level setting is specified: uses index value
+ * <li>If only cluster-level setting is specified: uses cluster value
+ * <li>If both settings are specified: uses index value (index takes precedence)
+ * <li>If neither setting is specified: uses default value (Double.POSITIVE_INFINITY)
  * </ul>
  *
  * @opensearch.api
@@ -90,16 +112,41 @@ public final class MergeSchedulerConfig {
         Property.Dynamic,
         Property.IndexScope
     );
+    public static final Setting<Double> MAX_FORCE_MERGE_MB_PER_SEC_SETTING = Setting.doubleSetting(
+        "index.merge.scheduler.max_force_merge_mb_per_sec",
+        Double.POSITIVE_INFINITY,
+        0.0d,
+        Double.POSITIVE_INFINITY,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<Double> CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING = Setting.doubleSetting(
+        "cluster.merge.scheduler.max_force_merge_mb_per_sec",
+        Double.POSITIVE_INFINITY,
+        0.0d,
+        Double.POSITIVE_INFINITY,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile boolean autoThrottle;
     private volatile int maxThreadCount;
     private volatile int maxMergeCount;
+    private volatile double maxForceMergeMBPerSec;
 
     MergeSchedulerConfig(IndexSettings indexSettings) {
         int maxThread = indexSettings.getValue(MAX_THREAD_COUNT_SETTING);
         int maxMerge = indexSettings.getValue(MAX_MERGE_COUNT_SETTING);
         setMaxThreadAndMergeCount(maxThread, maxMerge);
         this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);
+
+        // Index setting takes precedence over cluster setting
+        if (MAX_FORCE_MERGE_MB_PER_SEC_SETTING.exists(indexSettings.getSettings())) {
+            this.maxForceMergeMBPerSec = indexSettings.getValue(MAX_FORCE_MERGE_MB_PER_SEC_SETTING);
+        } else {
+            this.maxForceMergeMBPerSec = CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING.get(indexSettings.getNodeSettings());
+        }
     }
 
     /**
@@ -150,5 +197,21 @@ public final class MergeSchedulerConfig {
      */
     public int getMaxMergeCount() {
         return maxMergeCount;
+    }
+
+    /**
+     * Returns the maximum force merge rate in MB per second.
+     * A value of Double.POSITIVE_INFINITY indicates no rate limiting.
+     */
+    public double getMaxForceMergeMBPerSec() {
+        return maxForceMergeMBPerSec;
+    }
+
+    /**
+     * Sets the maximum force merge rate in MB per second.
+     * A value of Double.POSITIVE_INFINITY disables rate limiting.
+     */
+    void setMaxForceMergeMBPerSec(double maxForceMergeMBPerSec) {
+        this.maxForceMergeMBPerSec = maxForceMergeMBPerSec;
     }
 }

@@ -90,6 +90,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
                 MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
                 MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
+                MergeSchedulerConfig.MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED,
                 IndexMetadata.SETTING_INDEX_CREATION_DATE,
                 IndexMetadata.INDEX_UUID_SETTING,

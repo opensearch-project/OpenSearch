@@ -112,6 +112,7 @@ import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
@@ -514,6 +515,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                 IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
                 IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY,
+                MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
                 ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
                 ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
