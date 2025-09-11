@@ -319,6 +319,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
+                RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
@@ -804,6 +805,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
+                SearchService.QUERY_REWRITING_ENABLED_SETTING,
+                SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,

@@ -41,6 +41,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 /**
@@ -97,7 +98,7 @@ public class URLBlobStore implements BlobStore {
     public BlobContainer blobContainer(BlobPath path) {
         try {
             return new URLBlobContainer(this, path, buildPath(path));
-        } catch (MalformedURLException ex) {
+        } catch (MalformedURLException | URISyntaxException ex) {
             throw new BlobStoreException("malformed URL " + path, ex);
         }
     }
@@ -113,17 +114,15 @@ public class URLBlobStore implements BlobStore {
      * @param path relative path
      * @return Base URL + path
      */
-    private URL buildPath(BlobPath path) throws MalformedURLException {
+    private URL buildPath(BlobPath path) throws MalformedURLException, URISyntaxException {
         String[] paths = path.toArray();
         if (paths.length == 0) {
             return path();
         }
-        URL blobPath = new URL(this.path, paths[0] + "/");
-        if (paths.length > 1) {
-            for (int i = 1; i < paths.length; i++) {
-                blobPath = new URL(blobPath, paths[i] + "/");
-            }
+        var uri = this.path.toURI();
+        for (String pathElement : paths) {
+            uri = uri.resolve(pathElement + "/");
         }
-        return blobPath;
+        return uri.toURL();
     }
 }

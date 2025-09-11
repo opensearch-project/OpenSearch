@@ -50,7 +50,8 @@ public class LocalTranslog extends Translog {
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer,
-        final TranslogOperationHelper translogOperationHelper
+        final TranslogOperationHelper translogOperationHelper,
+        final ChannelFactory channelFactory
     ) throws IOException {
         super(
             config,
@@ -59,7 +60,8 @@ public class LocalTranslog extends Translog {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            translogOperationHelper
+            translogOperationHelper,
+            channelFactory
         );
         try {
             final Checkpoint checkpoint = readCheckpoint(location);
@@ -111,6 +113,30 @@ public class LocalTranslog extends Translog {
             IOUtils.closeWhileHandlingException(readers);
             throw e;
         }
+    }
+
+    /**
+     * Secondary constructor that does not accept ChannelFactory parameter.
+     */
+    public LocalTranslog(
+        final TranslogConfig config,
+        final String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final TranslogOperationHelper translogOperationHelper
+    ) throws IOException {
+        this(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            translogOperationHelper,
+            null
+        );
     }
 
     /**

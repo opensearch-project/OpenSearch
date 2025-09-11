@@ -184,7 +184,7 @@ public class GetTermVectorsTests extends OpenSearchSingleNodeTestCase {
             .put("index.analysis.filter.my_delimited_payload.encoding", encodingString)
             .put("index.analysis.filter.my_delimited_payload.type", "mock_payload_filter")
             .build();
-        createIndex("test", setting, "type1", mapping);
+        createIndex("test", setting, mapping);
 
         client().prepareIndex("test")
             .setId(Integer.toString(1))

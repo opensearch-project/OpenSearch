@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -47,7 +48,14 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
     }
 
-    public void testGetWithSegmentReplicationEnabled() {
+    @Override
+    public void tearDown() throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        super.tearDown();
+    }
+
+    public void testGetWithSegmentReplicationAndExperimentalFeatureFlagEnabled() {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
         IndexSettings indexSettings = createIndexSettings(
             false,
             Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
@@ -59,7 +67,19 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
         assertTrue(warmer instanceof MergedSegmentWarmer);
     }
 
-    public void testGetWithRemoteStoreEnabled() {
+    public void testGetWithSegmentReplicationAndExperimentalFeatureFlagDisabled() {
+        IndexSettings indexSettings = createIndexSettings(
+            false,
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
+        );
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
+        IndexWriter.IndexReaderWarmer warmer = factory.get(indexShard);
+
+        assertNull(warmer);
+    }
+
+    public void testGetWithRemoteStoreEnabledAndExperimentalFeatureFlagEnabled() {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
         IndexSettings indexSettings = createIndexSettings(
             true,
             Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
@@ -72,7 +92,32 @@ public class MergedSegmentWarmerFactoryTests extends OpenSearchTestCase {
         assertTrue(warmer instanceof MergedSegmentWarmer);
     }
 
-    public void testGetWithDocumentReplication() {
+    public void testGetWithRemoteStoreEnabledAndExperimentalFeatureFlagDisabled() {
+        IndexSettings indexSettings = createIndexSettings(
+            true,
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build()
+        );
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
+
+        IndexWriter.IndexReaderWarmer warmer = factory.get(indexShard);
+
+        assertNull(warmer);
+    }
+
+    public void testGetWithDocumentReplicationAndExperimentalFeatureFlagEnabled() {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG, true).build());
+        IndexSettings indexSettings = createIndexSettings(
+            false,
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build()
+        );
+
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
+        IndexWriter.IndexReaderWarmer warmer = factory.get(indexShard);
+
+        assertNull(warmer);
+    }
+
+    public void testGetWithDocumentReplicationAndExperimentalFeatureFlagDisabled() {
         IndexSettings indexSettings = createIndexSettings(
             false,
             Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build()

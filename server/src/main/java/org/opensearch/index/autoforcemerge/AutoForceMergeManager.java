@@ -62,13 +62,13 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
     private final JvmService jvmService;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
-    private final AsyncForceMergeTask task;
+    private AsyncForceMergeTask task;
     private ConfigurationValidator configurationValidator;
     private NodeValidator nodeValidator;
     private ShardValidator shardValidator;
     private Integer allocatedProcessors;
     private ResourceTrackerProvider.ResourceTrackers resourceTrackers;
-    private final ForceMergeManagerSettings forceMergeManagerSettings;
+    private ForceMergeManagerSettings forceMergeManagerSettings;
     private final CommonStatsFlags flags = new CommonStatsFlags(CommonStatsFlags.Flag.Segments, CommonStatsFlags.Flag.Translog);
     private final Set<Integer> mergingShards;
 
@@ -86,13 +86,13 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         this.jvmService = monitorService.jvmService();
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.forceMergeManagerSettings = new ForceMergeManagerSettings(clusterService, this::modifySchedulerInterval);
-        this.task = new AsyncForceMergeTask();
         this.mergingShards = new HashSet<>();
     }
 
     @Override
     protected void doStart() {
+        this.forceMergeManagerSettings = new ForceMergeManagerSettings(clusterService, this::modifySchedulerInterval);
+        this.task = new AsyncForceMergeTask();
         this.configurationValidator = new ConfigurationValidator();
         this.nodeValidator = new NodeValidator();
         this.shardValidator = new ShardValidator();

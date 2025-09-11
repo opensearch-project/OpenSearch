@@ -50,7 +50,6 @@ import org.opensearch.transport.RemoteTransportException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -449,20 +448,9 @@ public class ReloadSecureSettingsIT extends OpenSearchIntegTestCase {
         }
     }
 
-    @SuppressWarnings("removal")
     private SecureSettings writeEmptyKeystore(Environment environment, char[] password) throws Exception {
         final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-        try {
-            keyStoreWrapper.save(environment.configDir(), password);
-        } catch (final AccessControlException e) {
-            if (e.getPermission() instanceof RuntimePermission && e.getPermission().getName().equals("accessUserInformation")) {
-                // this is expected: the save method is extra diligent and wants to make sure
-                // the keystore is readable, not relying on umask and whatnot. It's ok, we don't
-                // care about this in tests.
-            } else {
-                throw e;
-            }
-        }
+        keyStoreWrapper.save(environment.configDir(), password);
         return keyStoreWrapper;
     }
 
