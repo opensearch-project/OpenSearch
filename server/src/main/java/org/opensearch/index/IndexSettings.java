@@ -796,6 +796,22 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_MERGED_SEGMENT_WARMER_PRESSURE_ENABLED = Setting.boolSetting(
+        "index.merged_segment_warmer.pressure.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+
+    public static final Setting<Double> INDEX_MERGED_SEGMENT_WARMER_MAX_CONCURRENT_WARMS_FACTOR = Setting.doubleSetting(
+        "index.merged_segment_warmer.max_concurrent_warms_factor",
+        0.5d,
+        0,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+
     public static final Setting<Boolean> INDEX_DERIVED_SOURCE_SETTING = Setting.boolSetting(
         "index.derived_source.enabled",
         false,
@@ -863,6 +879,8 @@ public final class IndexSettings {
     private volatile boolean allowDerivedField;
     private final boolean derivedSourceEnabled;
     private volatile boolean derivedSourceEnabledForTranslog;
+    private volatile double maxConcurrentMergedSegmentWarmsFactor;
+    private volatile boolean mergedSegmentWarmerPressureEnabled;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1103,6 +1121,8 @@ public final class IndexSettings {
         derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
         derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
+        this.mergedSegmentWarmerPressureEnabled = scopedSettings.get(INDEX_MERGED_SEGMENT_WARMER_PRESSURE_ENABLED);
+        this.maxConcurrentMergedSegmentWarmsFactor = scopedSettings.get(INDEX_MERGED_SEGMENT_WARMER_MAX_CONCURRENT_WARMS_FACTOR);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -1248,6 +1268,27 @@ public final class IndexSettings {
             this::setRemoteStoreTranslogRepository
         );
         scopedSettings.addSettingsUpdateConsumer(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING, this::setStarTreeIndexEnabled);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGED_SEGMENT_WARMER_PRESSURE_ENABLED, this::setMergedSegmentWarmerPressureEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MERGED_SEGMENT_WARMER_MAX_CONCURRENT_WARMS_FACTOR,
+            this::setMaxConcurrentMergedSegmentWarmsFactor
+        );
+    }
+
+    private void setMergedSegmentWarmerPressureEnabled(Boolean value) {
+        this.mergedSegmentWarmerPressureEnabled = value;
+    }
+
+    public boolean isMergedSegmentWarmerPressureEnabled() {
+        return this.mergedSegmentWarmerPressureEnabled;
+    }
+
+    private void setMaxConcurrentMergedSegmentWarmsFactor(Double value) {
+        this.maxConcurrentMergedSegmentWarmsFactor = value;
+    }
+
+    public double getMaxConcurrentMergedSegmentWarmsFactor() {
+        return this.maxConcurrentMergedSegmentWarmsFactor;
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {

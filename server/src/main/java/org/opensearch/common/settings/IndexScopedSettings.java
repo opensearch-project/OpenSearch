@@ -288,6 +288,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_DERIVED_SOURCE_SETTING,
                 IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING,
 
+                // Settings for merged segment warmer backpressure
+                IndexSettings.INDEX_MERGED_SEGMENT_WARMER_PRESSURE_ENABLED,
+                IndexSettings.INDEX_MERGED_SEGMENT_WARMER_MAX_CONCURRENT_WARMS_FACTOR,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();

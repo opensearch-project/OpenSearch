@@ -62,6 +62,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -591,6 +592,87 @@ public class RestIndicesAction extends AbstractListAction {
         );
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
 
+        table.addCell(
+            "merges.merged_segment_warmer.total_invocations",
+            "alias:mswti,mergedSegmentWarmerTotalInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+        table.addCell(
+            "pri.merges.merged_segment_warmer.total_invocations",
+            "default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+
+        table.addCell(
+            "merges.merged_segment_warmer.total_time",
+            "alias:mswtt,mergedSegmentWarmerTotalTime;default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+        table.addCell(
+            "pri.merges.merged_segment_warmer.total_time",
+            "default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+
+        table.addCell(
+            "merges.merged_segment_warmer.ongoing_count",
+            "alias:mswoc,mergedSegmentWarmerOngoingCount;default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+        table.addCell(
+            "pri.merges.merged_segment_warmer.ongoing_count",
+            "default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+
+        table.addCell(
+            "merges.merged_segment_warmer.total_bytes_received",
+            "alias:mswtbr,mergedSegmentWarmerTotalBytesReceived;default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+        table.addCell(
+            "pri.merges.merged_segment_warmer.total_bytes_received",
+            "default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+
+        table.addCell(
+            "merges.merged_segment_warmer.total_bytes_sent",
+            "alias:mswtbs,mergedSegmentWarmerTotalBytesSent;default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+        table.addCell(
+            "pri.merges.merged_segment_warmer.total_bytes_sent",
+            "default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+
+        table.addCell(
+            "merges.merged_segment_warmer.total_receive_time",
+            "alias:mswtrt,mergedSegmentWarmerTotalReceiveTime;default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+        table.addCell(
+            "pri.merges.merged_segment_warmer.total_receive_time",
+            "default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+
+        table.addCell(
+            "merges.merged_segment_warmer.total_failure_count",
+            "alias:mswtfc,mergedSegmentWarmerTotalFailureCount;default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+        table.addCell(
+            "pri.merges.merged_segment_warmer.total_failure_count",
+            "default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+
+        table.addCell(
+            "merges.merged_segment_warmer.total_send_time",
+            "alias:mswtst,mergedSegmentWarmerTotalSendTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+        table.addCell(
+            "pri.merges.merged_segment_warmer.total_send_time",
+            "default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+
+        table.addCell(
+            "merged_segment_warmer.total_rejected_count",
+            "alias:mswtrc,mergedSegmentWarmerTotalRejectedCount;default:false;text-align:right;desc:total number of merged segment warm operations rejected by the pressure service"
+        );
+        table.addCell(
+            "pri.merged_segment_warmer.total_rejected_count",
+            "default:false;text-align:right;desc:total number of merged segment warm operations rejected by the pressure service"
+        );
+
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
 
@@ -980,6 +1062,42 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalTime());
             table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalTime());
+
+            MergedSegmentWarmerStats mergedSegmentWarmerTotalStats = totalStats.getMerge() == null
+                ? null
+                : totalStats.getMerge().getWarmerStats();
+            MergedSegmentWarmerStats mergedSegmentWarmerPrimaryStats = primaryStats.getMerge() == null
+                ? null
+                : primaryStats.getMerge().getWarmerStats();
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalInvocationsCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalInvocationsCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalTime());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getOngoingCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getOngoingCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalReceivedSize());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalReceivedSize());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalSentSize());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalSentSize());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalReceiveTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalReceiveTime());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalFailureCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalFailureCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalSendTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalSendTime());
+
+            table.addCell(totalStats.getMergedSegmentWarmer() == null ? null : totalStats.getMergedSegmentWarmer().getTotalRejectedCount());
+            table.addCell(
+                primaryStats.getMergedSegmentWarmer() == null ? null : primaryStats.getMergedSegmentWarmer().getTotalRejectedCount()
+            );
 
             table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());
             table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotal());

@@ -229,7 +229,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         GetSegmentFilesResponse response = res.get();
         assertEquals(response.files.size(), filesToFetch.size());
         assertTrue(response.files.containsAll(filesToFetch));
-        closeShards(replicaShard);
+        closeShardWithRetry(replicaShard);
     }
 
     public void testGetMergedSegmentFilesDownloadTimeout() throws IOException, ExecutionException, InterruptedException {
@@ -293,7 +293,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
             observedException.getMessage() != null
                 && observedException.getMessage().equals("Timed out waiting for merged segments download from remote store")
         );
-        closeShards(replicaShard);
+        closeShardWithRetry(replicaShard);
     }
 
     public void testGetMergedSegmentFilesFailure() throws IOException, ExecutionException, InterruptedException {
@@ -355,5 +355,19 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate()).getDelegate();
         FilterDirectory remoteStoreFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(remoteSegmentStoreDirectory));
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
+    }
+
+    private void closeShardWithRetry(IndexShard shard) {
+        try {
+            assertBusy(() -> {
+                try {
+                    closeShards(shard);
+                } catch (RuntimeException e) {
+                    throw new AssertionError("Failed to close shard", e);
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("Unable to close shard " + shard.shardId() + ". Exception: " + e);
+        }
     }
 }

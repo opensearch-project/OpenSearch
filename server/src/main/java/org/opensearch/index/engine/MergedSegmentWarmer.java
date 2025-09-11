@@ -16,6 +16,8 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
+import org.opensearch.index.merge.MergedSegmentWarmerPressureService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.transport.TransportService;
@@ -33,7 +35,8 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
     private final IndexShard indexShard;
-
+    private final MergedSegmentWarmerPressureService mergedSegmentWarmerPressureService;
+    private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
     private final Logger logger;
 
     public MergedSegmentWarmer(
@@ -46,6 +49,8 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.indexShard = indexShard;
+        this.mergedSegmentWarmerPressureService = indexShard.mergedSegmentWarmerPressureService();
+        this.mergedSegmentTransferTracker = indexShard.mergedSegmentTransferTracker();
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
     }
 
@@ -54,30 +59,52 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         if (shouldWarm() == false) {
             return;
         }
+
+        mergedSegmentTransferTracker.incrementTotalWarmInvocationsCount();
+        mergedSegmentTransferTracker.incrementOngoingWarms();
         // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
         assert leafReader instanceof SegmentReader;
         assert indexShard.indexSettings().isSegRepLocalEnabled() || indexShard.indexSettings().isRemoteStoreEnabled();
-
         long startTime = System.currentTimeMillis();
-        SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
-        logger.trace(() -> new ParameterizedMessage("Warming segment: {}", segmentCommitInfo));
-        indexShard.publishMergedSegment(segmentCommitInfo);
-        logger.trace(() -> {
-            long segmentSize = -1;
-            try {
-                segmentSize = segmentCommitInfo.sizeInBytes();
-            } catch (IOException ignored) {}
-            return new ParameterizedMessage(
-                "Completed segment warming for {}. Size: {}B, Timing: {}ms",
-                segmentCommitInfo.info.name,
-                segmentSize,
-                (System.currentTimeMillis() - startTime)
-            );
-        });
+        long elapsedTime = 0;
+        try {
+            SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
+            logger.trace(() -> new ParameterizedMessage("Warming segment: {}", segmentCommitInfo));
+            indexShard.publishMergedSegment(segmentCommitInfo);
+            elapsedTime = System.currentTimeMillis() - startTime;
+            long finalElapsedTime = elapsedTime;
+            logger.trace(() -> {
+                long segmentSize = -1;
+                try {
+                    segmentSize = segmentCommitInfo.sizeInBytes();
+                } catch (IOException ignored) {}
+                return new ParameterizedMessage(
+                    "Completed segment warming for {}. Size: {}B, Timing: {}ms",
+                    segmentCommitInfo.info.name,
+                    segmentSize,
+                    finalElapsedTime
+                );
+            });
+        } catch (IOException e) {
+            mergedSegmentTransferTracker.incrementTotalWarmFailureCount();
+        } finally {
+            mergedSegmentTransferTracker.addTotalWarmTimeMillis(elapsedTime);
+            mergedSegmentTransferTracker.decrementOngoingWarms();
+        }
     }
 
     // package-private for tests
     boolean shouldWarm() {
-        return indexShard.getRecoverySettings().isMergedSegmentReplicationWarmerEnabled() == true;
+        if (indexShard.getRecoverySettings().isMergedSegmentReplicationWarmerEnabled() == false) {
+            return false;
+        }
+
+        if (mergedSegmentWarmerPressureService.isEnabled()
+            && mergedSegmentWarmerPressureService.shouldWarm(mergedSegmentTransferTracker.stats()) == false) {
+            mergedSegmentTransferTracker.incrementTotalRejectedCount();
+            return false;
+        }
+
+        return true;
     }
 }
