@@ -102,6 +102,27 @@ public class BooleanFlatteningRewriterTests extends OpenSearchTestCase {
         assertThat(rewrittenBool.mustNot().get(0), instanceOf(BoolQueryBuilder.class));
     }
 
+    public void testDoubleNegationConvertedToPositiveMustShould() {
+        // not( bool( must_not: [ term ] ) )  => must( bool( should: [ term ], msm=1 ) )
+        QueryBuilder inner = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("product", "Oranges"));
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(inner);
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+
+        // No must_not remains at top level
+        assertThat(rewrittenBool.mustNot().size(), equalTo(0));
+        // One MUST that is an OR over the inner negatives
+        assertThat(rewrittenBool.must().size(), equalTo(1));
+        assertThat(rewrittenBool.must().get(0), instanceOf(BoolQueryBuilder.class));
+
+        BoolQueryBuilder mustBool = (BoolQueryBuilder) rewrittenBool.must().get(0);
+        assertThat(mustBool.should().size(), equalTo(1));
+        assertThat(mustBool.minimumShouldMatch(), equalTo("1"));
+        assertThat(mustBool.should().get(0), instanceOf(QueryBuilders.termQuery("product", "Oranges").getClass()));
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18906")
     public void testDeepNesting() {
         // TODO: This test expects complete flattening of deeply nested bool queries

@@ -129,11 +129,24 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
             if (clause instanceof BoolQueryBuilder) {
                 BoolQueryBuilder nestedBool = (BoolQueryBuilder) clause;
 
-                if (canFlatten(nestedBool, clauseType)) {
-                    // Flatten the nested bool query by extracting its clauses
+                // Special handling for double negation: NOT over a bool that is ONLY NOTs
+                if (clauseType == ClauseType.MUST_NOT && canFlatten(nestedBool, ClauseType.MUST_NOT)) {
+                    // not( bool( must_not: [X1..Xn] ) )  ==>  must( bool( should: [X1..Xn], minimum_should_match: 1 ) )
+                    // This preserves the logical equivalence not(not(X)) == X and generalizes to multiple X via OR.
+                    BoolQueryBuilder orQuery = new BoolQueryBuilder();
+                    orQuery.minimumShouldMatch(1);
+                    for (QueryBuilder nestedClause : nestedBool.mustNot()) {
+                        if (nestedClause instanceof BoolQueryBuilder) {
+                            nestedClause = flattenBoolQuery((BoolQueryBuilder) nestedClause);
+                        }
+                        orQuery.should(nestedClause);
+                    }
+                    // Use FILTER to preserve scoring semantics (must_not does not contribute to score)
+                    target.filter(orQuery);
+                } else if (canFlatten(nestedBool, clauseType)) {
+                    // General flattening for same-clause-type nesting
                     List<QueryBuilder> nestedClauses = getClausesForType(nestedBool, clauseType);
                     for (QueryBuilder nestedClause : nestedClauses) {
-                        // Recursively flatten if needed
                         if (nestedClause instanceof BoolQueryBuilder) {
                             nestedClause = flattenBoolQuery((BoolQueryBuilder) nestedClause);
                         }
