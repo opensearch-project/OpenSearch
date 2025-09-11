@@ -87,7 +87,7 @@ public final class Numbers {
             case Byte b -> b.longValue();
             case Short s -> s.longValue();
             case Integer i -> i.longValue();
-            case Long l -> l.longValue();
+            case Long l -> l;
             case Float f -> {
                 double d = f.doubleValue();
                 if (d != Math.round(d)) {
