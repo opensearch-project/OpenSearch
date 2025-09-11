@@ -233,7 +233,7 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
         }
         Map<String, List<AliasMetadata>> indexToAliasesMap = state.metadata().findAliases(request, concreteIndices);
 
-        return ResolvedIndices.of(indexToAliasesMap.keySet())
+        return ResolvedIndices.of(concreteIndices)
             .withLocalSubActions(
                 GetAliasesAction.NAME + "[aliases]",
                 ResolvedIndices.Local.of(
