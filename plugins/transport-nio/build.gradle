@@ -157,7 +157,6 @@ thirdPartyAudit {
   )
 
   ignoreViolations(
-
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
