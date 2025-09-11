@@ -49,6 +49,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.sort.ShardDocFieldComparatorSource;
 import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
@@ -161,6 +162,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         } else if ("LatLonPointSortField".equals(sortField.getClass().getSimpleName())) {
             // for geo distance sorting
             return SortField.Type.DOUBLE;
+        } else if (sortField.getComparatorSource() instanceof ShardDocFieldComparatorSource) {
+            return SortField.Type.LONG;
         } else {
             return sortField.getType();
         }
