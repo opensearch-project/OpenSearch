@@ -131,7 +131,7 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
 
                 // Special handling for double negation: NOT over a bool that is ONLY NOTs
                 if (clauseType == ClauseType.MUST_NOT && canFlatten(nestedBool, ClauseType.MUST_NOT)) {
-                    // not( bool( must_not: [X1..Xn] ) )  ==>  must( bool( should: [X1..Xn], minimum_should_match: 1 ) )
+                    // not( bool( must_not: [X1..Xn] ) ) ==> must( bool( should: [X1..Xn], minimum_should_match: 1 ) )
                     // This preserves the logical equivalence not(not(X)) == X and generalizes to multiple X via OR.
                     BoolQueryBuilder orQuery = new BoolQueryBuilder();
                     orQuery.minimumShouldMatch(1);

@@ -103,7 +103,7 @@ public class BooleanFlatteningRewriterTests extends OpenSearchTestCase {
     }
 
     public void testDoubleNegationConvertedToPositiveMustShould() {
-        // not( bool( must_not: [ term ] ) )  => must( bool( should: [ term ], msm=1 ) )
+        // not( bool( must_not: [ term ] ) ) => must( bool( should: [ term ], msm=1 ) )
         QueryBuilder inner = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("product", "Oranges"));
         QueryBuilder query = QueryBuilders.boolQuery().mustNot(inner);
 
