@@ -261,15 +261,22 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
                         .stream()
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    
+                    Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
+                    boolean hasNewFilesToUpload = !filteredFiles.isEmpty();
+                    
                     CountDownLatch latch = new CountDownLatch(1);
                     ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
                         @Override
                         public void onResponse(Void unused) {
                             try {
                                 logger.debug("New segments upload successful");
-                                // Start metadata file upload
-                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
-                                logger.debug("Metadata upload successful");
+                                if (hasNewFilesToUpload) {
+                                    uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                    logger.debug("Metadata upload successful");
+                                } else {
+                                    logger.debug("No new segment files to upload, skipping metadata upload");
+                                }
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
@@ -279,13 +286,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                     localSegmentsSizeMap,
                                     checkpoint
                                 );
-                                // At this point since we have uploaded new segments, segment infos and segment metadata file,
-                                // along with marking minSeqNoToKeep, upload has succeeded completely.
                                 successful.set(true);
                             } catch (Exception e) {
-                                // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
-                                // as part of exponential back-off retry logic. This should not affect durability of the indexed data
-                                // with remote trans-log integration.
                                 logger.warn("Exception in post new segment upload actions", e);
                             }
                         }
