@@ -98,7 +98,7 @@ public class PublishCheckpointAction extends AbstractPublishCheckpointAction<Pub
      * Publish checkpoint request to shard
      */
     final void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
-        doPublish(indexShard, checkpoint, new PublishCheckpointRequest(checkpoint), TASK_ACTION_NAME, false, null);
+        doPublish(indexShard, checkpoint, new PublishCheckpointRequest(checkpoint), TASK_ACTION_NAME, false, null, ActionListener.noOp());
     }
 
     @Override
