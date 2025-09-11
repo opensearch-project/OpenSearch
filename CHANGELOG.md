@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add subdirectory-aware store module with recovery support ([#19132](https://github.com/opensearch-project/OpenSearch/pull/19132))
 - Add a dynamic cluster setting to control the enablement of the merged segment warmer ([#18929](https://github.com/opensearch-project/OpenSearch/pull/18929))
 - Publish transport-grpc-spi exposing QueryBuilderProtoConverter and QueryBuilderProtoConverterRegistry ([#18949](https://github.com/opensearch-project/OpenSearch/pull/18949))
+- Support system generated search pipeline. ([#19128](https://github.com/opensearch-project/OpenSearch/pull/19128))
+
 ### Changed
 - Add CompletionStage variants to methods in the Client Interface and default to ActionListener impl ([#18998](https://github.com/opensearch-project/OpenSearch/pull/18998))
 - IllegalArgumentException when scroll ID references a node not found in Cluster ([#19031](https://github.com/opensearch-project/OpenSearch/pull/19031))
@@ -24,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Replace centos:8 with almalinux:8 since centos docker images are deprecated ([#19154](https://github.com/opensearch-project/OpenSearch/pull/19154))
 - Add CompletionStage variants to IndicesAdminClient as an alternative to ActionListener ([#19161](https://github.com/opensearch-project/OpenSearch/pull/19161))
 - Remove cap on Java version used by forbidden APIs ([#19163](https://github.com/opensearch-project/OpenSearch/pull/19163))
+- Disable pruning for `doc_values` for the wildcard field mapper ([#18568](https://github.com/opensearch-project/OpenSearch/pull/18568))
 
 ### Fixed
 - Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
@@ -39,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix pull-based ingestion pause state initialization during replica promotion ([#19212](https://github.com/opensearch-project/OpenSearch/pull/19212))
 - Fix QueryPhaseResultConsumer incomplete callback loops ([#19231](https://github.com/opensearch-project/OpenSearch/pull/19231))
 - Fix the `scaled_float` precision issue ([#19188](https://github.com/opensearch-project/OpenSearch/pull/19188))
+- Fix Using an excessively large reindex slice can lead to a JVM OutOfMemoryError on coordinator.([#18964](https://github.com/opensearch-project/OpenSearch/pull/18964))
 
 ### Dependencies
 - Bump `com.netflix.nebula.ospackage-base` from 12.0.0 to 12.1.0 ([#19019](https://github.com/opensearch-project/OpenSearch/pull/19019))
@@ -50,7 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update OpenTelemetry to 1.53.0 and OpenTelemetry SemConv to 1.34.0 ([#19068](https://github.com/opensearch-project/OpenSearch/pull/19068))
 - Bump `1password/load-secrets-action` from 2 to 3 ([#19100](https://github.com/opensearch-project/OpenSearch/pull/19100))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.3 to 10.4.2 ([#19099](https://github.com/opensearch-project/OpenSearch/pull/19099), [#19101](https://github.com/opensearch-project/OpenSearch/pull/19101))
-- Bump netty from 4.1.121.Final to 4.1.124.Final ([#19103](https://github.com/opensearch-project/OpenSearch/pull/19103))
+- Bump netty from 4.1.121.Final to 4.1.125.Final ([#19103](https://github.com/opensearch-project/OpenSearch/pull/19103)) ([#19269](https://github.com/opensearch-project/OpenSearch/pull/19269)
 - Bump Google Cloud Storage SDK from 1.113.1 to 2.55.0 ([#18922](https://github.com/opensearch-project/OpenSearch/pull/18922))
 - Bump `com.google.auth:google-auth-library-oauth2-http` from 1.37.1 to 1.38.0 ([#19144](https://github.com/opensearch-project/OpenSearch/pull/19144))
 - Bump `com.squareup.okio:okio` from 3.15.0 to 3.16.0 ([#19146](https://github.com/opensearch-project/OpenSearch/pull/19146))
@@ -69,6 +73,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.1 to 3.4.2 ([#19203](https://github.com/opensearch-project/OpenSearch/pull/19203))
 - Bump `com.maxmind.geoip2:geoip2` from 4.3.1 to 4.4.0 ([#19205](https://github.com/opensearch-project/OpenSearch/pull/19205))
 - Bump `org.jboss.xnio:xnio-nio` from 3.8.16.Final to 3.8.17.Final ([#19252](https://github.com/opensearch-project/OpenSearch/pull/19252))
+- Bump `actions/setup-java` from 4 to 5 ([#19143](https://github.com/opensearch-project/OpenSearch/pull/19143))
 
 ### Deprecated
 
