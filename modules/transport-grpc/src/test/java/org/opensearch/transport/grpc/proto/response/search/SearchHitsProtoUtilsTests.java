@@ -49,8 +49,8 @@ public class SearchHitsProtoUtilsTests extends OpenSearchTestCase {
             org.opensearch.protobufs.TotalHitsRelation.TOTAL_HITS_RELATION_EQ,
             hitsMetadata.getTotal().getTotalHits().getRelation()
         );
-        // Max score is HitsMetadataMaxScore object with getFloatValue() method
-        assertEquals("Max score should match", 3.0f, hitsMetadata.getMaxScore().getFloatValue(), 0.0f);
+        // Max score is HitsMetadataMaxScore object with getFloat() method
+        assertEquals("Max score should match", 3.0f, hitsMetadata.getMaxScore().getFloat(), 0.0f);
         assertEquals("Hits count should match", 2, hitsMetadata.getHitsCount());
         assertEquals("First hit ID should match", "test_id_1", hitsMetadata.getHits(0).getXId());
         assertEquals("Second hit ID should match", "test_id_2", hitsMetadata.getHits(1).getXId());
@@ -73,7 +73,7 @@ public class SearchHitsProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("HitsMetadata should not be null", hitsMetadata);
         assertFalse("Total hits should not have value", hitsMetadata.getTotal().hasTotalHits());
-        assertEquals("Max score should match", 2.0f, hitsMetadata.getMaxScore().getFloatValue(), 0.0f);
+        assertEquals("Max score should match", 2.0f, hitsMetadata.getMaxScore().getFloat(), 0.0f);
         assertEquals("Hits count should match", 1, hitsMetadata.getHitsCount());
     }
 

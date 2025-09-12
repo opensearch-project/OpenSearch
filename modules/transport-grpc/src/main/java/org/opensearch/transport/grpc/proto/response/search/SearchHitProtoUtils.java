@@ -42,7 +42,7 @@ public class SearchHitProtoUtils {
      * This method is equivalent to {@link SearchHit#toXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param hit The SearchHit to convert
-     * @return A Protocol Buffer HitsMetadataHitsInner representation
+     * @return A Protocol Buffer Hit representation
      * @throws IOException if there's an error during conversion
      */
     protected static org.opensearch.protobufs.HitsMetadataHitsInner toProto(SearchHit hit) throws IOException {
@@ -151,14 +151,14 @@ public class SearchHitProtoUtils {
      */
     private static void processScore(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         if (!Float.isNaN(hit.getScore())) {
-            org.opensearch.protobufs.HitUnderscoreScore.Builder scoreBuilder = org.opensearch.protobufs.HitUnderscoreScore.newBuilder();
+            org.opensearch.protobufs.HitXScore.Builder scoreBuilder = org.opensearch.protobufs.HitXScore.newBuilder();
             scoreBuilder.setDouble(hit.getScore());
-            hitBuilder.setScore(scoreBuilder.build());
+            hitBuilder.setXScore(scoreBuilder.build());
         } else {
             // Handle null/NaN score case
-            org.opensearch.protobufs.HitUnderscoreScore.Builder scoreBuilder = org.opensearch.protobufs.HitUnderscoreScore.newBuilder();
+            org.opensearch.protobufs.HitXScore.Builder scoreBuilder = org.opensearch.protobufs.HitXScore.newBuilder();
             scoreBuilder.setNullValue(org.opensearch.protobufs.NullValue.NULL_VALUE_NULL);
-            hitBuilder.setScore(scoreBuilder.build());
+            hitBuilder.setXScore(scoreBuilder.build());
         }
     }
 

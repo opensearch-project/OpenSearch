@@ -53,10 +53,10 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("SeqNo should match", 4, hit.getXSeqNo());
         assertEquals("PrimaryTerm should match", 5, hit.getXPrimaryTerm());
 
-        // Verify the new HitUnderscoreScore structure
-        assertTrue("Score should be set", hit.hasScore());
-        assertEquals("Score should match", 2.0, hit.getScore().getDouble(), 0.0);
-        assertFalse("Score should not be null", hit.getScore().hasNullValue());
+        // Verify the score structure
+        assertTrue("Score should be set", hit.hasXScore());
+        assertEquals("Score should match", 2.0, hit.getXScore().getDouble(), 0.0);
+        assertFalse("Score should not be null", hit.getXScore().hasNullValue());
     }
 
     public void testToProtoWithNullScore() throws IOException {
@@ -69,12 +69,12 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Score should be set for NaN", hit.hasScore());
-        assertTrue("Score should have null value for NaN", hit.getScore().hasNullValue());
+        assertTrue("Score should be set for NaN", hit.hasXScore());
+        assertTrue("Score should have null value for NaN", hit.getXScore().hasNullValue());
         assertEquals(
             "Score null value should be NULL_VALUE_NULL",
             org.opensearch.protobufs.NullValue.NULL_VALUE_NULL,
-            hit.getScore().getNullValue()
+            hit.getXScore().getNullValue()
         );
     }
 
@@ -261,7 +261,7 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Nested offset should match", 5, hit.getXNested().getOffset());
     }
 
-    public void testToProtoWithHitUnderscoreScoreStructure() throws IOException {
+    public void testToProtoWithScoreStructure() throws IOException {
 
         // Test with a valid score
         SearchHit searchHitWithScore = new SearchHit(1);
@@ -270,9 +270,9 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         HitsMetadataHitsInner hitWithScore = SearchHitProtoUtils.toProto(searchHitWithScore);
 
         assertNotNull("Hit with score should not be null", hitWithScore);
-        assertTrue("Score should be set", hitWithScore.hasScore());
-        assertEquals("Score value should match", 3.14159, hitWithScore.getScore().getDouble(), 0.00001);
-        assertFalse("Score should not have null value", hitWithScore.getScore().hasNullValue());
+        assertTrue("Score should be set", hitWithScore.hasXScore());
+        assertEquals("Score value should match", 3.14159, hitWithScore.getXScore().getDouble(), 0.00001);
+        assertFalse("Score should not have null value", hitWithScore.getXScore().hasNullValue());
 
         // Test with zero score
         SearchHit searchHitWithZeroScore = new SearchHit(2);
@@ -281,9 +281,9 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         HitsMetadataHitsInner hitWithZeroScore = SearchHitProtoUtils.toProto(searchHitWithZeroScore);
 
         assertNotNull("Hit with zero score should not be null", hitWithZeroScore);
-        assertTrue("Score should be set", hitWithZeroScore.hasScore());
-        assertEquals("Zero score value should match", 0.0, hitWithZeroScore.getScore().getDouble(), 0.0);
-        assertFalse("Zero score should not have null value", hitWithZeroScore.getScore().hasNullValue());
+        assertTrue("Score should be set", hitWithZeroScore.hasXScore());
+        assertEquals("Zero score value should match", 0.0, hitWithZeroScore.getXScore().getDouble(), 0.0);
+        assertFalse("Zero score should not have null value", hitWithZeroScore.getXScore().hasNullValue());
 
         // Test with negative score
         SearchHit searchHitWithNegativeScore = new SearchHit(3);
@@ -292,8 +292,8 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         HitsMetadataHitsInner hitWithNegativeScore = SearchHitProtoUtils.toProto(searchHitWithNegativeScore);
 
         assertNotNull("Hit with negative score should not be null", hitWithNegativeScore);
-        assertTrue("Score should be set", hitWithNegativeScore.hasScore());
-        assertEquals("Negative score value should match", -1.5, hitWithNegativeScore.getScore().getDouble(), 0.0);
-        assertFalse("Negative score should not have null value", hitWithNegativeScore.getScore().hasNullValue());
+        assertTrue("Score should be set", hitWithNegativeScore.hasXScore());
+        assertEquals("Negative score value should match", -1.5, hitWithNegativeScore.getXScore().getDouble(), 0.0);
+        assertFalse("Negative score should not have null value", hitWithNegativeScore.getXScore().hasNullValue());
     }
 }

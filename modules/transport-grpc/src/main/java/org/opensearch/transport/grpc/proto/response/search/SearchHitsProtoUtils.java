@@ -104,7 +104,7 @@ public class SearchHitsProtoUtils {
         if (Float.isNaN(hits.getMaxScore())) {
             maxScoreBuilder.setNullValue(NullValue.NULL_VALUE_NULL);
         } else {
-            maxScoreBuilder.setFloatValue(hits.getMaxScore());
+            maxScoreBuilder.setFloat(hits.getMaxScore());
         }
 
         hitsMetaData.setMaxScore(maxScoreBuilder.build());
