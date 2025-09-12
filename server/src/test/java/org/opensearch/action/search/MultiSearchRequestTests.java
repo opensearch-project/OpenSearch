@@ -37,6 +37,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -56,6 +57,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.search.Scroll;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.StreamsUtils;
@@ -193,6 +195,63 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         assertThat(
             request.requests().get(0).indicesOptions(),
             equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS))
+        );
+    }
+
+    public void testIncludeNamedQueriesScore() throws Exception {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+
+        // URL query parameter: include_named_queries_score
+        assertIncludeNamedQueriesScore("", "false", false, true);
+
+        // URL query parameter: include_named_queries_score=true
+        assertIncludeNamedQueriesScore("true", "false", false, true);
+
+        // URL query parameter: include_named_queries_score=false
+        assertIncludeNamedQueriesScore("false", "true", true, false);
+
+        // No URL query parameter
+        assertIncludeNamedQueriesScore(null, "true", true, null);
+    }
+
+    private void assertIncludeNamedQueriesScore(
+        String urlParamValue,
+        String bodyParamValue,
+        Boolean expectedFirstRequest,
+        Boolean expectedSecondRequest
+    ) throws IOException {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+
+        final String requestContent = "{\"index\":\"test\"}\r\n"
+            + "{\"query\":{\"term\":{\"field\":{\"value\":\"xxx\",\"_name\":\"value_name\"}}},\"include_named_queries_score\":"
+            + bodyParamValue
+            + "}\r\n"
+            + "{}\r\n"
+            + "{\"query\":{\"term\":{\"field\":{\"value\":\"xxx\",\"_name\":\"value_name\"}}}}\r\n";
+
+        FakeRestRequest.Builder builder = new FakeRestRequest.Builder(xContentRegistry).withContent(
+            new BytesArray(requestContent),
+            MediaTypeRegistry.JSON
+        );
+        if (urlParamValue != null) {
+            builder = builder.withParams(Collections.singletonMap("include_named_queries_score", urlParamValue));
+        }
+
+        FakeRestRequest restRequest = builder.build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+
+        assertThat(request.requests().size(), equalTo(2));
+        assertEquals(
+            "First request's include_named_queries_score did not match",
+            expectedFirstRequest,
+            request.requests().get(0).source().includeNamedQueriesScore()
+        );
+        assertEquals(
+            "Second request's include_named_queries_score did not match",
+            expectedSecondRequest,
+            request.requests().get(1).source().includeNamedQueriesScore()
         );
     }
 
