@@ -109,6 +109,8 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotActi
 import org.opensearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
+import org.opensearch.action.admin.cluster.snapshots.list.SnapshotIndicesListAction;
+import org.opensearch.action.admin.cluster.snapshots.list.TransportSnapshotIndicesListAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
@@ -484,6 +486,7 @@ import org.opensearch.rest.action.list.AbstractListAction;
 import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.rest.action.list.RestListAction;
 import org.opensearch.rest.action.list.RestShardsListAction;
+import org.opensearch.rest.action.list.RestSnapshotIndicesListAction;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
@@ -672,6 +675,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
+        actions.register(SnapshotIndicesListAction.INSTANCE, TransportSnapshotIndicesListAction.class);
 
         actions.register(ClusterAddWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
         actions.register(ClusterGetWeightedRoutingAction.INSTANCE, TransportGetWeightedRoutingAction.class);
@@ -1025,6 +1029,7 @@ public class ActionModule extends AbstractModule {
         // LIST API
         registerHandler.accept(new RestIndicesListAction(responseLimitSettings));
         registerHandler.accept(new RestShardsListAction());
+        registerHandler.accept(new RestSnapshotIndicesListAction());
 
         // Point in time API
         registerHandler.accept(new RestCreatePitAction());
