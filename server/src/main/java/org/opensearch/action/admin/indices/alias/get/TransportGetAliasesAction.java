@@ -53,6 +53,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -224,6 +225,7 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
         // We resort to have just the index names on the top level, because it is the most precise dimension.
         // Alias names are included as a sub action named "indices:admin/aliases/get[aliases]"
 
+        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         String[] concreteIndices;
 
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext(false)) {
@@ -233,11 +235,16 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
         }
         Map<String, List<AliasMetadata>> indexToAliasesMap = state.metadata().findAliases(request, concreteIndices);
 
-        return ResolvedIndices.of(concreteIndices)
+        // If no aliases were specified in the request, we will report all indices matching the indices expression
+        // If there were aliases specified, we will report just the indices that are members of the aliases
+        // That follows the logic in the postProcess() method above.
+        Collection<String> indices = noAliasesSpecified ? Arrays.asList(concreteIndices) : indexToAliasesMap.keySet();
+
+        return ResolvedIndices.of(indices)
             .withLocalSubActions(
                 GetAliasesAction.NAME + "[aliases]",
                 ResolvedIndices.Local.of(
-                    indexToAliasesMap.values().stream().flatMap(l -> l.stream()).map(alias -> alias.alias()).collect(Collectors.toSet())
+                    indexToAliasesMap.values().stream().flatMap(Collection::stream).map(AliasMetadata::alias).collect(Collectors.toSet())
                 )
             );
     }
