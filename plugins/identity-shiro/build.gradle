@@ -66,9 +66,6 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',
   'org.cryptacular.bean.HashBean',
-  'org.slf4j.impl.StaticLoggerBinder',
-  'org.slf4j.impl.StaticMDCBinder',
-  'org.slf4j.impl.StaticMarkerBinder',
   'org.springframework.context.MessageSource',
   'org.springframework.context.support.MessageSourceAccessor'
 )

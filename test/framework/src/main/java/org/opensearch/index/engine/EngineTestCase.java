@@ -553,7 +553,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTermSupplier,
             seqNo -> {},
-            TranslogOperationHelper.create(engine.config())
+            TranslogOperationHelper.create(engine.config()),
+            null
         );
     }
 
