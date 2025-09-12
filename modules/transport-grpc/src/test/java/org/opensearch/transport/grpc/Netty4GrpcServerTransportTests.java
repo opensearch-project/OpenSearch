@@ -324,7 +324,6 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> { new Netty4GrpcServerTransport(invalidSettings, services, networkService); });
     }
 
-
     private static Settings createSettings() {
         return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange()).build();
     }
