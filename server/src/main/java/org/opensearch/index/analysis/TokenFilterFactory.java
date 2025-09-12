@@ -32,6 +32,7 @@
 
 package org.opensearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.opensearch.common.annotation.PublicApi;
@@ -76,12 +77,14 @@ public interface TokenFilterFactory {
      * @param charFilters           any CharFilterFactories for the preceding chain
      * @param previousTokenFilters  a list of TokenFilterFactories in the preceding chain
      * @param allFilters            access to previously defined TokenFilterFactories
+     * @param analyzersBuiltSoFar   already built analyzers
      */
     default TokenFilterFactory getChainAwareTokenFilterFactory(
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        Function<String, Analyzer> analyzersBuiltSoFar
     ) {
         return this;
     }

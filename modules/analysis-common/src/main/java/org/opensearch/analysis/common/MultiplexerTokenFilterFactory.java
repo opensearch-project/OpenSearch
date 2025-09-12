@@ -32,6 +32,7 @@
 
 package org.opensearch.analysis.common;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
@@ -77,7 +78,8 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        Function<String, TokenFilterFactory> allFilters,
+        Function<String, Analyzer> analyzersBuiltSoFar
     ) {
         List<TokenFilterFactory> filters = new ArrayList<>();
         if (preserveOriginal) {
@@ -89,7 +91,13 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
                 TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
-                factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
+                factory = factory.getChainAwareTokenFilterFactory(
+                    tokenizer,
+                    charFilters,
+                    previousTokenFilters,
+                    allFilters,
+                    analyzersBuiltSoFar
+                );
                 filters.add(factory);
                 mode = mode.merge(factory.getAnalysisMode());
             } else {
@@ -97,7 +105,13 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                 List<TokenFilterFactory> chain = new ArrayList<>();
                 for (String subfilter : parts) {
                     TokenFilterFactory factory = resolveFilterFactory(allFilters, subfilter);
-                    factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+                    factory = factory.getChainAwareTokenFilterFactory(
+                        tokenizer,
+                        charFilters,
+                        existingChain,
+                        allFilters,
+                        analyzersBuiltSoFar
+                    );
                     chain.add(factory);
                     existingChain.add(factory);
                     mode = mode.merge(factory.getAnalysisMode());
