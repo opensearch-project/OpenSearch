@@ -18,7 +18,6 @@ import org.opensearch.transport.grpc.ssl.NettyGrpcClient;
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -213,7 +212,7 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
             assertNotNull(transport.getBoundAddress().publishAddress().address());
 
             // Verify executor is created and is a ForkJoinPool
-            ExecutorService executor = getGrpcExecutor(transport);
+            ExecutorService executor = transport.getGrpcExecutorForTesting();
             assertNotNull("gRPC executor should be created", executor);
             assertTrue("Executor should be a ForkJoinPool", executor instanceof ForkJoinPool);
 
@@ -232,7 +231,7 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService)) {
             transport.start();
 
-            ExecutorService executor = getGrpcExecutor(transport);
+            ExecutorService executor = transport.getGrpcExecutorForTesting();
             assertNotNull("gRPC executor should be created", executor);
             assertTrue("Executor should be a ForkJoinPool", executor instanceof ForkJoinPool);
 
@@ -253,8 +252,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService)) {
             transport.start();
 
-            EventLoopGroup bossGroup = getBossEventLoopGroup(transport);
-            EventLoopGroup workerGroup = getWorkerEventLoopGroup(transport);
+            EventLoopGroup bossGroup = transport.getBossEventLoopGroupForTesting();
+            EventLoopGroup workerGroup = transport.getWorkerEventLoopGroupForTesting();
 
             assertNotNull("Boss event loop group should be created", bossGroup);
             assertNotNull("Worker event loop group should be created", workerGroup);
@@ -271,7 +270,7 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService);
         transport.start();
 
-        ExecutorService executor = getGrpcExecutor(transport);
+        ExecutorService executor = transport.getGrpcExecutorForTesting();
         assertNotNull("Executor should be created", executor);
         assertFalse("Executor should not be shutdown initially", executor.isShutdown());
 
@@ -288,8 +287,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService);
         transport.start();
 
-        EventLoopGroup bossGroup = getBossEventLoopGroup(transport);
-        EventLoopGroup workerGroup = getWorkerEventLoopGroup(transport);
+        EventLoopGroup bossGroup = transport.getBossEventLoopGroupForTesting();
+        EventLoopGroup workerGroup = transport.getWorkerEventLoopGroupForTesting();
 
         assertNotNull("Boss group should be created", bossGroup);
         assertNotNull("Worker group should be created", workerGroup);
@@ -325,36 +324,6 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> { new Netty4GrpcServerTransport(invalidSettings, services, networkService); });
     }
 
-    // Helper methods to access private fields using reflection
-    private ExecutorService getGrpcExecutor(Netty4GrpcServerTransport transport) {
-        try {
-            Field field = Netty4GrpcServerTransport.class.getDeclaredField("grpcExecutor");
-            field.setAccessible(true);
-            return (ExecutorService) field.get(transport);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access grpcExecutor field", e);
-        }
-    }
-
-    private EventLoopGroup getBossEventLoopGroup(Netty4GrpcServerTransport transport) {
-        try {
-            Field field = Netty4GrpcServerTransport.class.getDeclaredField("bossEventLoopGroup");
-            field.setAccessible(true);
-            return (EventLoopGroup) field.get(transport);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access bossEventLoopGroup field", e);
-        }
-    }
-
-    private EventLoopGroup getWorkerEventLoopGroup(Netty4GrpcServerTransport transport) {
-        try {
-            Field field = Netty4GrpcServerTransport.class.getDeclaredField("workerEventLoopGroup");
-            field.setAccessible(true);
-            return (EventLoopGroup) field.get(transport);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access workerEventLoopGroup field", e);
-        }
-    }
 
     private static Settings createSettings() {
         return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), OpenSearchTestCase.getPortRange()).build();

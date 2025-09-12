@@ -442,4 +442,17 @@ public class Netty4GrpcServerTransport extends AuxTransport {
 
         return addr.get();
     }
+
+    // Package-private methods for testing
+    ExecutorService getGrpcExecutorForTesting() {
+        return grpcExecutor;
+    }
+
+    EventLoopGroup getBossEventLoopGroupForTesting() {
+        return bossEventLoopGroup;
+    }
+
+    EventLoopGroup getWorkerEventLoopGroupForTesting() {
+        return workerEventLoopGroup;
+    }
 }
