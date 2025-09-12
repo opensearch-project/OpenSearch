@@ -10,8 +10,9 @@ package org.opensearch.rule.storage;
 
 import org.apache.commons.collections4.trie.PatriciaTrie;
 
-import java.util.Map;
-import java.util.Optional;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -21,7 +22,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * ref: https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/trie/PatriciaTrie.html
  */
 public class DefaultAttributeValueStore<K extends String, V> implements AttributeValueStore<K, V> {
-    private final PatriciaTrie<V> trie;
+    private final PatriciaTrie<Set<V>> trie;
     private static final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private static final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
     private static final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
@@ -37,7 +38,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
      * Main constructor
      * @param trie A Patricia Trie
      */
-    public DefaultAttributeValueStore(PatriciaTrie<V> trie) {
+    public DefaultAttributeValueStore(PatriciaTrie<Set<V>> trie) {
         this.trie = trie;
     }
 
@@ -45,66 +46,42 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     public void put(K key, V value) {
         writeLock.lock();
         try {
-            trie.put(key, value);
+            trie.computeIfAbsent(key, k -> new HashSet<>()).add(value);
         } finally {
             writeLock.unlock();
         }
     }
 
     @Override
-    public void remove(String key) {
+    public void remove(K key, V value) {
         writeLock.lock();
         try {
-            trie.remove(key);
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    @Override
-    public Optional<V> get(String key) {
-        readLock.lock();
-        try {
-            /**
-             * Since we are inserting prefixes into the trie and searching for larger strings
-             * It is important to find the largest matching prefix key in the trie efficiently
-             * Hence we can do binary search
-             */
-            final String longestMatchingPrefix = findLongestMatchingPrefix(key);
-
-            /**
-             * Now there are following cases for this prefix
-             * 1. There is a Rule which has this prefix as one of the attribute values. In this case we should return the
-             *     Rule's label otherwise send empty
-             */
-            for (Map.Entry<String, V> possibleMatch : trie.prefixMap(longestMatchingPrefix).entrySet()) {
-                if (key.startsWith(possibleMatch.getKey())) {
-                    return Optional.of(possibleMatch.getValue());
+            Set<V> values = trie.get(key);
+            if (values != null && values.contains(value)) {
+                values.remove(value);
+                if (values.isEmpty()) {
+                    trie.remove(key);
                 }
             }
         } finally {
-            readLock.unlock();
+            writeLock.unlock();
         }
-        return Optional.empty();
     }
 
-    private String findLongestMatchingPrefix(String key) {
-        int low = 0;
-        int high = key.length() - 1;
-
-        while (low < high) {
-            int mid = (high + low + 1) / 2;
-            /**
-             * This operation has O(1) complexity because prefixMap returns only the iterator
-             */
-            if (!trie.prefixMap(key.substring(0, mid)).isEmpty()) {
-                low = mid;
-            } else {
-                high = mid - 1;
-            }
+    @Override
+    public List<Set<V>> get(String key) {
+        readLock.lock();
+        try {
+            return trie.keySet()
+                .stream()
+                .filter(k -> key.startsWith(k))
+                .sorted((a, b) -> Integer.compare(b.length(), a.length()))
+                .map(trie::get)
+                .filter(v -> v != null && !v.isEmpty())
+                .toList();
+        } finally {
+            readLock.unlock();
         }
-
-        return key.substring(0, low);
     }
 
     @Override

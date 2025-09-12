@@ -17,10 +17,14 @@ import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+
+import static org.opensearch.rule.attribute_extractor.AttributeExtractor.LogicalOperator.OR;
 
 public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     InMemoryRuleProcessingService sut;
@@ -31,14 +35,14 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             WLMFeatureType.WLM,
             DefaultAttributeValueStore::new
         );
-        sut = new InMemoryRuleProcessingService(attributeValueStoreFactory);
+        sut = new InMemoryRuleProcessingService(attributeValueStoreFactory, WLMFeatureType.WLM.getPrioritizedTopLevelAttributes());
     }
 
     public void testAdd() {
         sut.add(getRule(Set.of("test", "change"), "test_id"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test"));
-        Optional<String> label = sut.evaluateLabel(extractors);
+        Optional<String> label = sut.evaluateFeatureValue(extractors);
         assertTrue(label.isPresent());
         assertEquals("test_id", label.get());
     }
@@ -49,7 +53,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.remove(rule);
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test"));
-        Optional<String> label = sut.evaluateLabel(extractors);
+        Optional<String> label = sut.evaluateFeatureValue(extractors);
         assertFalse(label.isPresent());
     }
 
@@ -59,7 +63,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.remove(rule);
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test-index"));
-        Optional<String> label = sut.evaluateLabel(extractors);
+        Optional<String> label = sut.evaluateFeatureValue(extractors);
         assertFalse(label.isPresent());
     }
 
@@ -68,7 +72,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.add(getRule(Set.of("test", "double"), "test_id1"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test"));
-        Optional<String> label = sut.evaluateLabel(extractors);
+        Optional<String> label = sut.evaluateFeatureValue(extractors);
         assertTrue(label.isPresent());
         assertEquals("test_id1", label.get());
     }
@@ -78,7 +82,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.add(getRule(Set.of("key2", "double"), "new_id"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("key1", "key2"));
-        Optional<String> label = sut.evaluateLabel(extractors);
+        Optional<String> label = sut.evaluateFeatureValue(extractors);
         assertFalse(label.isPresent());
     }
 
@@ -87,7 +91,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.add(getRule(Set.of("test", "double"), "test_id"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("dummy_test"));
-        Optional<String> label = sut.evaluateLabel(extractors);
+        Optional<String> label = sut.evaluateFeatureValue(extractors);
         assertFalse(label.isPresent());
     }
 
@@ -96,7 +100,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.add(getRule(Set.of("test", "double"), "test_id1"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("testing"));
-        Optional<String> label = sut.evaluateLabel(extractors);
+        Optional<String> label = sut.evaluateFeatureValue(extractors);
         assertTrue(label.isPresent());
         assertEquals("test_id1", label.get());
     }
@@ -106,7 +110,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         sut.add(getRule(Set.of("key12", "double"), "test_id1"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("key"));
-        Optional<String> label = sut.evaluateLabel(extractors);
+        Optional<String> label = sut.evaluateFeatureValue(extractors);
         assertFalse(label.isPresent());
     }
 
@@ -122,7 +126,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     private static List<AttributeExtractor<String>> getAttributeExtractors(List<String> extractedAttributes) {
-        List<AttributeExtractor<String>> extractors = List.of(new AttributeExtractor<String>() {
+        List<AttributeExtractor<String>> extractors = new ArrayList<>();
+        extractors.add(new AttributeExtractor<String>() {
             @Override
             public Attribute getAttribute() {
                 return TestAttribute.TEST_ATTRIBUTE;
@@ -131,6 +136,11 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             @Override
             public Iterable<String> extract() {
                 return extractedAttributes;
+            }
+
+            @Override
+            public LogicalOperator getLogicalOperator() {
+                return OR;
             }
         });
         return extractors;
@@ -149,8 +159,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
+        public Map<Attribute, Integer> getPrioritizedTopLevelAttributes() {
+            return Map.of(TestAttribute.TEST_ATTRIBUTE, 1);
         }
     }
 
@@ -167,6 +177,11 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         @Override
         public String getName() {
             return name;
+        }
+
+        @Override
+        public TreeMap<Integer, String> getPrioritizedSubfields() {
+            return new TreeMap<>();
         }
 
         @Override

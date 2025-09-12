@@ -19,6 +19,7 @@ opensearchplugin {
 }
 
 dependencies {
+  api project("wlm-spi")
   implementation project(':modules:autotagging-commons:common')
   compileOnly project(':modules:autotagging-commons:spi')
   compileOnly project(':modules:autotagging-commons')
