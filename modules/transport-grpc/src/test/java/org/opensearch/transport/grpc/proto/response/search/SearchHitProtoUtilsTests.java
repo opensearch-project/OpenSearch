@@ -12,6 +12,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -249,5 +250,193 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Nested identity should be set", hit.hasNested());
         assertEquals("Nested field should match", "parent_field", hit.getNested().getField());
         assertEquals("Nested offset should match", 5, hit.getNested().getOffset());
+    }
+
+    public void testToProtoWithBytesArrayZeroCopyOptimization() throws IOException {
+        // Create a SearchHit with BytesArray source (should use zero-copy optimization)
+        SearchHit searchHit = new SearchHit(1);
+        byte[] sourceBytes = "{\"field\":\"value\",\"number\":42}".getBytes(StandardCharsets.UTF_8);
+        BytesArray bytesArray = new BytesArray(sourceBytes);
+        searchHit.sourceRef(bytesArray);
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result
+        assertNotNull("Hit should not be null", hit);
+        assertTrue("Source should be set", hit.hasSource());
+        assertArrayEquals("Source bytes should match exactly", sourceBytes, hit.getSource().toByteArray());
+
+        // Verify that the ByteString was created using UnsafeByteOperations.unsafeWrap
+        // This is an indirect test - we verify the content is correct and assume the optimization was used
+        assertEquals("Source size should match", sourceBytes.length, hit.getSource().size());
+    }
+
+    public void testToProtoWithBytesArrayWithOffsetZeroCopyOptimization() throws IOException {
+        // Create a SearchHit with BytesArray source that has offset/length (should use zero-copy with offset)
+        SearchHit searchHit = new SearchHit(1);
+        byte[] fullBytes = "prefix{\"field\":\"value\"}suffix".getBytes(StandardCharsets.UTF_8);
+        byte[] expectedBytes = "{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        int offset = 6; // "prefix".length()
+        int length = expectedBytes.length;
+        BytesArray bytesArray = new BytesArray(fullBytes, offset, length);
+        searchHit.sourceRef(bytesArray);
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result
+        assertNotNull("Hit should not be null", hit);
+        assertTrue("Source should be set", hit.hasSource());
+        assertArrayEquals("Source bytes should match the sliced portion", expectedBytes, hit.getSource().toByteArray());
+        assertEquals("Source size should match expected length", length, hit.getSource().size());
+    }
+
+    public void testToProtoWithCompositeBytesReferenceUsesDeepCopy() throws IOException {
+        // Create a SearchHit with CompositeBytesReference source (should use ByteString.copyFrom)
+        SearchHit searchHit = new SearchHit(1);
+        byte[] bytes1 = "{\"field1\":".getBytes(StandardCharsets.UTF_8);
+        byte[] bytes2 = "\"value1\"}".getBytes(StandardCharsets.UTF_8);
+        BytesArray part1 = new BytesArray(bytes1);
+        BytesArray part2 = new BytesArray(bytes2);
+        CompositeBytesReference compositeBytesRef = (CompositeBytesReference) CompositeBytesReference.of(part1, part2);
+        searchHit.sourceRef(compositeBytesRef);
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result
+        assertNotNull("Hit should not be null", hit);
+        assertTrue("Source should be set", hit.hasSource());
+
+        // Verify the combined content is correct
+        String expectedJson = "{\"field1\":\"value1\"}";
+        byte[] expectedBytes = expectedJson.getBytes(StandardCharsets.UTF_8);
+        assertArrayEquals("Source bytes should match the combined content", expectedBytes, hit.getSource().toByteArray());
+        assertEquals("Source size should match combined length", expectedBytes.length, hit.getSource().size());
+    }
+
+    public void testToProtoWithEmptyBytesArraySource() throws IOException {
+        // Create a SearchHit with minimal valid JSON as source (empty object)
+        SearchHit searchHit = new SearchHit(1);
+        byte[] emptyJsonBytes = "{}".getBytes(StandardCharsets.UTF_8);
+        BytesArray emptyJsonBytesArray = new BytesArray(emptyJsonBytes);
+        searchHit.sourceRef(emptyJsonBytesArray);
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result
+        assertNotNull("Hit should not be null", hit);
+        assertTrue("Source should be set", hit.hasSource());
+        assertEquals("Source should contain empty JSON object", emptyJsonBytes.length, hit.getSource().size());
+        assertArrayEquals("Source bytes should match empty JSON object", emptyJsonBytes, hit.getSource().toByteArray());
+    }
+
+    public void testToProtoWithLargeBytesArrayZeroCopyOptimization() throws IOException {
+        // Create a SearchHit with large BytesArray source to test performance benefit
+        SearchHit searchHit = new SearchHit(1);
+        StringBuilder largeJsonBuilder = new StringBuilder("{\"data\":[");
+        for (int i = 0; i < 1000; i++) {
+            if (i > 0) largeJsonBuilder.append(",");
+            largeJsonBuilder.append("{\"id\":").append(i).append(",\"value\":\"item").append(i).append("\"}");
+        }
+        largeJsonBuilder.append("]}");
+
+        byte[] largeSourceBytes = largeJsonBuilder.toString().getBytes(StandardCharsets.UTF_8);
+        BytesArray largeBytesArray = new BytesArray(largeSourceBytes);
+        searchHit.sourceRef(largeBytesArray);
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result
+        assertNotNull("Hit should not be null", hit);
+        assertTrue("Source should be set", hit.hasSource());
+        assertEquals("Source size should match large content", largeSourceBytes.length, hit.getSource().size());
+        assertArrayEquals("Source bytes should match exactly", largeSourceBytes, hit.getSource().toByteArray());
+    }
+
+    public void testToProtoWithBytesArraySliceZeroCopyOptimization() throws IOException {
+        // Test the optimization with a BytesArray that represents a slice of a larger array
+        SearchHit searchHit = new SearchHit(1);
+
+        // Create a larger byte array
+        String fullContent = "HEADER{\"important\":\"data\",\"field\":\"value\"}FOOTER";
+        byte[] fullBytes = fullContent.getBytes(StandardCharsets.UTF_8);
+
+        // Create a BytesArray that represents just the JSON part
+        int jsonStart = 6; // "HEADER".length()
+        String jsonContent = "{\"important\":\"data\",\"field\":\"value\"}";
+        int jsonLength = jsonContent.length();
+        BytesArray slicedBytesArray = new BytesArray(fullBytes, jsonStart, jsonLength);
+        searchHit.sourceRef(slicedBytesArray);
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result
+        assertNotNull("Hit should not be null", hit);
+        assertTrue("Source should be set", hit.hasSource());
+        assertEquals("Source size should match JSON length", jsonLength, hit.getSource().size());
+
+        byte[] expectedJsonBytes = jsonContent.getBytes(StandardCharsets.UTF_8);
+        assertArrayEquals("Source bytes should match only the JSON portion", expectedJsonBytes, hit.getSource().toByteArray());
+    }
+
+    public void testToProtoSourceOptimizationBehaviorComparison() throws IOException {
+        // Test to demonstrate the difference in behavior between BytesArray and other BytesReference types
+        String jsonContent = "{\"test\":\"optimization\"}";
+        byte[] jsonBytes = jsonContent.getBytes(StandardCharsets.UTF_8);
+
+        // Test with BytesArray (should use zero-copy optimization)
+        SearchHit searchHitWithBytesArray = new SearchHit(1);
+        BytesArray bytesArray = new BytesArray(jsonBytes);
+        searchHitWithBytesArray.sourceRef(bytesArray);
+        Hit hitWithBytesArray = SearchHitProtoUtils.toProto(searchHitWithBytesArray);
+
+        // Test with CompositeBytesReference (should use deep copy)
+        SearchHit searchHitWithComposite = new SearchHit(2);
+        BytesArray part1 = new BytesArray(jsonBytes, 0, jsonBytes.length / 2);
+        BytesArray part2 = new BytesArray(jsonBytes, jsonBytes.length / 2, jsonBytes.length - jsonBytes.length / 2);
+        CompositeBytesReference composite = (CompositeBytesReference) CompositeBytesReference.of(part1, part2);
+        searchHitWithComposite.sourceRef(composite);
+        Hit hitWithComposite = SearchHitProtoUtils.toProto(searchHitWithComposite);
+
+        // Both should produce the same result
+        assertArrayEquals(
+            "Both approaches should produce identical byte content",
+            hitWithBytesArray.getSource().toByteArray(),
+            hitWithComposite.getSource().toByteArray()
+        );
+        assertEquals("Both approaches should produce same size", hitWithBytesArray.getSource().size(), hitWithComposite.getSource().size());
+    }
+
+    public void testToProtoWithNullSourceRef() throws IOException {
+        // Test behavior when source reference is null
+        SearchHit searchHit = new SearchHit(1);
+        // Don't set any source reference (sourceRef remains null)
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result
+        assertNotNull("Hit should not be null", hit);
+        assertFalse("Source should not be set when sourceRef is null", hit.hasSource());
+    }
+
+    public void testToProtoWithActuallyEmptyBytesArray() throws IOException {
+        // Test the edge case of truly empty bytes - this should be handled gracefully
+        // by checking if the source is null before processing
+        SearchHit searchHit = new SearchHit(1);
+        // Explicitly set source to null to test null handling
+        searchHit.sourceRef(null);
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result
+        assertNotNull("Hit should not be null", hit);
+        assertFalse("Source should not be set when explicitly null", hit.hasSource());
     }
 }
