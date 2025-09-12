@@ -36,10 +36,13 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.slice.SliceBuilder;
@@ -74,6 +77,7 @@ class BulkByScrollParallelizationHelper {
      * This method is equivalent to calling {@link #initTaskState} followed by {@link #executeSlicedAction}
      */
     static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
+        Metadata metadata,
         Request request,
         BulkByScrollTask task,
         ActionType<BulkByScrollResponse> action,
@@ -85,7 +89,7 @@ class BulkByScrollParallelizationHelper {
         initTaskState(task, request, client, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
-                executeSlicedAction(task, request, action, listener, client, node, workerAction);
+                executeSlicedAction(metadata, task, request, action, listener, client, node, workerAction);
             }
 
             @Override
@@ -106,6 +110,7 @@ class BulkByScrollParallelizationHelper {
      * This method can only be called after the task state is initialized {@link #initTaskState}.
      */
     static <Request extends AbstractBulkByScrollRequest<Request>> void executeSlicedAction(
+        Metadata metadata,
         BulkByScrollTask task,
         Request request,
         ActionType<BulkByScrollResponse> action,
@@ -115,7 +120,7 @@ class BulkByScrollParallelizationHelper {
         Runnable workerAction
     ) {
         if (task.isLeader()) {
-            sendSubRequests(client, action, node.getId(), task, request, listener);
+            sendSubRequests(metadata, client, action, node.getId(), task, request, listener);
         } else if (task.isWorker()) {
             workerAction.run();
         } else {
@@ -182,6 +187,7 @@ class BulkByScrollParallelizationHelper {
     }
 
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sendSubRequests(
+        Metadata metadata,
         Client client,
         ActionType<BulkByScrollResponse> action,
         String localNodeId,
@@ -192,6 +198,24 @@ class BulkByScrollParallelizationHelper {
 
         LeaderBulkByScrollTaskState worker = task.getLeaderState();
         int totalSlices = worker.getSlices();
+        for (String index : request.getSearchRequest().indices()) {
+            IndexMetadata indexMetadata = metadata.index(index);
+            if (indexMetadata != null && IndexSettings.MAX_SLICES_PER_SCROLL.get(indexMetadata.getSettings()) < totalSlices) {
+                throw new IllegalArgumentException(
+                    "The number of slices ["
+                        + totalSlices
+                        + "] is too large. It must "
+                        + "be less than ["
+                        + IndexSettings.MAX_SLICES_PER_SCROLL.get(indexMetadata.getSettings())
+                        + "]. "
+                        + "This limit can be set by changing the ["
+                        + IndexSettings.MAX_SLICES_PER_SCROLL.getKey()
+                        + "] index"
+                        + " level setting."
+                );
+            }
+        }
+
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
         for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices)) {
             // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....

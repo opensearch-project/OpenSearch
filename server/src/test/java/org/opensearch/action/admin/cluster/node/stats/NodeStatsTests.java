@@ -422,13 +422,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(totalStats.getCount(), deserializedIngestStats.getTotalStats().getCount());
                     assertEquals(totalStats.getCurrent(), deserializedIngestStats.getTotalStats().getCurrent());
                     assertEquals(totalStats.getFailedCount(), deserializedIngestStats.getTotalStats().getFailedCount());
-                    assertEquals(totalStats.getTotalTimeInMillis(), deserializedIngestStats.getTotalStats().getTotalTimeInMillis());
+                    assertEquals(totalStats.getTotalTime(), deserializedIngestStats.getTotalStats().getTotalTime());
                     assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
                     for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
                         String pipelineId = pipelineStat.getPipelineId();
                         OperationStats deserializedPipelineStats = getPipelineStats(deserializedIngestStats.getPipelineStats(), pipelineId);
                         assertEquals(pipelineStat.getStats().getFailedCount(), deserializedPipelineStats.getFailedCount());
-                        assertEquals(pipelineStat.getStats().getTotalTimeInMillis(), deserializedPipelineStats.getTotalTimeInMillis());
+                        assertEquals(pipelineStat.getStats().getTotalTime(), deserializedPipelineStats.getTotalTime());
                         assertEquals(pipelineStat.getStats().getCurrent(), deserializedPipelineStats.getCurrent());
                         assertEquals(pipelineStat.getStats().getCount(), deserializedPipelineStats.getCount());
                         List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
@@ -437,10 +437,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
                             assertEquals(processorStat.getStats().getFailedCount(), deserializedProcessorStat.getStats().getFailedCount());
-                            assertEquals(
-                                processorStat.getStats().getTotalTimeInMillis(),
-                                deserializedProcessorStat.getStats().getTotalTimeInMillis()
-                            );
+                            assertEquals(processorStat.getStats().getTotalTime(), deserializedProcessorStat.getStats().getTotalTime());
                             assertEquals(processorStat.getStats().getCurrent(), deserializedProcessorStat.getStats().getCurrent());
                             assertEquals(processorStat.getStats().getCount(), deserializedProcessorStat.getStats().getCount());
                         }

@@ -19,7 +19,7 @@ import org.opensearch.protobufs.QueryContainer;
  */
 public class AbstractQueryBuilderProtoUtils {
 
-    private final QueryBuilderProtoConverterRegistry registry;
+    private final QueryBuilderProtoConverterRegistryImpl registry;
 
     /**
      * Creates a new instance with the specified registry.
@@ -27,7 +27,7 @@ public class AbstractQueryBuilderProtoUtils {
      * @param registry The registry to use for query conversion
      * @throws IllegalArgumentException if registry is null
      */
-    public AbstractQueryBuilderProtoUtils(QueryBuilderProtoConverterRegistry registry) {
+    public AbstractQueryBuilderProtoUtils(QueryBuilderProtoConverterRegistryImpl registry) {
         if (registry == null) {
             throw new IllegalArgumentException("Registry cannot be null");
         }
