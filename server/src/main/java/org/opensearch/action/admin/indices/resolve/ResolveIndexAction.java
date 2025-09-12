@@ -40,12 +40,14 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexAbstractionResolver;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -497,7 +499,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response>
+        implements
+            TransportIndicesResolvingAction<Request> {
 
         private final ThreadPool threadPool;
         private final ClusterService clusterService;
@@ -571,6 +575,34 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 }
             } else {
                 listener.onResponse(new Response(indices, aliases, dataStreams));
+            }
+        }
+
+        @Override
+        public ResolvedIndices resolveIndices(Request request) {
+            return resolvedIndices(request, clusterService.state());
+        }
+
+        private ResolvedIndices resolvedIndices(Request request, ClusterState clusterState) {
+            Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+                request.indicesOptions(),
+                request.indices(),
+                idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState)
+            );
+            OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+            if (localIndices != null) {
+                return ResolvedIndices.of(
+                    indexAbstractionResolver.resolveIndexAbstractions(
+                        localIndices.indices(),
+                        localIndices.indicesOptions(),
+                        clusterState.metadata(),
+                        request.includeDataStreams(),
+                        false
+                    )
+                ).withRemoteIndices(remoteClusterIndices);
+            } else {
+                return ResolvedIndices.of(Collections.emptySet()).withRemoteIndices(remoteClusterIndices);
             }
         }
 
