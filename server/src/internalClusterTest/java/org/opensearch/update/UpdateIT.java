@@ -49,6 +49,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -896,6 +898,197 @@ public class UpdateIT extends OpenSearchIntegTestCase {
                 assertThat(response.getVersion() + totalFailures, equalTo((long) ((numberOfUpdatesPerId * numberOfThreads * 2) + 1)));
             }
         }
+    }
+
+    public void testDerivedSourceWithUpdates() throws Exception {
+        // Create index with derived source setting enabled
+        String createIndexSource = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 2,
+                        "number_of_replicas": 0,
+                        "refresh_interval": -1,
+                        "derived_source": {
+                            "enabled": true
+                        }
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "properties": {
+                            "geopoint_field": {
+                                "type": "geo_point"
+                            },
+                            "keyword_field": {
+                                "type": "keyword"
+                            },
+                            "numeric_field": {
+                                "type": "long"
+                            },
+                            "bool_field": {
+                                "type": "boolean"
+                            },
+                            "text_field": {
+                                "type": "text",
+                                "store": true
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        assertAcked(prepareCreate("test_derive").setSource(createIndexSource, MediaTypeRegistry.JSON));
+        ensureGreen();
+
+        // Test 1: Basic Update with Script
+        UpdateResponse updateResponse = client().prepareUpdate("test_derive", "1")
+            .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "numeric_field")))
+            .setUpsert(
+                jsonBuilder().startObject()
+                    .field("geopoint_field", Geohash.stringEncode(40.33, 75.98))
+                    .field("numeric_field", 1)
+                    .field("keyword_field", "initial")
+                    .field("bool_field", true)
+                    .field("text_field", "initial text")
+                    .endObject()
+            )
+            .setFetchSource(true)
+            .execute()
+            .actionGet();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.CREATED));
+        Map<String, Object> source = updateResponse.getGetResult().sourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        // In Update, it will be stored as it is in translog, which is in string representation
+        assertEquals(Geohash.stringEncode(40.33, 75.98), source.get("geopoint_field"));
+        assertEquals(1, source.get("numeric_field"));
+        assertEquals("initial", source.get("keyword_field"));
+        assertEquals(true, source.get("bool_field"));
+        assertEquals("initial text", source.get("text_field"));
+
+        GetResponse getResponse = client().prepareGet("test_derive", "1").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        // In Update, it will be stored as it is in translog, which is in string representation, so in get call we are
+        // creating an in-memory lucene index, which will give the response in desired representation of lat/lon pair
+        Map<String, Object> latLon = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(75.98, (Double) latLon.get("lat"), 0.001);
+        assertEquals(40.33, (Double) latLon.get("lon"), 0.001);
+        assertEquals(1, source.get("numeric_field"));
+        assertEquals("initial", source.get("keyword_field"));
+        assertEquals(true, source.get("bool_field"));
+        assertEquals("initial text", source.get("text_field"));
+
+        // Test 2: Update existing document with script
+        updateResponse = client().prepareUpdate("test_derive", "1")
+            .setScript(
+                new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Map.of("numeric_field", 2, "keyword_field", "updated"))
+            )
+            .setFetchSource(true)
+            .execute()
+            .actionGet();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        source = updateResponse.getGetResult().sourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        assertEquals(2, source.get("numeric_field"));
+        assertEquals("updated", source.get("keyword_field"));
+        assertEquals(true, source.get("bool_field")); // Unchanged
+        assertEquals("initial text", source.get("text_field")); // Unchanged
+
+        // Test 3: Update with doc
+        updateResponse = client().prepareUpdate("test_derive", "1")
+            .setDoc(jsonBuilder().startObject().field("bool_field", false).field("text_field", "updated text").endObject())
+            .setFetchSource(true)
+            .execute()
+            .actionGet();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        source = updateResponse.getGetResult().sourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        assertEquals(2, source.get("numeric_field")); // Unchanged
+        assertEquals("updated", source.get("keyword_field")); // Unchanged
+        assertEquals(false, source.get("bool_field"));
+        assertEquals("updated text", source.get("text_field"));
+
+        // Test 4: DocAsUpsert with non-existent document
+        updateResponse = client().prepareUpdate("test_derive", "2")
+            .setDoc(
+                jsonBuilder().startObject()
+                    .field("numeric_field", 5)
+                    .field("keyword_field", "doc_as_upsert")
+                    .field("bool_field", true)
+                    .field("text_field", "new document")
+                    .field("geopoint_field", Geohash.stringEncode(1.1, 1.2))
+                    .endObject()
+            )
+            .setDocAsUpsert(true)
+            .setFetchSource(true)
+            .execute()
+            .actionGet();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.CREATED));
+        source = updateResponse.getGetResult().sourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        assertEquals(5, source.get("numeric_field"));
+        assertEquals("doc_as_upsert", source.get("keyword_field"));
+        assertEquals(true, source.get("bool_field"));
+        assertEquals("new document", source.get("text_field"));
+        assertEquals(Geohash.stringEncode(1.1, 1.2), source.get("geopoint_field"));
+
+        getResponse = client().prepareGet("test_derive", "2").get();
+        assertTrue(getResponse.isExists());
+        source = getResponse.getSourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        assertEquals(5, source.get("numeric_field"));
+        assertEquals("doc_as_upsert", source.get("keyword_field"));
+        assertEquals(true, source.get("bool_field"));
+        assertEquals("new document", source.get("text_field"));
+        latLon = (Map<String, Object>) source.get("geopoint_field");
+        assertEquals(1.2, (Double) latLon.get("lat"), 0.001);
+        assertEquals(1.1, (Double) latLon.get("lon"), 0.001);
+
+        // Test 5: Scripted upsert
+        Map<String, Object> params = new HashMap<>();
+        params.put("numeric_field", 10);
+        params.put("keyword_field", "scripted_upsert");
+
+        updateResponse = client().prepareUpdate("test_derive", "3")
+            .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, params))
+            .setUpsert(
+                jsonBuilder().startObject()
+                    .field("numeric_field", 0)
+                    .field("keyword_field", "initial")
+                    .field("bool_field", true)
+                    .endObject()
+            )
+            .setScriptedUpsert(true)
+            .setFetchSource(true)
+            .execute()
+            .actionGet();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.CREATED));
+        source = updateResponse.getGetResult().sourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        assertEquals(10, source.get("numeric_field"));
+        assertEquals("scripted_upsert", source.get("keyword_field"));
+        assertEquals(true, source.get("bool_field"));
+
+        // Test 6: Partial update with source filtering
+        updateResponse = client().prepareUpdate("test_derive", "1")
+            .setDoc(jsonBuilder().startObject().field("numeric_field", 15).field("keyword_field", "filtered").endObject())
+            .setFetchSource(new String[] { "numeric_field", "keyword_field" }, null)
+            .execute()
+            .actionGet();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        source = updateResponse.getGetResult().sourceAsMap();
+        assertNotNull("Derived source should not be null", source);
+        assertEquals(15, source.get("numeric_field"));
+        assertEquals("filtered", source.get("keyword_field"));
+        assertEquals(2, source.size()); // Only requested fields should be present
     }
 
     private static String indexOrAlias() {

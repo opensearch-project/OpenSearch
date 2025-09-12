@@ -78,6 +78,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -232,7 +233,7 @@ public final class SearchPhaseController {
         } else if (topDocs instanceof CollapseTopFieldDocs) {
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
             final Sort sort = createSort(shardTopDocs);
-            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
+            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
         } else if (topDocs instanceof TopFieldDocs) {
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             final Sort sort = createSort(shardTopDocs);
@@ -332,7 +333,8 @@ public final class SearchPhaseController {
                 assert currentOffset == sortedDocs.length : "expected no more score doc slices";
             }
         }
-        return reducedQueryPhase.buildResponse(hits);
+
+        return reducedQueryPhase.buildResponse(hits, fetchResults, this);
     }
 
     private SearchHits getHits(
@@ -517,6 +519,7 @@ public final class SearchPhaseController {
                 profileResults.put(key, result.consumeProfileResult());
             }
         }
+        // reduce suggest
         final Suggest reducedSuggest;
         final List<CompletionSuggestion> reducedCompletionSuggestions;
         if (groupedSuggestions.isEmpty()) {
@@ -736,11 +739,29 @@ public final class SearchPhaseController {
         }
 
         /**
-         * Creates a new search response from the given merged hits.
+         * Creates a new search response from the given merged hits with fetch profile merging.
+         * @param hits the merged search hits
+         * @param fetchResults the fetch results to merge profiles from
+         * @param controller the SearchPhaseController instance to access mergeFetchProfiles method
          * @see #merge(boolean, ReducedQueryPhase, Collection, IntFunction)
          */
-        public InternalSearchResponse buildResponse(SearchHits hits) {
-            return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly, numReducePhases);
+        public InternalSearchResponse buildResponse(
+            SearchHits hits,
+            Collection<? extends SearchPhaseResult> fetchResults,
+            SearchPhaseController controller
+        ) {
+            SearchProfileShardResults mergedProfileResults = shardResults != null
+                ? controller.mergeFetchProfiles(shardResults, fetchResults)
+                : null;
+            return new InternalSearchResponse(
+                hits,
+                aggregations,
+                suggest,
+                mergedProfileResults,
+                timedOut,
+                terminatedEarly,
+                numReducePhases
+            );
         }
     }
 
@@ -759,7 +780,46 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
+        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, () -> false);
+    }
+
+    /**
+     * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
+     */
+    QueryPhaseResultConsumer newSearchPhaseResults(
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchProgressListener listener,
+        SearchRequest request,
+        int numShards,
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled
+    ) {
         return new QueryPhaseResultConsumer(
+            request,
+            executor,
+            circuitBreaker,
+            this,
+            listener,
+            namedWriteableRegistry,
+            numShards,
+            onPartialMergeFailure,
+            isTaskCancelled
+        );
+    }
+
+    /**
+     * Returns a new {@link StreamQueryPhaseResultConsumer} instance that reduces search responses incrementally.
+     */
+    StreamQueryPhaseResultConsumer newStreamSearchPhaseResults(
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchProgressListener listener,
+        SearchRequest request,
+        int numShards,
+        Consumer<Exception> onPartialMergeFailure
+    ) {
+        return new StreamQueryPhaseResultConsumer(
             request,
             executor,
             circuitBreaker,
@@ -869,5 +929,41 @@ public final class SearchPhaseController {
             this.collapseField = collapseField;
             this.collapseValues = collapseValues;
         }
+    }
+
+    /**
+     * Merges fetch phase profile results with query phase profile results.
+     *
+     * @param queryProfiles the query phase profile results (must not be null)
+     * @param fetchResults the fetch phase results to merge profiles from
+     * @return merged profile results containing both query and fetch phase data
+     */
+    public SearchProfileShardResults mergeFetchProfiles(
+        SearchProfileShardResults queryProfiles,
+        Collection<? extends SearchPhaseResult> fetchResults
+    ) {
+        Map<String, ProfileShardResult> mergedResults = new HashMap<>(queryProfiles.getShardResults());
+
+        // Merge fetch profiles into existing query profiles
+        for (SearchPhaseResult fetchResult : fetchResults) {
+            if (fetchResult.fetchResult() != null && fetchResult.fetchResult().getProfileResults() != null) {
+                ProfileShardResult fetchProfile = fetchResult.fetchResult().getProfileResults();
+                String shardId = fetchResult.getSearchShardTarget().toString();
+
+                ProfileShardResult existingProfile = mergedResults.get(shardId);
+                if (existingProfile != null) {
+                    // Merge fetch profile data into existing query profile
+                    ProfileShardResult merged = new ProfileShardResult(
+                        existingProfile.getQueryProfileResults(),
+                        existingProfile.getAggregationProfileResults(),
+                        fetchProfile.getFetchProfileResult(), // Use fetch profile data
+                        existingProfile.getNetworkTime()
+                    );
+                    mergedResults.put(shardId, merged);
+                }
+            }
+        }
+
+        return new SearchProfileShardResults(mergedResults);
     }
 }

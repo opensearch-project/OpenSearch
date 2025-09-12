@@ -1,9 +1,9 @@
 [versions]
-opensearch        = "3.2.0"
+opensearch        = "3.3.0"
 lucene            = "10.2.2"
 
 bundled_jdk_vendor = "adoptium"
-bundled_jdk = "24.0.1+9"
+bundled_jdk = "24.0.2+12"
 
 # optional dependencies
 spatial4j         = "0.7"
@@ -14,14 +14,15 @@ snakeyaml         = "2.1"
 icu4j             = "77.1"
 supercsv          = "2.4.0"
 log4j             = "2.21.0"
-slf4j             = "1.7.36"
+slf4j             = "2.0.17"
 asm               = "9.7"
 jettison          = "1.5.4"
 woodstox          = "6.4.0"
 kotlin            = "1.7.10"
 antlr4            = "4.13.1"
 guava             = "33.2.1-jre"
-protobuf          = "3.25.5"
+opensearchprotobufs = "0.6.0"
+protobuf          = "3.25.8"
 jakarta_annotation = "1.3.5"
 google_http_client = "1.44.1"
 google_auth       = "1.29.0"
@@ -33,12 +34,12 @@ json_smart        = "2.5.2"
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.16.0"
 
-netty             = "4.1.121.Final"
+netty             = "4.1.125.Final"
 joda              = "2.12.7"
 roaringbitmap     = "1.3.0"
 
 # project reactor
-reactor_netty     = "1.2.5"
+reactor_netty     = "1.2.9"
 reactor           = "3.7.5"
 
 # client dependencies
@@ -48,9 +49,9 @@ httpclient        = "4.5.14"
 httpcore          = "4.4.16"
 httpasyncclient   = "4.1.5"
 commonslogging    = "1.2"
-commonscodec      = "1.16.1"
-commonslang       = "3.14.0"
-commonscompress   = "1.26.1"
+commonscodec      = "1.18.0"
+commonslang       = "3.18.0"
+commonscompress   = "1.28.0"
 commonsio         = "2.16.0"
 # plugin dependencies
 aws               = "2.30.31"
@@ -61,11 +62,11 @@ hadoop3           = "3.3.6"
 # when updating this version, you need to ensure compatibility with:
 #  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
 #  - distribution/tools/plugin-cli
-bouncycastle_jce  = "2.0.0"
-bouncycastle_tls  = "2.0.20"
-bouncycastle_pkix = "2.0.8"
-bouncycastle_pg   = "2.0.11"
-bouncycastle_util = "2.0.3"
+bouncycastle_jce  = "2.1.1"
+bouncycastle_tls  = "2.1.20"
+bouncycastle_pkix = "2.1.9"
+bouncycastle_pg   = "2.1.11"
+bouncycastle_util = "2.1.4"
 password4j        = "1.8.3"
 
 # test dependencies
@@ -87,8 +88,8 @@ jzlib             = "1.1.3"
 resteasy          = "6.2.4.Final"
 
 # opentelemetry dependencies
-opentelemetry         = "1.46.0"
-opentelemetrysemconv  = "1.29.0-alpha"
+opentelemetry         = "1.53.0"
+opentelemetrysemconv  = "1.34.0"
 
 # arrow dependencies
 arrow                 = "18.1.0"

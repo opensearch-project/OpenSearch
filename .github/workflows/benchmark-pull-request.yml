@@ -16,7 +16,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Set up required env vars
         run: |
           echo "PR_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
@@ -135,13 +135,13 @@ jobs:
           issue-body: "Please approve or deny the benchmark run for PR #${{ env.PR_NUMBER }}"
           exclude-workflow-initiator-as-approver: false
       - name: Checkout PR Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ env.prHeadRepo }}
           ref: ${{ env.prHeadRefSha }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 21
           distribution: 'temurin'
@@ -159,7 +159,7 @@ jobs:
           aws s3 cp distribution/archives/linux-tar/build/distributions/opensearch-min-$OPENSEARCH_VERSION-linux-x64.tar.gz s3://${{ secrets.ARCHIVE_ARTIFACT_BUCKET_NAME }}/PR-$PR_NUMBER/
           echo "DISTRIBUTION_URL=${{ secrets.ARTIFACT_BUCKET_CLOUDFRONT_URL }}/PR-$PR_NUMBER/opensearch-min-$OPENSEARCH_VERSION-linux-x64.tar.gz" >> $GITHUB_ENV
       - name: Checkout opensearch-build repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: opensearch-project/opensearch-build
           ref: main

@@ -331,8 +331,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     sort,
                     0,
                     numHits,
-                    topFieldDocs.toArray(new CollapseTopFieldDocs[0]),
-                    true
+                    topFieldDocs.toArray(new CollapseTopFieldDocs[0])
                 );
                 result.topDocs(new TopDocsAndMaxScore(topDocs, maxScore), sortFmt);
             };
@@ -361,9 +360,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             int hitCountThreshold
         ) {
             if (sortAndFormats == null) {
-                // See please https://github.com/apache/lucene/pull/450, should be fixed in 9.x
                 if (searchAfter != null) {
-                    return new TopScoreDocCollectorManager(numHits, new FieldDoc(searchAfter.doc, searchAfter.score), hitCountThreshold);
+                    return new TopScoreDocCollectorManager(numHits, searchAfter, hitCountThreshold);
                 } else {
                     return new TopScoreDocCollectorManager(numHits, null, hitCountThreshold);
                 }

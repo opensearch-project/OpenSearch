@@ -127,12 +127,12 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
                             stat.getStats().getCount(),
                             stat.getStats().getFailedCount(),
                             stat.getStats().getCurrent(),
-                            stat.getStats().getTotalTimeInMillis() };
+                            stat.getStats().getTotalTime() };
                     } else {
                         value[0] += stat.getStats().getCount();
                         value[1] += stat.getStats().getFailedCount();
                         value[2] += stat.getStats().getCurrent();
-                        value[3] += stat.getStats().getTotalTimeInMillis();
+                        value[3] += stat.getStats().getTotalTime();
                         return value;
                     }
                 });

@@ -60,7 +60,10 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
+public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder>
+    implements
+        MultiTermQueryBuilder,
+        ComplementAwareQueryBuilder {
     public static final String NAME = "range";
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
@@ -545,12 +548,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             && Objects.equals(format, other.format);
     }
 
-    /**
-     * Returns a list of RangeQueryBuilder whose elements, when combined, form the complement of this range query.
-     * May be null.
-     * @return the complement
-     */
-    public List<RangeQueryBuilder> getComplement() {
+    @Override
+    public List<? extends QueryBuilder> getComplement(QueryShardContext context) {
+        // This implementation doesn't need info from QueryShardContext
         if (relation != null && relation != ShapeRelation.INTERSECTS) {
             return null;
         }

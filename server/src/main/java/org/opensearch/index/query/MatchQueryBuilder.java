@@ -43,11 +43,13 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -56,7 +58,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements WithFieldName {
+public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements ComplementAwareQueryBuilder, WithFieldName {
 
     private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, "
         + "the [match] query can skip block of documents efficiently if the total number of hits is not tracked";
@@ -589,4 +591,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
         return matchQuery;
     }
 
+    @Override
+    public List<QueryBuilder> getComplement(QueryShardContext context) {
+        // If this is a match query on a numeric field, we can provide the complement using RangeQueryBuilder.
+        NumberFieldMapper.NumberFieldType nft = ComplementHelperUtils.getNumberFieldType(context, fieldName);
+        if (nft == null) return null;
+        Number numberValue = nft.parse(value);
+        return ComplementHelperUtils.numberValueToComplement(fieldName, numberValue);
+    }
 }

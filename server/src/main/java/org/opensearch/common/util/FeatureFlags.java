@@ -37,18 +37,6 @@ public class FeatureFlags {
     public static final String REMOTE_STORE_MIGRATION_EXPERIMENTAL = FEATURE_FLAG_PREFIX + "remote_store.migration.enabled";
 
     /**
-     * Gates the ability for Searchable Snapshots to read snapshots that are older than the
-     * guaranteed backward compatibility for OpenSearch (one prior major version) on a best effort basis.
-     */
-    public static final String SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY = FEATURE_FLAG_PREFIX
-        + "searchable_snapshot.extended_compatibility.enabled";
-    public static final Setting<Boolean> SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING = Setting.boolSetting(
-        SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY,
-        false,
-        Property.NodeScope
-    );
-
-    /**
      * Gates the functionality of extensions.
      * Once the feature is ready for production release, this feature flag can be removed.
      */
@@ -126,6 +114,9 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    public static final String STREAM_TRANSPORT = FEATURE_FLAG_PREFIX + "transport.stream.enabled";
+    public static final Setting<Boolean> STREAM_TRANSPORT_SETTING = Setting.boolSetting(STREAM_TRANSPORT, false, Property.NodeScope);
+
     public static final String ARROW_STREAMS = FEATURE_FLAG_PREFIX + "arrow.streams.enabled";
     public static final Setting<Boolean> ARROW_STREAMS_SETTING = Setting.boolSetting(ARROW_STREAMS, false, Property.NodeScope);
 
@@ -153,10 +144,7 @@ public class FeatureFlags {
                 );
                 put(TERM_VERSION_PRECOMMIT_ENABLE_SETTING, TERM_VERSION_PRECOMMIT_ENABLE_SETTING.getDefault(Settings.EMPTY));
                 put(ARROW_STREAMS_SETTING, ARROW_STREAMS_SETTING.getDefault(Settings.EMPTY));
-                put(
-                    SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING,
-                    SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING.getDefault(Settings.EMPTY)
-                );
+                put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
                 put(MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING, MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
             }
         };

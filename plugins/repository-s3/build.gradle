@@ -78,7 +78,8 @@ dependencies {
   api "software.amazon.awssdk:aws-query-protocol:${versions.aws}"
   api "software.amazon.awssdk:sts:${versions.aws}"
   api "software.amazon.awssdk:netty-nio-client:${versions.aws}"
-
+  api "software.amazon.awssdk:crt-core:${versions.aws}"
+  api "software.amazon.awssdk:aws-crt-client:${versions.aws}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
@@ -161,6 +162,9 @@ String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
 String s3PermanentBucket = System.getenv("amazon_s3_bucket")
 String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
 String s3PermanentRegion = System.getenv("amazon_s3_region")
+String s3Endpoint = System.getenv("amazon_s3_endpoint")
+String s3PathStyleAccess = System.getenv("amazon_s3_path_style_access")
+
 
 String s3TemporaryAccessKey = System.getenv("amazon_s3_access_key_temporary")
 String s3TemporarySecretKey = System.getenv("amazon_s3_secret_key_temporary")
@@ -419,6 +423,14 @@ TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
   if (useFixture) {
     nonInputProperties.systemProperty 'test.s3.endpoint', "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000') }"
   }
+  else {
+	  if (s3Endpoint != null) {
+		  systemProperty 'test.s3.endpoint', s3Endpoint
+	  }
+  }
+  if (s3PathStyleAccess) {
+	  systemProperty 'test.s3.path_style_access', s3PathStyleAccess
+  }
 }
 tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 
@@ -534,26 +546,12 @@ thirdPartyAudit {
 
     'software.amazon.awssdk.arns.Arn',
     'software.amazon.awssdk.arns.ArnResource',
-    'software.amazon.awssdk.crtcore.CrtConfigurationUtils',
-    'software.amazon.awssdk.crtcore.CrtConnectionHealthConfiguration',
-    'software.amazon.awssdk.crtcore.CrtConnectionHealthConfiguration$Builder',
-    'software.amazon.awssdk.crtcore.CrtConnectionHealthConfiguration$DefaultBuilder',
-    'software.amazon.awssdk.crtcore.CrtProxyConfiguration',
-    'software.amazon.awssdk.crtcore.CrtProxyConfiguration$Builder',
-    'software.amazon.awssdk.crtcore.CrtProxyConfiguration$DefaultBuilder',
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
     'software.amazon.eventstream.MessageDecoder'
   )
 
   ignoreViolations (
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
-
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',

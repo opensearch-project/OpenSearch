@@ -18,10 +18,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -32,6 +34,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
@@ -47,6 +50,7 @@ import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
+import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -77,6 +81,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -136,6 +141,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT),
             new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT),
             new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE),
+            new DimensionFieldData("ip_field", this::randomIp, DimensionTypes.IP),
             new DimensionFieldData("unsigned_long_field", () -> {
                 long queryValue = randomBoolean()
                     ? 9223372036854775807L - random().nextInt(100000)
@@ -658,6 +664,28 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
                 return new BigIntegerField(fieldName, (BigInteger) valueSupplier.get(), Field.Store.YES);
             }
+        }),
+        IP(new DimensionFieldDataSupplier() {
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                try {
+                    InetAddress address = InetAddress.getByName((String) valueSupplier.get());
+                    return new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(address)));
+
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public MappedFieldType getMappedField(String fieldName) {
+                return new IpFieldMapper.IpFieldType(fieldName);
+            }
+
+            @Override
+            public Dimension getDimension(String fieldName) {
+                return new OrdinalDimension(fieldName);
+            }
         });
 
         private final DimensionFieldDataSupplier dimensionFieldDataSupplier;
@@ -680,4 +708,8 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         return b.toString();
     }
 
+    private String randomIp() {
+        Random r = random();
+        return r.nextInt(256) + "." + r.nextInt(256) + "." + r.nextInt(256) + "." + r.nextInt(256);
+    }
 }

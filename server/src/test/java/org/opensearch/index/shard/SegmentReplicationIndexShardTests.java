@@ -60,6 +60,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
@@ -204,6 +205,52 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             primaryShard.forceMerge(new ForceMergeRequest("test").maxNumSegments(1));
             primaryShard.refresh("test");
             assertEquals(1, primaryShard.segments(false).size());
+        }
+    }
+
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    public void testCleanupRedundantPendingMergeSegment() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // generate segment _0.si and _1.si
+            int numDocs = 1;
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            // generate pending merge segment _2.si
+            primaryShard.forceMerge(new ForceMergeRequest("test").maxNumSegments(1));
+            replicateMergedSegments(primaryShard, List.of(replicaShard));
+
+            // generate segment _3.si
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            // generate pending merge segment _4.si
+            primaryShard.forceMerge(new ForceMergeRequest("test").maxNumSegments(1));
+            primaryShard.refresh("test");
+            replicateMergedSegments(primaryShard, List.of(replicaShard));
+
+            // verify primary segment count and replica pending merge segment count
+            assertEquals(1, primaryShard.segments(false).size());
+            assertEquals(2, replicaShard.getPendingMergedSegmentCheckpoints().size());
+
+            // after segment replication, _4.si is removed from pending merge segments
+            replicateSegments(primaryShard, List.of(replicaShard));
+            assertEquals(1, replicaShard.getPendingMergedSegmentCheckpoints().size());
+
+            // after cleanup redundant pending merge segment, _2.si is removed from pending merge segments
+            ReferencedSegmentsCheckpoint referencedSegmentsCheckpoint = primaryShard.computeReferencedSegmentsCheckpoint();
+            replicaShard.cleanupRedundantPendingMergeSegment(referencedSegmentsCheckpoint);
+            assertEquals(0, replicaShard.getPendingMergedSegmentCheckpoints().size());
         }
     }
 

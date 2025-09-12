@@ -44,6 +44,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -77,6 +78,8 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         Property.IndexScope
     );
 
+    private final ThreadPool threadPool;
+
     private final CircuitBreakerService circuitBreakerService;
 
     private final IndicesFieldDataCache indicesFieldDataCache;
@@ -96,12 +99,14 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         IndexSettings indexSettings,
         IndicesFieldDataCache indicesFieldDataCache,
         CircuitBreakerService circuitBreakerService,
-        MapperService mapperService
+        MapperService mapperService,
+        ThreadPool threadPool
     ) {
         super(indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
         this.mapperService = mapperService;
+        this.threadPool = threadPool;
     }
 
     public synchronized void clear() {
@@ -181,6 +186,17 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
     @Override
     public void close() throws IOException {
-        clear();
+        // Clear the field data cache for this index in an async manner
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            try {
+                this.clear();
+            } catch (Exception ex) {
+                logger.warn(
+                    "Exception occurred while clearing index field data cache for index: {}, exception: {}",
+                    indexSettings.getIndex().getName(),
+                    ex
+                );
+            }
+        });
     }
 }
