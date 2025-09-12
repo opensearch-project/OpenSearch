@@ -36,8 +36,8 @@ public class MatchAllQueryBuilderProtoUtils {
             matchAllQueryBuilder.boost(matchAllQueryProto.getBoost());
         }
 
-        if (matchAllQueryProto.hasUnderscoreName()) {
-            matchAllQueryBuilder.queryName(matchAllQueryProto.getUnderscoreName());
+        if (matchAllQueryProto.hasXName()) {
+            matchAllQueryBuilder.queryName(matchAllQueryProto.getXName());
         }
 
         return matchAllQueryBuilder;

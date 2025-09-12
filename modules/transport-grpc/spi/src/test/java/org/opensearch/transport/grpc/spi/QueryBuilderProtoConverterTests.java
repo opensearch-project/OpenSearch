@@ -89,7 +89,7 @@ public class QueryBuilderProtoConverterTests extends OpenSearchTestCase {
             .setTerm(
                 org.opensearch.protobufs.TermQuery.newBuilder()
                     .setField("test_field")
-                    .setValue(org.opensearch.protobufs.FieldValue.newBuilder().setStringValue("test_value").build())
+                    .setValue(org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build())
                     .build()
             )
             .build();
@@ -144,8 +144,8 @@ public class QueryBuilderProtoConverterTests extends OpenSearchTestCase {
             org.opensearch.protobufs.FieldValue fieldValue = termQuery.getValue();
             Object value;
 
-            if (fieldValue.hasStringValue()) {
-                value = fieldValue.getStringValue();
+            if (fieldValue.hasString()) {
+                value = fieldValue.getString();
             } else if (fieldValue.hasGeneralNumber()) {
                 org.opensearch.protobufs.GeneralNumber number = fieldValue.getGeneralNumber();
                 if (number.hasFloatValue()) {
@@ -159,8 +159,8 @@ public class QueryBuilderProtoConverterTests extends OpenSearchTestCase {
                 } else {
                     throw new IllegalArgumentException("Unsupported number type in TermQuery");
                 }
-            } else if (fieldValue.hasBoolValue()) {
-                value = fieldValue.getBoolValue();
+            } else if (fieldValue.hasBool()) {
+                value = fieldValue.getBool();
             } else {
                 throw new IllegalArgumentException("Unsupported field value type in TermQuery");
             }

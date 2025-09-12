@@ -12,7 +12,6 @@ import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.ScriptLanguage;
-import org.opensearch.protobufs.ScriptLanguage.BuiltinScriptLanguage;
 import org.opensearch.protobufs.StoredScriptId;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -30,10 +29,14 @@ public class ScriptFieldProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf ScriptField with inline script
         InlineScript inlineScript = InlineScript.newBuilder()
             .setSource("doc['field'].value * 2")
-            .setLang(ScriptLanguage.newBuilder().setBuiltinScriptLanguage(BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS).build())
+            .setLang(
+                ScriptLanguage.newBuilder()
+                    .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                    .build()
+            )
             .build();
 
-        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInlineScript(inlineScript).build();
+        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInline(inlineScript).build();
 
         ScriptField scriptField = ScriptField.newBuilder().setScript(script).setIgnoreFailure(true).build();
 
@@ -60,7 +63,7 @@ public class ScriptFieldProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf ScriptField with stored script
         StoredScriptId storedScriptId = StoredScriptId.newBuilder().setId("my_stored_script").build();
 
-        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setStoredScriptId(storedScriptId).build();
+        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setStored(storedScriptId).build();
 
         ScriptField scriptField = ScriptField.newBuilder().setScript(script).build();
 
@@ -97,11 +100,11 @@ public class ScriptFieldProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf ScriptField with inline script and parameters
         InlineScript inlineScript = InlineScript.newBuilder()
             .setSource("doc[params.field].value * params.factor")
-            .setLang(ScriptLanguage.newBuilder().setStringValue("painless").build())
+            .setLang(ScriptLanguage.newBuilder().setCustom("painless").build())
             .setParams(objectMapBuilder.build())
             .build();
 
-        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInlineScript(inlineScript).build();
+        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInline(inlineScript).build();
 
         ScriptField scriptField = ScriptField.newBuilder().setScript(script).build();
 
@@ -131,10 +134,10 @@ public class ScriptFieldProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf ScriptField with custom language
         InlineScript inlineScript = InlineScript.newBuilder()
             .setSource("custom script code")
-            .setLang(ScriptLanguage.newBuilder().setStringValue("mylang").build())
+            .setLang(ScriptLanguage.newBuilder().setCustom("mylang").build())
             .build();
 
-        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInlineScript(inlineScript).build();
+        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInline(inlineScript).build();
 
         ScriptField scriptField = ScriptField.newBuilder().setScript(script).build();
 
@@ -160,11 +163,15 @@ public class ScriptFieldProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf ScriptField with inline script and options
         InlineScript inlineScript = InlineScript.newBuilder()
             .setSource("doc['field'].value")
-            .setLang(ScriptLanguage.newBuilder().setBuiltinScriptLanguage(BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS).build())
+            .setLang(
+                ScriptLanguage.newBuilder()
+                    .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                    .build()
+            )
             .putAllOptions(optionsMap)
             .build();
 
-        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInlineScript(inlineScript).build();
+        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInline(inlineScript).build();
 
         ScriptField scriptField = ScriptField.newBuilder().setScript(script).build();
 
@@ -191,11 +198,15 @@ public class ScriptFieldProtoUtilsTests extends OpenSearchTestCase {
         // Create a protobuf ScriptField with inline script and invalid options
         InlineScript inlineScript = InlineScript.newBuilder()
             .setSource("doc['field'].value")
-            .setLang(ScriptLanguage.newBuilder().setBuiltinScriptLanguage(BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS).build())
+            .setLang(
+                ScriptLanguage.newBuilder()
+                    .setBuiltin(org.opensearch.protobufs.BuiltinScriptLanguage.BUILTIN_SCRIPT_LANGUAGE_PAINLESS)
+                    .build()
+            )
             .putAllOptions(optionsMap)
             .build();
 
-        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInlineScript(inlineScript).build();
+        org.opensearch.protobufs.Script script = org.opensearch.protobufs.Script.newBuilder().setInline(inlineScript).build();
 
         ScriptField scriptField = ScriptField.newBuilder().setScript(script).build();
 

@@ -35,7 +35,7 @@ public class SearchTypeProtoUtils {
         if (!request.hasSearchType()) {
             return SearchType.DEFAULT;
         }
-        SearchRequest.SearchType searchType = request.getSearchType();
+        org.opensearch.protobufs.SearchType searchType = request.getSearchType();
         switch (searchType) {
             case SEARCH_TYPE_DFS_QUERY_THEN_FETCH:
                 return SearchType.DFS_QUERY_THEN_FETCH;
