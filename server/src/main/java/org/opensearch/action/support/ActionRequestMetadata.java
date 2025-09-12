@@ -34,8 +34,6 @@ public class ActionRequestMetadata<Request extends ActionRequest, Response exten
     private final TransportAction<Request, Response> transportAction;
     private final Request request;
 
-    private OptionallyResolvedIndices resolvedIndices;
-
     ActionRequestMetadata(TransportAction<Request, Response> transportAction, Request request) {
         this.transportAction = transportAction;
         this.request = request;
@@ -54,23 +52,10 @@ public class ActionRequestMetadata<Request extends ActionRequest, Response exten
             return OptionallyResolvedIndices.unknown();
         }
 
-        if (this.resolvedIndices != null) {
-            return this.resolvedIndices;
-        } else {
-            return resolveIndices();
-        }
-    }
-
-    /**
-     * Performs the actual index resolution. Index resolution can be relatively costly on big clusters, so we
-     * perform it lazily only when requested.
-     */
-    private OptionallyResolvedIndices resolveIndices() {
+        // We should not cache and re-use results in this object, as each ActionFilter might modify the request
+        // and thus change the result
         @SuppressWarnings("unchecked")
         TransportIndicesResolvingAction<Request> indicesResolvingAction = (TransportIndicesResolvingAction<Request>) this.transportAction;
-        OptionallyResolvedIndices result = indicesResolvingAction.resolveIndices(request);
-
-        this.resolvedIndices = result;
-        return result;
+        return indicesResolvingAction.resolveIndices(request);
     }
 }
