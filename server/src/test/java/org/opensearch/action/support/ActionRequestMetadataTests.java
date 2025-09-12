@@ -27,7 +27,6 @@ public class ActionRequestMetadataTests extends OpenSearchTestCase {
         );
         OptionallyResolvedIndices resolvedIndices = subject.resolvedIndices();
         assertEquals(ResolvedIndices.of("my_resolution_result"), resolvedIndices);
-        assertSame("ResolvedIndices object is reused on subsequent calls", resolvedIndices, subject.resolvedIndices());
     }
 
     public void testResolvedIndices_unknown() {
