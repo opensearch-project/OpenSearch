@@ -81,6 +81,9 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
     private BlobStoreRepository translogRepository;
     private BlobStoreRepository segmentRepository;
 
+    private BlobStoreRepository translogSSERepository;
+    private BlobStoreRepository segmentSSERepository;
+
     public RemoteIndexPathUploader(
         ThreadPool threadPool,
         Settings settings,
@@ -174,11 +177,24 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         if (isTranslogSegmentRepoSame) {
             // If the repositories are same, then we need to upload a single file containing paths for both translog and segments.
             writePathToRemoteStore(idxMD, translogRepository, latch, exceptionList, COMBINED_PATH);
+
+            if (translogSSERepository != null) {
+                writePathToRemoteStore(idxMD, translogSSERepository, latch, exceptionList, COMBINED_PATH);
+            }
+
         } else {
             // If the repositories are different, then we need to upload one file per segment and translog containing their individual
             // paths.
             writePathToRemoteStore(idxMD, translogRepository, latch, exceptionList, TRANSLOG_PATH);
             writePathToRemoteStore(idxMD, segmentRepository, latch, exceptionList, SEGMENT_PATH);
+
+            if (translogSSERepository != null) {
+                writePathToRemoteStore(idxMD, translogSSERepository, latch, exceptionList, TRANSLOG_PATH);
+            }
+
+            if (segmentSSERepository != null) {
+                writePathToRemoteStore(idxMD, segmentSSERepository, latch, exceptionList, SEGMENT_PATH);
+            }
         }
     }
 
@@ -234,15 +250,22 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
             return;
         }
 
-        translogRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings));
-        segmentRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings));
+        translogRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(false));
+        segmentRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(false));
+
+        if (RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled()) {
+            translogSSERepository = (BlobStoreRepository) validateAndGetRepository(
+                RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(true)
+            );
+            segmentSSERepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(true));
+        }
     }
 
     private boolean isTranslogSegmentRepoSame() {
         // TODO - The current comparison checks the repository name. But it is also possible that the repository are same
         // by attributes, but different by name. We need to handle this.
-        String translogRepoName = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings);
-        String segmentRepoName = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings);
+        String translogRepoName = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(false);
+        String segmentRepoName = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(false);
         return Objects.equals(translogRepoName, segmentRepoName);
     }
 
