@@ -62,7 +62,7 @@ public class MergedSegmentReplicationTarget extends AbstractSegmentReplicationTa
     protected void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws Exception {
         assert checkpoint instanceof MergedSegmentCheckpoint;
         multiFileWriter.renameAllTempFiles();
-        indexShard.addPendingMergeSegmentCheckpoint((MergedSegmentCheckpoint) checkpoint);
+        indexShard.addReplicaMergedSegmentCheckpoint((MergedSegmentCheckpoint) checkpoint);
     }
 
     @Override
