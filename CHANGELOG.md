@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.tika` from 2.9.2 to 3.2.2 ([#19242](https://github.com/opensearch-project/OpenSearch/pull/19242))
 - Bump `org.apache.commons:commons-compress` from 1.26.1 to 1.28.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
 - Bump `org.apache.commons:commonscodec` from 1.16.1 to 1.18.0 ([#19125](https://github.com/opensearch-project/OpenSearch/pull/19242))
+- Bump netty from 4.1.121.Final to 4.1.125.Final ([#19270](https://github.com/opensearch-project/OpenSearch/pull/19270))
 
 ### Deprecated
 
