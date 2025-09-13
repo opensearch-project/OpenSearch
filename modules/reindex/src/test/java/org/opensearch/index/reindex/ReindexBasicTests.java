@@ -52,6 +52,7 @@ import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -482,5 +483,22 @@ public class ReindexBasicTests extends ReindexTestCase {
             assertEquals(id + 1000, ((Number) source.get("modified_numeric")).longValue());
             assertNotNull(source.get("date_field"));
         }
+    }
+
+    public void testTooMuchSlices() throws InterruptedException {
+        indexRandom(
+            true,
+            client().prepareIndex("source").setId("1").setSource("foo", "a"),
+            client().prepareIndex("source").setId("2").setSource("foo", "a"),
+            client().prepareIndex("source").setId("3").setSource("foo", "b"),
+            client().prepareIndex("source").setId("4").setSource("foo", "c")
+        );
+        assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
+
+        int slices = 2000;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            reindex().source("source").destination("dest").refresh(true).setSlices(slices).get();
+        });
+        assertThat(e.getMessage(), containsString("is too large"));
     }
 }
