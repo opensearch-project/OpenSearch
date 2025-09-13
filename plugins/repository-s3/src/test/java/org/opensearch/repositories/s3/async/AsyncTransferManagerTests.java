@@ -46,13 +46,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -291,5 +295,74 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         verify(s3AsyncClient, times(5)).uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class));
         verify(s3AsyncClient, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
         verify(s3AsyncClient, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+    }
+
+    public void testMultipartUploadFailsWhenProvideStreamThrowsForOnePart() throws IOException {
+
+        CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadRequestCompletableFuture = new CompletableFuture<>();
+        createMultipartUploadRequestCompletableFuture.complete(CreateMultipartUploadResponse.builder().uploadId("uploadId").build());
+        when(s3AsyncClient.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            createMultipartUploadRequestCompletableFuture
+        );
+
+        CompletableFuture<UploadPartResponse> uploadPartResponseCompletableFuture = new CompletableFuture<>();
+        uploadPartResponseCompletableFuture.complete(UploadPartResponse.builder().checksumCRC32("pzjqHA==").build());
+        when(s3AsyncClient.uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class))).thenReturn(
+            uploadPartResponseCompletableFuture
+        );
+
+        CompletableFuture<CompleteMultipartUploadResponse> completeMultipartUploadResponseCompletableFuture = new CompletableFuture<>();
+        completeMultipartUploadResponseCompletableFuture.complete(CompleteMultipartUploadResponse.builder().build());
+        when(s3AsyncClient.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+            completeMultipartUploadResponseCompletableFuture
+        );
+
+        CompletableFuture<AbortMultipartUploadResponse> abortMultipartUploadResponseCompletableFuture = new CompletableFuture<>();
+        abortMultipartUploadResponseCompletableFuture.complete(AbortMultipartUploadResponse.builder().build());
+        when(s3AsyncClient.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(
+            abortMultipartUploadResponseCompletableFuture
+        );
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
+        List<InputStream> streams = new ArrayList<>();
+        StreamContext realStreamContext = new StreamContext((partIdx, partSize, position) -> {
+            InputStream stream = new ZeroInputStream(partSize);
+            streams.add(stream);
+            return new InputStreamContainer(stream, partSize, position);
+        }, ByteSizeUnit.MB.toBytes(1), ByteSizeUnit.MB.toBytes(1), 5);
+
+        StreamContext streamContext = spy(realStreamContext);
+        doThrow(new IOException("stream context throwing simulated exception for partidx 2")).when(streamContext).provideStream(2);
+
+        CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
+            s3AsyncClient,
+            new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
+                // do nothing
+            }, true, 3376132981L, true, metadata, ServerSideEncryption.AWS_KMS.toString(), randomAlphaOfLength(10), true, null, null),
+            streamContext,
+            new StatsMetricPublisher()
+        );
+
+        CompletionException ex = assertThrows(CompletionException.class, resultFuture::join);
+        assertEquals("stream context throwing simulated exception for partidx 2", ex.getCause().getMessage());
+
+        streams.forEach(stream -> {
+            boolean closeError = false;
+            try {
+                stream.available();
+            } catch (IOException e) {
+                closeError = e.getMessage().equals("Stream closed");
+            }
+            assertTrue("InputStream was still open after upload", closeError);
+        });
+
+        verify(s3AsyncClient, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(4)).uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class));
+        verify(s3AsyncClient, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+        verify(s3AsyncClient, atLeastOnce()).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+
     }
 }
