@@ -56,8 +56,8 @@ dependencies {
 
   // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.55.0'
   implementation "com.google.cloud:google-cloud-storage:2.55.0"
-  implementation "com.google.cloud:google-cloud-core:2.59.0"
-  implementation "com.google.cloud:google-cloud-core-http:2.59.0"
+  implementation "com.google.cloud:google-cloud-core:2.60.0"
+  implementation "com.google.cloud:google-cloud-core-http:2.60.0"
 
   runtimeOnly "com.google.guava:guava:${guava_version}"
   runtimeOnly "com.google.guava:failureaccess:1.0.2"

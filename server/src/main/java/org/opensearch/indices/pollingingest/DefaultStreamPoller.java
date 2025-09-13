@@ -157,6 +157,8 @@ public class DefaultStreamPoller implements StreamPoller {
         this.errorStrategy = errorStrategy;
         this.indexName = indexSettings.getIndex().getName();
 
+        // handle initial poller states
+        this.paused = initialState == State.PAUSED;
     }
 
     @Override

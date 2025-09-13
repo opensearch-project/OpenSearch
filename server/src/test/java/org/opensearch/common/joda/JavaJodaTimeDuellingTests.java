@@ -782,7 +782,8 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
         for (FormatNames format : FormatNames.values()) {
             if (format == FormatNames.ISO8601
                 || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS
-                || format == FormatNames.RFC3339_LENIENT) {
+                || format == FormatNames.RFC3339_LENIENT
+                || format == FormatNames.EPOCH_MICROS) {
                 // Nanos aren't supported by joda
                 continue;
             }
