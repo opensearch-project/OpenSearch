@@ -86,7 +86,7 @@ public class ShardDocFieldComparatorSource extends IndexFieldData.XFieldComparat
                     }
 
                     private long computeGlobalDocKey(int doc) {
-                        return  shardKeyPrefix | (docBase + doc);
+                        return shardKeyPrefix | (docBase + doc);
                     }
                 };
             }

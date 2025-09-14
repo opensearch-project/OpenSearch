@@ -1,0 +1,241 @@
+---
+setup:
+  # Common tiny index used by some validation checks
+  - do:
+      indices.create:
+        index: sharddoc_index
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 0
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: sharddoc_index
+
+  # Multi-shard dataset for happy path + pagination (helps exercise multi-node when available)
+  - do:
+      indices.create:
+        index: sharddoc_paging
+        body:
+          settings:
+            number_of_shards: 4
+            number_of_replicas: 0
+          mappings:
+            properties:
+              id: { type: integer }
+              txt: { type: keyword }
+  - do:
+      bulk:
+        refresh: true
+        index: sharddoc_paging
+        body: |
+          {"index":{}}
+          {"id":1,"txt":"a"}
+          {"index":{}}
+          {"id":2,"txt":"b"}
+          {"index":{}}
+          {"id":3,"txt":"c"}
+          {"index":{}}
+          {"id":4,"txt":"d"}
+          {"index":{}}
+          {"id":5,"txt":"e"}
+          {"index":{}}
+          {"id":6,"txt":"f"}
+          {"index":{}}
+          {"id":7,"txt":"g"}
+          {"index":{}}
+          {"id":8,"txt":"h"}
+          {"index":{}}
+          {"id":9,"txt":"i"}
+          {"index":{}}
+          {"id":10,"txt":"j"}
+          {"index":{}}
+          {"id":11,"txt":"k"}
+          {"index":{}}
+          {"id":12,"txt":"l"}
+
+          {"index":{}}
+          {"id":13,"txt":"m"}
+          {"index":{}}
+          {"id":14,"txt":"n"}
+          {"index":{}}
+          {"id":15,"txt":"o"}
+          {"index":{}}
+          {"id":16,"txt":"p"}
+          {"index":{}}
+          {"id":17,"txt":"q"}
+
+          {"index":{}}
+          {"id":18,"txt":"r"}
+          {"index":{}}
+          {"id":19,"txt":"s"}
+          {"index":{}}
+          {"id":20,"txt":"t"}
+          {"index":{}}
+          {"id":21,"txt":"u"}
+          {"index":{}}
+          {"id":22,"txt":"v"}
+
+# -------------------------------------------------------------------
+# VALIDATION
+# -------------------------------------------------------------------
+
+---
+"reject _shard_doc without PIT":
+  - do:
+      catch: bad_request
+      search:
+        index: sharddoc_index
+        body:
+          sort:
+            - _shard_doc
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "/.*_shard_doc is only supported with point-in-time.*|.*PIT.*/" }
+
+---
+"detect _shard_doc via FieldSortBuilder-style object without PIT":
+  - do:
+      catch: bad_request
+      search:
+        index: sharddoc_index
+        body:
+          sort:
+            - _shard_doc: { }   # object form, still invalid without PIT
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "/.*_shard_doc is only supported with point-in-time.*|.*PIT.*/" }
+
+
+
+# -------------------------------------------------------------------
+# HAPPY PATH: PAGINATION WITH PIT ON MULTI-SHARD INDEX
+# -------------------------------------------------------------------
+
+---
+"accept _shard_doc with PIT + paginate with search_after (multi-shard)":
+  - do:
+      create_pit:
+        index: sharddoc_paging
+        keep_alive: 1m
+  - set: { pit_id: pit_id }
+
+  # Page 1
+  - do:
+      search:
+        body:
+          size: 5
+          pit: { id: "$pit_id", keep_alive: "1m" }
+          sort:
+            - _shard_doc: {}
+  - match: { _shards.failed: 0 }
+  - length: { hits.hits: 5 }
+  - is_true: hits.hits.0.sort
+  - is_true: hits.hits.1.sort
+  - is_true: hits.hits.2.sort
+  - is_true: hits.hits.3.sort
+  - is_true: hits.hits.4.sort
+
+  - set: { hits.hits.4.sort: after1  }
+
+  # Check that the sort values increase from one hit to the next without ever decreasing.
+  - set: { hits.hits.0.sort.0: prev }
+  - gt: { hits.hits.1.sort.0: $prev }
+
+  - set: { hits.hits.1.sort.0: prev }
+  - gt: { hits.hits.2.sort.0: $prev }
+
+  - set: { hits.hits.2.sort.0: prev }
+  - gt: { hits.hits.3.sort.0: $prev }
+
+  - set: { hits.hits.3.sort.0: prev }
+  - gt: { hits.hits.4.sort.0: $prev }
+
+  # Page 2
+  - do:
+      search:
+        body:
+          size: 5
+          pit: { id: "$pit_id", keep_alive: "1m" }
+          sort:
+            - _shard_doc: { }
+  - match: { _shards.failed: 0 }
+  - length: { hits.hits: 5 }
+  - is_true: hits.hits.4.sort
+
+  - set: { hits.hits.4.sort: after2 }
+  - set: { hits.hits.4.sort.0: last_value_page2 }
+
+
+  # Page 3
+  - do:
+      search:
+        body:
+          size: 5
+          pit: { id: "$pit_id", keep_alive: "1m" }
+          sort:
+            - _shard_doc: {}
+          search_after: $after2
+  - match: { _shards.failed: 0 }
+  - length: { hits.hits: 5 }
+  - is_true: hits.hits.0.sort
+  - set: { hits.hits.4.sort: after3 }
+
+  - set: { hits.hits.0.sort.0 : first_value_page3  }
+  - set: { hits.hits.4.sort.0 : last_value_page3  }
+  - gt:  { $first_value_page3: $last_value_page2 }
+
+  # Page 4
+  - do:
+      search:
+        body:
+          size: 5
+          pit: { id: "$pit_id", keep_alive: "1m" }
+          sort:
+            - _shard_doc: {}
+          search_after: $after3
+  - match: { _shards.failed: 0 }
+  - length: { hits.hits: 5 }
+  - is_true: hits.hits.0.sort
+  - set: { hits.hits.4.sort: after4 }
+
+  - set: { hits.hits.0.sort.0 : first_value_page4  }
+  - set: { hits.hits.4.sort.0 : last_value_page4  }
+  - gt:  { $first_value_page4: $last_value_page3 }
+
+  # Page 5
+  - do:
+      search:
+        body:
+          size: 5
+          pit: { id: "$pit_id", keep_alive: "1m" }
+          sort:
+            - _shard_doc: {}
+          search_after: $after4
+  - match: { _shards.failed: 0 }
+  - length: { hits.hits: 5 }
+  - is_true: hits.hits.0.sort
+  - set: { hits.hits.4.sort: after5 }
+
+  - set: { hits.hits.0.sort.0 : first_value_page5  }
+  - set: { hits.hits.4.sort.0 : last_value_page5  }
+  - gt:  { $first_value_page5: $last_value_page4 }
+
+  # Page 6: drain the rest (22 docs total => 5 + 5 + 5 + 5 + 2)
+  - do:
+      search:
+        body:
+          size: 5
+          pit: { id: "$pit_id", keep_alive: "1m" }
+          sort:
+            - _shard_doc: {}
+          search_after: $after5
+  - match: { _shards.failed: 0 }
+  - length: { hits.hits: 2 }
+  - is_true: hits.hits.0.sort
+
+  - do:
+      delete_pit:
+        body:
+          pit_id: [ "$pit_id" ]

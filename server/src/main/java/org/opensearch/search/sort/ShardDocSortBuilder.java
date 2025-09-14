@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Sort builder for the pseudo‐field "_shard_doc", which tiebreaks by {@code (shardOrd << 32) | globalDocId}.
+ * Sort builder for the pseudo‐field "_shard_doc", which tiebreaks by {@code (shardId << 32) | globalDocId}.
  */
 public class ShardDocSortBuilder extends SortBuilder<ShardDocSortBuilder> {
 
@@ -35,11 +35,12 @@ public class ShardDocSortBuilder extends SortBuilder<ShardDocSortBuilder> {
         PARSER.declareString((b, s) -> b.order(SortOrder.fromString(s)), ORDER_FIELD);
     }
 
-    public ShardDocSortBuilder() {}
+    public ShardDocSortBuilder() {
+        this.order = SortOrder.ASC; // default to ASC
+    }
 
     public ShardDocSortBuilder(StreamInput in) throws IOException {
         this.order = SortOrder.readFromStream(in);
-
     }
 
     @Override

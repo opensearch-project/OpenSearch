@@ -15,7 +15,6 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +34,6 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX);
     }
 
-    @Test
     public void testEmptyIndex() {
         SearchResponse resp = client().prepareSearch(INDEX).addSort(SortBuilders.shardDocSort().order(SortOrder.ASC)).setSize(10).get();
 
@@ -45,7 +43,6 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         assertThat(resp.getHits().getTotalHits().value(), equalTo(0L));
     }
 
-    @Test
     public void testSingleDocument() {
         client().prepareIndex(INDEX).setId("42").setSource("foo", "bar").get();
         refresh();
@@ -56,7 +53,6 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         assertThat(resp.getHits().getHits()[0].getId(), equalTo("42"));
     }
 
-    @Test
     public void testSearchAfterBeyondEndYieldsNoHits() {
         indexSequentialDocs(5);
         refresh();
@@ -80,7 +76,6 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         assertThat(hits.length, equalTo(0));
     }
 
-    @Test
     public void testSearchAfterBeyondEndYieldsNoHits_DESC() throws Exception {
         indexSequentialDocs(5);
         refresh();
@@ -102,7 +97,6 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         assertThat(resp.getHits().getHits().length, equalTo(0));
     }
 
-    @Test
     public void testPrimaryFieldSortThenShardDocTieBreaker() {
         // force ties on primary
         for (int i = 1; i <= 30; i++) {
@@ -123,12 +117,10 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         }
     }
 
-    @Test
     public void testOrderingAscAndPagination() throws Exception {
         assertShardDocOrdering(SortOrder.ASC, 7, 20);
     }
 
-    @Test
     public void testOrderingDescAndPagination() throws Exception {
         assertShardDocOrdering(SortOrder.DESC, 8, 20);
     }
