@@ -855,12 +855,12 @@ public class ClusterStatsNodes implements ToXContentFragment {
                                         nodeIngestStats.getCount(),
                                         nodeIngestStats.getFailedCount(),
                                         nodeIngestStats.getCurrent(),
-                                        nodeIngestStats.getTotalTimeInMillis() };
+                                        nodeIngestStats.getTotalTime() };
                                 } else {
                                     v[0] += nodeIngestStats.getCount();
                                     v[1] += nodeIngestStats.getFailedCount();
                                     v[2] += nodeIngestStats.getCurrent();
-                                    v[3] += nodeIngestStats.getTotalTimeInMillis();
+                                    v[3] += nodeIngestStats.getTotalTime();
                                     return v;
                                 }
                             });
