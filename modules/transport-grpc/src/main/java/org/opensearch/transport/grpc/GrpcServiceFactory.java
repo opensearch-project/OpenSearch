@@ -24,7 +24,8 @@ public interface GrpcServiceFactory {
     GrpcServiceFactory initClient(Client client);
 
     /**
-     * @return build and return gRPC BindableService.
+     * Build gRPC service.
+     * @return BindableService.
      */
     BindableService build();
 }
