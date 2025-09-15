@@ -139,6 +139,38 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
         });
     }
 
+    public void testAllActiveIngestion() throws Exception {
+        // Create pull-based index in default replication mode (docrep) and publish some messages
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kinesis")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.stream", "test")
+                .put("ingestion_source.param.region", localstack.getRegion())
+                .put("ingestion_source.param.access_key", localstack.getAccessKey())
+                .put("ingestion_source.param.secret_key", localstack.getSecretKey())
+                .put(
+                    "ingestion_source.param.endpoint_override",
+                    localstack.getEndpointOverride(LocalStackContainer.Service.KINESIS).toString()
+                )
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        flush(indexName);
+        waitForSearchableDocs(10, List.of(nodeA, nodeB));
+    }
+
     private boolean isRewinded(String sequenceNumber) {
         DescribeStreamResponse describeStreamResponse = kinesisClient.describeStream(
             DescribeStreamRequest.builder().streamName(streamName).build()

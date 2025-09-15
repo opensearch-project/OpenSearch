@@ -29,7 +29,7 @@ import java.util.Map;
  */
 @ExperimentalApi
 public record ShardIngestionState(String index, int shardId, String pollerState, String errorPolicy, boolean isPollerPaused,
-    boolean isWriteBlockEnabled, String batchStartPointer) implements Writeable, ToXContentFragment {
+    boolean isWriteBlockEnabled, String batchStartPointer, boolean isPrimary, String nodeName) implements Writeable, ToXContentFragment {
 
     private static final String SHARD = "shard";
     private static final String POLLER_STATE = "poller_state";
@@ -37,9 +37,11 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
     private static final String POLLER_PAUSED = "poller_paused";
     private static final String WRITE_BLOCK_ENABLED = "write_block_enabled";
     private static final String BATCH_START_POINTER = "batch_start_pointer";
+    private static final String PRIMARY_OR_REPLICA = "prirep";
+    private static final String NODE_NAME = "node";
 
     public ShardIngestionState() {
-        this("", -1, "", "", false, false, "");
+        this("", -1, "", "", false, false, "", true, "");
     }
 
     public ShardIngestionState(StreamInput in) throws IOException {
@@ -49,6 +51,8 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
             in.readOptionalString(),
             in.readOptionalString(),
             in.readBoolean(),
+            in.readBoolean(),
+            in.readString(),
             in.readBoolean(),
             in.readString()
         );
@@ -61,7 +65,9 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
         @Nullable String errorPolicy,
         boolean isPollerPaused,
         boolean isWriteBlockEnabled,
-        String batchStartPointer
+        String batchStartPointer,
+        boolean isPrimary,
+        String nodeName
     ) {
         this.index = index;
         this.shardId = shardId;
@@ -70,6 +76,8 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
         this.isPollerPaused = isPollerPaused;
         this.isWriteBlockEnabled = isWriteBlockEnabled;
         this.batchStartPointer = batchStartPointer;
+        this.isPrimary = isPrimary;
+        this.nodeName = nodeName;
     }
 
     @Override
@@ -81,6 +89,8 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
         out.writeBoolean(isPollerPaused);
         out.writeBoolean(isWriteBlockEnabled);
         out.writeString(batchStartPointer);
+        out.writeBoolean(isPrimary);
+        out.writeString(nodeName);
     }
 
     @Override
@@ -92,6 +102,8 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
         builder.field(POLLER_PAUSED, isPollerPaused);
         builder.field(WRITE_BLOCK_ENABLED, isWriteBlockEnabled);
         builder.field(BATCH_START_POINTER, batchStartPointer);
+        builder.field(PRIMARY_OR_REPLICA, isPrimary ? "p" : "r");
+        builder.field(NODE_NAME, nodeName);
         builder.endObject();
         return builder;
     }

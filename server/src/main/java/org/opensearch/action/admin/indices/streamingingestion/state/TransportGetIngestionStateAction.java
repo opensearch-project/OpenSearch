@@ -18,6 +18,7 @@ import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeActi
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
@@ -30,6 +31,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -37,6 +39,7 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -148,10 +151,20 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, GetIngestionStateRequest request, String[] concreteIndices) {
-        Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
+        Set<String> docRepIndexSet = new HashSet<>();
+        for (String index : concreteIndices) {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata != null) {
+                ReplicationType replicationType = getReplicationType(indexMetadata);
+                if (replicationType == ReplicationType.DOCUMENT) {
+                    docRepIndexSet.add(index);
+                }
+            }
+        }
 
-        // add filters for index and shard from the request
-        Predicate<ShardRouting> shardFilter = ShardRouting::primary;
+        Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
+        Predicate<ShardRouting> shardFilter = shardRouting -> shardRouting.primary()
+            || docRepIndexSet.contains(shardRouting.getIndexName());
         if (shardSet.isEmpty() == false) {
             shardFilter = shardFilter.and(shardRouting -> shardSet.contains(shardRouting.shardId().getId()));
         }
@@ -217,9 +230,27 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         }
 
         try {
-            return indexShard.getIngestionState();
+            ShardIngestionState baseState = indexShard.getIngestionState();
+            String nodeName = clusterService.localNode().getName();
+
+            // rebuild ingestion state with primary/replica and node details
+            return new ShardIngestionState(
+                baseState.index(),
+                baseState.shardId(),
+                baseState.pollerState(),
+                baseState.errorPolicy(),
+                baseState.isPollerPaused(),
+                baseState.isWriteBlockEnabled(),
+                baseState.batchStartPointer(),
+                shardRouting.primary(),
+                nodeName != null ? nodeName : ""
+            );
         } catch (final AlreadyClosedException e) {
             throw new ShardNotFoundException(indexShard.shardId());
         }
+    }
+
+    private ReplicationType getReplicationType(IndexMetadata indexMetadata) {
+        return IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexMetadata.getSettings());
     }
 }

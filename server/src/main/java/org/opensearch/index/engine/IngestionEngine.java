@@ -610,6 +610,8 @@ public class IngestionEngine extends InternalEngine {
      */
     public ShardIngestionState getIngestionState() {
         IngestionShardPointer shardPointer = streamPoller.getBatchStartPointer();
+
+        // Node and routing details are set at the routing layer
         return new ShardIngestionState(
             engineConfig.getIndexSettings().getIndex().getName(),
             engineConfig.getShardId().getId(),
@@ -617,7 +619,9 @@ public class IngestionEngine extends InternalEngine {
             streamPoller.getErrorStrategy().getName(),
             streamPoller.isPaused(),
             streamPoller.isWriteBlockEnabled(),
-            shardPointer != null ? shardPointer.toString() : ""
+            shardPointer != null ? shardPointer.toString() : "",
+            true,
+            ""
         );
     }
 }
