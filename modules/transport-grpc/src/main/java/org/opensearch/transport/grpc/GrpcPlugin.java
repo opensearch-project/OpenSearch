@@ -162,7 +162,6 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
         }
 
-
         return Collections.singletonMap(
             GRPC_TRANSPORT_SETTING_KEY,
             () -> {
@@ -170,8 +169,9 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                     new DocumentServiceImpl(client),
                     new SearchServiceImpl(client, queryUtils)
                 ));
-                for (GrpcServiceFactory service : servicesFactory) {
-                    grpcServices.add(service.get());
+                for (GrpcServiceFactory serviceFac : servicesFactory) {
+                    BindableService service = serviceFac.initClient(client).build();
+                    grpcServices.add(service);
                 }
                 return new Netty4GrpcServerTransport(settings, grpcServices, networkService);
             }
@@ -218,8 +218,9 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                     new DocumentServiceImpl(client),
                     new SearchServiceImpl(client, queryUtils)
                 ));
-                for (GrpcServiceProvider service : servicesFactory) {
-                    grpcServices.add(service.get());
+                for (GrpcServiceFactory serviceFac : servicesFactory) {
+                    BindableService service = serviceFac.initClient(client).build();
+                    grpcServices.add(service);
                 }
                 return new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider);
             }
