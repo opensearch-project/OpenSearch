@@ -16,7 +16,15 @@ import io.grpc.BindableService;
  * Extension point for plugins to add a BindableService to the grpc-transport.
  */
 public interface GrpcServiceFactory {
+    /**
+     * Called previous to build.
+     * @param client OpenSearch client for use in gRPC service definition.
+     * @return GrpcServiceFactory for chaining.
+     */
     GrpcServiceFactory initClient(Client client);
 
+    /**
+     * @return build and return gRPC BindableService.
+     */
     BindableService build();
 }
