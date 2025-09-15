@@ -79,6 +79,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jboss.xnio:xnio-nio` from 3.8.16.Final to 3.8.17.Final ([#19252](https://github.com/opensearch-project/OpenSearch/pull/19252))
 - Bump `actions/setup-java` from 4 to 5 ([#19143](https://github.com/opensearch-project/OpenSearch/pull/19143))
 - Bump `com.google.code.gson:gson` from 2.13.1 to 2.13.2 ([#19293](https://github.com/opensearch-project/OpenSearch/pull/19293))
+- Bump Apache Lucene from 10.2.2 to 10.3.0 ([#19296](https://github.com/opensearch-project/OpenSearch/pull/19296))
 
 ### Deprecated
 
