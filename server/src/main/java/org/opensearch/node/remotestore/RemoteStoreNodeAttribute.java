@@ -166,7 +166,10 @@ public class RemoteStoreNodeAttribute {
         return settingsMap;
     }
 
-    private RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name, String prefix) {
+    private List<RepositoryMetadata> buildRepositoryMetadata(DiscoveryNode node, String name, String prefix) {
+
+        List<RepositoryMetadata> repoList = new ArrayList<>();
+
         String type = getAndValidateNodeAttribute(
             node,
             String.format(Locale.getDefault(), REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, prefix, name)
@@ -180,8 +183,20 @@ public class RemoteStoreNodeAttribute {
 
         // Repository metadata built here will always be for a system repository.
         settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
+        settings.put("server_side_encryption_type", "AES256");
+        repoList.add(new RepositoryMetadata(name, type, settings.build(), cryptoMetadata));
 
-        return new RepositoryMetadata(name, type, settings.build(), cryptoMetadata);
+        if (settingsMap.containsKey(REPOSITORY_SETTINGS_SSE_ENABLED_ATTRIBUTE_KEY)) {
+            Settings.Builder sseSetting = Settings.builder();
+            settingsMap.forEach(sseSetting::put);
+
+            // Repository metadata built here will always be for a system repository.
+            sseSetting.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
+            sseSetting.put(REPOSITORY_SETTINGS_SSE_ENABLED_ATTRIBUTE_KEY, true);
+            sseSetting.put("server_side_encryption_type", "aws:kms");
+            repoList.add(new RepositoryMetadata(name + REMOTE_STORE_SSE_REPO_SUFFIX, type, sseSetting.build()));
+        }
+        return repoList;
     }
 
     private RepositoriesMetadata buildRepositoriesMetadata(DiscoveryNode node) {
@@ -190,18 +205,16 @@ public class RemoteStoreNodeAttribute {
         List<RepositoryMetadata> repositoryMetadataList = new ArrayList<>();
 
         for (Map.Entry<String, String> repository : repositoryNamesWithPrefix.entrySet()) {
-            RepositoryMetadata repositoryMetadata = buildRepositoryMetadata(node, repository.getKey(), repository.getValue());
-            repositoryMetadataList.add(repositoryMetadata);
-            repositoryMetadataMap.put(repositoryMetadata.name(), repositoryMetadata);
+            List<RepositoryMetadata> repoList = buildRepositoryMetadata(node, repository.getKey(), repository.getValue());
+            RepositoryMetadata nonSSERepository = repoList.getFirst();
 
-            if (isCompositeRepository(repositoryMetadata)) {
-                RepositoryMetadata sseRepoMetadata = new RepositoryMetadata(
-                    repositoryMetadata.name() + REMOTE_STORE_SSE_REPO_SUFFIX,
-                    repositoryMetadata.type(),
-                    repositoryMetadata.settings()
-                );
-                repositoryMetadataMap.put(sseRepoMetadata.name(), sseRepoMetadata);
-                repositoryMetadataList.add(sseRepoMetadata);
+            repositoryMetadataList.add(nonSSERepository);
+            repositoryMetadataMap.put(nonSSERepository.name(), nonSSERepository);
+
+            if (repoList.size() > 1 && isCompositeRepository(repoList.getLast())) {
+                RepositoryMetadata sseRepository = repoList.getLast();
+                repositoryMetadataMap.put(sseRepository.name(), sseRepository);
+                repositoryMetadataList.add(sseRepository);
             }
         }
 
