@@ -95,7 +95,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -1379,8 +1378,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
         IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-            totalMetrics.after(ingestTimeInMillis);
+            long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+            totalMetrics.after(ingestTimeInNanos);
             if (e != null) {
                 totalMetrics.failed();
                 handler.accept(e);
@@ -1424,8 +1423,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (results.isEmpty()) return;
             allResults.addAll(results);
             if (counter.addAndGet(-results.size()) == 0) {
-                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-                totalMetrics.afterN(size, ingestTimeInMillis);
+                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                totalMetrics.afterN(size, ingestTimeInNanos);
                 List<IngestDocumentWrapper> succeeded = new ArrayList<>();
                 List<IngestDocumentWrapper> dropped = new ArrayList<>();
                 List<IngestDocumentWrapper> exceptions = new ArrayList<>();
