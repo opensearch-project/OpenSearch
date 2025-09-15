@@ -642,7 +642,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(aggregatedIndexSettings);
         tmpImdBuilder.system(isSystem);
-        addRemoteStoreCustomMetadata(tmpImdBuilder, true);
+        addRemoteStoreCustomMetadata(tmpImdBuilder, aggregatedIndexSettings, true);
 
         if (request.context() != null) {
             tmpImdBuilder.context(request.context());
@@ -661,7 +661,7 @@ public class MetadataCreateIndexService {
      * @param tmpImdBuilder     index metadata builder.
      * @param assertNullOldType flag to verify that the old remote store path type is null
      */
-    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
+    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, Settings idxSettings, boolean assertNullOldType) {
         if (remoteStoreCustomMetadataResolver == null) {
             return;
         }
@@ -673,7 +673,7 @@ public class MetadataCreateIndexService {
         Map<String, String> remoteCustomData = new HashMap<>();
 
         // Determine if the ckp would be stored as translog metadata
-        boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled();
+        boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled(idxSettings);
         remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(isTranslogMetadataEnabled));
 
         // Determine the path type for use using the remoteStorePathResolver.
@@ -1196,7 +1196,7 @@ public class MetadataCreateIndexService {
                 .filter(DiscoveryNode::isRemoteStoreNode)
                 .findFirst();
 
-            if (!isRestoreFromSnapshot && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled()) {
+            if (!isRestoreFromSnapshot && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled() && indexName.startsWith("sse-idx-")) {
                 settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, true);
             }
 
