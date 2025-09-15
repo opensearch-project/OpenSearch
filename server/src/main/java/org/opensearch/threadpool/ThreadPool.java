@@ -441,16 +441,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_THREAD_POOL_SIZE_SETTING, this::setThreadPool, this::validateSetting);
     }
 
-    /**
-     * Dynamic ForkJoinPool registration is not supported.
-     * Please register ForkJoinPool via the ThreadPool constructor using customBuilders.
-     */
-    public void registerForkJoinPool(String name, int parallelism) {
-        throw new UnsupportedOperationException(
-            "Dynamic thread pool registration is not supported; use customBuilders in ThreadPool constructor."
-        );
-    }
-
     /*
     Scaling threadpool can provide only max and core
     Fixed/ResizableQueue can provide only size
@@ -677,9 +667,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             ExecutorService es = executor.executor();
-            if (es instanceof ThreadPoolExecutor) {
-                es.shutdown();
-            } else if (es instanceof ForkJoinPool) {
+            if (es instanceof ThreadPoolExecutor || es instanceof ForkJoinPool) {
                 es.shutdown();
             }
         }
@@ -690,10 +678,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             ExecutorService es = executor.executor();
-            if (es instanceof ThreadPoolExecutor) {
-                es.shutdownNow();
-            } else if (es instanceof ForkJoinPool) {
-                // same as shutdown(), but explicit to the reader
+            if (es instanceof ThreadPoolExecutor || es instanceof ForkJoinPool) {
                 es.shutdownNow();
             }
         }
@@ -722,17 +707,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
         return result;
     }
-
-    // public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-    // boolean result = scheduler.awaitTermination(timeout, unit);
-    // for (ExecutorHolder executor : executors.values()) {
-    // if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
-    // result &= executor.executor().awaitTermination(timeout, unit);
-    // }
-    // }
-    // cachedTimeThread.join(unit.toMillis(timeout));
-    // return result;
-    // }
 
     public ScheduledExecutorService scheduler() {
         return this.scheduler;
@@ -980,9 +954,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 try {
                     resolvedType = ThreadPoolType.fromType(typeStr);
                 } catch (IllegalArgumentException e) {
-                    // Backward compatibility: fallback to FIXED for unknown types (e.g., fork_join)
-                    logger.warn("Unknown ThreadPoolType '{}', falling back to FIXED for compatibility", typeStr);
-                    resolvedType = ThreadPoolType.FIXED;
+                    // Only fallback for older versions
+                    if (in.getVersion().onOrBefore(Version.V_3_1_0)) { // replace with correct version where ForkJoin was introduced
+                        resolvedType = ThreadPoolType.FIXED;
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unknown ThreadPoolType '" + typeStr + "' for version " + in.getVersion() + ". " +
+                                "This may be a protocol or node version mismatch."
+                        );
+                    }
                 }
             }
             type = resolvedType;
