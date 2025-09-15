@@ -1504,13 +1504,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 new DefaultTranslogDeletionPolicy(-1, -1, 0),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                persistedSeqNos::add,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             int initialWriteCalls = writeCalls.get();
@@ -1609,13 +1605,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 new DefaultTranslogDeletionPolicy(-1, -1, 0),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                persistedSeqNos::add,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             byte[] bytes = new byte[256];
@@ -1706,13 +1698,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 new DefaultTranslogDeletionPolicy(-1, -1, 0),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                persistedSeqNos::add,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
 
@@ -2983,13 +2971,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            channelFactory
         ) {
-            @Override
-            ChannelFactory getChannelFactory() {
-                return channelFactory;
-            }
-
             @Override
             void deleteReaderFiles(TranslogReader reader) {
                 if (fail.fail()) {
@@ -4068,13 +4052,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             createTranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            channelFactory
         ) {
-            @Override
-            ChannelFactory getChannelFactory() {
-                return channelFactory;
-            }
-
             @Override
             void syncBeforeRollGeneration() {
                 // make it a noop like the old versions
