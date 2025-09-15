@@ -153,6 +153,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     protected final String translogUUID;
     protected final TranslogDeletionPolicy deletionPolicy;
     protected final LongConsumer persistedSequenceNumberConsumer;
+    protected final ChannelFactory channelFactory;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -172,6 +173,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      *                                 and reject operation whose term is higher than the primary term stored in the translog header.
      * @param persistedSequenceNumberConsumer a callback that's called whenever an operation with a given sequence number is successfully
      *                                        persisted.
+     * @param channelFactory           a custom channel factory that could be used instead of default OPEN File Channel.
      */
     public Translog(
         final TranslogConfig config,
@@ -179,7 +181,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer
+        final LongConsumer persistedSequenceNumberConsumer,
+        final ChannelFactory channelFactory
     ) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
@@ -194,6 +197,21 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
+        this.channelFactory = channelFactory != null ? channelFactory : FileChannel::open;
+    }
+
+    /**
+     * Constructor that does not accept channelFactory parameter
+     */
+    public Translog(
+        final TranslogConfig config,
+        final String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer
+    ) throws IOException {
+        this(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer, null);
     }
 
     /** recover all translog files found on disk */
@@ -296,7 +314,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
-        FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
+        FileChannel channel = getChannelFactory().open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: "
                 + Translog.parseIdFromFileName(path)
@@ -1901,7 +1919,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     ChannelFactory getChannelFactory() {
-        return FileChannel::open;
+        return this.channelFactory;
     }
 
     /**

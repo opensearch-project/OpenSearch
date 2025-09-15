@@ -473,13 +473,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                DefaultRemoteStoreSettings.INSTANCE,
+                channelFactory
+            )
         ) {
             addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
 
@@ -1522,13 +1518,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                DefaultRemoteStoreSettings.INSTANCE,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             int initialWriteCalls = writeCalls.get();
@@ -1632,13 +1624,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                DefaultRemoteStoreSettings.INSTANCE,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             byte[] bytes = new byte[256];

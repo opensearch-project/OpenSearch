@@ -107,9 +107,18 @@ public class RemoteFsTranslog extends Translog {
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        ChannelFactory channelFactory
     ) throws IOException {
-        super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
+        super(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            channelFactory
+        );
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
@@ -165,6 +174,35 @@ public class RemoteFsTranslog extends Translog {
             IOUtils.closeWhileHandlingException(readers);
             throw e;
         }
+    }
+
+    public RemoteFsTranslog(
+        TranslogConfig config,
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer,
+        BlobStoreRepository blobStoreRepository,
+        ThreadPool threadPool,
+        BooleanSupplier startedPrimarySupplier,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings
+    ) throws IOException {
+        this(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            blobStoreRepository,
+            threadPool,
+            startedPrimarySupplier,
+            remoteTranslogTransferTracker,
+            remoteStoreSettings,
+            null
+        );
     }
 
     // visible for testing
