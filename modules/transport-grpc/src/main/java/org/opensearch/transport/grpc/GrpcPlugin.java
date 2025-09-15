@@ -162,20 +162,16 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
         }
 
-        return Collections.singletonMap(
-            GRPC_TRANSPORT_SETTING_KEY,
-            () -> {
-                List<BindableService> grpcServices = new ArrayList<>(List.of(
-                    new DocumentServiceImpl(client),
-                    new SearchServiceImpl(client, queryUtils)
-                ));
-                for (GrpcServiceFactory serviceFac : servicesFactory) {
-                    BindableService service = serviceFac.initClient(client).build();
-                    grpcServices.add(service);
-                }
-                return new Netty4GrpcServerTransport(settings, grpcServices, networkService);
+        return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
+            List<BindableService> grpcServices = new ArrayList<>(
+                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
+            );
+            for (GrpcServiceFactory serviceFac : servicesFactory) {
+                BindableService service = serviceFac.initClient(client).build();
+                grpcServices.add(service);
             }
-        );
+            return new Netty4GrpcServerTransport(settings, grpcServices, networkService);
+        });
     }
 
     /**
@@ -211,20 +207,16 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             throw new IllegalStateException("createComponents must be called before getSecureAuxTransports to initialize the registry");
         }
 
-        return Collections.singletonMap(
-            GRPC_SECURE_TRANSPORT_SETTING_KEY,
-            () -> {
-                List<BindableService> grpcServices = new ArrayList<>(List.of(
-                    new DocumentServiceImpl(client),
-                    new SearchServiceImpl(client, queryUtils)
-                ));
-                for (GrpcServiceFactory serviceFac : servicesFactory) {
-                    BindableService service = serviceFac.initClient(client).build();
-                    grpcServices.add(service);
-                }
-                return new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider);
+        return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
+            List<BindableService> grpcServices = new ArrayList<>(
+                List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
+            );
+            for (GrpcServiceFactory serviceFac : servicesFactory) {
+                BindableService service = serviceFac.initClient(client).build();
+                grpcServices.add(service);
             }
-        );
+            return new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider);
+        });
     }
 
     /**
