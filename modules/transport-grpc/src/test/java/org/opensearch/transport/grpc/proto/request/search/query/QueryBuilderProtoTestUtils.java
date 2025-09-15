@@ -24,7 +24,7 @@ public class QueryBuilderProtoTestUtils {
      */
     public static AbstractQueryBuilderProtoUtils createQueryUtils() {
         // Create a new registry
-        QueryBuilderProtoConverterRegistry registry = new QueryBuilderProtoConverterRegistry();
+        QueryBuilderProtoConverterRegistryImpl registry = new QueryBuilderProtoConverterRegistryImpl();
 
         // Register all built-in converters
         registry.registerConverter(new MatchAllQueryBuilderProtoConverter());
