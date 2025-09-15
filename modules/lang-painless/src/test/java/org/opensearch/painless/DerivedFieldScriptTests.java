@@ -102,7 +102,6 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         assertEquals(3.14f, result.get(0));
     }
 
-
     public void testEmittingDoubleField() throws IOException {
         // Mocking field value to be returned
         NumberFieldType fieldType = new NumberFieldType("test_double_field", NumberType.DOUBLE);
