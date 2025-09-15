@@ -169,24 +169,16 @@ public class LoggerMessageFormat {
         } else {
             // check for primitive array types because they
             // unfortunately cannot be cast to Object[]
-            if (o instanceof boolean[]) {
-                booleanArrayAppend(sbuf, (boolean[]) o);
-            } else if (o instanceof byte[]) {
-                byteArrayAppend(sbuf, (byte[]) o);
-            } else if (o instanceof char[]) {
-                charArrayAppend(sbuf, (char[]) o);
-            } else if (o instanceof short[]) {
-                shortArrayAppend(sbuf, (short[]) o);
-            } else if (o instanceof int[]) {
-                intArrayAppend(sbuf, (int[]) o);
-            } else if (o instanceof long[]) {
-                longArrayAppend(sbuf, (long[]) o);
-            } else if (o instanceof float[]) {
-                floatArrayAppend(sbuf, (float[]) o);
-            } else if (o instanceof double[]) {
-                doubleArrayAppend(sbuf, (double[]) o);
-            } else {
-                objectArrayAppend(sbuf, (Object[]) o, seen);
+            switch (o) {
+                case boolean[] boolArr -> booleanArrayAppend(sbuf, boolArr);
+                case byte[] byteArr -> byteArrayAppend(sbuf, byteArr);
+                case char[] charArr -> charArrayAppend(sbuf, charArr);
+                case short[] shortArr -> shortArrayAppend(sbuf, shortArr);
+                case int[] intArr -> intArrayAppend(sbuf, intArr);
+                case long[] longArr -> longArrayAppend(sbuf, longArr);
+                case float[] floatArr -> floatArrayAppend(sbuf, floatArr);
+                case double[] doubleArr -> doubleArrayAppend(sbuf, doubleArr);
+                default -> objectArrayAppend(sbuf, (Object[]) o, seen);
             }
         }
     }
