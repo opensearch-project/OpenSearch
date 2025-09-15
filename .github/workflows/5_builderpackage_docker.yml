@@ -100,11 +100,11 @@ jobs:
     env:
       docker_path: ./build-scripts/docker
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Download tarball
       - name: Download tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: ${{env.docker_path }}
           merge-multiple: true

@@ -124,7 +124,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       opensearch_version: ${{ steps.version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Get Wazuh Indexer version
         id: version
@@ -142,7 +142,7 @@ jobs:
       version: ${{ steps.plugins_version.outputs.version }}
       opensearch_version: ${{ steps.plugins_version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: wazuh/wazuh-indexer-plugins
           ref: ${{ inputs.wazuh_plugins_ref }}
@@ -162,7 +162,7 @@ jobs:
       version: ${{ steps.reporting_version.outputs.version }}
       opensearch_version: ${{ steps.reporting_version.outputs.opensearch_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: wazuh/wazuh-indexer-reporting
           ref: ${{ inputs.reporting_plugin_ref }}
@@ -209,7 +209,7 @@ jobs:
               '{distribution: $distribution, architecture: $architecture}'
           )
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: previous_release
         name: Get latest Wazuh release from GitHub
         run: |
@@ -234,12 +234,12 @@ jobs:
     outputs:
       hash: ${{ steps.save-hash.outputs.hash }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: wazuh/wazuh-indexer-plugins
           ref: ${{ inputs.wazuh_plugins_ref }}
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -278,12 +278,12 @@ jobs:
     env:
       plugin_name: wazuh-indexer-reports-scheduler
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: wazuh/wazuh-indexer-reporting
           ref: ${{ inputs.reporting_plugin_ref }}
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -320,11 +320,11 @@ jobs:
     outputs:
       name: ${{ steps.package.outputs.name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Download plugins
       - name: Download plugins
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         if: ${{ inputs.wazuh_plugins_ref != '' || inputs.reporting_plugin_ref != '' }}
         with:
           path: ./artifacts/plugins
@@ -334,7 +334,7 @@ jobs:
         if: ${{ inputs.wazuh_plugins_ref != '' || inputs.reporting_plugin_ref != '' }}
         run: ls -lR ./artifacts/plugins
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -483,7 +483,7 @@ jobs:
 
       - name: Set up AWS CLI
         if: ${{ inputs.upload }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-access-key-id: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_SECRET_KEY }}

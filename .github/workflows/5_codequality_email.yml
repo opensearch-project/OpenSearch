@@ -9,7 +9,7 @@ jobs:
     if: github.repository == 'wazuh/wazuh-indexer'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: ./.github/actions/5_codeanalysis_emailchecker
         with:

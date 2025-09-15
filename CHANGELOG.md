@@ -51,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update previous version in debian workflow test [(#1041)](https://github.com/wazuh/wazuh-indexer/pull/1041)
 - Disable multi-tenancy by default [(#1081)](https://github.com/wazuh/wazuh-indexer/pull/1081)
 - Add version to the GH Workflow names [(#1124)](https://github.com/wazuh/wazuh-indexer/pull/1124)
+- Update GitHub Actions versions in main branch [(#1131)](https://github.com/wazuh/wazuh-indexer/pull/1131)
 
 ### Deprecated
 -
