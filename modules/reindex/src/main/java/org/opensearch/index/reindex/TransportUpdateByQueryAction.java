@@ -87,6 +87,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         BulkByScrollParallelizationHelper.startSlicedAction(
+            clusterService.state().metadata(),
             request,
             bulkByScrollTask,
             UpdateByQueryAction.INSTANCE,
