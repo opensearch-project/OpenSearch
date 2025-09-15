@@ -10,7 +10,7 @@ package org.opensearch.index.codec.composite;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.codec.composite.composite101.Composite101Codec;
 import org.opensearch.index.mapper.MapperService;
@@ -38,10 +38,10 @@ public class CompositeCodecFactory {
 
     public Map<String, Codec> getCompositeIndexCodecs(MapperService mapperService, Logger logger) {
         Map<String, Codec> codecs = new HashMap<>();
-        codecs.put(DEFAULT_CODEC, new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, logger));
-        codecs.put(LZ4, new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, logger));
-        codecs.put(BEST_COMPRESSION_CODEC, new Composite101Codec(Lucene101Codec.Mode.BEST_COMPRESSION, mapperService, logger));
-        codecs.put(ZLIB, new Composite101Codec(Lucene101Codec.Mode.BEST_COMPRESSION, mapperService, logger));
+        codecs.put(DEFAULT_CODEC, new Composite101Codec(Lucene103Codec.Mode.BEST_SPEED, mapperService, logger));
+        codecs.put(LZ4, new Composite101Codec(Lucene103Codec.Mode.BEST_SPEED, mapperService, logger));
+        codecs.put(BEST_COMPRESSION_CODEC, new Composite101Codec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, logger));
+        codecs.put(ZLIB, new Composite101Codec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, logger));
         return codecs;
     }
 }

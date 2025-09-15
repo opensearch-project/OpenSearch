@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
@@ -26,15 +26,15 @@ import org.opensearch.index.mapper.MapperService;
  */
 @ExperimentalApi
 public class Composite101Codec extends FilterCodec {
-    public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite101Codec";
+    public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite103Codec";
     private final MapperService mapperService;
 
     // needed for SPI - this is used in reader path
     public Composite101Codec() {
-        this(COMPOSITE_INDEX_CODEC_NAME, new Lucene101Codec(), null);
+        this(COMPOSITE_INDEX_CODEC_NAME, new Lucene103Codec(), null);
     }
 
-    public Composite101Codec(Lucene101Codec.Mode compressionMode, MapperService mapperService, Logger logger) {
+    public Composite101Codec(Lucene103Codec.Mode compressionMode, MapperService mapperService, Logger logger) {
         this(COMPOSITE_INDEX_CODEC_NAME, new PerFieldMappingPostingFormatCodec(compressionMode, mapperService, logger), mapperService);
     }
 

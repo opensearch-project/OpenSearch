@@ -33,9 +33,10 @@
 package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec.Mode;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
@@ -74,8 +75,8 @@ public class CodecService {
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene101Codec());
             codecs.put(LZ4, new Lucene101Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene101Codec(Mode.BEST_COMPRESSION));
-            codecs.put(ZLIB, new Lucene101Codec(Mode.BEST_COMPRESSION));
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene103Codec(Mode.BEST_COMPRESSION));
+            codecs.put(ZLIB, new Lucene103Codec(Mode.BEST_COMPRESSION));
         } else {
             // CompositeCodec still delegates to PerFieldMappingPostingFormatCodec
             // We can still support all the compression codecs when composite index is present
