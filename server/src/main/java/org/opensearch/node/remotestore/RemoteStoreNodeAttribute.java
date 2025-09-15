@@ -41,6 +41,9 @@ public class RemoteStoreNodeAttribute {
     private static final String REMOTE_STORE_TRANSLOG_REPO_PREFIX = "translog";
     private static final String REMOTE_STORE_SEGMENT_REPO_PREFIX = "segment";
 
+    private static final String S3_ENCRYPTION_TYPE_AES256 = "AES256";
+    private static final String S3_ENCRYPTION_TYPE_KMS = "aws:kms";
+
     public static final List<String> REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX = List.of("remote_store", "remote_publication");
 
     // TO-DO the string constants are used only for tests and can be moved to test package
@@ -183,7 +186,7 @@ public class RemoteStoreNodeAttribute {
 
         // Repository metadata built here will always be for a system repository.
         settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
-        settings.put("server_side_encryption_type", "AES256");
+        settings.put("server_side_encryption_type", S3_ENCRYPTION_TYPE_AES256);
         repoList.add(new RepositoryMetadata(name, type, settings.build(), cryptoMetadata));
 
         if (settingsMap.containsKey(REPOSITORY_SETTINGS_SSE_ENABLED_ATTRIBUTE_KEY)) {
@@ -193,7 +196,7 @@ public class RemoteStoreNodeAttribute {
             // Repository metadata built here will always be for a system repository.
             sseSetting.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
             sseSetting.put(REPOSITORY_SETTINGS_SSE_ENABLED_ATTRIBUTE_KEY, true);
-            sseSetting.put("server_side_encryption_type", "aws:kms");
+            sseSetting.put("server_side_encryption_type", S3_ENCRYPTION_TYPE_KMS);
             repoList.add(new RepositoryMetadata(name + REMOTE_STORE_SSE_REPO_SUFFIX, type, sseSetting.build()));
         }
         return repoList;
