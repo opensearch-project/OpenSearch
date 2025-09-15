@@ -15,6 +15,6 @@ import org.opensearch.transport.client.Client;
  * Extension point for plugins to add a BindableService to the grpc-transport.
  */
 public interface GrpcServiceFactory {
-    void initClient(Client client);
-    BindableService create();
+    GrpcServiceFactory initClient(Client client);
+    BindableService build();
 }
