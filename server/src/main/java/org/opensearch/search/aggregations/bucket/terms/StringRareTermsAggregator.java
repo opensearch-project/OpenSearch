@@ -154,8 +154,8 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
             }
         }
 
-        if (subAggregators.length > 0 || filter != null) {
-            // The optimization does not work when there are subaggregations or if there is a filter.
+        if (subAggregators.length > 0) {
+            // The optimization does not work when there are subaggregations.
             // The query has to be a match all, otherwise
             return false;
         }
@@ -190,11 +190,13 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
         // Here, we will iterate over all the terms in the segment and add the counts into the bucket.
         while (stringTerm != null) {
-            long bucketOrdinal = bucketOrds.add(0L, stringTerm);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = -1 - bucketOrdinal;
+            if (filter == null || filter.accept(stringTerm)) {
+                long bucketOrdinal = bucketOrds.add(0L, stringTerm);
+                if (bucketOrdinal < 0) { // already seen
+                    bucketOrdinal = -1 - bucketOrdinal;
+                }
+                incrementBucketDocCount(bucketOrdinal, stringTermsEnum.docFreq());
             }
-            incrementBucketDocCount(bucketOrdinal, stringTermsEnum.docFreq());
             stringTerm = stringTermsEnum.next();
         }
         return true;

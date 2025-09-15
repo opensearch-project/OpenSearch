@@ -42,6 +42,8 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -91,6 +93,7 @@ import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 
@@ -254,7 +257,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             },
             true,
-            dataset.size()
+            0
         );
     }
 
@@ -642,7 +645,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 }
 
                 // test keyword
-                /*{
+                {
                     FieldType fieldtype = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
                     fieldtype.setDocValuesType(DocValuesType.SORTED_SET);
                     fieldtype.setIndexOptions(IndexOptions.NONE);
@@ -681,7 +684,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         assertEquals("name2", result.getBuckets().get(2).getKeyAsString());
                         assertEquals(1L, result.getBuckets().get(2).getDocCount());
                     }
-                }*/
+                }
             }
         }
     }
