@@ -103,10 +103,11 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             logger.info("No QueryBuilderProtoConverter extensions found from other plugins");
         }
 
-        // Load gRPC service supplier lambdas from other plugins
+        // Load discovered gRPC service factories
         List<GrpcServiceFactory> services = loader.loadExtensions(GrpcServiceFactory.class);
         if (services != null) {
             servicesFactory.addAll(services);
+            logger.info("Successfully loaded {} GrpcServiceFactory extensions", services.size());
         }
     }
 
