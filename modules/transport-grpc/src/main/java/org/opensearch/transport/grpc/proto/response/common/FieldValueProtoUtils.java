@@ -8,20 +8,19 @@
 package org.opensearch.transport.grpc.proto.response.common;
 
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.GeneralNumber;
-import org.opensearch.protobufs.ObjectMap;
 
-import java.util.Map;
+import static org.opensearch.index.query.AbstractQueryBuilder.maybeConvertToBytesRef;
 
 /**
- * Utility class for converting generic Java objects to Protocol Buffer FieldValue type.
+ * Utility class for converting between generic Java objects and Protocol Buffer FieldValue type.
  * This class provides methods to transform Java objects of various types (primitives, strings,
- * maps, etc.) into their corresponding Protocol Buffer representations for gRPC communication.
+ * maps, etc.) into their corresponding Protocol Buffer representations for gRPC communication,
+ * and vice versa.
  */
 public class FieldValueProtoUtils {
 
     private FieldValueProtoUtils() {
-        // Utility class, no instances
+
     }
 
     /**
@@ -54,37 +53,84 @@ public class FieldValueProtoUtils {
         }
 
         switch (javaObject) {
-            case String s -> fieldValueBuilder.setStringValue(s);
-            case Integer i -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setInt32Value(i).build());
-            case Long l -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(l).build());
-            case Double d -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(d).build());
-            case Float f -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setFloatValue(f).build());
-            case Boolean b -> fieldValueBuilder.setBoolValue(b);
-            case Enum<?> e -> fieldValueBuilder.setStringValue(e.toString());
-            case Map<?, ?> m -> {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) m;
-                handleMapValue(map, fieldValueBuilder);
+            case String s -> fieldValueBuilder.setString(s);
+            case Integer i -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                num.setInt32Value(i);
+                fieldValueBuilder.setGeneralNumber(num.build());
             }
+            case Long l -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                num.setInt64Value(l);
+                fieldValueBuilder.setGeneralNumber(num.build());
+            }
+            case Double d -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                num.setDoubleValue(d);
+                fieldValueBuilder.setGeneralNumber(num.build());
+            }
+            case Float f -> {
+                org.opensearch.protobufs.GeneralNumber.Builder num = org.opensearch.protobufs.GeneralNumber.newBuilder();
+                num.setFloatValue(f);
+                fieldValueBuilder.setGeneralNumber(num.build());
+            }
+            case Boolean b -> fieldValueBuilder.setBool(b);
+            case Enum<?> e -> fieldValueBuilder.setString(e.toString());
             default -> throw new IllegalArgumentException("Cannot convert " + javaObject + " to FieldValue");
         }
     }
 
     /**
-     * Helper method to handle Map values.
+     * Converts a Protocol Buffer FieldValue to its corresponding Java object representation.
+     * This method handles various FieldValue types (GeneralNumber, String, Boolean, NullValue)
+     * and converts them to the appropriate Java types. String values are processed through
+     * maybeConvertToBytesRef for consistency with OpenSearch query processing.
      *
-     * @param map The map to convert
-     * @param fieldValueBuilder The builder to populate with the map data
+     * @param fieldValue The Protocol Buffer FieldValue to convert
+     * @return A Java object representation of the FieldValue, or null if the FieldValue represents null
+     * @throws IllegalArgumentException if the FieldValue type is not recognized
      */
-    @SuppressWarnings("unchecked")
-    private static void handleMapValue(Map<String, Object> map, FieldValue.Builder fieldValueBuilder) {
-        ObjectMap.Builder objectMapBuilder = ObjectMap.newBuilder();
+    public static Object fromProto(FieldValue fieldValue) {
+        return fromProto(fieldValue, true);
+    }
 
-        // Process each map entry
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            objectMapBuilder.putFields(entry.getKey(), ObjectMapProtoUtils.toProto(entry.getValue()));
+    /**
+     * Converts a Protocol Buffer FieldValue to its corresponding Java object representation.
+     * This method handles various FieldValue types (GeneralNumber, String, Boolean, NullValue)
+     * and converts them to the appropriate Java types.
+     *
+     * @param fieldValue The Protocol Buffer FieldValue to convert
+     * @param convertStringsToBytesRef Whether to process string values through maybeConvertToBytesRef
+     * @return A Java object representation of the FieldValue, or null if the FieldValue represents null
+     * @throws IllegalArgumentException if the FieldValue type is not recognized
+     */
+    public static Object fromProto(FieldValue fieldValue, boolean convertStringsToBytesRef) {
+        if (fieldValue == null) {
+            return null;
         }
 
-        fieldValueBuilder.setObjectMap(objectMapBuilder.build());
+        if (fieldValue.hasGeneralNumber()) {
+            org.opensearch.protobufs.GeneralNumber generalNumber = fieldValue.getGeneralNumber();
+            switch (generalNumber.getValueCase()) {
+                case INT32_VALUE:
+                    return generalNumber.getInt32Value();
+                case INT64_VALUE:
+                    return generalNumber.getInt64Value();
+                case FLOAT_VALUE:
+                    return generalNumber.getFloatValue();
+                case DOUBLE_VALUE:
+                    return generalNumber.getDoubleValue();
+                default:
+                    throw new IllegalArgumentException("Unsupported general number type: " + generalNumber.getValueCase());
+            }
+        } else if (fieldValue.hasString()) {
+            return convertStringsToBytesRef ? maybeConvertToBytesRef(fieldValue.getString()) : fieldValue.getString();
+        } else if (fieldValue.hasBool()) {
+            return fieldValue.getBool();
+        } else if (fieldValue.hasNullValue()) {
+            return null;
+        } else {
+            throw new IllegalArgumentException("FieldValue type not recognized");
+        }
     }
 }
