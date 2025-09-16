@@ -306,16 +306,16 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         searchHit.sourceRef(bytesArray);
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Source should be set", hit.hasSource());
-        assertArrayEquals("Source bytes should match exactly", sourceBytes, hit.getSource().toByteArray());
+        assertTrue("Source should be set", hit.hasXSource());
+        assertArrayEquals("Source bytes should match exactly", sourceBytes, hit.getXSource().toByteArray());
 
         // Verify that the ByteString was created using UnsafeByteOperations.unsafeWrap
         // This is an indirect test - we verify the content is correct and assume the optimization was used
-        assertEquals("Source size should match", sourceBytes.length, hit.getSource().size());
+        assertEquals("Source size should match", sourceBytes.length, hit.getXSource().size());
     }
 
     public void testToProtoWithBytesArrayWithOffsetZeroCopyOptimization() throws IOException {
@@ -329,13 +329,13 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         searchHit.sourceRef(bytesArray);
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Source should be set", hit.hasSource());
-        assertArrayEquals("Source bytes should match the sliced portion", expectedBytes, hit.getSource().toByteArray());
-        assertEquals("Source size should match expected length", length, hit.getSource().size());
+        assertTrue("Source should be set", hit.hasXSource());
+        assertArrayEquals("Source bytes should match the sliced portion", expectedBytes, hit.getXSource().toByteArray());
+        assertEquals("Source size should match expected length", length, hit.getXSource().size());
     }
 
     public void testToProtoWithCompositeBytesReferenceUsesDeepCopy() throws IOException {
@@ -349,17 +349,17 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         searchHit.sourceRef(compositeBytesRef);
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Source should be set", hit.hasSource());
+        assertTrue("Source should be set", hit.hasXSource());
 
         // Verify the combined content is correct
         String expectedJson = "{\"field1\":\"value1\"}";
         byte[] expectedBytes = expectedJson.getBytes(StandardCharsets.UTF_8);
-        assertArrayEquals("Source bytes should match the combined content", expectedBytes, hit.getSource().toByteArray());
-        assertEquals("Source size should match combined length", expectedBytes.length, hit.getSource().size());
+        assertArrayEquals("Source bytes should match the combined content", expectedBytes, hit.getXSource().toByteArray());
+        assertEquals("Source size should match combined length", expectedBytes.length, hit.getXSource().size());
     }
 
     public void testToProtoWithEmptyBytesArraySource() throws IOException {
@@ -370,13 +370,13 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         searchHit.sourceRef(emptyJsonBytesArray);
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Source should be set", hit.hasSource());
-        assertEquals("Source should contain empty JSON object", emptyJsonBytes.length, hit.getSource().size());
-        assertArrayEquals("Source bytes should match empty JSON object", emptyJsonBytes, hit.getSource().toByteArray());
+        assertTrue("Source should be set", hit.hasXSource());
+        assertEquals("Source should contain empty JSON object", emptyJsonBytes.length, hit.getXSource().size());
+        assertArrayEquals("Source bytes should match empty JSON object", emptyJsonBytes, hit.getXSource().toByteArray());
     }
 
     public void testToProtoWithLargeBytesArrayZeroCopyOptimization() throws IOException {
@@ -394,13 +394,13 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         searchHit.sourceRef(largeBytesArray);
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Source should be set", hit.hasSource());
-        assertEquals("Source size should match large content", largeSourceBytes.length, hit.getSource().size());
-        assertArrayEquals("Source bytes should match exactly", largeSourceBytes, hit.getSource().toByteArray());
+        assertTrue("Source should be set", hit.hasXSource());
+        assertEquals("Source size should match large content", largeSourceBytes.length, hit.getXSource().size());
+        assertArrayEquals("Source bytes should match exactly", largeSourceBytes, hit.getXSource().toByteArray());
     }
 
     public void testToProtoWithBytesArraySliceZeroCopyOptimization() throws IOException {
@@ -419,15 +419,15 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         searchHit.sourceRef(slicedBytesArray);
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Source should be set", hit.hasSource());
-        assertEquals("Source size should match JSON length", jsonLength, hit.getSource().size());
+        assertTrue("Source should be set", hit.hasXSource());
+        assertEquals("Source size should match JSON length", jsonLength, hit.getXSource().size());
 
         byte[] expectedJsonBytes = jsonContent.getBytes(StandardCharsets.UTF_8);
-        assertArrayEquals("Source bytes should match only the JSON portion", expectedJsonBytes, hit.getSource().toByteArray());
+        assertArrayEquals("Source bytes should match only the JSON portion", expectedJsonBytes, hit.getXSource().toByteArray());
     }
 
     public void testToProtoSourceOptimizationBehaviorComparison() throws IOException {
@@ -439,7 +439,7 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         SearchHit searchHitWithBytesArray = new SearchHit(1);
         BytesArray bytesArray = new BytesArray(jsonBytes);
         searchHitWithBytesArray.sourceRef(bytesArray);
-        Hit hitWithBytesArray = SearchHitProtoUtils.toProto(searchHitWithBytesArray);
+        HitsMetadataHitsInner hitWithBytesArray = SearchHitProtoUtils.toProto(searchHitWithBytesArray);
 
         // Test with CompositeBytesReference (should use deep copy)
         SearchHit searchHitWithComposite = new SearchHit(2);
@@ -447,15 +447,19 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         BytesArray part2 = new BytesArray(jsonBytes, jsonBytes.length / 2, jsonBytes.length - jsonBytes.length / 2);
         CompositeBytesReference composite = (CompositeBytesReference) CompositeBytesReference.of(part1, part2);
         searchHitWithComposite.sourceRef(composite);
-        Hit hitWithComposite = SearchHitProtoUtils.toProto(searchHitWithComposite);
+        HitsMetadataHitsInner hitWithComposite = SearchHitProtoUtils.toProto(searchHitWithComposite);
 
         // Both should produce the same result
         assertArrayEquals(
             "Both approaches should produce identical byte content",
-            hitWithBytesArray.getSource().toByteArray(),
-            hitWithComposite.getSource().toByteArray()
+            hitWithBytesArray.getXSource().toByteArray(),
+            hitWithComposite.getXSource().toByteArray()
         );
-        assertEquals("Both approaches should produce same size", hitWithBytesArray.getSource().size(), hitWithComposite.getSource().size());
+        assertEquals(
+            "Both approaches should produce same size",
+            hitWithBytesArray.getXSource().size(),
+            hitWithComposite.getXSource().size()
+        );
     }
 
     public void testToProtoWithNullSourceRef() throws IOException {
@@ -464,11 +468,11 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         // Don't set any source reference (sourceRef remains null)
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertFalse("Source should not be set when sourceRef is null", hit.hasSource());
+        assertFalse("Source should not be set when sourceRef is null", hit.hasXSource());
     }
 
     public void testToProtoWithActuallyEmptyBytesArray() throws IOException {
@@ -479,11 +483,11 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         searchHit.sourceRef(null);
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertFalse("Source should not be set when explicitly null", hit.hasSource());
+        assertFalse("Source should not be set when explicitly null", hit.hasXSource());
     }
 
     public void testToProtoWithBytesArrayOffsetConditionCoverage() throws IOException {
@@ -506,14 +510,14 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         searchHit.sourceRef(slicedBytesArray);
 
         // Call the method under test
-        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
 
         // Verify the result - should use the offset/length version of unsafeWrap
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Source should be set", hit.hasSource());
-        assertEquals("Source size should match JSON length", length, hit.getSource().size());
+        assertTrue("Source should be set", hit.hasXSource());
+        assertEquals("Source size should match JSON length", length, hit.getXSource().size());
 
         byte[] expectedBytes = jsonContent.getBytes(StandardCharsets.UTF_8);
-        assertArrayEquals("Source bytes should match JSON content", expectedBytes, hit.getSource().toByteArray());
+        assertArrayEquals("Source bytes should match JSON content", expectedBytes, hit.getXSource().toByteArray());
     }
 }
