@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
@@ -50,6 +51,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -58,6 +60,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -324,6 +327,65 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(1));
         assertThat(response.getConditionStatus().get("[max_docs: 300]"), is(true));
+    }
+
+    public void testResolveIndices() {
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
+            .build();
+
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(stateBefore);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        MetadataCreateIndexService createIndexService = mock(MetadataCreateIndexService.class);
+        MetadataIndexAliasesService metadataIndexAliasesService = mock(MetadataIndexAliasesService.class);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        MetadataRolloverService metadataRolloverService = new MetadataRolloverService(
+            threadPool,
+            createIndexService,
+            metadataIndexAliasesService,
+            indexNameExpressionResolver
+        );
+
+        TransportRolloverAction action = new TransportRolloverAction(
+            mock(TransportService.class),
+            clusterService,
+            threadPool,
+            mock(ActionFilters.class),
+            indexNameExpressionResolver,
+            metadataRolloverService,
+            mock(Client.class)
+        );
+
+        {
+            ResolvedIndices resolvedIndices = action.resolveIndices(new RolloverRequest("logs-alias", null));
+            assertEquals(
+                ResolvedIndices.of("logs-alias")
+                    .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of("logs-index-000003")),
+                resolvedIndices
+            );
+        }
+
+        {
+            ResolvedIndices resolvedIndices = action.resolveIndices(new RolloverRequest("logs-alias", "explicit-index"));
+            assertEquals(
+                ResolvedIndices.of("logs-alias")
+                    .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of("explicit-index")),
+                resolvedIndices
+            );
+        }
     }
 
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {
