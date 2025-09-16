@@ -19,8 +19,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Publish transport-grpc-spi exposing QueryBuilderProtoConverter and QueryBuilderProtoConverterRegistry ([#18949](https://github.com/opensearch-project/OpenSearch/pull/18949))
 - Support system generated search pipeline. ([#19128](https://github.com/opensearch-project/OpenSearch/pull/19128))
 - Add `epoch_micros` date format ([#14669](https://github.com/opensearch-project/OpenSearch/issues/14669))
+- Grok processor supports capturing multiple values for same field name ([#18799](https://github.com/opensearch-project/OpenSearch/pull/18799)
+- Upgrade opensearch-protobufs dependency to 0.13.0 and update transport-grpc module compatibility ([#19007](https://github.com/opensearch-project/OpenSearch/issues/19007))
 
 ### Changed
+- Refactor `if-else` chains to use `Java 17 pattern matching switch expressions`(([#18965](https://github.com/opensearch-project/OpenSearch/pull/18965))
 - Add CompletionStage variants to methods in the Client Interface and default to ActionListener impl ([#18998](https://github.com/opensearch-project/OpenSearch/pull/18998))
 - IllegalArgumentException when scroll ID references a node not found in Cluster ([#19031](https://github.com/opensearch-project/OpenSearch/pull/19031))
 - Adding ScriptedAvg class to painless spi to allowlist usage from plugins ([#19006](https://github.com/opensearch-project/OpenSearch/pull/19006))
@@ -52,11 +55,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `actions/checkout` from 4 to 5 ([#19023](https://github.com/opensearch-project/OpenSearch/pull/19023))
 - Bump `commons-cli:commons-cli` from 1.9.0 to 1.10.0 ([#19021](https://github.com/opensearch-project/OpenSearch/pull/19021))
 - Bump `org.jline:jline` from 3.30.4 to 3.30.5 ([#19013](https://github.com/opensearch-project/OpenSearch/pull/19013))
-- Bump `com.github.spotbugs:spotbugs-annotations` from 4.9.3 to 4.9.4 ([#19015](https://github.com/opensearch-project/OpenSearch/pull/19015))
+- Bump `com.github.spotbugs:spotbugs-annotations` from 4.9.3 to 4.9.5 ([#19015](https://github.com/opensearch-project/OpenSearch/pull/19015), [#19294](https://github.com/opensearch-project/OpenSearch/pull/19294))
 - Bump `com.azure:azure-storage-common` from 12.29.1 to 12.30.2 ([#19016](https://github.com/opensearch-project/OpenSearch/pull/19016), [#19145](https://github.com/opensearch-project/OpenSearch/pull/19145))
 - Update OpenTelemetry to 1.53.0 and OpenTelemetry SemConv to 1.34.0 ([#19068](https://github.com/opensearch-project/OpenSearch/pull/19068))
 - Bump `1password/load-secrets-action` from 2 to 3 ([#19100](https://github.com/opensearch-project/OpenSearch/pull/19100))
-- Bump `com.nimbusds:nimbus-jose-jwt` from 10.3 to 10.4.2 ([#19099](https://github.com/opensearch-project/OpenSearch/pull/19099), [#19101](https://github.com/opensearch-project/OpenSearch/pull/19101))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 10.3 to 10.5 ([#19099](https://github.com/opensearch-project/OpenSearch/pull/19099), [#19101](https://github.com/opensearch-project/OpenSearch/pull/19101), [#19254](https://github.com/opensearch-project/OpenSearch/pull/19254))
 - Bump netty from 4.1.121.Final to 4.1.125.Final ([#19103](https://github.com/opensearch-project/OpenSearch/pull/19103)) ([#19269](https://github.com/opensearch-project/OpenSearch/pull/19269)
 - Bump Google Cloud Storage SDK from 1.113.1 to 2.55.0 ([#18922](https://github.com/opensearch-project/OpenSearch/pull/18922))
 - Bump `com.google.auth:google-auth-library-oauth2-http` from 1.37.1 to 1.38.0 ([#19144](https://github.com/opensearch-project/OpenSearch/pull/19144))
@@ -77,6 +80,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.maxmind.geoip2:geoip2` from 4.3.1 to 4.4.0 ([#19205](https://github.com/opensearch-project/OpenSearch/pull/19205))
 - Bump `org.jboss.xnio:xnio-nio` from 3.8.16.Final to 3.8.17.Final ([#19252](https://github.com/opensearch-project/OpenSearch/pull/19252))
 - Bump `actions/setup-java` from 4 to 5 ([#19143](https://github.com/opensearch-project/OpenSearch/pull/19143))
+- Bump `com.google.code.gson:gson` from 2.13.1 to 2.13.2 ([#19290](https://github.com/opensearch-project/OpenSearch/pull/19290)) ([#19293](https://github.com/opensearch-project/OpenSearch/pull/19293))
+- Bump `actions/stale` from 9 to 10 ([#19292](https://github.com/opensearch-project/OpenSearch/pull/19292))
+- Bump `com.nimbusds:oauth2-oidc-sdk` from 11.25 to 11.28 ([#19291](https://github.com/opensearch-project/OpenSearch/pull/19291))
 
 ### Deprecated
 

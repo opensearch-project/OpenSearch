@@ -10,14 +10,17 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
-import org.opensearch.protobufs.StringArray;
-import org.opensearch.protobufs.TermsLookupFieldStringArrayMap;
+import org.opensearch.protobufs.TermsQuery;
 import org.opensearch.protobufs.TermsQueryField;
-import org.opensearch.protobufs.ValueType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
 
@@ -35,45 +38,178 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
     }
 
     public void testFromProto() {
-        // Create a QueryContainer with TermsQuery
-        StringArray stringArray = StringArray.newBuilder().addStringArray("value1").addStringArray("value2").build();
-        TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
-            .setStringArray(stringArray)
-            .build();
-        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
-        termsLookupFieldStringArrayMapMap.put("test-field", termsLookupFieldStringArrayMap);
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder()
-            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
-            .setBoost(2.0f)
-            .setUnderscoreName("test_query")
-            .setValueType(ValueType.VALUE_TYPE_DEFAULT)
-            .build();
-        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("v1").build();
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        Map<String, TermsQueryField> termsMap = new HashMap<>();
+        termsMap.put("test-field", termsQueryField);
+        TermsQuery termsQuery = TermsQuery.newBuilder().putTerms("test-field", termsQueryField).build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
 
-        // Convert the query
         QueryBuilder queryBuilder = converter.fromProto(queryContainer);
 
-        // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
         TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
-        assertEquals("Field name should match", "test-field", termsQueryBuilder.fieldName());
-        assertEquals("Values size should match", 2, termsQueryBuilder.values().size());
-        assertEquals("First value should match", "value1", termsQueryBuilder.values().get(0));
-        assertEquals("Second value should match", "value2", termsQueryBuilder.values().get(1));
-        assertEquals("Boost should match", 2.0f, termsQueryBuilder.boost(), 0.0f);
-        assertEquals("Query name should match", "test_query", termsQueryBuilder.queryName());
-        assertEquals("Value type should match", TermsQueryBuilder.ValueType.DEFAULT, termsQueryBuilder.valueType());
+
+        assertEquals("Field name should match map key", "test-field", termsQueryBuilder.fieldName());
+        assertEquals("Values should have 1 entry", 1, termsQueryBuilder.values().size());
+        assertEquals("First value should match", "v1", termsQueryBuilder.values().get(0));
+        assertEquals("Boost should be default", 1.0f, termsQueryBuilder.boost(), 0.0f);
+        assertTrue("Query name should be null", termsQueryBuilder.queryName() == null);
+        assertEquals("Value type should be default", TermsQueryBuilder.ValueType.DEFAULT, termsQueryBuilder.valueType());
+    }
+
+    public void testFromProtoWithMultipleFields() {
+        TermsQueryField field1 = TermsQueryField.newBuilder().build();
+        TermsQueryField field2 = TermsQueryField.newBuilder().build();
+
+        Map<String, TermsQueryField> termsMap = new HashMap<>();
+        termsMap.put("field1", field1);
+        termsMap.put("field2", field2);
+
+        TermsQuery termsQuery = TermsQuery.newBuilder().putAllTerms(termsMap).build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
+
+        // The converter delegates to utils, which will handle the validation
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(queryContainer));
+        assertTrue("Exception message should mention 'exactly one field'", exception.getMessage().contains("exactly one field"));
+    }
+
+    public void testFromProtoWithEmptyTermsMap() {
+        TermsQuery termsQuery = TermsQuery.newBuilder().build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
+
+        // The converter delegates to utils, which will handle the validation
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(queryContainer));
+        assertTrue("Exception message should mention 'exactly one field'", exception.getMessage().contains("exactly one field"));
+    }
+
+    public void testFromProtoWithBoostAndQueryName() {
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build();
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+
+        TermsQuery termsQuery = TermsQuery.newBuilder()
+            .putTerms("test_field", termsQueryField)
+            .setBoost(2.5f)
+            .setXName("test_query_name")
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
+
+        QueryBuilder queryBuilder = converter.fromProto(queryContainer);
+
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
+        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+
+        assertEquals("Field name should match", "test_field", termsQueryBuilder.fieldName());
+        assertEquals("Boost should be set", 2.5f, termsQueryBuilder.boost(), 0.0f);
+        assertEquals("Query name should be set", "test_query_name", termsQueryBuilder.queryName());
+        assertEquals("Values should have 1 entry", 1, termsQueryBuilder.values().size());
+        assertEquals("First value should match", "test_value", termsQueryBuilder.values().get(0));
+    }
+
+    public void testFromProtoWithValueType() {
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("AQI=").build(); // base64 for
+                                                                                                                             // {1,2}
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+
+        TermsQuery termsQuery = TermsQuery.newBuilder()
+            .putTerms("bitmap_field", termsQueryField)
+            .setValueType(org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_BITMAP)
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
+
+        QueryBuilder queryBuilder = converter.fromProto(queryContainer);
+
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
+        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+
+        assertEquals("Field name should match", "bitmap_field", termsQueryBuilder.fieldName());
+        assertEquals("Value type should be BITMAP", TermsQueryBuilder.ValueType.BITMAP, termsQueryBuilder.valueType());
+        assertEquals("Values should have 1 entry", 1, termsQueryBuilder.values().size());
+        assertTrue("Value should be BytesArray", termsQueryBuilder.values().get(0) instanceof org.opensearch.core.common.bytes.BytesArray);
+    }
+
+    public void testFromProtoWithTermsLookup() {
+        org.opensearch.protobufs.TermsLookup lookup = org.opensearch.protobufs.TermsLookup.newBuilder()
+            .setIndex("test_index")
+            .setId("test_id")
+            .setPath("test_path")
+            .setRouting("test_routing")
+            .build();
+
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setLookup(lookup).build();
+
+        TermsQuery termsQuery = TermsQuery.newBuilder()
+            .putTerms("lookup_field", termsQueryField)
+            .setBoost(1.5f)
+            .setXName("lookup_query")
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
+
+        QueryBuilder queryBuilder = converter.fromProto(queryContainer);
+
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
+        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+
+        assertEquals("Field name should match", "lookup_field", termsQueryBuilder.fieldName());
+        assertEquals("Boost should be set", 1.5f, termsQueryBuilder.boost(), 0.0f);
+        assertEquals("Query name should be set", "lookup_query", termsQueryBuilder.queryName());
+        assertNotNull("TermsLookup should be set", termsQueryBuilder.termsLookup());
+        assertEquals("Index should match", "test_index", termsQueryBuilder.termsLookup().index());
+        assertEquals("ID should match", "test_id", termsQueryBuilder.termsLookup().id());
+        assertEquals("Path should match", "test_path", termsQueryBuilder.termsLookup().path());
+        assertEquals("Routing should match", "test_routing", termsQueryBuilder.termsLookup().routing());
+    }
+
+    public void testFromProtoWithDefaultValues() {
+        org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("default_value").build();
+        org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+
+        TermsQuery termsQuery = TermsQuery.newBuilder().putTerms("default_field", termsQueryField).build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQuery).build();
+
+        QueryBuilder queryBuilder = converter.fromProto(queryContainer);
+
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
+        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+
+        assertEquals("Field name should match", "default_field", termsQueryBuilder.fieldName());
+        assertEquals("Boost should be default", 1.0f, termsQueryBuilder.boost(), 0.0f);
+        assertNull("Query name should be null", termsQueryBuilder.queryName());
+        assertEquals("Value type should be default", TermsQueryBuilder.ValueType.DEFAULT, termsQueryBuilder.valueType());
+        assertEquals("Values should have 1 entry", 1, termsQueryBuilder.values().size());
+        assertEquals("First value should match", "default_value", termsQueryBuilder.values().get(0));
     }
 
     public void testFromProtoWithInvalidContainer() {
         // Create a QueryContainer with a different query type
         QueryContainer emptyContainer = QueryContainer.newBuilder().build();
 
-        // Test that the converter throws an exception
+        // Test that the converter throws an exception for basic validation
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(emptyContainer));
 
         // Verify the exception message
+        assertTrue(
+            "Exception message should mention 'does not contain a Terms query'",
+            exception.getMessage().contains("does not contain a Terms query")
+        );
+    }
+
+    public void testFromProtoWithNullContainer() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(null));
         assertTrue(
             "Exception message should mention 'does not contain a Terms query'",
             exception.getMessage().contains("does not contain a Terms query")

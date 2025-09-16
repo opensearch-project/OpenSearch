@@ -14,35 +14,64 @@ import org.opensearch.test.OpenSearchTestCase;
 public class VersionTypeProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithVersionTypeExternal() {
-        // Test conversion from VersionType.VERSION_TYPE_EXTERNAL to VersionType.EXTERNAL
         VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL);
 
-        // Verify the result
-        assertEquals("VERSION_TYPE_EXTERNAL should convert to VersionType.EXTERNAL", VersionType.EXTERNAL, result);
+        assertEquals("Should map to EXTERNAL", VersionType.EXTERNAL, result);
     }
 
     public void testFromProtoWithVersionTypeExternalGte() {
-        // Test conversion from VersionType.VERSION_TYPE_EXTERNAL_GTE to VersionType.EXTERNAL_GTE
         VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL_GTE);
 
-        // Verify the result
-        assertEquals("VERSION_TYPE_EXTERNAL_GTE should convert to VersionType.EXTERNAL_GTE", VersionType.EXTERNAL_GTE, result);
+        assertEquals("Should map to EXTERNAL_GTE", VersionType.EXTERNAL_GTE, result);
     }
 
     public void testFromProtoWithDefaultCase() {
-        // Test conversion with a default case (should return INTERNAL)
-        // Using UNSPECIFIED which will hit the default case
-        VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_UNSPECIFIED);
+        VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_INTERNAL);
 
-        // Verify the result
         assertEquals("Default case should convert to VersionType.INTERNAL", VersionType.INTERNAL, result);
     }
 
     public void testFromProtoWithUnrecognizedVersionType() {
-        // Test conversion with an unrecognized VersionType
         VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.UNRECOGNIZED);
 
-        // Verify the result (should default to INTERNAL)
         assertEquals("UNRECOGNIZED should default to VersionType.INTERNAL", VersionType.INTERNAL, result);
+    }
+
+    public void testFromProtoWithVersionTypeUnspecified() {
+        VersionType result = VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_UNSPECIFIED);
+
+        assertEquals("VERSION_TYPE_UNSPECIFIED should default to VersionType.INTERNAL", VersionType.INTERNAL, result);
+    }
+
+    public void testFromProtoWithAllVersionTypes() {
+        assertEquals(
+            "VERSION_TYPE_EXTERNAL should convert to VersionType.EXTERNAL",
+            VersionType.EXTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL)
+        );
+
+        assertEquals(
+            "VERSION_TYPE_EXTERNAL_GTE should convert to VersionType.EXTERNAL_GTE",
+            VersionType.EXTERNAL_GTE,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_EXTERNAL_GTE)
+        );
+
+        assertEquals(
+            "VERSION_TYPE_INTERNAL should convert to VersionType.INTERNAL",
+            VersionType.INTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_INTERNAL)
+        );
+
+        assertEquals(
+            "VERSION_TYPE_UNSPECIFIED should default to VersionType.INTERNAL",
+            VersionType.INTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.VERSION_TYPE_UNSPECIFIED)
+        );
+
+        assertEquals(
+            "UNRECOGNIZED should default to VersionType.INTERNAL",
+            VersionType.INTERNAL,
+            VersionTypeProtoUtils.fromProto(org.opensearch.protobufs.VersionType.UNRECOGNIZED)
+        );
     }
 }

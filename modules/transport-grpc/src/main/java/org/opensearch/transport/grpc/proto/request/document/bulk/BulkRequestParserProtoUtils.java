@@ -23,11 +23,13 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
-import org.opensearch.protobufs.CreateOperation;
 import org.opensearch.protobufs.DeleteOperation;
 import org.opensearch.protobufs.IndexOperation;
 import org.opensearch.protobufs.OpType;
+import org.opensearch.protobufs.OperationContainer;
+import org.opensearch.protobufs.UpdateAction;
 import org.opensearch.protobufs.UpdateOperation;
+import org.opensearch.protobufs.WriteOperation;
 import org.opensearch.script.Script;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
@@ -121,12 +123,12 @@ public class BulkRequestParserProtoUtils {
             String pipeline = valueOrDefault(defaultPipeline, request.getPipeline());
             Boolean requireAlias = valueOrDefault(defaultRequireAlias, request.getRequireAlias());
 
-            // Parse the operation type: create, index, update, delete, or none provided (which is invalid).
-            switch (bulkRequestBodyEntry.getOperationContainerCase()) {
+            OperationContainer operationContainer = bulkRequestBodyEntry.getOperationContainer();
+            switch (operationContainer.getOperationContainerCase()) {
                 case CREATE:
                     docWriteRequest = buildCreateRequest(
-                        bulkRequestBodyEntry.getCreate(),
-                        bulkRequestBodyEntry.getDoc().toByteArray(),
+                        operationContainer.getCreate(),
+                        bulkRequestBodyEntry.getObject().toByteArray(),
                         index,
                         id,
                         routing,
@@ -140,8 +142,8 @@ public class BulkRequestParserProtoUtils {
                     break;
                 case INDEX:
                     docWriteRequest = buildIndexRequest(
-                        bulkRequestBodyEntry.getIndex(),
-                        bulkRequestBodyEntry.getDoc().toByteArray(),
+                        operationContainer.getIndex(),
+                        bulkRequestBodyEntry.getObject().toByteArray(),
                         opType,
                         index,
                         id,
@@ -156,8 +158,8 @@ public class BulkRequestParserProtoUtils {
                     break;
                 case UPDATE:
                     docWriteRequest = buildUpdateRequest(
-                        bulkRequestBodyEntry.getUpdate(),
-                        bulkRequestBodyEntry.getDoc().toByteArray(),
+                        operationContainer.getUpdate(),
+                        bulkRequestBodyEntry.getObject().toByteArray(),
                         bulkRequestBodyEntry,
                         index,
                         id,
@@ -172,7 +174,7 @@ public class BulkRequestParserProtoUtils {
                     break;
                 case DELETE:
                     docWriteRequest = buildDeleteRequest(
-                        bulkRequestBodyEntry.getDelete(),
+                        operationContainer.getDelete(),
                         index,
                         id,
                         routing,
@@ -211,7 +213,7 @@ public class BulkRequestParserProtoUtils {
      * @return The constructed IndexRequest
      */
     public static IndexRequest buildCreateRequest(
-        CreateOperation createOperation,
+        WriteOperation createOperation,
         byte[] document,
         String index,
         String id,
@@ -223,17 +225,10 @@ public class BulkRequestParserProtoUtils {
         long ifPrimaryTerm,
         boolean requireAlias
     ) {
-        index = createOperation.hasIndex() ? createOperation.getIndex() : index;
-        id = createOperation.hasId() ? createOperation.getId() : id;
+        index = createOperation.hasXIndex() ? createOperation.getXIndex() : index;
+        id = createOperation.hasXId() ? createOperation.getXId() : id;
         routing = createOperation.hasRouting() ? createOperation.getRouting() : routing;
-        version = createOperation.hasVersion() ? createOperation.getVersion() : version;
-        if (createOperation.hasVersionType()) {
-            versionType = VersionTypeProtoUtils.fromProto(createOperation.getVersionType());
-
-        }
         pipeline = createOperation.hasPipeline() ? createOperation.getPipeline() : pipeline;
-        ifSeqNo = createOperation.hasIfSeqNo() ? createOperation.getIfSeqNo() : ifSeqNo;
-        ifPrimaryTerm = createOperation.hasIfPrimaryTerm() ? createOperation.getIfPrimaryTerm() : ifPrimaryTerm;
         requireAlias = createOperation.hasRequireAlias() ? createOperation.getRequireAlias() : requireAlias;
 
         IndexRequest indexRequest = new IndexRequest(index).id(id)
@@ -281,8 +276,8 @@ public class BulkRequestParserProtoUtils {
         boolean requireAlias
     ) {
         opType = indexOperation.hasOpType() ? indexOperation.getOpType() : opType;
-        index = indexOperation.hasIndex() ? indexOperation.getIndex() : index;
-        id = indexOperation.hasId() ? indexOperation.getId() : id;
+        index = indexOperation.hasXIndex() ? indexOperation.getXIndex() : index;
+        id = indexOperation.hasXId() ? indexOperation.getXId() : id;
         routing = indexOperation.hasRouting() ? indexOperation.getRouting() : routing;
         version = indexOperation.hasVersion() ? indexOperation.getVersion() : version;
         if (indexOperation.hasVersionType()) {
@@ -309,7 +304,7 @@ public class BulkRequestParserProtoUtils {
                 .routing(routing)
                 .version(version)
                 .versionType(versionType)
-                .create(opType.equals(OpType.OP_TYPE_CREATE))
+                .create(opType == OpType.OP_TYPE_CREATE)
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
@@ -350,11 +345,11 @@ public class BulkRequestParserProtoUtils {
         long ifPrimaryTerm,
         boolean requireAlias
     ) {
-        index = updateOperation.hasIndex() ? updateOperation.getIndex() : index;
-        id = updateOperation.hasId() ? updateOperation.getId() : id;
+        index = updateOperation.hasXIndex() ? updateOperation.getXIndex() : index;
+        id = updateOperation.hasXId() ? updateOperation.getXId() : id;
         routing = updateOperation.hasRouting() ? updateOperation.getRouting() : routing;
-        fetchSourceContext = bulkRequestBody.hasSource()
-            ? FetchSourceContextProtoUtils.fromProto(bulkRequestBody.getSource())
+        fetchSourceContext = bulkRequestBody.hasUpdateAction() && bulkRequestBody.getUpdateAction().hasXSource()
+            ? FetchSourceContextProtoUtils.fromProto(bulkRequestBody.getUpdateAction().getXSource())
             : fetchSourceContext;
         retryOnConflict = updateOperation.hasRetryOnConflict() ? updateOperation.getRetryOnConflict() : retryOnConflict;
         ifSeqNo = updateOperation.hasIfSeqNo() ? updateOperation.getIfSeqNo() : ifSeqNo;
@@ -400,36 +395,36 @@ public class BulkRequestParserProtoUtils {
         BulkRequestBody bulkRequestBody,
         UpdateOperation updateOperation
     ) {
-        if (bulkRequestBody.hasScript()) {
-            Script script = ScriptProtoUtils.parseFromProtoRequest(bulkRequestBody.getScript());
-            updateRequest.script(script);
-        }
+        if (bulkRequestBody.hasUpdateAction()) {
+            UpdateAction updateAction = bulkRequestBody.getUpdateAction();
 
-        if (bulkRequestBody.hasScriptedUpsert()) {
-            updateRequest.scriptedUpsert(bulkRequestBody.getScriptedUpsert());
-        }
+            if (updateAction.hasScript()) {
+                Script script = ScriptProtoUtils.parseFromProtoRequest(updateAction.getScript());
+                updateRequest.script(script);
+            }
 
-        if (bulkRequestBody.hasUpsert()) {
-            updateRequest.upsert(bulkRequestBody.getUpsert(), MediaTypeRegistry.JSON);
+            if (updateAction.hasScriptedUpsert()) {
+                updateRequest.scriptedUpsert(updateAction.getScriptedUpsert());
+            }
+
+            if (updateAction.hasUpsert()) {
+                updateRequest.upsert(updateAction.getUpsert(), MediaTypeRegistry.JSON);
+            }
+
+            if (updateAction.hasDocAsUpsert()) {
+                updateRequest.docAsUpsert(updateAction.getDocAsUpsert());
+            }
+
+            if (updateAction.hasDetectNoop()) {
+                updateRequest.detectNoop(updateAction.getDetectNoop());
+            }
+
+            if (updateAction.hasXSource()) {
+                updateRequest.fetchSource(FetchSourceContextProtoUtils.fromProto(updateAction.getXSource()));
+            }
         }
 
         updateRequest.doc(document, MediaTypeRegistry.JSON);
-
-        if (bulkRequestBody.hasDocAsUpsert()) {
-            updateRequest.docAsUpsert(bulkRequestBody.getDocAsUpsert());
-        }
-
-        if (bulkRequestBody.hasDetectNoop()) {
-            updateRequest.detectNoop(bulkRequestBody.getDetectNoop());
-        }
-
-        if (bulkRequestBody.hasDocAsUpsert()) {
-            updateRequest.docAsUpsert(bulkRequestBody.getDocAsUpsert());
-        }
-
-        if (bulkRequestBody.hasSource()) {
-            updateRequest.fetchSource(FetchSourceContextProtoUtils.fromProto(bulkRequestBody.getSource()));
-        }
 
         if (updateOperation.hasIfSeqNo()) {
             updateRequest.setIfSeqNo(updateOperation.getIfSeqNo());
@@ -465,8 +460,8 @@ public class BulkRequestParserProtoUtils {
         long ifSeqNo,
         long ifPrimaryTerm
     ) {
-        index = deleteOperation.hasIndex() ? deleteOperation.getIndex() : index;
-        id = deleteOperation.hasId() ? deleteOperation.getId() : id;
+        index = deleteOperation.hasXIndex() ? deleteOperation.getXIndex() : index;
+        id = deleteOperation.hasXId() ? deleteOperation.getXId() : id;
         routing = deleteOperation.hasRouting() ? deleteOperation.getRouting() : routing;
         version = deleteOperation.hasVersion() ? deleteOperation.getVersion() : version;
         if (deleteOperation.hasVersionType()) {

@@ -37,6 +37,7 @@ public class OpTypeProtoUtils {
                 return DocWriteRequest.OpType.CREATE;
             case OP_TYPE_INDEX:
                 return DocWriteRequest.OpType.INDEX;
+            case OP_TYPE_UNSPECIFIED:
             default:
                 throw new UnsupportedOperationException("Invalid optype: " + opType);
         }
