@@ -51,8 +51,8 @@ public class DocumentServiceIT extends GrpcTransportBaseIT {
 
             // Verify the response
             assertNotNull("Bulk response should not be null", bulkResponse);
-            assertFalse("Bulk response should not have errors", bulkResponse.getBulkResponseBody().getErrors());
-            assertEquals("Bulk response should have one item", 1, bulkResponse.getBulkResponseBody().getItemsCount());
+            assertFalse("Bulk response should not have errors", bulkResponse.getErrors());
+            assertEquals("Bulk response should have one item", 1, bulkResponse.getItemsCount());
 
             // Verify the document is searchable
             waitForSearchableDoc(indexName, "1");
