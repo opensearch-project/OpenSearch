@@ -34,7 +34,7 @@ public class MatchNoneQueryBuilderProtoConverterTests extends OpenSearchTestCase
 
     public void testFromProto() {
         // Create a QueryContainer with MatchNoneQuery
-        MatchNoneQuery matchNoneQuery = MatchNoneQuery.newBuilder().setBoost(2.0f).setUnderscoreName("test_query").build();
+        MatchNoneQuery matchNoneQuery = MatchNoneQuery.newBuilder().setBoost(2.0f).setXName("test_query").build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setMatchNone(matchNoneQuery).build();
 
         // Convert the query
