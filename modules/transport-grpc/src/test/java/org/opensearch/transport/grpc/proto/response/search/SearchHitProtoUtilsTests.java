@@ -439,4 +439,35 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("Hit should not be null", hit);
         assertFalse("Source should not be set when explicitly null", hit.hasSource());
     }
+
+    public void testToProtoWithBytesArrayOffsetConditionCoverage() throws IOException {
+        // Test the specific condition coverage for BytesArray when offset != 0 OR length != bytes.length
+        // This covers the else branch in the optimization logic (lines 207-208)
+        SearchHit searchHit = new SearchHit(1);
+
+        // Create a larger byte array with prefix and suffix
+        String prefix = "PREFIX";
+        String jsonContent = "{\"field\":\"value\"}";
+        String suffix = "SUFFIX";
+        String fullContent = prefix + jsonContent + suffix;
+        byte[] fullBytes = fullContent.getBytes(StandardCharsets.UTF_8);
+
+        // Create BytesArray with offset > 0 to extract just the JSON part
+        // This will trigger the condition: bytesRef.offset != 0 || bytesRef.length != bytesRef.bytes.length
+        int offset = prefix.length();
+        int length = jsonContent.length();
+        BytesArray slicedBytesArray = new BytesArray(fullBytes, offset, length);
+        searchHit.sourceRef(slicedBytesArray);
+
+        // Call the method under test
+        Hit hit = SearchHitProtoUtils.toProto(searchHit);
+
+        // Verify the result - should use the offset/length version of unsafeWrap
+        assertNotNull("Hit should not be null", hit);
+        assertTrue("Source should be set", hit.hasSource());
+        assertEquals("Source size should match JSON length", length, hit.getSource().size());
+
+        byte[] expectedBytes = jsonContent.getBytes(StandardCharsets.UTF_8);
+        assertArrayEquals("Source bytes should match JSON content", expectedBytes, hit.getSource().toByteArray());
+    }
 }
