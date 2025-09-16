@@ -44,7 +44,7 @@ public class SortedSetStarTreeValuesIterator extends StarTreeValuesIterator {
         return ((SortedSetDocValues) docIdSetIterator).nextOrd();
     }
 
-    public int docValueCount() {
+    public int entryValueCount() {
         return ((SortedSetDocValues) docIdSetIterator).docValueCount();
     }
 

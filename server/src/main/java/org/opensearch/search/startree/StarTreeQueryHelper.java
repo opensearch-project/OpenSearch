@@ -244,9 +244,16 @@ public class StarTreeQueryHelper {
         return StarTreeTraversalUtil.getStarTreeResult(starTreeValues, starTreeFilter, context);
     }
 
+    // TODO: Refactor to have a single method for collecting dimension filters
     public static List<DimensionFilter> collectDimensionFilters(DimensionFilter initialDimensionFilter, Aggregator[] subAggregators) {
-        List<DimensionFilter> dimensionFiltersToMerge = new ArrayList<>();
-        dimensionFiltersToMerge.add(initialDimensionFilter);
+        return collectDimensionFilters(List.of(initialDimensionFilter), subAggregators);
+    }
+
+    public static List<DimensionFilter> collectDimensionFilters(
+        List<DimensionFilter> initialDimensionFilters,
+        Aggregator[] subAggregators
+    ) {
+        List<DimensionFilter> dimensionFiltersToMerge = new ArrayList<>(initialDimensionFilters);
 
         for (Aggregator subAgg : subAggregators) {
             if (subAgg instanceof StarTreePreComputeCollector collector) {
