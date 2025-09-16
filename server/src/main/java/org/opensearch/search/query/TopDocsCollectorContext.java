@@ -247,26 +247,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             int numHits,
             boolean trackMaxScore
         ) {
-            super(REASON_SEARCH_TOP_HITS, numHits);
-            assert numHits > 0;
-            assert collapseContext != null;
-            this.sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
-            this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
-            this.collapseContext = collapseContext;
-            this.searchAfter = null;
-            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits);
-            this.trackMaxScore = trackMaxScore;
-
-            MaxScoreCollector maxScoreCollector;
-            if (trackMaxScore) {
-                maxScoreCollector = new MaxScoreCollector();
-                maxScoreSupplier = maxScoreCollector::getMaxScore;
-            } else {
-                maxScoreCollector = null;
-                maxScoreSupplier = () -> Float.NaN;
-            }
-
-            this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
+            this(collapseContext, sortAndFormats, numHits, trackMaxScore, null);
         }
 
         /**
