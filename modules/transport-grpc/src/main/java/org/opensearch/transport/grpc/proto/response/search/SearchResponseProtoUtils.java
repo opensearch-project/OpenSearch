@@ -51,38 +51,37 @@ public class SearchResponseProtoUtils {
      */
     public static void toProto(SearchResponse response, org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder)
         throws IOException {
-        org.opensearch.protobufs.ResponseBody.Builder searchResponseBodyProtoBuilder = org.opensearch.protobufs.ResponseBody.newBuilder();
 
         // Set optional fields only if they exist
         if (response.getScrollId() != null) {
-            searchResponseBodyProtoBuilder.setScrollId(response.getScrollId());
+            searchResponseProtoBuilder.setXScrollId(response.getScrollId());
         }
         if (response.pointInTimeId() != null) {
-            searchResponseBodyProtoBuilder.setPitId(response.pointInTimeId());
+            searchResponseProtoBuilder.setPitId(response.pointInTimeId());
         }
 
         // Set required fields
-        searchResponseBodyProtoBuilder.setTook(response.getTook().getMillis());
-        searchResponseBodyProtoBuilder.setTimedOut(response.isTimedOut());
+        searchResponseProtoBuilder.setTook(response.getTook().getMillis());
+        searchResponseProtoBuilder.setTimedOut(response.isTimedOut());
 
         // Set phase took information if available
         if (response.getPhaseTook() != null) {
             org.opensearch.protobufs.PhaseTook.Builder phaseTookBuilder = org.opensearch.protobufs.PhaseTook.newBuilder();
             PhaseTookProtoUtils.toProto(response.getPhaseTook(), phaseTookBuilder);
-            searchResponseBodyProtoBuilder.setPhaseTook(phaseTookBuilder.build());
+            searchResponseProtoBuilder.setPhaseTook(phaseTookBuilder.build());
         }
 
         // Set optional fields only if they differ from defaults
         if (response.isTerminatedEarly() != null) {
-            searchResponseBodyProtoBuilder.setTerminatedEarly(response.isTerminatedEarly());
+            searchResponseProtoBuilder.setTerminatedEarly(response.isTerminatedEarly());
         }
         if (response.getNumReducePhases() != 1) {
-            searchResponseBodyProtoBuilder.setNumReducePhases(response.getNumReducePhases());
+            searchResponseProtoBuilder.setNumReducePhases(response.getNumReducePhases());
         }
 
         // Build broadcast shards header
         ProtoActionsProtoUtils.buildBroadcastShardsHeader(
-            searchResponseBodyProtoBuilder,
+            searchResponseProtoBuilder,
             response.getTotalShards(),
             response.getSuccessfulShards(),
             response.getSkippedShards(),
@@ -91,13 +90,11 @@ public class SearchResponseProtoUtils {
         );
 
         // Add clusters information
-        ClustersProtoUtils.toProto(searchResponseBodyProtoBuilder, response.getClusters());
+        ClustersProtoUtils.toProto(searchResponseProtoBuilder, response.getClusters());
 
         // Add search response sections
-        SearchResponseSectionsProtoUtils.toProto(searchResponseBodyProtoBuilder, response);
+        SearchResponseSectionsProtoUtils.toProto(searchResponseProtoBuilder, response);
 
-        // Set the response body in the main builder
-        searchResponseProtoBuilder.setResponseBody(searchResponseBodyProtoBuilder.build());
     }
 
     /**
@@ -185,7 +182,7 @@ public class SearchResponseProtoUtils {
          * @param clusters The Clusters to convert
          */
         protected static void toProto(
-            org.opensearch.protobufs.ResponseBody.Builder protoResponseBuilder,
+            org.opensearch.protobufs.SearchResponse.Builder protoResponseBuilder,
             SearchResponse.Clusters clusters
         ) {
             // Only add clusters information if there are clusters
@@ -197,7 +194,7 @@ public class SearchResponseProtoUtils {
                     .setSkipped(clusters.getSkipped());
 
                 // Set the clusters field in the response builder
-                protoResponseBuilder.setClusters(clusterStatistics.build());
+                protoResponseBuilder.setXClusters(clusterStatistics.build());
             }
         }
     }
