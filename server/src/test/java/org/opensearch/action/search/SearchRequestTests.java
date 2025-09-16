@@ -50,6 +50,10 @@ import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.ShardDocSortBuilder;
+import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -237,6 +241,69 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // _shard_doc without PIT -> reject
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort(SortBuilders.shardDocSort()));
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals(
+                "_shard_doc is only supported with point-in-time (PIT). Add a PIT or remove _shard_doc.",
+                e.validationErrors().get(0)
+            );
+        }
+        {
+            // _shard_doc with scroll -> reject (even if PIT is present, scroll is illegal)
+            SearchRequest searchRequest = new SearchRequest().source(
+                // include PIT to mirror real usage; scroll + PIT is already invalid, but we assert shard_doc+scroll error is present
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")).sort(SortBuilders.shardDocSort())
+            ).scroll(TimeValue.timeValueSeconds(30));
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertTrue(
+                "Expected shard_doc + scroll error",
+                e.validationErrors().contains("_shard_doc cannot be used with scroll. Use PIT + search_after instead.")
+            );
+        }
+        {
+            // Duplicate _shard_doc with PIT -> reject
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+                    .sort(SortBuilders.shardDocSort()) // first
+                    .sort(SortBuilders.shardDocSort().order(SortOrder.DESC)) // second
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals("duplicate _shard_doc sort detected. Specify it at most once.", e.validationErrors().get(0));
+        }
+        {
+            // Smuggled as FieldSortBuilder("_shard_doc") without PIT -> reject
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().sort(new FieldSortBuilder(ShardDocSortBuilder.NAME))
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals(
+                "_shard_doc is only supported with point-in-time (PIT). Add a PIT or remove _shard_doc.",
+                e.validationErrors().get(0)
+            );
+        }
+        {
+            // Good: PIT + _shard_doc -> valid
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")).sort(SortBuilders.shardDocSort())
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNull("PIT + _shard_doc should be valid", e);
+        }
+        {
+            // Control: no PIT, no _shard_doc -> valid
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort("_id", SortOrder.ASC));
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNull(e);
         }
     }
 
