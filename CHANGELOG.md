@@ -1,3 +1,6 @@
+## [2.0.1] - Backport Feature
+- Critical fix for backporting
+
 # CHANGELOG
 All notable changes to this project are documented in this file.
 
