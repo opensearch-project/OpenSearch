@@ -35,11 +35,14 @@ package org.opensearch.indices.mapper;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.plugins.MapperPlugin;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -54,6 +57,7 @@ public final class MapperRegistry {
     private final Map<String, Mapper.TypeParser> mapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, Predicate<String>> fieldFilter;
+    final Map<String, Set<String>> parametersAffectingQueryResults;
 
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
@@ -63,6 +67,16 @@ public final class MapperRegistry {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
         this.fieldFilter = fieldFilter;
+        Map<String, Set<String>> tempParametersAffectingQueryResults = new HashMap<>();
+        for (Map.Entry<String, Mapper.TypeParser> entry : this.mapperParsers.entrySet()) {
+            if (entry.getValue() instanceof ParametrizedFieldMapper.TypeParser parametrizedTP) {
+                Set<String> tpParamsAffectingQueryResults = parametrizedTP.getParametersAffectingQueryResults();
+                if (!tpParamsAffectingQueryResults.isEmpty()) {
+                    tempParametersAffectingQueryResults.put(entry.getKey(), tpParamsAffectingQueryResults);
+                }
+            }
+        }
+        this.parametersAffectingQueryResults = Collections.unmodifiableMap(tempParametersAffectingQueryResults);
     }
 
     /**
@@ -97,5 +111,9 @@ public final class MapperRegistry {
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return fieldFilter;
+    }
+
+    public Map<String, Set<String>> getParametersAffectingQueryResults() {
+        return parametersAffectingQueryResults;
     }
 }

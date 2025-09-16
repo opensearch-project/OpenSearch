@@ -751,9 +751,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
      *
      * @opensearch.internal
      */
-    public static final class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements Mapper.TypeParser {
 
         private final BiFunction<String, ParserContext, Builder> builderFunction;
+        private final static Set<String> EMPTY_PARAMS_AFFECTING_QUERY_RESULTS = new HashSet<>();
 
         /**
          * Creates a new TypeParser
@@ -764,10 +765,18 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public final Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);
             return builder;
+        }
+
+        /**
+         * TODO: Name is TBD, maybe can think of smth better
+         * @return A set of the names of the parameters for this field which, when updated, can affect query results.
+         */
+        public Set<String> getParametersAffectingQueryResults() {
+            return EMPTY_PARAMS_AFFECTING_QUERY_RESULTS;
         }
     }
 }
