@@ -305,6 +305,10 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
         table.addCell(
+            "search.query_failed",
+            "alias:sqf,searchQueryFailed;default:false;text-align:right;desc:total failed query phase ops"
+        );
+        table.addCell(
             "search.concurrent_query_current",
             "alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
         );
@@ -349,10 +353,13 @@ public class RestNodesAction extends AbstractCatAction {
             "search.startree_query_time",
             "alias:stqti,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
         );
-
         table.addCell(
             "search.startree_query_total",
             "alias:stqto,startreeQueryTotal;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell(
+            "search.startree_query_failed",
+            "alias:stqf,startreeQueryFailed;default:false;text-align:right;desc:star tree failed query ops"
         );
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
@@ -561,6 +568,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryFailedCount());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCount());
@@ -574,6 +582,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryFailed());
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());

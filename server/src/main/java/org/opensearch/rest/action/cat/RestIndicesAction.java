@@ -653,6 +653,13 @@ public class RestIndicesAction extends AbstractListAction {
             "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops"
         );
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
+
+        table.addCell(
+            "search.query_failed",
+            "sibling:pri;alias:sqf,searchQueryFailed;default:false;text-align:right;desc:failed query phase ops"
+        );
+        table.addCell("pri.search.query_failed", "default:false;text-align:right;desc:failed query phase ops");
+
         table.addCell(
             "search.concurrent_query_current",
             "sibling:pri;alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
@@ -1016,6 +1023,9 @@ public class RestIndicesAction extends AbstractListAction {
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryFailedCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryFailedCount());
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCurrent());
