@@ -109,7 +109,7 @@ public class CollapseContext {
         } else if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
             return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN, searchAfter);
         } else {
-            throw new IllegalStateException("unknown type for collapse field " + fieldName + ", only keywords and numbers are accepted");
+            throw new IllegalStateException("unsupported type for collapse field " + fieldName + ", only keywords and numbers are accepted");
         }
     }
 }

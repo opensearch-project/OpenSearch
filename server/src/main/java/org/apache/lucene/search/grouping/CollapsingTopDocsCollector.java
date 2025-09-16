@@ -85,7 +85,10 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         this.after = after;
 
         if (after != null) {
-            // we have only one sort field which is the collapse field
+            // we should have only one sort field which is the collapse field
+            if (sort.getSort().length != 1 || !sort.getSort()[0].getField().equals(collapseField)) {
+                throw new IllegalArgumentException("The after parameter can only be used when the sort is based on the collapse field");
+            }
             SortField field = sort.getSort()[0];
             afterComparator = field.getComparator(1, Pruning.NONE);
 

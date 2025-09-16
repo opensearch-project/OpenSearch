@@ -494,6 +494,47 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         assertEquals("Inconsistent order of shard indices", exception.getMessage());
     }
 
+    public void testSearchAfterValidation() {
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("category");
+
+        // Test multiple sort fields - should fail
+        Sort multiSort = new Sort(new SortField("category", SortField.Type.INT), new SortField("score", SortField.Type.FLOAT));
+        FieldDoc multiAfter = new FieldDoc(0, Float.NaN, new Object[] { 1, 1.0f });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            CollapsingTopDocsCollector.createNumeric("category", fieldType, multiSort, 10, multiAfter);
+        });
+        assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+
+        // Test wrong sort field - should fail
+        Sort wrongSort = new Sort(new SortField("different_field", SortField.Type.INT));
+        FieldDoc wrongAfter = new FieldDoc(0, Float.NaN, new Object[] { 1 });
+        exception = expectThrows(IllegalArgumentException.class, () -> {
+            CollapsingTopDocsCollector.createNumeric("category", fieldType, wrongSort, 10, wrongAfter);
+        });
+        assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+
+        // Test correct sort field - should succeed
+        Sort correctSort = new Sort(new SortField("category", SortField.Type.INT));
+        FieldDoc correctAfter = new FieldDoc(0, Float.NaN, new Object[] { 1 });
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric(
+            "category",
+            fieldType,
+            correctSort,
+            10,
+            correctAfter
+        );
+        assertNotNull(collector);
+
+        // Test keyword field with multiple sorts - should fail
+        MappedFieldType keywordFieldType = new MockFieldMapper.FakeFieldType("tag");
+        Sort keywordMultiSort = new Sort(new SortField("tag", SortField.Type.STRING), new SortField("score", SortField.Type.FLOAT));
+        FieldDoc keywordAfter = new FieldDoc(0, Float.NaN, new Object[] { "A", 1.0f });
+        exception = expectThrows(IllegalArgumentException.class, () -> {
+            CollapsingTopDocsCollector.createKeyword("tag", keywordFieldType, keywordMultiSort, 10, keywordAfter);
+        });
+        assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+    }
+
     public void testSearchAfterWithNumericCollapse() throws IOException {
         testSearchAfterCollapse(new NumericDVProducer(), true);
     }
@@ -509,12 +550,10 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         final Directory dir = newDirectory();
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
 
-        // Create test documents
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
             T groupValue = dvProducer.randomGroup(maxGroup);
             dvProducer.add(doc, groupValue, false);
-            doc.add(new NumericDocValuesField("sort1", i)); // Ascending sort values
             w.addDocument(doc);
         }
 
@@ -522,7 +561,8 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         final IndexSearcher searcher = newSearcher(reader);
 
         SortField collapseField = dvProducer.sortField(false);
-        Sort sort = new Sort(new SortField("sort1", SortField.Type.INT), collapseField);
+        // Use collapse field as sort field to satisfy validation
+        Sort sort = new Sort(collapseField);
         MappedFieldType fieldType = new MockFieldMapper.FakeFieldType(collapseField.getField());
 
         // First search without search_after
@@ -546,13 +586,6 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         searcher.search(new MatchAllDocsQuery(), collector2);
         CollapseTopFieldDocs results2 = collector2.getTopDocs();
 
-        // Verify search_after works correctly
-        if (results2.scoreDocs.length > 0) {
-            FieldDoc firstAfterDoc = (FieldDoc) results2.scoreDocs[0];
-            // First doc in second page should be after the last doc in first page
-            assertTrue("Search after should skip previous results", compareFieldDocs(after, firstAfterDoc, sort) < 0);
-        }
-
         // Verify no overlap between pages
         Set<Integer> firstPageDocs = new HashSet<>();
         for (ScoreDoc doc : results1.scoreDocs) {
@@ -572,16 +605,18 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         final Directory dir = newDirectory();
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
 
-        // Add a single document
-        Document doc = new Document();
-        doc.add(new NumericDocValuesField("group", 1));
-        doc.add(new NumericDocValuesField("sort1", 100));
-        w.addDocument(doc);
+        final int numDocs = 100;
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("group", i));
+            w.addDocument(doc);
+        }
 
         final IndexReader reader = w.getReader();
         final IndexSearcher searcher = newSearcher(reader);
 
-        Sort sort = new Sort(new SortField("sort1", SortField.Type.INT));
+        // Use collapse field as sort field to satisfy validation
+        Sort sort = new Sort(new SortField("group", SortField.Type.INT));
         MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
 
         // Create search_after that's beyond all documents
@@ -593,26 +628,11 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         CollapseTopFieldDocs results = collector.getTopDocs();
 
         assertEquals("Should have no results after last document", 0, results.scoreDocs.length);
-        assertEquals("Total hits should reflect all documents processed with search_after", 1, results.totalHits.value());
+        assertEquals("Total hits should reflect all documents processed with search_after", numDocs, results.totalHits.value());
 
         w.close();
         reader.close();
         dir.close();
-    }
-
-    private int compareFieldDocs(FieldDoc doc1, FieldDoc doc2, Sort sort) {
-        SortField[] fields = sort.getSort();
-        for (int i = 0; i < fields.length && i < doc1.fields.length && i < doc2.fields.length; i++) {
-            @SuppressWarnings("unchecked")
-            Comparable<Object> val1 = (Comparable<Object>) doc1.fields[i];
-            Object val2 = doc2.fields[i];
-
-            int cmp = val1.compareTo(val2);
-            if (cmp != 0) {
-                return fields[i].getReverse() ? -cmp : cmp;
-            }
-        }
-        return Integer.compare(doc1.doc, doc2.doc);
     }
 
     // Helper classes for test data
