@@ -927,5 +927,3 @@ setup:
 
   - match: {hits.total: 6 }
   - length: {hits.hits: 0 }
-
-
