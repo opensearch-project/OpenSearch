@@ -106,22 +106,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     );
 
     /**
-     * Field data cache size circuit breaker. Deprecated in favor of "indices.fielddata.cache.size",
-     * which will evict instead of circuit-breaking.
+     * If an incoming request would cause the field data cache to exceed this size, the request is cancelled.
      */
-    @Deprecated
     public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
         "indices.breaker.fielddata.limit",
         "40%",
         Property.Dynamic,
         Property.NodeScope
     );
-
-    /**
-     * A constant by which the field data estimations are multiplied to determine the final estimation.
-     * Deprecated as FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING is no longer used.
-     */
-    @Deprecated
     public static final Setting<Double> FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING = Setting.doubleSetting(
         "indices.breaker.fielddata.overhead",
         1.03d,
@@ -129,12 +121,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.Dynamic,
         Property.NodeScope
     );
-
-    /**
-     * The type for FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING. FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING is deprecated,
-     * so this is too.
-     */
-    @Deprecated
     public static final Setting<CircuitBreaker.Type> FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING = new Setting<>(
         "indices.breaker.fielddata.type",
         "memory",
@@ -203,6 +189,18 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         super();
         HashMap<String, CircuitBreaker> childCircuitBreakers = new HashMap<>();
         childCircuitBreakers.put(
+            CircuitBreaker.FIELDDATA,
+            validateAndCreateBreaker(
+                new BreakerSettings(
+                    CircuitBreaker.FIELDDATA,
+                    FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+                    FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                    FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                    CircuitBreaker.Durability.PERMANENT
+                )
+            )
+        );
+        childCircuitBreakers.put(
             CircuitBreaker.IN_FLIGHT_REQUESTS,
             validateAndCreateBreaker(
                 new BreakerSettings(
@@ -252,6 +250,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             this::setTotalCircuitBreakerLimit,
             this::validateTotalCircuitBreakerLimit
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
+            FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.FIELDDATA, limit, overhead)
         );
         clusterSettings.addSettingsUpdateConsumer(
             IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
