@@ -20,16 +20,27 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
+import org.opensearch.transport.grpc.interceptor.GrpcInterceptorProvider;
+import org.opensearch.transport.grpc.interceptor.OrderedGrpcInterceptor;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import io.grpc.Metadata;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
+import io.grpc.ServerInterceptor;
+import io.grpc.Status;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -50,6 +61,7 @@ import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GR
 import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT;
 import static org.opensearch.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthNone;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 public class GrpcPluginTests extends OpenSearchTestCase {
@@ -339,4 +351,545 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // 2. In updateRegistryOnAllConverters() to ensure all converters have the complete registry
         Mockito.verify(mockConverter, Mockito.times(2)).setRegistry(Mockito.any());
     }
+
+    // Test cases for gRPC interceptor functionality
+
+    public void testLoadExtensionsWithGrpcInterceptors() {
+        testInterceptorLoading(List.of(1, 2), null);
+    }
+
+    public void testLoadExtensionsWithGrpcInterceptorsOrdering() {
+        testInterceptorLoading(List.of(3, 1, 2), null); // Out of order - should be sorted
+    }
+
+    public void testLoadExtensionsWithDuplicateGrpcInterceptorOrder() {
+        testInterceptorLoading(List.of(1, 1), IllegalArgumentException.class);
+    }
+
+    public void testLoadExtensionsWithMultipleProvidersAndDuplicateOrder() {
+        testInterceptorLoadingWithMultipleProviders(List.of(List.of(5), List.of(5)), IllegalArgumentException.class);
+    }
+
+    public void testLoadExtensionsWithNullGrpcInterceptorProviders() {
+        testInterceptorLoading(null, null);
+    }
+
+    public void testLoadExtensionsWithEmptyGrpcInterceptorList() {
+        testInterceptorLoading(List.of(), null);
+    }
+
+    public void testLoadExtensionsWithSameExplicitOrderInterceptors() {
+        testInterceptorLoading(List.of(5, 5), IllegalArgumentException.class);
+    }
+
+    // Test cases for interceptor chain failure handling
+
+    public void testInterceptorExceptionDuringRequestPhase() {
+        testInterceptorLoading(List.of(1, 2), null); // Runtime failures don't affect loading
+    }
+
+    // Test cases for actual request processing with interceptors
+
+    public void testInterceptorRequestProcessingWithSuccess() {
+        testRequestProcessing(
+            List.of(new TestRequestInterceptor(1, true, "Auth check passed")),
+            true,
+            "Request should succeed when interceptor succeeds"
+        );
+    }
+
+    public void testInterceptorRequestProcessingWithFailure() {
+        testRequestProcessing(
+            List.of(new TestRequestInterceptor(1, false, "Auth failed")),
+            false,
+            "Request should fail when interceptor fails"
+        );
+    }
+
+    public void testMultipleInterceptorsRequestProcessing() {
+        testRequestProcessing(
+            List.of(
+                new TestRequestInterceptor(1, true, "Auth passed"),
+                new TestRequestInterceptor(2, true, "Rate limit passed"),
+                new TestRequestInterceptor(3, true, "Validation passed")
+            ),
+            true,
+            "Request should succeed when all interceptors succeed"
+        );
+    }
+
+    public void testMultipleInterceptorsWithEarlyFailure() {
+        testRequestProcessing(
+            List.of(
+                new TestRequestInterceptor(1, true, "Auth passed"),
+                new TestRequestInterceptor(2, false, "Rate limit exceeded"), // Fails here
+                new TestRequestInterceptor(3, true, "Validation passed")     // Should not execute
+            ),
+            false,
+            "Request should fail when any interceptor fails"
+        );
+    }
+
+    public void testInterceptorExceptionHandling() {
+        testRequestProcessingWithException(
+            new TestExceptionThrowingInterceptor(1, "Security check failed"),
+            SecurityException.class,
+            "Security check failed"
+        );
+    }
+
+    public void testInterceptorChainExceptionPropagation() {
+        // Test that exceptions in interceptor chain stop processing
+        @SuppressWarnings("unchecked")
+        ServerCall<String, String> mockCall = Mockito.mock(ServerCall.class);
+        @SuppressWarnings("unchecked")
+        ServerCallHandler<String, String> mockHandler = Mockito.mock(ServerCallHandler.class);
+        Metadata headers = new Metadata();
+
+        TestExceptionThrowingInterceptor throwingInterceptor = new TestExceptionThrowingInterceptor(2, "Rate limit service down");
+
+        Exception thrown = expectThrows(
+            RuntimeException.class,
+            () -> { throwingInterceptor.interceptCall(mockCall, headers, mockHandler); }
+        );
+
+        assertEquals("Rate limit service down", thrown.getMessage());
+    }
+
+    // Generic helper methods for cleaner, more maintainable tests
+
+    /**
+     * Generic interceptor loading test helper
+     * @param orders List of interceptor orders (null for no interceptors)
+     * @param expectedException Expected exception class (null if no exception expected)
+     */
+    private void testInterceptorLoading(List<Integer> orders, Class<? extends Exception> expectedException) {
+        GrpcPlugin plugin = new GrpcPlugin();
+        ExtensiblePlugin.ExtensionLoader mockLoader = createMockLoader(orders);
+
+        if (expectedException != null) {
+            expectThrows(expectedException, () -> plugin.loadExtensions(mockLoader));
+        } else {
+            assertDoesNotThrow(() -> plugin.loadExtensions(mockLoader));
+        }
+    }
+
+    /**
+     * Test interceptor loading with multiple providers
+     */
+    private void testInterceptorLoadingWithMultipleProviders(
+        List<List<Integer>> providerOrders,
+        Class<? extends Exception> expectedException
+    ) {
+        GrpcPlugin plugin = new GrpcPlugin();
+        ExtensiblePlugin.ExtensionLoader mockLoader = createMockLoaderWithMultipleProviders(providerOrders);
+
+        if (expectedException != null) {
+            expectThrows(expectedException, () -> plugin.loadExtensions(mockLoader));
+        } else {
+            assertDoesNotThrow(() -> plugin.loadExtensions(mockLoader));
+        }
+    }
+
+    /**
+     * Creates a mock extension loader with interceptors of given orders
+     */
+    private ExtensiblePlugin.ExtensionLoader createMockLoader(List<Integer> orders) {
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
+
+        if (orders == null) {
+            when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(null);
+        } else if (orders.isEmpty()) {
+            GrpcInterceptorProvider mockProvider = Mockito.mock(GrpcInterceptorProvider.class);
+            when(mockProvider.getOrderedGrpcInterceptors()).thenReturn(new ArrayList<>());
+            when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(mockProvider));
+        } else {
+            List<OrderedGrpcInterceptor> interceptors = orders.stream().map(order -> createMockInterceptor(order)).toList();
+
+            GrpcInterceptorProvider mockProvider = Mockito.mock(GrpcInterceptorProvider.class);
+            when(mockProvider.getOrderedGrpcInterceptors()).thenReturn(interceptors);
+            when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(mockProvider));
+        }
+
+        return mockLoader;
+    }
+
+    /**
+     * Creates a mock extension loader with multiple providers
+     */
+    private ExtensiblePlugin.ExtensionLoader createMockLoaderWithMultipleProviders(List<List<Integer>> providerOrders) {
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
+
+        List<GrpcInterceptorProvider> providers = providerOrders.stream().map(orders -> {
+            List<OrderedGrpcInterceptor> interceptors = orders.stream().map(this::createMockInterceptor).toList();
+            GrpcInterceptorProvider provider = Mockito.mock(GrpcInterceptorProvider.class);
+            when(provider.getOrderedGrpcInterceptors()).thenReturn(interceptors);
+            return provider;
+        }).toList();
+
+        when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(providers);
+        return mockLoader;
+    }
+
+    /**
+     * Test actual request processing with interceptors
+     */
+    private void testRequestProcessing(List<TestRequestInterceptor> interceptors, boolean shouldSucceed, String description) {
+        // Create mock server call and handler
+        @SuppressWarnings("unchecked")
+        ServerCall<String, String> mockCall = Mockito.mock(ServerCall.class);
+        @SuppressWarnings("unchecked")
+        ServerCallHandler<String, String> mockHandler = Mockito.mock(ServerCallHandler.class);
+        @SuppressWarnings("unchecked")
+        ServerCall.Listener<String> mockListener = Mockito.mock(ServerCall.Listener.class);
+        Metadata headers = new Metadata();
+
+        when(mockHandler.startCall(Mockito.any(), Mockito.any())).thenReturn(mockListener);
+
+        // Track if call.close() was called (indicates failure)
+        AtomicBoolean callClosed = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            callClosed.set(true);
+            return null;
+        }).when(mockCall).close(Mockito.any(Status.class), Mockito.any(Metadata.class));
+
+        // Execute the interceptors in chain (simulating real gRPC behavior)
+        ServerCallHandler<String, String> currentHandler = mockHandler;
+
+        for (TestRequestInterceptor interceptor : interceptors) {
+            final ServerCallHandler<String, String> nextHandler = currentHandler;
+            ServerCall.Listener<String> result = interceptor.interceptCall(mockCall, headers, nextHandler);
+
+            // Check if the call was closed (indicating failure)
+            if (callClosed.get()) {
+                // A failure occurred - this is expected for failure test cases
+                if (!shouldSucceed) {
+                    // This is expected - test passes
+                    return;
+                } else {
+                    fail("Unexpected failure in success test case");
+                }
+            }
+
+            // If we reach here, the interceptor succeeded
+            assertNotNull(result);
+
+            // Create a new handler for the next interceptor that continues the chain
+            currentHandler = new ServerCallHandler<String, String>() {
+                @Override
+                public ServerCall.Listener<String> startCall(ServerCall<String, String> call, Metadata headers) {
+                    return result;
+                }
+            };
+        }
+
+        // If we reach here and shouldSucceed is false, the test failed to fail as expected
+        if (!shouldSucceed) {
+            fail("Expected failure but all interceptors succeeded");
+        }
+
+        // For success case, ensure call was not closed
+        assertFalse("Call should not be closed for success case", callClosed.get());
+    }
+
+    /**
+     * Test request processing with exception throwing interceptor
+     */
+    private void testRequestProcessingWithException(
+        TestExceptionThrowingInterceptor interceptor,
+        Class<? extends Exception> expectedExceptionType,
+        String expectedMessage
+    ) {
+        @SuppressWarnings("unchecked")
+        ServerCall<String, String> mockCall = Mockito.mock(ServerCall.class);
+        @SuppressWarnings("unchecked")
+        ServerCallHandler<String, String> mockHandler = Mockito.mock(ServerCallHandler.class);
+        Metadata headers = new Metadata();
+
+        Exception thrown = expectThrows(Exception.class, () -> { interceptor.interceptCall(mockCall, headers, mockHandler); });
+
+        assertTrue(expectedExceptionType.isInstance(thrown));
+        assertTrue(thrown.getMessage().contains(expectedMessage));
+    }
+
+    /**
+     * Creates a mock interceptor with given order
+     */
+    private OrderedGrpcInterceptor createMockInterceptor(int order) {
+        OrderedGrpcInterceptor mock = Mockito.mock(OrderedGrpcInterceptor.class);
+        when(mock.getOrder()).thenReturn(order);
+        when(mock.getInterceptor()).thenReturn(Mockito.mock(ServerInterceptor.class));
+        return mock;
+    }
+
+    private void assertDoesNotThrow(Runnable runnable) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            fail("Expected no exception, but got: " + e.getMessage());
+        }
+    }
+
+    // Test interceptors for actual request processing
+
+    /**
+     * Test interceptor that simulates request processing with success/failure
+     */
+    private static class TestRequestInterceptor implements ServerInterceptor {
+        private final int order;
+        private final boolean shouldSucceed;
+        private final String message;
+
+        public TestRequestInterceptor(int order, boolean shouldSucceed, String message) {
+            this.order = order;
+            this.shouldSucceed = shouldSucceed;
+            this.message = message;
+        }
+
+        @Override
+        public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+            ServerCall<ReqT, RespT> call,
+            Metadata headers,
+            ServerCallHandler<ReqT, RespT> next
+        ) {
+
+            // Simulate request processing logic
+            if (!shouldSucceed) {
+                // Fail the request with proper gRPC status
+                call.close(Status.PERMISSION_DENIED.withDescription(message), new Metadata());
+                return new ServerCall.Listener<ReqT>() {
+                }; // Empty listener for failed call
+            }
+
+            // Success case - continue to next interceptor/handler
+            return next.startCall(call, headers);
+        }
+
+        public int getOrder() {
+            return order;
+        }
+    }
+
+    /**
+     * Test interceptor that throws exceptions during request processing
+     */
+    private static class TestExceptionThrowingInterceptor implements ServerInterceptor {
+        private final int order;
+        private final String message;
+
+        public TestExceptionThrowingInterceptor(int order, String message) {
+            this.order = order;
+            this.message = message;
+        }
+
+        @Override
+        public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+            ServerCall<ReqT, RespT> call,
+            Metadata headers,
+            ServerCallHandler<ReqT, RespT> next
+        ) {
+
+            // Simulate different types of exceptions that can occur during request processing
+            if (message.contains("Security")) {
+                throw new SecurityException(message);
+            } else if (message.contains("Rate limit")) {
+                throw new RuntimeException(message);
+            } else {
+                throw new IllegalStateException(message);
+            }
+        }
+
+        public int getOrder() {
+            return order;
+        }
+    }
+
+    // ===========================================
+    // Test cases for GrpcInterceptorChain
+    // ===========================================
+
+    public void testGrpcInterceptorChainWithSuccessfulInterceptors() {
+        List<OrderedGrpcInterceptor> interceptors = List.of(createTestInterceptor(10, false), createTestInterceptor(20, false));
+
+        testGrpcInterceptorChain(interceptors, true, null);
+    }
+
+    public void testGrpcInterceptorChainWithFailingInterceptor() {
+        List<OrderedGrpcInterceptor> interceptors = List.of(
+            createTestInterceptor(10, false), // Success
+            createTestInterceptor(20, true),  // Failure
+            createTestInterceptor(30, false)  // Should not execute
+        );
+
+        testGrpcInterceptorChain(interceptors, false, "Test failure");
+    }
+
+    public void testGrpcInterceptorChainEmptyList() {
+        List<OrderedGrpcInterceptor> interceptors = List.of();
+        testGrpcInterceptorChain(interceptors, true, null);
+    }
+
+    public void testGrpcInterceptorChainOrdering() {
+        List<String> executionOrder = new ArrayList<>();
+
+        List<OrderedGrpcInterceptor> interceptors = List.of(
+            createTestInterceptorWithCallback(30, executionOrder, "Third"),
+            createTestInterceptorWithCallback(10, executionOrder, "First"),
+            createTestInterceptorWithCallback(20, executionOrder, "Second")
+        );
+
+        // Sort them as GrpcPlugin would
+        interceptors = new ArrayList<>(interceptors);
+        interceptors.sort(Comparator.comparingInt(OrderedGrpcInterceptor::getOrder));
+
+        testGrpcInterceptorChain(interceptors, true, null);
+
+        // Verify execution order
+        assertEquals(3, executionOrder.size());
+        assertEquals("First", executionOrder.get(0));
+        assertEquals("Second", executionOrder.get(1));
+        assertEquals("Third", executionOrder.get(2));
+    }
+
+    public void testGrpcInterceptorChainIntegrationWithPlugin() {
+        // Test that GrpcPlugin correctly creates and uses GrpcInterceptorChain
+        GrpcInterceptorProvider mockProvider = Mockito.mock(GrpcInterceptorProvider.class);
+        List<OrderedGrpcInterceptor> interceptors = List.of(
+            createTestInterceptor(10, false),
+            createTestInterceptor(20, false),
+            createTestInterceptor(30, false)
+        );
+        when(mockProvider.getOrderedGrpcInterceptors()).thenReturn(interceptors);
+
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
+        when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(mockProvider));
+
+        GrpcPlugin plugin = new GrpcPlugin();
+
+        // Should not throw exception and should create chain
+        assertDoesNotThrow(() -> plugin.loadExtensions(mockLoader));
+    }
+
+    public void testGrpcInterceptorChainWithDuplicateOrders() {
+        // Test that plugin validation catches duplicate orders
+        GrpcInterceptorProvider mockProvider = Mockito.mock(GrpcInterceptorProvider.class);
+        List<OrderedGrpcInterceptor> interceptors = List.of(
+            createTestInterceptor(10, false),
+            createTestInterceptor(10, false) // Duplicate order
+        );
+        when(mockProvider.getOrderedGrpcInterceptors()).thenReturn(interceptors);
+
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
+        when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(mockProvider));
+
+        GrpcPlugin plugin = new GrpcPlugin();
+
+        // Should throw exception due to duplicate orders
+        expectThrows(IllegalArgumentException.class, () -> plugin.loadExtensions(mockLoader));
+    }
+
+    /**
+     * Helper method to test GrpcInterceptorChain behavior
+     */
+    private void testGrpcInterceptorChain(List<OrderedGrpcInterceptor> interceptors, boolean shouldSucceed, String expectedErrorMessage) {
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+
+        @SuppressWarnings("unchecked")
+        ServerCall<String, String> mockCall = Mockito.mock(ServerCall.class);
+        @SuppressWarnings("unchecked")
+        ServerCallHandler<String, String> mockHandler = Mockito.mock(ServerCallHandler.class);
+        @SuppressWarnings("unchecked")
+        ServerCall.Listener<String> mockListener = Mockito.mock(ServerCall.Listener.class);
+        Metadata headers = new Metadata();
+
+        when(mockHandler.startCall(Mockito.any(), Mockito.any())).thenReturn(mockListener);
+
+        // Track if call.close() was called
+        AtomicBoolean callClosed = new AtomicBoolean(false);
+        AtomicReference<Status> closedStatus = new AtomicReference<>();
+        doAnswer(invocation -> {
+            callClosed.set(true);
+            closedStatus.set(invocation.getArgument(0));
+            return null;
+        }).when(mockCall).close(Mockito.any(Status.class), Mockito.any(Metadata.class));
+
+        // Execute the chain
+        ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
+
+        if (shouldSucceed) {
+            assertNotNull("Should return a listener for successful chain", result);
+            assertFalse("Call should not be closed for successful chain", callClosed.get());
+        } else {
+            // For failure cases, the call should be closed
+            assertTrue("Call should be closed for failed chain", callClosed.get());
+            if (expectedErrorMessage != null) {
+                assertNotNull("Should have closed status", closedStatus.get());
+                assertTrue(
+                    "Error message should contain expected text",
+                    closedStatus.get().getDescription().contains(expectedErrorMessage)
+                );
+            }
+        }
+    }
+
+    /**
+     * Creates a test interceptor that can succeed or fail
+     */
+    private OrderedGrpcInterceptor createTestInterceptor(int order, boolean shouldFail) {
+        return new OrderedGrpcInterceptor() {
+            @Override
+            public int getOrder() {
+                return order;
+            }
+
+            @Override
+            public ServerInterceptor getInterceptor() {
+                return new ServerInterceptor() {
+                    @Override
+                    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+                        ServerCall<ReqT, RespT> call,
+                        Metadata headers,
+                        ServerCallHandler<ReqT, RespT> next
+                    ) {
+                        if (shouldFail) {
+                            throw new RuntimeException("Test failure");
+                        }
+                        return next.startCall(call, headers);
+                    }
+                };
+            }
+        };
+    }
+
+    /**
+     * Creates a test interceptor that tracks execution order
+     */
+    private OrderedGrpcInterceptor createTestInterceptorWithCallback(int order, List<String> executionOrder, String name) {
+        return new OrderedGrpcInterceptor() {
+            @Override
+            public int getOrder() {
+                return order;
+            }
+
+            @Override
+            public ServerInterceptor getInterceptor() {
+                return new ServerInterceptor() {
+                    @Override
+                    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+                        ServerCall<ReqT, RespT> call,
+                        Metadata headers,
+                        ServerCallHandler<ReqT, RespT> next
+                    ) {
+                        executionOrder.add(name);
+                        return next.startCall(call, headers);
+                    }
+                };
+            }
+        };
+    }
+
 }

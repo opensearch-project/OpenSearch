@@ -19,11 +19,9 @@ public interface OrderedGrpcInterceptor {
     /**
      * Defines the order in which the interceptor should be applied.
      * Lower values indicate higher priority.
-     * Defaults to 0 if not overridden.
+     * Must be implemented by all interceptors. No two interceptors should have same order
      */
-    default int getOrder() {
-        return 0;
-    }
+    int getOrder();
 
     /**
      * Returns the actual gRPC ServerInterceptor instance.

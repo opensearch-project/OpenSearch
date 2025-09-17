@@ -65,7 +65,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 services,
                 networkService,
                 threadPool,
-                getServerClientAuthNone()
+                getServerClientAuthNone(),
+                null
             )
         ) {
             transport.start();
@@ -84,7 +85,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 services,
                 networkService,
                 threadPool,
-                getServerClientAuthNone()
+                getServerClientAuthNone(),
+                null
             )
         ) {
             transport.start();
@@ -110,7 +112,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 services,
                 networkService,
                 threadPool,
-                getServerClientAuthOptional()
+                getServerClientAuthOptional(),
+                null
             )
         ) {
             transport.start();
@@ -141,7 +144,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 services,
                 networkService,
                 threadPool,
-                getServerClientAuthRequired()
+                getServerClientAuthRequired(),
+                null
             )
         ) {
             transport.start();
