@@ -119,6 +119,8 @@ public abstract class DerivedFieldScript {
             return Long.BYTES;
         } else if (obj instanceof Double) {
             return Double.BYTES;
+        } else if (obj instanceof Float) {
+            return Float.BYTES;
         } else if (obj instanceof Boolean) {
             return Byte.BYTES; // Assuming 1 byte for boolean
         } else if (obj instanceof Tuple) {

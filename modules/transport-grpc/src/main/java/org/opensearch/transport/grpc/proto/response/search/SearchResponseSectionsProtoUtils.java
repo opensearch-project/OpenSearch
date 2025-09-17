@@ -33,7 +33,7 @@ public class SearchResponseSectionsProtoUtils {
      * @param response The SearchResponse to convert
      * @throws IOException if there's an error during conversion
      */
-    protected static void toProto(org.opensearch.protobufs.ResponseBody.Builder builder, SearchResponse response) throws IOException {
+    protected static void toProto(org.opensearch.protobufs.SearchResponse.Builder builder, SearchResponse response) throws IOException {
         // Convert hits using pass by reference
         org.opensearch.protobufs.HitsMetadata.Builder hitsBuilder = org.opensearch.protobufs.HitsMetadata.newBuilder();
         SearchHitsProtoUtils.toProto(response.getHits(), hitsBuilder);

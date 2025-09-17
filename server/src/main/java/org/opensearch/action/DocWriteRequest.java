@@ -263,33 +263,39 @@ public interface DocWriteRequest<T> extends IndicesRequest, DocRequest, Accounta
 
     /** write a document write (index/delete/update) request*/
     static void writeDocumentRequest(StreamOutput out, DocWriteRequest<?> request) throws IOException {
-        if (request instanceof IndexRequest) {
-            out.writeByte((byte) 0);
-            ((IndexRequest) request).writeTo(out);
-        } else if (request instanceof DeleteRequest) {
-            out.writeByte((byte) 1);
-            ((DeleteRequest) request).writeTo(out);
-        } else if (request instanceof UpdateRequest) {
-            out.writeByte((byte) 2);
-            ((UpdateRequest) request).writeTo(out);
-        } else {
-            throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
+        switch (request) {
+            case IndexRequest indexRequest -> {
+                out.writeByte((byte) 0);
+                indexRequest.writeTo(out);
+            }
+            case DeleteRequest deleteRequest -> {
+                out.writeByte((byte) 1);
+                deleteRequest.writeTo(out);
+            }
+            case UpdateRequest updateRequest -> {
+                out.writeByte((byte) 2);
+                updateRequest.writeTo(out);
+            }
+            default -> throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }
     }
 
     /** write a document write (index/delete/update) request without shard id*/
     static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request) throws IOException {
-        if (request instanceof IndexRequest) {
-            out.writeByte((byte) 0);
-            ((IndexRequest) request).writeThin(out);
-        } else if (request instanceof DeleteRequest) {
-            out.writeByte((byte) 1);
-            ((DeleteRequest) request).writeThin(out);
-        } else if (request instanceof UpdateRequest) {
-            out.writeByte((byte) 2);
-            ((UpdateRequest) request).writeThin(out);
-        } else {
-            throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
+        switch (request) {
+            case IndexRequest indexRequest -> {
+                out.writeByte((byte) 0);
+                indexRequest.writeThin(out);
+            }
+            case DeleteRequest deleteRequest -> {
+                out.writeByte((byte) 1);
+                deleteRequest.writeThin(out);
+            }
+            case UpdateRequest updateRequest -> {
+                out.writeByte((byte) 2);
+                updateRequest.writeThin(out);
+            }
+            default -> throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }
     }
 
