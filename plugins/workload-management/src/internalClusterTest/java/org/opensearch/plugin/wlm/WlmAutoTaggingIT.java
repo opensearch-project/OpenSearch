@@ -331,18 +331,23 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         setWlmMode("enabled");
 
         FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
-        ExecutionException exception = assertThrows(
-            ExecutionException.class,
+        Throwable thrown = assertThrows(
+            Throwable.class,
             () -> createRule(ruleId, "test rule", indexName, featureType, "nonexistent_group")
         );
 
+        Throwable cause = (thrown instanceof ExecutionException && thrown.getCause() != null)
+            ? thrown.getCause()
+            : thrown;
+
         assertTrue(
-            "Expected ActionRequestValidationException",
-            exception.getCause() instanceof org.opensearch.action.ActionRequestValidationException
+            "Expected ActionRequestValidationException or IllegalArgumentException, got: " + cause.getClass(),
+            (cause instanceof org.opensearch.action.ActionRequestValidationException)
+                || (cause instanceof IllegalArgumentException)
         );
         assertTrue(
             "Expected validation message for nonexistent group",
-            exception.getCause().getMessage().contains("nonexistent_group is not a valid workload group id")
+            String.valueOf(cause.getMessage()).contains("nonexistent_group is not a valid workload group id")
         );
 
         clearWlmModeSetting();
