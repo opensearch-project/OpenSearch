@@ -33,6 +33,10 @@ apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.standalone-test'
 
+dependencies {
+  testCompileOnly "com.github.spotbugs:spotbugs-annotations:4.9.4"
+}
+
 testClusters.integTest {
   /**
    * Provide a custom log4j configuration where layout is an old style pattern and confirm that OpenSearch
