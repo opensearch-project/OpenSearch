@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.network.NetworkService;
@@ -38,6 +37,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import io.grpc.BindableService;
+import io.grpc.Server;
+import io.grpc.ServerInterceptor;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
 import io.grpc.netty.shaded.io.netty.channel.nio.NioEventLoopGroup;
@@ -194,7 +196,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     private final int nettyEventLoopThreads;
     private final long maxInboundMessageSize;
     private final long maxConcurrentConnectionCalls;
-    private final List<ServerInterceptor> serverInterceptors;
+    private final ServerInterceptor serverInterceptor;
     private final TimeValue maxConnectionAge;
     private final TimeValue maxConnectionIdle;
     private final TimeValue keepAliveTimeout;
@@ -209,13 +211,18 @@ public class Netty4GrpcServerTransport extends AuxTransport {
      * @param settings the configured settings.
      * @param services the gRPC compatible services to be registered with the server.
      * @param networkService the bind/publish addresses.
-     * @param serverInterceptors the list of gRPC server interceptors to be applied.
+     * @param serverInterceptor the gRPC server interceptor to be applied.
      */
-    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService, List<ServerInterceptor> serverInterceptors) {
+    public Netty4GrpcServerTransport(
+        Settings settings,
+        List<BindableService> services,
+        NetworkService networkService,
+        ServerInterceptor serverInterceptor
+    ) {
         logger.debug("Initializing Netty4GrpcServerTransport with settings = {}", settings);
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
-        this.serverInterceptors = Objects.requireNonNull(serverInterceptors);
+        this.serverInterceptor = serverInterceptor;
         this.networkService = Objects.requireNonNull(networkService);
         final List<String> grpcBindHost = SETTING_GRPC_BIND_HOST.get(settings);
         this.bindHosts = (grpcBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : grpcBindHost).toArray(
@@ -370,8 +377,8 @@ public class Netty4GrpcServerTransport extends AuxTransport {
                     .addService(new HealthStatusManager().getHealthService())
                     .addService(ProtoReflectionService.newInstance());
 
-                for (ServerInterceptor interceptor : serverInterceptors) {
-                    serverBuilder.intercept(interceptor);
+                if (serverInterceptor != null) {
+                    serverBuilder.intercept(serverInterceptor);
                 }
 
                 for (UnaryOperator<NettyServerBuilder> op : serverBuilderConfigs) {

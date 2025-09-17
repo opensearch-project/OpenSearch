@@ -7,7 +7,6 @@
  */
 package org.opensearch.transport.grpc;
 
-import io.grpc.ServerInterceptor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -31,6 +30,7 @@ import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
 import org.opensearch.transport.grpc.interceptor.GrpcInterceptorProvider;
 import org.opensearch.transport.grpc.interceptor.OrderedGrpcInterceptor;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
@@ -41,10 +41,17 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
@@ -72,7 +79,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
-    private final List<ServerInterceptor> serverInterceptors = new ArrayList<>();
+    private ServerInterceptor serverInterceptor;
 
     /**
      * Creates a new GrpcPlugin instance.
@@ -109,9 +116,34 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             for (GrpcInterceptorProvider provider : providers) {
                 orderedList.addAll(provider.getOrderedGrpcInterceptors());
             }
+
+            // Validate that no two interceptors have the same order
+            Map<Integer, List<OrderedGrpcInterceptor>> orderMap = new HashMap<>();
+            for (OrderedGrpcInterceptor interceptor : orderedList) {
+                int order = interceptor.getOrder();
+                orderMap.computeIfAbsent(order, k -> new ArrayList<>()).add(interceptor);
+            }
+
+            // Check for duplicates and throw exception if found
+            for (Map.Entry<Integer, List<OrderedGrpcInterceptor>> entry : orderMap.entrySet()) {
+                if (entry.getValue().size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Multiple gRPC interceptors have the same order value: "
+                            + entry.getKey()
+                            + ". Each interceptor must have a unique order value."
+                    );
+                }
+            }
+
+            // Sort by order and create a chain - similar to OpenSearch's ActionFilter pattern
             orderedList.sort(Comparator.comparingInt(OrderedGrpcInterceptor::getOrder));
-            for (OrderedGrpcInterceptor ordered : orderedList) {
-                serverInterceptors.add(ordered.getInterceptor());
+
+            if (!orderedList.isEmpty()) {
+                // Create a single chain interceptor that manages the execution
+                // This ensures proper ordering and exception handling
+                serverInterceptor = new GrpcInterceptorChain(orderedList);
+
+                logger.info("Loaded {} gRPC interceptors into chain", orderedList.size());
             }
         }
     }
@@ -174,7 +206,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         );
         return Collections.singletonMap(
             GRPC_TRANSPORT_SETTING_KEY,
-            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService, serverInterceptors)
+            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService, serverInterceptor)
         );
     }
 
@@ -217,7 +249,13 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         );
         return Collections.singletonMap(
             GRPC_SECURE_TRANSPORT_SETTING_KEY,
-            () -> new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider, serverInterceptors)
+            () -> new SecureNetty4GrpcServerTransport(
+                settings,
+                grpcServices,
+                networkService,
+                secureAuxTransportSettingsProvider,
+                serverInterceptor
+            )
         );
     }
 
