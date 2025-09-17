@@ -943,6 +943,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
     public static final String CONTEXT_KEY = "context";
     public static final String INGESTION_SOURCE_KEY = "ingestion_source";
+    public static final String INGESTION_STATUS_KEY = "ingestion_status";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -2264,6 +2265,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexMetadata.context.toXContent(builder, params);
             }
 
+            if (indexMetadata.ingestionStatus != null) {
+                builder.field(INGESTION_STATUS_KEY);
+                indexMetadata.ingestionStatus.toXContent(builder, params);
+            }
+
             builder.endObject();
         }
 
@@ -2347,6 +2353,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         parser.skipChildren();
                     } else if (CONTEXT_KEY.equals(currentFieldName)) {
                         builder.context(Context.fromXContent(parser));
+                    } else if (INGESTION_STATUS_KEY.equals(currentFieldName)) {
+                        builder.ingestionStatus(IngestionStatus.fromXContent(parser));
                     } else {
                         // assume it's custom index metadata
                         builder.putCustom(currentFieldName, parser.mapStrings());

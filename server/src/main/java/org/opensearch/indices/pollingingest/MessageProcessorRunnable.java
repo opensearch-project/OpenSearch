@@ -26,6 +26,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
@@ -311,7 +312,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                 } catch (Exception e) {
                     messageProcessorMetrics.failedMessageCounter.inc();
                     errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.PROCESSING);
-                    boolean retriesExhausted = retryCount >= MIN_RETRY_COUNT || e instanceof IllegalArgumentException;
+                    boolean retriesExhausted = hasExhaustedRetries(e, retryCount);
                     if (retriesExhausted && errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.PROCESSING)) {
                         logDroppedMessage(shardUpdateMessage);
                         shardUpdateMessage = null;
@@ -334,6 +335,15 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             logger.debug("MessageProcessor thread interrupted while waiting for retry", e);
             Thread.currentThread().interrupt(); // Restore interrupt status
         }
+    }
+
+    private boolean hasExhaustedRetries(Exception e, int retryCount) {
+        if (retryCount >= MIN_RETRY_COUNT) {
+            return true;
+        }
+
+        // Don't retry validation/parsing errors
+        return e instanceof IllegalArgumentException || e instanceof MapperParsingException;
     }
 
     public MessageProcessorMetrics getMessageProcessorMetrics() {
