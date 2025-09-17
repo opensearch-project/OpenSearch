@@ -1,0 +1,50 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.action.admin.cluster.cache;
+
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
+/**
+ * Request for pruning remote file cache
+ *
+ * @opensearch.internal
+ */
+public class PruneCacheRequest extends ClusterManagerNodeRequest<PruneCacheRequest> {
+
+    /**
+     * Default constructor
+     */
+    public PruneCacheRequest() {}
+
+    /**
+     * Constructor for stream input
+     *
+     * @param in the stream input
+     * @throws IOException if an I/O exception occurs
+     */
+    public PruneCacheRequest(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        // No validation needed for this stateless request
+        return null;
+    }
+}
