@@ -106,14 +106,22 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     );
 
     /**
-     * If an incoming request would cause the field data cache to exceed this size, the request is cancelled.
+     * Field data cache size circuit breaker. Deprecated in favor of "indices.fielddata.cache.size",
+     * which will evict instead of circuit-breaking.
      */
+    @Deprecated
     public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
         "indices.breaker.fielddata.limit",
         "40%",
         Property.Dynamic,
         Property.NodeScope
     );
+
+    /**
+     * A constant by which the field data estimations are multiplied to determine the final estimation.
+     * Deprecated as FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING is no longer used.
+     */
+    @Deprecated
     public static final Setting<Double> FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING = Setting.doubleSetting(
         "indices.breaker.fielddata.overhead",
         1.03d,
@@ -121,6 +129,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.Dynamic,
         Property.NodeScope
     );
+
+    /**
+     * The type for FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING. FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING is deprecated,
+     * so this is too.
+     */
+    @Deprecated
     public static final Setting<CircuitBreaker.Type> FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING = new Setting<>(
         "indices.breaker.fielddata.type",
         "memory",
