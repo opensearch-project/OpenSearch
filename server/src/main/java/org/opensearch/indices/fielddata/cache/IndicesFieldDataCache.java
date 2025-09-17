@@ -90,6 +90,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     private final Cache<Key, Accountable> cache;
     private Set<Index> indicesToClear;
     private Map<Index, Set<String>> fieldsToClear;
+    private Set<CacheKey> cacheKeysToClear;
 
     public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
@@ -101,6 +102,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         cache = cacheBuilder.build();
         this.indicesToClear = ConcurrentCollections.newConcurrentSet();
         this.fieldsToClear = new ConcurrentHashMap<>();
+        this.cacheKeysToClear = ConcurrentCollections.newConcurrentSet();
     }
 
     @Override
@@ -157,16 +159,18 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     // The synchronized block is to avoid having multiple simultaneous cache iterators removing keys.
     public void clear() {
-        if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty())) {
-            // Copy marked indices/fields before iteration, and only remove keys matching the copies
+        if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty() && cacheKeysToClear.isEmpty())) {
+            // Copy marked indices/fields/keys before iteration, and only remove keys matching the copies
             // in case new entries are marked for cleanup mid-iteration
             Set<Index> indicesToClearCopy = Set.copyOf(indicesToClear);
+            Set<CacheKey> cacheKeysToClearCopy = Set.copyOf(cacheKeysToClear);
             Map<Index, Set<String>> fieldsToClearCopy = new HashMap<>();
             for (Map.Entry<Index, Set<String>> entry : fieldsToClear.entrySet()) {
                 fieldsToClearCopy.put(entry.getKey(), Set.copyOf(entry.getValue()));
             }
             // remove this way instead of clearing all, in case a new entry has been marked since copying
             indicesToClear.removeAll(indicesToClearCopy);
+            cacheKeysToClear.removeAll(cacheKeysToClearCopy);
             for (Map.Entry<Index, Set<String>> entry : fieldsToClearCopy.entrySet()) {
                 Set<String> fieldsForIndex = fieldsToClear.get(entry.getKey());
                 if (fieldsForIndex != null) {
@@ -178,25 +182,29 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 for (Iterator<Key> iterator = getCache().keys().iterator(); iterator.hasNext();) {
                     Key key = iterator.next();
                     if (indicesToClearCopy.contains(key.indexCache.index)) {
-                        try {
-                            iterator.remove();
-                        } catch (Exception e) {
-                            logger.warn("Exception occurred while removing key from cache", e);
-                        }
+                        removeKey(iterator);
                         continue;
                     }
                     Set<String> fieldsOfIndexToClear = fieldsToClearCopy.get(key.indexCache.index);
                     if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
-                        try {
-                            iterator.remove();
-                        } catch (Exception e) {
-                            logger.warn("Exception occurred while removing key from cache", e);
-                        }
+                        removeKey(iterator);
+                        continue;
+                    }
+                    if (cacheKeysToClearCopy.contains(key.readerKey)) {
+                        removeKey(iterator);
                     }
                 }
             }
         }
         cache.refresh();
+    }
+
+    private void removeKey(Iterator<Key> iterator) {
+        try {
+            iterator.remove();
+        } catch (Exception e) {
+            logger.warn("Exception occurred while removing key from cache", e);
+        }
     }
 
     /**
@@ -292,8 +300,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         public void onClose(CacheKey key) throws IOException {
-            nodeLevelCache.getCache().invalidate(new Key(this, key, null));
-            // don't call cache.cleanUp here as it would have bad performance implications
+            nodeLevelCache.cacheKeysToClear.add(key);
         }
 
         @Override

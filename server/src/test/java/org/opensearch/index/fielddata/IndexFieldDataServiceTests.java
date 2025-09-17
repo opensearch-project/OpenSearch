@@ -352,7 +352,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         load.close();
         writer.close();
         assertEquals(1, onCacheCalled.get());
-        assertEquals(1, onRemovalCalled.get());
+        assertBusy(() -> assertEquals(1, onRemovalCalled.get()));
         ifdService.clear();
         // Ensure cache fully cleared before other tests in the suite begin
         indicesService.getIndicesFieldDataCache().close();
