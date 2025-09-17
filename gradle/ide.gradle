@@ -52,13 +52,12 @@ if (System.getProperty('idea.active') == 'true') {
   tasks.register('configureIncubatorVectorModule') {
     group = 'ide'
     description = 'Configures the incubator module compiler settings'
-
+    /*
+    libs/common includes jdk.incubator.vector package which is hardware/runtime dependant.
+    Add compiler option --add-modules for intellij test runner when compiling this module.
+    */
     doLast {
       modifyXml('.idea/compiler.xml') { xml ->
-        /*
-        libs/common includes jdk.incubator.vector package which is hardware/runtime dependant.
-        Add compiler option --add-modules for intellij test runner when compiling this module.
-        */
         def javacSettings = xml.component.find { it.'@name' == 'JavacSettings' }
         if (!javacSettings) {
           javacSettings = xml.appendNode('component', [name: 'JavacSettings'])
