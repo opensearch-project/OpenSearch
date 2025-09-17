@@ -257,7 +257,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             null,
             indicesQueryCache,
             mapperRegistry,
-            new IndicesFieldDataCache(settings, listener),
+            new IndicesFieldDataCache(settings, listener, clusterService),
             writableRegistry(),
             () -> false,
             null,

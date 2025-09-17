@@ -39,6 +39,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.Cache;
@@ -89,7 +90,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
 
-    public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
+    public IndicesFieldDataCache(
+        Settings settings,
+        IndexFieldDataCache.Listener indicesFieldDataCacheListener,
+        ClusterService clusterService
+    ) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder().removalListener(this);
@@ -97,6 +102,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
         cache = cacheBuilder.build();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_FIELDDATA_CACHE_SIZE_KEY, this::updateMaximumWeight);
     }
 
     @Override
@@ -257,7 +263,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
     }
 
-    public void updateMaximumWeight(ByteSizeValue newMaximumWeight) {
+    private void updateMaximumWeight(ByteSizeValue newMaximumWeight) {
         long oldMaximumWeight = cache.getMaximumWeight();
         cache.setMaximumWeight(newMaximumWeight.getBytes());
         if (newMaximumWeight.getBytes() < oldMaximumWeight) {
