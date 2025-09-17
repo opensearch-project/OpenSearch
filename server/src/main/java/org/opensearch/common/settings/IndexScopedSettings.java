@@ -159,6 +159,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_TERMS_COUNT_SETTING,
                 IndexSettings.MAX_NESTED_QUERY_DEPTH_SETTING,
                 IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
+                IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING,
                 IndexSettings.DEFAULT_FIELD_SETTING,
                 IndexSettings.QUERY_STRING_LENIENT_SETTING,
                 IndexSettings.ALLOW_UNMAPPED,
@@ -198,6 +199,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_COMPOSITE_STORE_TYPE_SETTING,
+                IndexModule.INDEX_STORE_FACTORY_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
                 IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS,
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
@@ -281,6 +283,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
                 // Settings for Auto Force Merge
                 IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED,
+
+                // Setting for derived source feature
+                IndexSettings.INDEX_DERIVED_SOURCE_SETTING,
+                IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

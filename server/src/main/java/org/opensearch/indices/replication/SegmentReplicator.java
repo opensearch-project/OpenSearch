@@ -160,12 +160,16 @@ public class SegmentReplicator {
      */
     public ReplicationStats getSegmentReplicationStats(final ShardId shardId) {
         final ConcurrentNavigableMap<Long, ReplicationCheckpointStats> existingCheckpointStats = replicationCheckpointStats.get(shardId);
-        if (existingCheckpointStats == null || existingCheckpointStats.isEmpty()) {
+        if (existingCheckpointStats == null) {
             return ReplicationStats.empty();
         }
 
         Map.Entry<Long, ReplicationCheckpointStats> lowestEntry = existingCheckpointStats.firstEntry();
         Map.Entry<Long, ReplicationCheckpointStats> highestEntry = existingCheckpointStats.lastEntry();
+
+        if (lowestEntry == null || highestEntry == null) {
+            return ReplicationStats.empty();
+        }
 
         long bytesBehind = highestEntry.getValue().getBytesBehind();
         long replicationLag = bytesBehind > 0L
@@ -395,6 +399,7 @@ public class SegmentReplicator {
         onGoingMergedSegmentReplications.cancelForShard(shardId, reason);
         replicationCheckpointStats.remove(shardId);
         primaryCheckpoint.remove(shardId);
+        completedReplications.remove(shardId);
     }
 
     SegmentReplicationTarget get(ShardId shardId) {

@@ -14,7 +14,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description = 'Arrow flight based transport and stream implementation. It also provides Arrow vector and memory dependencies as' +
     'an extended-plugin at runtime; consumers should take a compile time dependency and not runtime on this project.\'\n'
-  classname = 'org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin'
+  classname = 'org.opensearch.arrow.flight.transport.FlightStreamPlugin'
 }
 
 dependencies {
@@ -54,7 +54,8 @@ dependencies {
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-netty:${versions.grpc}"
-  implementation "com.google.errorprone:error_prone_annotations:2.31.0"
+
+  compileOnly "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
 
   runtimeOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
   annotationProcessor 'org.immutables:value:2.10.1'
@@ -70,6 +71,9 @@ dependencies {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
     }
   }
+
+  // Javassist for bytecode injection chaos testing
+  internalClusterTestImplementation 'org.javassist:javassist:3.29.2-GA'
 }
 
 tasks.named('test').configure {
@@ -83,6 +87,7 @@ test {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }
 
 internalClusterTest {
@@ -125,10 +130,6 @@ tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
     'org.apache.commons.logging.Log',
     'org.apache.commons.logging.LogFactory',
-
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
 
     // from Log4j (deliberate, Netty will fallback to Log4j 2)
     'org.apache.log4j.Level',
@@ -246,12 +247,6 @@ tasks.named('thirdPartyAudit').configure {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
 
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',

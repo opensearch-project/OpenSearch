@@ -101,7 +101,7 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
             assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
                 : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
             final BlobStoreIndexShardSnapshot snapshot = (BlobStoreIndexShardSnapshot) indexShardSnapshot;
-            TransferManager transferManager = new TransferManager(blobContainer::readBlob, remoteStoreFileCache);
+            TransferManager transferManager = new TransferManager(blobContainer::readBlob, remoteStoreFileCache, threadPool);
             return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager);
         });
     }

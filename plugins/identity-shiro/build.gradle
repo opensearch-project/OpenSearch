@@ -22,7 +22,7 @@ dependencies {
   // Needed for shiro
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
 
-  implementation 'commons-beanutils:commons-beanutils:1.9.4'
+  implementation 'commons-beanutils:commons-beanutils:1.11.0'
   implementation 'commons-logging:commons-logging:1.2'
   implementation 'commons-lang:commons-lang:2.6'
 
@@ -66,9 +66,6 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Logger',
   'org.apache.log4j.Priority',
   'org.cryptacular.bean.HashBean',
-  'org.slf4j.impl.StaticLoggerBinder',
-  'org.slf4j.impl.StaticMDCBinder',
-  'org.slf4j.impl.StaticMarkerBinder',
   'org.springframework.context.MessageSource',
   'org.springframework.context.support.MessageSourceAccessor'
 )

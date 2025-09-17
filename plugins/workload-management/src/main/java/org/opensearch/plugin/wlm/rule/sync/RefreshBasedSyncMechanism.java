@@ -15,6 +15,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEvent;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
@@ -121,6 +122,10 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
 
                 @Override
                 public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        logger.debug("Rule index not found, skipping rule processing.");
+                        return;
+                    }
                     logger.warn("Failed to get rules from persistence service", e);
                 }
             }

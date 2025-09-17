@@ -34,18 +34,26 @@ package org.opensearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
+import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
+import static org.opensearch.index.query.MatchQueryBuilderTests.testGetComplementNumericField;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
@@ -221,5 +229,26 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         TermQueryBuilder queryBuilder = new TermQueryBuilder("unmapped_field", "foo");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testGetComplement() throws Exception {
+        // getComplement() should return null if QueryShardContext is null
+        int value = 200;
+        TermQueryBuilder queryBuilder = new TermQueryBuilder(INT_FIELD_NAME, value);
+        assertNull(queryBuilder.getComplement(null));
+
+        // getComplement() should return 2 range queries if this is a numeric field
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        testGetComplementNumericField(queryBuilder, value, INT_FIELD_NAME, searcher);
+
+        // should return null if this isn't a numeric field
+        queryBuilder = new TermQueryBuilder(TEXT_FIELD_NAME, "some_text");
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+
+        IOUtils.close(w, reader, dir);
     }
 }

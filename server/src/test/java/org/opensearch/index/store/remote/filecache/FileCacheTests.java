@@ -13,23 +13,24 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.breaker.TestCircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
+import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class FileCacheTests extends OpenSearchTestCase {
@@ -47,17 +48,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     private FileCache createFileCache(long capacity) {
-        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
-    }
-
-    private FileCache createFileCache(long capacity, CircuitBreaker circuitBreaker) {
-        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, circuitBreaker);
-    }
-
-    private FileCache createCircuitBreakingFileCache(long capacity) {
-        TestCircuitBreaker testCircuitBreaker = new TestCircuitBreaker();
-        testCircuitBreaker.startBreaking();
-        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL, testCircuitBreaker);
+        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL);
     }
 
     private Path createPath(String middle) {
@@ -177,13 +168,6 @@ public class FileCacheTests extends OpenSearchTestCase {
         });
     }
 
-    public void testPutThrowCircuitBreakingException() {
-        FileCache fileCache = createCircuitBreakingFileCache(MEGA_BYTES);
-        Path path = createPath("0");
-        assertThrows(CircuitBreakingException.class, () -> fileCache.put(path, new StubCachedIndexInput(8 * MEGA_BYTES)));
-        assertNull(fileCache.get(path));
-    }
-
     public void testCompute() {
         FileCache fileCache = createFileCache(MEGA_BYTES);
         Path path = createPath("0");
@@ -199,27 +183,6 @@ public class FileCacheTests extends OpenSearchTestCase {
             FileCache fileCache = createFileCache(MEGA_BYTES);
             fileCache.compute(null, null);
         });
-    }
-
-    public void testComputeThrowCircuitBreakingException() {
-        FileCache fileCache = createCircuitBreakingFileCache(MEGA_BYTES);
-        Path path = createPath("0");
-        assertThrows(CircuitBreakingException.class, () -> fileCache.compute(path, (p, i) -> new StubCachedIndexInput(8 * MEGA_BYTES)));
-        assertNull(fileCache.get(path));
-    }
-
-    public void testEntryNotRemovedCircuitBreaker() {
-        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        FileCache fileCache = createFileCache(MEGA_BYTES, circuitBreaker);
-        Path path = createPath("0");
-        fileCache.put(path, new StubCachedIndexInput(8 * MEGA_BYTES));
-        // put should succeed since circuit breaker hasn't tripped yet
-        assertEquals(fileCache.get(path).length(), 8 * MEGA_BYTES);
-        circuitBreaker.startBreaking();
-        // compute should throw CircuitBreakingException but shouldn't remove entry already present
-        assertThrows(CircuitBreakingException.class, () -> fileCache.compute(path, (p, i) -> new StubCachedIndexInput(2 * MEGA_BYTES)));
-        assertNotNull(fileCache.get(path));
-        assertEquals(fileCache.get(path).length(), 8 * MEGA_BYTES);
     }
 
     public void testRemove() {
@@ -342,11 +305,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testUsage() {
-        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-            16 * MEGA_BYTES,
-            1,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-        );
+        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(16 * MEGA_BYTES, 1);
         putAndDecRef(fileCache, 0, 16 * MEGA_BYTES);
 
         long expectedCacheUsage = 16 * MEGA_BYTES;
@@ -505,6 +464,46 @@ public class FileCacheTests extends OpenSearchTestCase {
         final Path key = createPath(Integer.toString(path));
         cache.put(key, new StubCachedIndexInput(indexInputSize));
         cache.decRef(key);
+    }
+
+    public void testConcurrentRestore() throws IOException {
+        String index = "test-index-";
+        String warmIndex = "test-warm-index-";
+
+        for (int i = 1; i <= 100; i++) {
+            for (int j = 0; j < 10; j++) {
+                createFile(index + i, String.valueOf(j), "_" + j + "_block_" + j);
+                createWarmIndexFile(warmIndex + i, String.valueOf(j), "_" + j + "_block_" + j);
+                // Remove known extra files - "extra0" file is added by the ExtrasFS, which is part of Lucene's test framework
+                Files.deleteIfExists(
+                    path.resolve(NodeEnvironment.CACHE_FOLDER)
+                        .resolve(index + i)
+                        .resolve(String.valueOf(j))
+                        .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION)
+                        .resolve("extra0")
+                );
+                Files.deleteIfExists(
+                    path.resolve(NodeEnvironment.INDICES_FOLDER)
+                        .resolve(warmIndex + i)
+                        .resolve(String.valueOf(j))
+                        .resolve(FileTypeUtils.INDICES_FOLDER_IDENTIFIER)
+                        .resolve("extra0")
+                );
+            }
+        }
+        FileCache fileCache = createFileCache(MEGA_BYTES);
+        assertEquals(0, fileCache.size());
+        Path cachePath = path.resolve(NodeEnvironment.CACHE_FOLDER);
+        Path indicesPath = path.resolve(NodeEnvironment.INDICES_FOLDER);
+        ForkJoinPool pool = new ForkJoinPool(Runtime.getRuntime().availableProcessors(), Node.CustomForkJoinWorkerThread::new, null, false);
+        SetOnce<UncheckedIOException> exception = new SetOnce<>();
+        ForkJoinTask<Void> task1 = pool.submit(new FileCache.LoadTask(indicesPath, fileCache, exception));
+        ForkJoinTask<Void> task2 = pool.submit(new FileCache.LoadTask(cachePath, fileCache, exception));
+        task2.join();
+        task1.join();
+        pool.shutdown();
+        logger.info(fileCache);
+        assertEquals(2000, fileCache.size());
     }
 
     public static class StubCachedIndexInput implements CachedIndexInput {

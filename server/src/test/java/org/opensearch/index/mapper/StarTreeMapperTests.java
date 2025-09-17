@@ -286,7 +286,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         }
     }
 
-    public void testValidStarTreeNestedFields() throws IOException {
+    public void testValidStarTreeNestedFieldsAndMultiFields() throws IOException {
         MapperService mapperService = createMapperService(getMinMappingWithNestedField());
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
@@ -304,6 +304,11 @@ public class StarTreeMapperTests extends MapperTestCase {
                 assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
             }
             assertEquals("nested.status", starTreeFieldType.getDimensions().get(1).getField());
+            assertEquals("nested.name.keyword1", starTreeFieldType.getDimensions().get(2).getField());
+            assertEquals("nested.name.keyword2", starTreeFieldType.getDimensions().get(3).getField());
+            assertEquals("name.keyword1", starTreeFieldType.getDimensions().get(4).getField());
+            assertEquals("name.keyword2", starTreeFieldType.getDimensions().get(5).getField());
+
             assertEquals("nested.status", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
@@ -1162,6 +1167,18 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject();
             b.field("name", "nested.status");
             b.endObject();
+            b.startObject();
+            b.field("name", "nested.name.keyword1");
+            b.endObject();
+            b.startObject();
+            b.field("name", "nested.name.keyword2");
+            b.endObject();
+            b.startObject();
+            b.field("name", "name.keyword1");
+            b.endObject();
+            b.startObject();
+            b.field("name", "name.keyword2");
+            b.endObject();
             b.endArray();
 
             b.startArray("metrics");
@@ -1186,6 +1203,19 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject("status");
             b.field("type", "integer");
             b.endObject();
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.field("ignore_above", 512);
+            b.endObject();
+            b.startObject("keyword2");
+            b.field("type", "keyword");
+            b.field("ignore_above", 512);
+            b.endObject();
+            b.endObject();
+            b.endObject();
             b.endObject();
             b.endObject();
             b.startObject("metric_field");
@@ -1193,6 +1223,19 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject("keyword1");
             b.field("type", "keyword");
+            b.endObject();
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.field("ignore_above", 512);
+            b.endObject();
+            b.startObject("keyword2");
+            b.field("type", "keyword");
+            b.field("ignore_above", 512);
+            b.endObject();
+            b.endObject();
             b.endObject();
             b.endObject();
         });

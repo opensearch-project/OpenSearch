@@ -319,6 +319,19 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return createAggregator(aggregationBuilder, searchContext);
     }
 
+    protected <A extends Aggregator> A createStreamAggregator(
+        Query query,
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        MultiBucketConsumer bucketConsumer,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        when(searchContext.isStreamSearch()).thenReturn(true);
+        return createAggregator(aggregationBuilder, searchContext);
+    }
+
     protected <A extends Aggregator> A createAggregatorWithCustomizableSearchContext(
         Query query,
         AggregationBuilder aggregationBuilder,

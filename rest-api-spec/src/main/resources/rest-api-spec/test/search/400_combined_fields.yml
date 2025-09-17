@@ -1,0 +1,93 @@
+setup:
+  - do:
+      indices.create:
+        index: cf_test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              headline:
+                type: text
+              summary:
+                type: text
+              content:
+                type: text
+
+  - do:
+      index:
+        index: cf_test
+        id: 1
+        body:
+          headline: "Graph Theory and Edge Computing Converge"
+          summary: "Bridging the worlds of graph algorithms and distributed edge devices at scale."
+          content: "Industry experts explain how graph data structures enhance edge computing frameworks for real-time analytics at the network edge, illustrating graph traversal techniques executed close to edge devices."
+  - do:
+      index:
+        index: cf_test
+        id: 2
+        body:
+          headline: "Edge Computing in the Wild: Deployments Across Continents"
+          summary: "Scaling real-time applications by processing data at the edge."
+          content: |
+            Edge gateways, edge devices, and edge sensors form a layered edge architecture that keeps data close to where it is generated. By processing requests at the edge, organisations avoid costly round-trips to central clouds, and edge latency drops dramatically. Multiple independent edge sites synchronise using lightweight protocols. A small knowledge graph records device relationships, but the spotlight stays firmly on the edge environment and its growing ecosystem of edge workloads.
+  - do:
+      index:
+        index: cf_test
+        id: 3
+        body:
+          headline: "Graph Analytics Today: Algorithms Behind Recommendations"
+          summary: "From social networks to logistics, graph structures unlock hidden insights."
+          content: |
+            Graph neural networks, graph embeddings, and large-scale graph processing illustrate the growing importance of graph analytics. Modern graph engines accelerate graph traversal, community detection, and path search to deliver recommendations in milliseconds. Engineers seldom push these compute-heavy jobs to the edge, choosing instead to optimise in-memory graph stores and indexing strategies. The article closes with a brief reference to how edge devices may someday stream data directly into graph pipelines.
+  - do:
+      index:
+        index: cf_test
+        id: 4
+        body:
+          headline: "Graph Theory Fundamentals: Understanding Network Structures"
+          summary: "Core concepts in graph theory and their applications in modern computing."
+          content: |
+            Graph theory provides the mathematical foundation for understanding complex network structures. From social networks to transportation systems, graphs model relationships between entities. Graph algorithms like depth-first search, breadth-first search, and Dijkstra's shortest path algorithm are fundamental tools in computer science. Graph databases store and query these relationships efficiently, enabling powerful analytics on interconnected data.
+  - do:
+      indices.refresh:
+        index: cf_test
+
+---
+"Combined_fields query uses BM25F ranking across weighted fields":
+  - skip:
+      version: " - 3.1.99"
+      reason: The combined_fields query is available in 3.2 and later.
+  - do:
+      search:
+        index: cf_test
+        body:
+          query:
+            combined_fields:
+              query: "graph edge"
+              fields: ["headline^3", "summary^2", "content"]
+              operator: "and"
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - gt: { hits.hits.2._score: 0.0 }
+
+---
+"Combined_fields query with OR operator favors high-frequency single-term docs":
+  - skip:
+      version: " - 3.1.99"
+      reason: The combined_fields query is available in 3.2 and later.
+  - do:
+      search:
+        index: cf_test
+        body:
+          query:
+            combined_fields:
+              query: "graph edge"
+              fields: ["headline", "summary^50", "content"]
+              operator: "or"
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - gt: { hits.hits.0._score: 0.0 }
+  - gt: { hits.hits.1._score: 0.0 }
+  - gt: { hits.hits.2._score: 0.0 }
+  - gt: { hits.hits.3._score: 0.0 }

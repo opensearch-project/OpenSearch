@@ -45,6 +45,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -224,7 +225,7 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             subSearcher.search(weight, c);
             shardHits[shardIDX] = c.getTopDocs();
         }
-        CollapseTopFieldDocs mergedFieldDocs = CollapseTopFieldDocs.merge(sort, 0, expectedNumGroups, shardHits, true);
+        CollapseTopFieldDocs mergedFieldDocs = CollapseTopFieldDocs.merge(sort, 0, expectedNumGroups, shardHits);
         assertTopDocsEquals(query, mergedFieldDocs, collapseTopFieldDocs);
         w.close();
         reader.close();
@@ -455,4 +456,218 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         reader.close();
         dir.close();
     }
+
+    public void testInconsistentShardIndicesException() {
+        Sort sort = Sort.RELEVANCE;
+
+        // Create TopDocs with mixed shardIndex values - some set, some -1
+        ScoreDoc[] shard1Docs = {
+            new FieldDoc(1, 9.0f, new Object[] { 9.0f }, 0), // shardIndex = 0
+            new FieldDoc(2, 8.0f, new Object[] { 8.0f }, 0)  // shardIndex = 0
+        };
+
+        ScoreDoc[] shard2Docs = {
+            new FieldDoc(3, 7.0f, new Object[] { 7.0f }, -1), // shardIndex = -1 (inconsistent!)
+            new FieldDoc(4, 6.0f, new Object[] { 6.0f }, -1)  // shardIndex = -1
+        };
+
+        CollapseTopFieldDocs[] shardHits = {
+            new CollapseTopFieldDocs(
+                "field",
+                new TotalHits(2, TotalHits.Relation.EQUAL_TO),
+                shard1Docs,
+                sort.getSort(),
+                new Object[] { "val1", "val2" }
+            ),
+            new CollapseTopFieldDocs(
+                "field",
+                new TotalHits(2, TotalHits.Relation.EQUAL_TO),
+                shard2Docs,
+                sort.getSort(),
+                new Object[] { "val3", "val4" }
+            ) };
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            CollapseTopFieldDocs.merge(sort, 0, 10, shardHits);
+        });
+
+        assertEquals("Inconsistent order of shard indices", exception.getMessage());
+    }
+
+    public void testSearchAfterValidation() {
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("category");
+
+        // Test multiple sort fields - should fail
+        Sort multiSort = new Sort(new SortField("category", SortField.Type.INT), new SortField("score", SortField.Type.FLOAT));
+        FieldDoc multiAfter = new FieldDoc(0, Float.NaN, new Object[] { 1, 1.0f });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            CollapsingTopDocsCollector.createNumeric("category", fieldType, multiSort, 10, multiAfter);
+        });
+        assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+
+        // Test wrong sort field - should fail
+        Sort wrongSort = new Sort(new SortField("different_field", SortField.Type.INT));
+        FieldDoc wrongAfter = new FieldDoc(0, Float.NaN, new Object[] { 1 });
+        exception = expectThrows(IllegalArgumentException.class, () -> {
+            CollapsingTopDocsCollector.createNumeric("category", fieldType, wrongSort, 10, wrongAfter);
+        });
+        assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+
+        // Test correct sort field - should succeed
+        Sort correctSort = new Sort(new SortField("category", SortField.Type.INT));
+        FieldDoc correctAfter = new FieldDoc(0, Float.NaN, new Object[] { 1 });
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric(
+            "category",
+            fieldType,
+            correctSort,
+            10,
+            correctAfter
+        );
+        assertNotNull(collector);
+
+        // Test keyword field with multiple sorts - should fail
+        MappedFieldType keywordFieldType = new MockFieldMapper.FakeFieldType("tag");
+        Sort keywordMultiSort = new Sort(new SortField("tag", SortField.Type.STRING), new SortField("score", SortField.Type.FLOAT));
+        FieldDoc keywordAfter = new FieldDoc(0, Float.NaN, new Object[] { "A", 1.0f });
+        exception = expectThrows(IllegalArgumentException.class, () -> {
+            CollapsingTopDocsCollector.createKeyword("tag", keywordFieldType, keywordMultiSort, 10, keywordAfter);
+        });
+        assertEquals("The after parameter can only be used when the sort is based on the collapse field", exception.getMessage());
+    }
+
+    public void testSearchAfterWithNumericCollapse() throws IOException {
+        testSearchAfterCollapse(new NumericDVProducer(), true);
+    }
+
+    public void testSearchAfterWithKeywordCollapse() throws IOException {
+        testSearchAfterCollapse(new KeywordDVProducer(), false);
+    }
+
+    private <T extends Comparable<T>> void testSearchAfterCollapse(CollapsingDocValuesProducer<T> dvProducer, boolean numeric)
+        throws IOException {
+        final int numDocs = 100;
+        final int maxGroup = 10;
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            T groupValue = dvProducer.randomGroup(maxGroup);
+            dvProducer.add(doc, groupValue, false);
+            w.addDocument(doc);
+        }
+
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        SortField collapseField = dvProducer.sortField(false);
+        // Use collapse field as sort field to satisfy validation
+        Sort sort = new Sort(collapseField);
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType(collapseField.getField());
+
+        // First search without search_after
+        CollapsingTopDocsCollector<?> collector1 = numeric
+            ? CollapsingTopDocsCollector.createNumeric(collapseField.getField(), fieldType, sort, 5, null)
+            : CollapsingTopDocsCollector.createKeyword(collapseField.getField(), fieldType, sort, 5, null);
+
+        searcher.search(new MatchAllDocsQuery(), collector1);
+        CollapseTopFieldDocs results1 = collector1.getTopDocs();
+
+        assertTrue("Should have results", results1.scoreDocs.length > 0);
+
+        // Use the last result as search_after
+        FieldDoc after = (FieldDoc) results1.scoreDocs[results1.scoreDocs.length - 1];
+
+        // Second search with search_after
+        CollapsingTopDocsCollector<?> collector2 = numeric
+            ? CollapsingTopDocsCollector.createNumeric(collapseField.getField(), fieldType, sort, 5, after)
+            : CollapsingTopDocsCollector.createKeyword(collapseField.getField(), fieldType, sort, 5, after);
+
+        searcher.search(new MatchAllDocsQuery(), collector2);
+        CollapseTopFieldDocs results2 = collector2.getTopDocs();
+
+        // Verify no overlap between pages
+        Set<Integer> firstPageDocs = new HashSet<>();
+        for (ScoreDoc doc : results1.scoreDocs) {
+            firstPageDocs.add(doc.doc);
+        }
+
+        for (ScoreDoc doc : results2.scoreDocs) {
+            assertFalse("No document should appear in both pages", firstPageDocs.contains(doc.doc));
+        }
+
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    public void testSearchAfterWithEmptyResults() throws IOException {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+
+        final int numDocs = 100;
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new NumericDocValuesField("group", i));
+            w.addDocument(doc);
+        }
+
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        // Use collapse field as sort field to satisfy validation
+        Sort sort = new Sort(new SortField("group", SortField.Type.INT));
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+
+        // Create search_after that's beyond all documents
+        FieldDoc after = new FieldDoc(0, Float.NaN, new Object[] { 200 });
+
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createNumeric("group", fieldType, sort, 10, after);
+
+        searcher.search(new MatchAllDocsQuery(), collector);
+        CollapseTopFieldDocs results = collector.getTopDocs();
+
+        assertEquals("Should have no results after last document", 0, results.scoreDocs.length);
+        assertEquals("Total hits should reflect all documents processed with search_after", numDocs, results.totalHits.value());
+
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    // Helper classes for test data
+    private static class NumericDVProducer implements CollapsingDocValuesProducer<Long> {
+        @Override
+        public Long randomGroup(int maxGroup) {
+            return (long) randomIntBetween(0, maxGroup - 1);
+        }
+
+        @Override
+        public void add(Document doc, Long value, boolean multivalued) {
+            doc.add(new NumericDocValuesField("group", value));
+        }
+
+        @Override
+        public SortField sortField(boolean multivalued) {
+            return new SortField("group", SortField.Type.LONG);
+        }
+    }
+
+    private static class KeywordDVProducer implements CollapsingDocValuesProducer<BytesRef> {
+        @Override
+        public BytesRef randomGroup(int maxGroup) {
+            return new BytesRef("group" + randomIntBetween(0, maxGroup - 1));
+        }
+
+        @Override
+        public void add(Document doc, BytesRef value, boolean multivalued) {
+            doc.add(new SortedDocValuesField("group", value));
+        }
+
+        @Override
+        public SortField sortField(boolean multivalued) {
+            return new SortField("group", SortField.Type.STRING);
+        }
+    }
+
 }
