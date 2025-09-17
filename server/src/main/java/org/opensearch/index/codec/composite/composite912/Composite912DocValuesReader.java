@@ -26,6 +26,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
@@ -92,7 +93,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         try (ChecksumIndexInput metaIn = readState.directory.openChecksumInput(metaFileName)) {
 
             // initialize data input
-            dataIn = readState.directory.openInput(dataFileName, readState.context);
+            dataIn = readState.directory.openInput(dataFileName, readState.context.withHints(FileTypeHint.DATA));
             CodecUtil.checkIndexHeader(
                 dataIn,
                 Composite912DocValuesFormat.DATA_CODEC_NAME,

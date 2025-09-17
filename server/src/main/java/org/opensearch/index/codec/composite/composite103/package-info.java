@@ -9,4 +9,4 @@
 /**
  *  Responsible for handling all composite index codecs and operations associated with Composite100 codec
  */
-package org.opensearch.index.codec.composite.composite101;
+package org.opensearch.index.codec.composite.composite103;
