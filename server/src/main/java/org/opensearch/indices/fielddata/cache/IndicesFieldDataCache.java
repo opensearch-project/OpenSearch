@@ -90,6 +90,14 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
 
+    /**
+     * Deprecated ctor. Use the ctor with the clusterService argument.
+     */
+    @Deprecated
+    public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
+        this(settings, indicesFieldDataCacheListener, null);
+    }
+
     public IndicesFieldDataCache(
         Settings settings,
         IndexFieldDataCache.Listener indicesFieldDataCacheListener,
@@ -102,7 +110,13 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
         cache = cacheBuilder.build();
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_FIELDDATA_CACHE_SIZE_KEY, this::updateMaximumWeight);
+        if (clusterService != null) {
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_FIELDDATA_CACHE_SIZE_KEY, this::updateMaximumWeight);
+        } else {
+            logger.warn(
+                "IndicesFieldDataCache ctor got null clusterService argument! Cluster setting updates for cache size will not work!"
+            );
+        }
     }
 
     @Override
