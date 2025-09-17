@@ -48,7 +48,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
-import org.opensearch.index.codec.composite.backward_codecs.composite101.Composite101Codec;
+import org.opensearch.index.codec.composite.composite103.Composite103Codec;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.similarity.SimilarityService;
@@ -82,7 +82,7 @@ public class CodecTests extends OpenSearchTestCase {
     public void testDefaultWithCompositeIndex() throws Exception {
         Codec codec = createCodecService(false, true).codec("default");
         assertStoredFieldsCompressionEquals(Lucene103Codec.Mode.BEST_SPEED, codec);
-        assert codec instanceof Composite101Codec;
+        assert codec instanceof Composite103Codec;
     }
 
     public void testBestCompression() throws Exception {
@@ -93,7 +93,7 @@ public class CodecTests extends OpenSearchTestCase {
     public void testBestCompressionWithCompositeIndex() throws Exception {
         Codec codec = createCodecService(false, true).codec("best_compression");
         assertStoredFieldsCompressionEquals(Lucene103Codec.Mode.BEST_COMPRESSION, codec);
-        assert codec instanceof Composite101Codec;
+        assert codec instanceof Composite103Codec;
     }
 
     public void testLZ4() throws Exception {
@@ -105,7 +105,7 @@ public class CodecTests extends OpenSearchTestCase {
     public void testLZ4WithCompositeIndex() throws Exception {
         Codec codec = createCodecService(false, true).codec("lz4");
         assertStoredFieldsCompressionEquals(Lucene103Codec.Mode.BEST_SPEED, codec);
-        assert codec instanceof Composite101Codec;
+        assert codec instanceof Composite103Codec;
     }
 
     public void testZlib() throws Exception {
@@ -117,12 +117,12 @@ public class CodecTests extends OpenSearchTestCase {
     public void testZlibWithCompositeIndex() throws Exception {
         Codec codec = createCodecService(false, true).codec("zlib");
         assertStoredFieldsCompressionEquals(Lucene103Codec.Mode.BEST_COMPRESSION, codec);
-        assert codec instanceof Composite101Codec;
+        assert codec instanceof Composite103Codec;
     }
 
     public void testResolveDefaultCodecsWithCompositeIndex() throws Exception {
         CodecService codecService = createCodecService(false, true);
-        assertThat(codecService.codec("default"), instanceOf(Composite101Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Composite103Codec.class));
     }
 
     public void testBestCompressionWithCompressionLevel() {
