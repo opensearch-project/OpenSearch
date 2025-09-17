@@ -86,6 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `actions/stale` from 9 to 10 ([#19292](https://github.com/opensearch-project/OpenSearch/pull/19292))
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.25 to 11.28 ([#19291](https://github.com/opensearch-project/OpenSearch/pull/19291))
 - Bump `log4j2` from 2.21.0 to 2.25.1 ([#19184](https://github.com/opensearch-project/OpenSearch/pull/19184))
+- Add com.google.code.gson:gson to the gradle version catalog ([#19328](https://github.com/opensearch-project/OpenSearch/pull/19328))
 
 ### Deprecated
 
