@@ -22,6 +22,8 @@ import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
 
 public class KeyStoreUtils {
 
@@ -49,20 +51,31 @@ public class KeyStoreUtils {
     }
 
     private static X509CertificateHolder generateCert(KeyPair pair) throws Exception {
-        var baseTime = System.currentTimeMillis();
-        // 10 years in milliseconds
-        var validityPeriod = 10L * 365 * 24 * 60 * 60 * 1000;
+        // Use UTC timezone and ROOT locale to avoid locale-specific date formatting issues
+        var originalLocale = Locale.getDefault();
+        var originalTimeZone = TimeZone.getDefault();
+        try {
+            Locale.setDefault(Locale.ROOT);
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 
-        var certBuilder = new JcaX509v1CertificateBuilder(
-            new X500Principal("CN=Test CA Certificate"),
-            BigInteger.valueOf(1),
-            new Date(baseTime),
-            new Date(baseTime + validityPeriod),
-            new X500Principal("CN=Test CA Certificate"),
-            pair.getPublic()
-        );
-        var signer = new JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate());
-        return certBuilder.build(signer);
+            var baseTime = System.currentTimeMillis();
+            // 10 years in milliseconds
+            var validityPeriod = 10L * 365 * 24 * 60 * 60 * 1000;
+
+            var certBuilder = new JcaX509v1CertificateBuilder(
+                new X500Principal("CN=Test CA Certificate"),
+                BigInteger.valueOf(1),
+                new Date(baseTime),
+                new Date(baseTime + validityPeriod),
+                new X500Principal("CN=Test CA Certificate"),
+                pair.getPublic()
+            );
+            var signer = new JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate());
+            return certBuilder.build(signer);
+        } finally {
+            Locale.setDefault(originalLocale);
+            TimeZone.setDefault(originalTimeZone);
+        }
     }
 
 }
