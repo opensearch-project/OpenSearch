@@ -230,14 +230,14 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
 
     /**
      * Test that a breaker correctly redistributes to a different breaker, in
-     * this case, the request breaker borrows space from the fielddata breaker
+     * this case, the request breaker borrows space from the in_flight breaker
      */
     public void testBorrowingSiblingBreakerMemory() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200mb")
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
-            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
             .build();
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
@@ -247,17 +247,17 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
             )
         ) {
             CircuitBreaker requestCircuitBreaker = service.getBreaker(CircuitBreaker.REQUEST);
-            CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(CircuitBreaker.FIELDDATA);
+            CircuitBreaker inFlightCircuitBreaker = service.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
             assertEquals(new ByteSizeValue(200, ByteSizeUnit.MB).getBytes(), service.stats().getStats(CircuitBreaker.PARENT).getLimit());
             assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getLimit());
-            assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getLimit());
+            assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), inFlightCircuitBreaker.getLimit());
 
-            double fieldDataUsedBytes = fieldDataCircuitBreaker.addEstimateBytesAndMaybeBreak(
+            double inFlightUsedBytes = inFlightCircuitBreaker.addEstimateBytesAndMaybeBreak(
                 new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(),
                 "should not break"
             );
-            assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), fieldDataUsedBytes, 0.0);
+            assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), inFlightUsedBytes, 0.0);
             double requestUsedBytes = requestCircuitBreaker.addEstimateBytesAndMaybeBreak(
                 new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(),
                 "should not break"
@@ -274,10 +274,7 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
             );
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
-            assertThat(
-                exception.getMessage(),
-                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, in_flight_requests=0/0b]")
-            );
+            assertThat(exception.getMessage(), containsString("usages [request=157286400/150mb, in_flight_requests=104857600/100mb]"));
             assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
     }
@@ -342,7 +339,7 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
                     + requestCircuitBreakerUsed
                     + "/"
                     + new ByteSizeValue(requestCircuitBreakerUsed)
-                    + ", fielddata=0/0b, in_flight_requests=0/0b]"
+                    + ", in_flight_requests=0/0b]"
             )
         );
         assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
@@ -735,7 +732,8 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
                 clusterSettings,
-                Collections.emptyList(),
+                // Keep using deprecated FIELDDATA breaker here, there's not another good option which preserves the purpose of the test
+                Collections.singletonList(new BreakerSettings(CircuitBreaker.FIELDDATA, mb(150), 1.03)),
                 new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             )
         ) {
@@ -808,13 +806,13 @@ public class HierarchyCircuitBreakerServiceTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> new HierarchyCircuitBreakerService(
                 Settings.EMPTY,
-                Collections.singletonList(new BreakerSettings(CircuitBreaker.FIELDDATA, 100, 1.2)),
+                Collections.singletonList(new BreakerSettings(CircuitBreaker.REQUEST, 100, 1.2)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             )
         );
         assertThat(
             iae.getMessage(),
-            containsString("More than one circuit breaker with the name [fielddata] exists. Circuit breaker names must be unique")
+            containsString("More than one circuit breaker with the name [request] exists. Circuit breaker names must be unique")
         );
 
         iae = expectThrows(
