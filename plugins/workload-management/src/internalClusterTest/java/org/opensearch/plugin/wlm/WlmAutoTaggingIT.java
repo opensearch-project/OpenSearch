@@ -336,14 +336,11 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             () -> createRule(ruleId, "test rule", indexName, featureType, "nonexistent_group")
         );
 
-        Throwable cause = (thrown instanceof ExecutionException && thrown.getCause() != null)
-            ? thrown.getCause()
-            : thrown;
+        Throwable cause = (thrown instanceof ExecutionException && thrown.getCause() != null) ? thrown.getCause() : thrown;
 
         assertTrue(
             "Expected ActionRequestValidationException or IllegalArgumentException, got: " + cause.getClass(),
-            (cause instanceof org.opensearch.action.ActionRequestValidationException)
-                || (cause instanceof IllegalArgumentException)
+            (cause instanceof org.opensearch.action.ActionRequestValidationException) || (cause instanceof IllegalArgumentException)
         );
         assertTrue(
             "Expected validation message for nonexistent group",
