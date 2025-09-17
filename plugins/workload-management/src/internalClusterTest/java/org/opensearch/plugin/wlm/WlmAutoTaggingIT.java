@@ -339,7 +339,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         Throwable cause = (thrown instanceof ExecutionException && thrown.getCause() != null) ? thrown.getCause() : thrown;
 
         assertTrue(
-            "Expected ActionRequestValidationException or IllegalArgumentException, got: " + cause.getClass(),
+            "Got: " + cause.getClass(),
             (cause instanceof org.opensearch.action.ActionRequestValidationException) || (cause instanceof IllegalArgumentException)
         );
         assertTrue(
