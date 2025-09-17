@@ -129,21 +129,7 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
             if (clause instanceof BoolQueryBuilder) {
                 BoolQueryBuilder nestedBool = (BoolQueryBuilder) clause;
 
-                // Special handling for double negation: NOT over a bool that is ONLY NOTs
-                if (clauseType == ClauseType.MUST_NOT && canFlatten(nestedBool, ClauseType.MUST_NOT)) {
-                    // not( bool( must_not: [X1..Xn] ) ) ==> must( bool( should: [X1..Xn], minimum_should_match: 1 ) )
-                    // This preserves the logical equivalence not(not(X)) == X and generalizes to multiple X via OR.
-                    BoolQueryBuilder orQuery = new BoolQueryBuilder();
-                    orQuery.minimumShouldMatch(1);
-                    for (QueryBuilder nestedClause : nestedBool.mustNot()) {
-                        if (nestedClause instanceof BoolQueryBuilder) {
-                            nestedClause = flattenBoolQuery((BoolQueryBuilder) nestedClause);
-                        }
-                        orQuery.should(nestedClause);
-                    }
-                    // Use FILTER to preserve scoring semantics (must_not does not contribute to score)
-                    target.filter(orQuery);
-                } else if (canFlatten(nestedBool, clauseType)) {
+                if (canFlatten(nestedBool, clauseType)) {
                     // General flattening for same-clause-type nesting
                     List<QueryBuilder> nestedClauses = getClausesForType(nestedBool, clauseType);
                     for (QueryBuilder nestedClause : nestedClauses) {
@@ -173,6 +159,11 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
             return false;
         }
 
+        // Never flatten under MUST_NOT to preserve semantics and avoid non-idempotent transforms
+        if (parentType == ClauseType.MUST_NOT) {
+            return false;
+        }
+
         // Check if only has clauses matching parent type
         switch (parentType) {
             case MUST:
@@ -191,11 +182,6 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
                     && !nestedBool.should().isEmpty()
                     && nestedBool.mustNot().isEmpty()
                     && nestedBool.minimumShouldMatch() == null;
-            case MUST_NOT:
-                return nestedBool.must().isEmpty()
-                    && nestedBool.filter().isEmpty()
-                    && nestedBool.should().isEmpty()
-                    && !nestedBool.mustNot().isEmpty();
             default:
                 return false;
         }

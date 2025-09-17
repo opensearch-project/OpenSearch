@@ -102,8 +102,8 @@ public class BooleanFlatteningRewriterTests extends OpenSearchTestCase {
         assertThat(rewrittenBool.mustNot().get(0), instanceOf(BoolQueryBuilder.class));
     }
 
-    public void testDoubleNegationConvertedToPositiveMustShould() {
-        // not( bool( must_not: [ term ] ) ) => must( bool( should: [ term ], msm=1 ) )
+    public void testDoubleNegationNotFlattenedUnderMustNot() {
+        // not( bool( must_not: [ term ] ) ) should NOT be flattened by the rewriter
         QueryBuilder inner = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("product", "Oranges"));
         QueryBuilder query = QueryBuilders.boolQuery().mustNot(inner);
 
@@ -111,16 +111,9 @@ public class BooleanFlatteningRewriterTests extends OpenSearchTestCase {
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // No must_not remains at top level
-        assertThat(rewrittenBool.mustNot().size(), equalTo(0));
-        // One MUST that is an OR over the inner negatives
-        assertThat(rewrittenBool.must().size(), equalTo(1));
-        assertThat(rewrittenBool.must().get(0), instanceOf(BoolQueryBuilder.class));
-
-        BoolQueryBuilder mustBool = (BoolQueryBuilder) rewrittenBool.must().get(0);
-        assertThat(mustBool.should().size(), equalTo(1));
-        assertThat(mustBool.minimumShouldMatch(), equalTo("1"));
-        assertThat(mustBool.should().get(0), instanceOf(QueryBuilders.termQuery("product", "Oranges").getClass()));
+        // Outer must_not remains and inner bool is preserved
+        assertThat(rewrittenBool.mustNot().size(), equalTo(1));
+        assertThat(rewrittenBool.mustNot().get(0), instanceOf(BoolQueryBuilder.class));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18906")
