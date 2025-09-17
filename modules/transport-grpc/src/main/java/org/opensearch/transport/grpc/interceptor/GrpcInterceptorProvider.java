@@ -14,7 +14,7 @@ import java.util.List;
  * Interface for providing gRPC interceptors with defined execution order.
  * Implementations of this interface are expected to return a list of
  * {@link OrderedGrpcInterceptor} instances, which the gRPC server can register.
- * 
+ *
  */
 public interface GrpcInterceptorProvider {
     /**

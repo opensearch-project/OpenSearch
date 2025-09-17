@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc.ssl;
 
-import io.grpc.ServerInterceptor;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -27,6 +26,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
@@ -77,7 +77,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
      * @param networkService the bind/publish addresses.
      * @param threadPool the thread pool for managing gRPC executor and monitoring.
      * @param secureTransportSettingsProvider TLS configuration settings.
-     * @param serverInterceptors the gRPC server interceptors to be registered with the server.
+     * @param serverInterceptor the gRPC server interceptor to be registered with the server.
      */
     public SecureNetty4GrpcServerTransport(
         Settings settings,
@@ -85,10 +85,10 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         NetworkService networkService,
         ThreadPool threadPool,
         SecureAuxTransportSettingsProvider secureTransportSettingsProvider,
-        List<ServerInterceptor> serverInterceptors
+        ServerInterceptor serverInterceptor
     ) {
         super(settings, services, networkService, threadPool, serverInterceptors);
-        super(settings, services, networkService, serverInterceptors);
+        super(settings, services, networkService, serverInterceptor);
         this.port = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.get(settings);
         this.portSettingKey = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.getKey();
         try {
