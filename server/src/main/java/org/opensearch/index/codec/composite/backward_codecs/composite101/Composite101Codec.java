@@ -24,7 +24,7 @@ import org.opensearch.index.mapper.MapperService;
  */
 @ExperimentalApi
 public class Composite101Codec extends FilterCodec {
-    public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite103Codec";
+    public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite101Codec";
     private final MapperService mapperService;
 
     // needed for SPI - this is used in reader path
