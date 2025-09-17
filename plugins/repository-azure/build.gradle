@@ -84,6 +84,8 @@ dependencies {
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "org.apache.commons:commons-lang3:${versions.commonslang}"
+  compileOnly "com.github.spotbugs:spotbugs-annotations:${versions.spotbugs_annotations}"
+
   testImplementation project(':test:fixtures:azure-fixture')
 }
 
