@@ -48,6 +48,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.node.Node;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.RestChannel;
@@ -146,7 +147,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>()),
             new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
         );
-        actionModule.initRestHandlers(null);
+        actionModule.initRestHandlers(null, mock(Node.class));
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -204,7 +205,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null
             );
-            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, mock(Node.class)));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
             threadPool.shutdown();
@@ -255,7 +256,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null
             );
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, mock(Node.class));
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(
                 IllegalArgumentException.class,
