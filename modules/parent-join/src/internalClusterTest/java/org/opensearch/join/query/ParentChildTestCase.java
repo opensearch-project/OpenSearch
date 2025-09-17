@@ -37,6 +37,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -76,6 +77,14 @@ public abstract class ParentChildTestCase extends ParameterizedStaticSettingsOpe
             .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true);
 
         return builder.build();
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s")
+            .build();
     }
 
     protected IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Object... fields) {
