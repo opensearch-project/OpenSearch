@@ -38,7 +38,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -86,17 +86,20 @@ public class EnvironmentTests extends OpenSearchTestCase {
         assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("/test/other/repo"), notNullValue());
 
-        assertThat(environment.resolveRepoURL(new URL("file:///test/repos/repo1")), notNullValue());
-        assertThat(environment.resolveRepoURL(new URL("file:/test/repos/repo1")), notNullValue());
-        assertThat(environment.resolveRepoURL(new URL("file://test/repos/repo1")), nullValue());
-        assertThat(environment.resolveRepoURL(new URL("file:///test/repos/../repo1")), nullValue());
-        assertThat(environment.resolveRepoURL(new URL("http://localhost/test/")), nullValue());
+        assertThat(environment.resolveRepoURL(URI.create("file:///test/repos/repo1").toURL()), notNullValue());
+        assertThat(environment.resolveRepoURL(URI.create("file:/test/repos/repo1").toURL()), notNullValue());
+        assertThat(environment.resolveRepoURL(URI.create("file://test/repos/repo1").toURL()), nullValue());
+        assertThat(environment.resolveRepoURL(URI.create("file:///test/repos/../repo1").toURL()), nullValue());
+        assertThat(environment.resolveRepoURL(URI.create("http://localhost/test/").toURL()), nullValue());
 
-        assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/repo1!/repo/")), notNullValue());
-        assertThat(environment.resolveRepoURL(new URL("jar:file:/test/repos/repo1!/repo/")), notNullValue());
-        assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/repo1!/repo/")).toString(), endsWith("repo1!/repo/"));
-        assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/../repo1!/repo/")), nullValue());
-        assertThat(environment.resolveRepoURL(new URL("jar:http://localhost/test/../repo1?blah!/repo/")), nullValue());
+        assertThat(environment.resolveRepoURL(URI.create("jar:file:///test/repos/repo1!/repo/").toURL()), notNullValue());
+        assertThat(environment.resolveRepoURL(URI.create("jar:file:/test/repos/repo1!/repo/").toURL()), notNullValue());
+        assertThat(
+            environment.resolveRepoURL(URI.create("jar:file:///test/repos/repo1!/repo/").toURL()).toString(),
+            endsWith("repo1!/repo/")
+        );
+        assertThat(environment.resolveRepoURL(URI.create("jar:file:///test/repos/../repo1!/repo/").toURL()), nullValue());
+        assertThat(environment.resolveRepoURL(URI.create("jar:http://localhost/test/../repo1?blah!/repo/").toURL()), nullValue());
     }
 
     public void testPathDataWhenNotSet() {

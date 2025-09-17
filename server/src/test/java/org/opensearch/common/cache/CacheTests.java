@@ -774,7 +774,7 @@ public class CacheTests extends OpenSearchTestCase {
         // start a watchdog service
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(() -> {
-            Set<Long> ids = threads.stream().map(t -> t.getId()).collect(Collectors.toSet());
+            Set<Long> ids = threads.stream().map(Thread::threadId).collect(Collectors.toSet());
             ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
             long[] deadlockedThreads = mxBean.findDeadlockedThreads();
             if (!deadlock.get() && deadlockedThreads != null) {

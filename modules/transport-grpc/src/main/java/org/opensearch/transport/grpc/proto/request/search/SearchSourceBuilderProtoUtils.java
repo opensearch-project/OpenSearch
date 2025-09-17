@@ -11,7 +11,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
-import org.opensearch.protobufs.NumberMap;
 import org.opensearch.protobufs.Rescore;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
@@ -104,16 +103,16 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.includeNamedQueriesScores(protoRequest.getIncludeNamedQueriesScore());
         }
         if (protoRequest.hasTrackTotalHits()) {
-            if (protoRequest.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.BOOL_VALUE) {
+            if (protoRequest.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.ENABLED) {
                 searchSourceBuilder.trackTotalHitsUpTo(
-                    protoRequest.getTrackTotalHits().getBoolValue() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED
+                    protoRequest.getTrackTotalHits().getEnabled() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED
                 );
-            } else {
-                searchSourceBuilder.trackTotalHitsUpTo(protoRequest.getTrackTotalHits().getInt32Value());
+            } else if (protoRequest.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.COUNT) {
+                searchSourceBuilder.trackTotalHitsUpTo(protoRequest.getTrackTotalHits().getCount());
             }
         }
-        if (protoRequest.hasSource()) {
-            searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getSource()));
+        if (protoRequest.hasXSource()) {
+            searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getXSource()));
         }
         if (protoRequest.getStoredFieldsCount() > 0) {
             searchSourceBuilder.storedFields(StoredFieldsContextProtoUtils.fromProto(protoRequest.getStoredFieldsList()));
@@ -132,8 +131,8 @@ public class SearchSourceBuilderProtoUtils {
         if (protoRequest.hasVerbosePipeline()) {
             searchSourceBuilder.verbosePipeline(protoRequest.getVerbosePipeline());
         }
-        if (protoRequest.hasSource()) {
-            searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getSource()));
+        if (protoRequest.hasXSource()) {
+            searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getXSource()));
         }
         if (protoRequest.getScriptFieldsCount() > 0) {
             for (Map.Entry<String, ScriptField> entry : protoRequest.getScriptFieldsMap().entrySet()) {
@@ -147,8 +146,8 @@ public class SearchSourceBuilderProtoUtils {
             /**
              * Similar to {@link SearchSourceBuilder.IndexBoost#IndexBoost(XContentParser)}
              */
-            for (NumberMap numberMap : protoRequest.getIndicesBoostList()) {
-                for (Map.Entry<String, Float> entry : numberMap.getNumberMapMap().entrySet()) {
+            for (org.opensearch.protobufs.FloatMap floatMap : protoRequest.getIndicesBoostList()) {
+                for (Map.Entry<String, Float> entry : floatMap.getFloatMapMap().entrySet()) {
                     searchSourceBuilder.indexBoost(entry.getKey(), entry.getValue());
                 }
             }

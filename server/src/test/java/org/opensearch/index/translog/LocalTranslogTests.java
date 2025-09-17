@@ -223,7 +223,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             getPersistedSeqNoConsumer(),
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -235,7 +236,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             getPersistedSeqNoConsumer(),
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -272,7 +274,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> globalCheckpoint.get(),
             primaryTerm::get,
             getPersistedSeqNoConsumer(),
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -1508,13 +1511,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add,
-                TranslogOperationHelper.DEFAULT
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             int initialWriteCalls = writeCalls.get();
@@ -1614,13 +1613,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add,
-                TranslogOperationHelper.DEFAULT
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             byte[] bytes = new byte[256];
@@ -1712,13 +1707,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add,
-                TranslogOperationHelper.DEFAULT
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
 
@@ -1819,7 +1810,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             );
             assertEquals(
                 "lastCommitted must be 1 less than current",
@@ -1879,7 +1871,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertNotNull(translogGeneration);
@@ -1907,7 +1900,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
                     seqNo -> {},
-                    TranslogOperationHelper.DEFAULT
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 )
             ) {
                 assertNotNull(translogGeneration);
@@ -1970,7 +1964,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertNotNull(translogGeneration);
@@ -1999,7 +1994,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
                     seqNo -> {},
-                    TranslogOperationHelper.DEFAULT
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 )
             ) {
                 assertNotNull(translogGeneration);
@@ -2064,7 +2060,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         );
         assertThat(
@@ -2091,7 +2088,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertNotNull(translogGeneration);
@@ -2390,7 +2388,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             );
             fail("translog doesn't belong to this UUID");
         } catch (TranslogCorruptedException ex) {
@@ -2403,7 +2402,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             seqNo -> {},
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
         try (Translog.Snapshot snapshot = this.translog.newSnapshot(randomLongBetween(0, firstUncommitted), Long.MAX_VALUE)) {
             for (int i = firstUncommitted; i < translogOperations; i++) {
@@ -2634,7 +2634,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertEquals(
@@ -2792,7 +2793,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
                     seqNo -> {},
-                    TranslogOperationHelper.DEFAULT
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 );
                 Translog.Snapshot snapshot = tlog.newSnapshot()
             ) {
@@ -2856,7 +2858,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             seqNo -> {},
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
         assertThat(translog.getMinFileGeneration(), equalTo(1L));
         // no trimming done yet, just recovered
@@ -2926,7 +2929,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             // we don't know when things broke exactly
@@ -3003,13 +3007,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             seqNo -> {},
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            channelFactory
         ) {
-            @Override
-            ChannelFactory getChannelFactory() {
-                return channelFactory;
-            }
-
             @Override
             void deleteReaderFiles(TranslogReader reader) {
                 if (fail.fail()) {
@@ -3151,7 +3151,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             ) {
                 @Override
                 protected TranslogWriter createWriter(
@@ -3220,7 +3221,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         );
         assertEquals(ex.getMessage(), "failed to create new translog file");
@@ -3248,7 +3250,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             assertFalse(tlog.syncNeeded());
@@ -3271,7 +3274,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 seqNo -> {},
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         );
         assertEquals(ex.getMessage(), "failed to create new translog file");
@@ -3364,8 +3368,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     localCheckpointOfSafeCommit = failableTLog.getDeletionPolicy().getLocalCheckpointOfSafeCommit();
                     IOUtils.closeWhileHandlingException(failableTLog);
                 }
-            } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                // failed - that's ok, we didn't even create it
+            } catch (TranslogException | MockDirectoryWrapper.FakeIOException | TranslogCorruptedException ex) {
+                // failed - that's ok, we didn't even create it or it was corrupted from partial writes
             } catch (IOException ex) {
                 assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
             }
@@ -3375,8 +3379,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy();
                     deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
                     IOUtils.close(getFailableTranslog(fail, config, randomBoolean(), false, generationUUID, deletionPolicy));
-                } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                    // failed - that's ok, we didn't even create it
+                } catch (TranslogException | MockDirectoryWrapper.FakeIOException | TranslogCorruptedException ex) {
+                    // failed - that's ok, we didn't even create it or it was corrupted from partial writes
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
                 }
@@ -3402,7 +3406,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
                     seqNo -> {},
-                    TranslogOperationHelper.DEFAULT
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 );
                 Translog.Snapshot snapshot = translog.newSnapshot(localCheckpointOfSafeCommit + 1, Long.MAX_VALUE)
             ) {
@@ -3498,7 +3503,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             seqNo -> {},
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
         translog.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
         translog.rollGeneration();
@@ -3513,7 +3519,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             seqNo -> {},
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -3881,7 +3888,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     globalCheckpointSupplier,
                     primaryTermSupplier,
                     seqNo -> {},
-                    TranslogOperationHelper.DEFAULT
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 );
             }
 
@@ -3989,7 +3997,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
                     seqNo -> {},
-                    TranslogOperationHelper.DEFAULT
+                    TranslogOperationHelper.DEFAULT,
+                    null
                 )
             ) {
                 recoveredTranslog.rollGeneration();
@@ -4024,7 +4033,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 globalCheckpointSupplier,
                 primaryTerm::get,
                 persistedSeqNos::add,
-                TranslogOperationHelper.DEFAULT
+                TranslogOperationHelper.DEFAULT,
+                null
             )
         ) {
             Thread[] threads = new Thread[between(2, 8)];
@@ -4106,13 +4116,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
             seqNo -> {},
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            channelFactory
         ) {
-            @Override
-            ChannelFactory getChannelFactory() {
-                return channelFactory;
-            }
-
             @Override
             void syncBeforeRollGeneration() {
                 // make it a noop like the old versions

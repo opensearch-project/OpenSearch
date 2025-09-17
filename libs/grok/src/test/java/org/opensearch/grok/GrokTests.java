@@ -739,12 +739,110 @@ public class GrokTests extends OpenSearchTestCase {
         assertThat(grok.match("Test Class.java"), is(true));
     }
 
+    public void testMultipleCapturesWithSameFieldName() {
+        // Test that multiple captures with the same field name are collected into a list
+        BiConsumer<Long, Runnable> scheduler = getLongRunnableBiConsumer();
+        // Pattern with repeated capture groups for the same field
+        Grok grok = new Grok(
+            Grok.BUILTIN_PATTERNS,
+            "%{IP:ipaddress} %{IP:ipaddress}",
+            MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
+            logger::warn,
+            true
+        );
+
+        // Input with two different IP addresses
+        Map<String, Object> matches = grok.captures("192.168.1.1 192.168.1.2");
+
+        assertNotNull("Should have matches", matches);
+        Object ipaddress = matches.get("ipaddress");
+        assertTrue("Should be a List", ipaddress instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<String> ipList = (List<String>) ipaddress;
+        assertEquals("Should have 2 elements", 2, ipList.size());
+        assertEquals("First IP should match", "192.168.1.1", ipList.get(0));
+        assertEquals("Second IP should match", "192.168.1.2", ipList.get(1));
+    }
+
+    public void testMultipleCapturesWithSameFieldNameDifferentTypes() {
+        BiConsumer<Long, Runnable> scheduler = getLongRunnableBiConsumer();
+        // Pattern with repeated capture groups for the same field with different types
+        Grok grok = new Grok(
+            Grok.BUILTIN_PATTERNS,
+            "%{NUMBER:value:int} %{NUMBER:value:long}",
+            MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
+            logger::warn,
+            true
+        );
+
+        // Input with two different numbers
+        Map<String, Object> matches = grok.captures("123 456");
+
+        assertNotNull("Should have matches", matches);
+        Object value = matches.get("value");
+        assertTrue("Should be a List", value instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<Object> valueList = (List<Object>) value;
+        assertEquals("Should have 2 elements", 2, valueList.size());
+        assertEquals("First value should be an Integer", Integer.valueOf(123), valueList.get(0));
+        assertEquals("Second value should be a Long", Long.valueOf(456), valueList.get(1));
+    }
+
+    public void testMultipleCapturesWithSameFieldNameInComplexPattern() {
+        // Test a more complex pattern with multiple captures of the same field
+        BiConsumer<Long, Runnable> scheduler = getLongRunnableBiConsumer();
+
+        // Pattern with multiple fields, one of which appears multiple times
+        Grok grok = new Grok(
+            Grok.BUILTIN_PATTERNS,
+            "%{WORD:name} has IPs: %{IP:ip}, %{IP:ip} and %{IP:ip}",
+            MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
+            logger::warn,
+            true
+        );
+
+        // Input with a name and three IPs
+        Map<String, Object> matches = grok.captures("Server has IPs: 192.168.1.1, 192.168.1.2 and 192.168.1.3");
+
+        assertNotNull("Should have matches", matches);
+        assertEquals("Name should match", "Server", matches.get("name"));
+
+        Object ip = matches.get("ip");
+        assertTrue("IP should be a List", ip instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<String> ipList = (List<String>) ip;
+        assertEquals("Should have 3 IPs", 3, ipList.size());
+        assertEquals("First IP should match", "192.168.1.1", ipList.get(0));
+        assertEquals("Second IP should match", "192.168.1.2", ipList.get(1));
+        assertEquals("Third IP should match", "192.168.1.3", ipList.get(2));
+    }
+
     public void testLogCallBack() {
         AtomicReference<String> message = new AtomicReference<>();
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, ".*\\[.*%{SPACE}*\\].*", message::set);
         grok.match("[foo]");
         // this message comes from Joni, so updates to Joni may change the expectation
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
+    }
+
+    private static BiConsumer<Long, Runnable> getLongRunnableBiConsumer() {
+        AtomicBoolean run = new AtomicBoolean(true);
+        return (delay, command) -> {
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+            Thread t = new Thread(() -> {
+                if (run.get()) {
+                    command.run();
+                }
+            });
+            t.start();
+        };
     }
 
     private void assertGrokedField(String fieldName) {

@@ -24,6 +24,7 @@ import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.ConnectTransportException;
@@ -45,7 +46,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class MergedSegmentWarmerIT extends SegmentReplicationIT {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            .build();
     }
 
     @Override

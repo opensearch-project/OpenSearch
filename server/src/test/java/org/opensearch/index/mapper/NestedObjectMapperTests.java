@@ -881,7 +881,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex(
             "index1",
             Settings.EMPTY,
-            "_doc",
             jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("comments")
@@ -901,7 +900,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         mapperService = createIndex(
             "index2",
             Settings.EMPTY,
-            "_doc",
             jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("comments")
@@ -1107,7 +1105,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex(
             "index1",
             Settings.EMPTY,
-            MapperService.SINGLE_MAPPING_NAME,
             jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("nested1")

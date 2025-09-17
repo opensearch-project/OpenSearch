@@ -37,7 +37,7 @@ import java.util.Locale;
 import java.util.MissingResourceException;
 
 /**
- * Utilities for for dealing with {@link Locale} objects
+ * Utilities for dealing with {@link Locale} objects
  *
  * @opensearch.internal
  */
@@ -90,23 +90,18 @@ public class LocaleUtils {
     }
 
     private static Locale parseParts(String[] parts) {
-        switch (parts.length) {
-            case 3:
-                // lang, country, variant
-                return new Locale(parts[0], parts[1], parts[2]);
-            case 2:
-                // lang, country
-                return new Locale(parts[0], parts[1]);
-            case 1:
+        return switch (parts.length) {
+            case 3 -> new Locale.Builder().setLanguage(parts[0]).setRegion(parts[1]).setVariant(parts[2]).build();
+            case 2 -> new Locale.Builder().setLanguage(parts[0]).setRegion(parts[1]).build();
+            case 1 -> {
                 if ("ROOT".equalsIgnoreCase(parts[0])) {
-                    return Locale.ROOT;
+                    yield Locale.ROOT;
                 }
-                // lang
-                return new Locale(parts[0]);
-            default:
-                throw new IllegalArgumentException(
-                    "Locales can have at most 3 parts but got " + parts.length + ": " + Arrays.asList(parts)
-                );
-        }
+                yield new Locale.Builder().setLanguage(parts[0]).build();
+            }
+            default -> throw new IllegalArgumentException(
+                "Locales can have at most 3 parts but got " + parts.length + ": " + Arrays.asList(parts)
+            );
+        };
     }
 }
