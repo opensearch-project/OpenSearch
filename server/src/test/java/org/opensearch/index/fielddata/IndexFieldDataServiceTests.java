@@ -47,8 +47,10 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.BooleanFieldMapper;
@@ -197,6 +199,49 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         writer.close();
         // Ensure cache fully cleared before other tests in the suite begin
         indicesService.getIndicesFieldDataCache().close();
+    }
+
+    public void testClosingSegmentInvalidatesEntries() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
+            .build();
+        final IndexService indexService = createIndex("test", settings);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexFieldDataService ifdService = new IndexFieldDataService(
+            indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(),
+            indicesService.getCircuitBreakerService(),
+            indexService.mapperService(),
+            indexService.getThreadPool()
+        );
+
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
+            .build(ctx)
+            .fieldType();
+
+        final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        Document doc1 = new Document();
+        doc1.add(new StringField("field_1", "thisisastring", Store.NO));
+        writer.addDocument(doc1);
+        writer.flush();
+
+        Document doc2 = new Document();
+        doc2.add(new StringField("field_1", "stringstring", Store.NO));
+        writer.addDocument(doc2);
+        writer.flush();
+        final IndexReader reader = DirectoryReader.open(writer);
+
+        IndexFieldData<?> ifd = ifdService.getForField(mapper1, "test", () -> { throw new UnsupportedOperationException(); });
+        for (LeafReaderContext lrContext : reader.getContext().leaves()) {
+            ifd.load(lrContext);
+        }
+        assertEquals(2, reader.getContext().leaves().size()); // Equivalent to asserting 2 segments made
+        assertEquals(2, indicesService.getIndicesFieldDataCache().getCache().count());
+
+        // Merge, assert both entries are gone after segments close
+        writer.forceMerge(1);
+        assertBusy(() -> assertEquals(0, indicesService.getIndicesFieldDataCache().getCache().count()));
     }
 
     public void testGetForFieldRuntimeField() {
