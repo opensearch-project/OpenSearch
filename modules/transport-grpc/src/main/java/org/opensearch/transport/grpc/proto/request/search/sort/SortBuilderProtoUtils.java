@@ -8,8 +8,7 @@
 package org.opensearch.transport.grpc.proto.request.search.sort;
 
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.protobufs.FieldWithOrderMap;
-import org.opensearch.protobufs.SortCombinations;
+import org.opensearch.protobufs.SortOptions;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
@@ -40,55 +39,28 @@ public class SortBuilderProtoUtils {
      * @throws IllegalArgumentException if invalid sort combinations are provided
      * @throws UnsupportedOperationException if sort options are not yet supported
      */
-    public static List<SortBuilder<?>> fromProto(List<SortCombinations> sortProto) {
+    public static List<SortBuilder<?>> fromProto(List<SortOptions> sortProto) {
         List<SortBuilder<?>> sortFields = new ArrayList<>(2);
 
-        for (SortCombinations sortCombinations : sortProto) {
-            switch (sortCombinations.getSortCombinationsCase()) {
-                case STRING_VALUE:
-                    String name = sortCombinations.getStringValue();
+        for (SortOptions sortOptions : sortProto) {
+            switch (sortOptions.getSortOptionsCase()) {
+                case STRING:
+                    String name = sortOptions.getString();
                     sortFields.add(fieldOrScoreSort(name));
                     break;
-                case FIELD_WITH_ORDER_MAP:
-                    FieldWithOrderMap fieldWithOrderMap = sortCombinations.getFieldWithOrderMap();
-                    FieldSortBuilderProtoUtils.fromProto(sortFields, fieldWithOrderMap);
+                case SORT_OPTIONS_SCORE:
+                    sortFields.add(new ScoreSortBuilder());
                     break;
-                case SORT_OPTIONS:
-                    throw new UnsupportedOperationException("sort options not supported yet");
-                /*
-                SortOptions sortOptions = sortCombinations.getSortOptions();
-                String fieldName;
-                SortOrder order;
-                switch(sortOptions.getSortOptionsCase()) {
-                    case SCORE:
-                        fieldName = ScoreSortBuilder.NAME;
-                        order = SortOrderProtoUtils.fromProto(sortOptions.getScore().getOrder());
-                        // TODO add other fields from ScoreSortBuilder
-                        break;
-                    case DOC:
-                        fieldName = FieldSortBuilder.DOC_FIELD_NAME;
-                        order = SortOrderProtoUtils.fromProto(sortOptions.getDoc().getOrder());
-                        // TODO add other fields from FieldSortBuilder
-                        break;
-                    case GEO_DISTANCE:
-                        fieldName = GeoDistanceAggregationBuilder.NAME;
-                        order = SortOrderProtoUtils.fromProto(sortOptions.getGeoDistance().getOrder());
-                        // TODO add other fields from GeoDistanceBuilder
-                        break;
-                    case SCRIPT:
-                        fieldName = ScriptSortBuilder.NAME;
-                        order = SortOrderProtoUtils.fromProto(sortOptions.getScript().getOrder());
-                        // TODO add other fields from ScriptSortBuilder
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Invalid sort options provided: "+ sortCombinations.getSortOptions().getSortOptionsCase());
-                }
-                // TODO add other fields from ScoreSortBuilder, FieldSortBuilder, GeoDistanceBuilder, ScriptSortBuilder too
-                sortFields.add(fieldOrScoreSort(fieldName).order(order));
-                break;
-                */
+                case SORT_OPTIONS_DOC:
+                    sortFields.add(new FieldSortBuilder("_doc"));
+                    break;
+                case FIELD_SORT:
+                    // Handle field sort - this is more complex and would need FieldSort parsing
+                    throw new UnsupportedOperationException("Field sort not implemented yet");
+                case SORT_OPTIONS_ONE_OF:
+                    throw new UnsupportedOperationException("Sort options oneof not supported yet");
                 default:
-                    throw new IllegalArgumentException("Invalid sort combinations provided: " + sortCombinations.getSortCombinationsCase());
+                    throw new IllegalArgumentException("Invalid sort options provided: " + sortOptions.getSortOptionsCase());
             }
         }
         return sortFields;
