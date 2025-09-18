@@ -959,8 +959,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                         resolvedType = ThreadPoolType.FIXED;
                     } else {
                         throw new IllegalArgumentException(
-                            "Unknown ThreadPoolType '" + typeStr + "' for version " + in.getVersion() + ". " +
-                                "This may be a protocol or node version mismatch."
+                            "Unknown ThreadPoolType '"
+                                + typeStr
+                                + "' for version "
+                                + in.getVersion()
+                                + ". "
+                                + "This may be a protocol or node version mismatch."
                         );
                     }
                 }
