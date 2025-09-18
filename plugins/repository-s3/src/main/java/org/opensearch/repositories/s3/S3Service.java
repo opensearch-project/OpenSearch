@@ -213,10 +213,7 @@ class S3Service implements Closeable {
     // proxy for testing
     AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
         setDefaultAwsProfilePath();
-        final S3ClientBuilder builder = S3Client.builder()
-            .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
-            .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
-            .addPlugin(LegacyMd5Plugin.create());
+        final S3ClientBuilder builder = S3Client.builder();
 
         final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         builder.credentialsProvider(credentials);
@@ -248,6 +245,11 @@ class S3Service implements Closeable {
         }
         if (clientSettings.disableChunkedEncoding) {
             builder.serviceConfiguration(s -> s.chunkedEncodingEnabled(false));
+        }
+        builder.requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+            .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+        if (clientSettings.legacyMd5ChecksumCalculation) {
+            builder.addPlugin(LegacyMd5Plugin.create());
         }
         final S3Client client = SocketAccess.doPrivileged(builder::build);
         return AmazonS3WithCredentials.create(client, credentials);

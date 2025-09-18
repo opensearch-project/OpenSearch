@@ -78,6 +78,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(defaultSettings.connectionAcquisitionTimeoutMillis, is(15 * 60 * 1000));
         assertThat(defaultSettings.maxRetries, is(3));
         assertThat(defaultSettings.throttleRetries, is(true));
+        assertThat(defaultSettings.legacyMd5ChecksumCalculation, is(false));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
@@ -89,6 +90,17 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
 
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.maxRetries, is(10));
+    }
+
+    public void testLegacyMd5ChecksumCalculationCanBeSet() {
+        S3Service.setDefaultAwsProfilePath();
+        final var legacyMd5ChecksumCalculation = randomBoolean();
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.legacy_md5_checksum_calculation", legacyMd5ChecksumCalculation).build(),
+            configPath()
+        );
+        assertThat(settings.get("default").legacyMd5ChecksumCalculation, is(false));
+        assertThat(settings.get("other").legacyMd5ChecksumCalculation, is(legacyMd5ChecksumCalculation));
     }
 
     public void testNondefaultClientCreatedBySettingItsSettings() {
