@@ -6,13 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.composite101;
+package org.opensearch.index.codec.composite.composite103;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.codec.PerFieldMappingPostingFormatCodec;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
@@ -25,16 +25,16 @@ import org.opensearch.index.mapper.MapperService;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite101Codec extends FilterCodec {
-    public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite101Codec";
+public class Composite103Codec extends FilterCodec {
+    public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite103Codec";
     private final MapperService mapperService;
 
     // needed for SPI - this is used in reader path
-    public Composite101Codec() {
-        this(COMPOSITE_INDEX_CODEC_NAME, new Lucene101Codec(), null);
+    public Composite103Codec() {
+        this(COMPOSITE_INDEX_CODEC_NAME, new Lucene103Codec(), null);
     }
 
-    public Composite101Codec(Lucene101Codec.Mode compressionMode, MapperService mapperService, Logger logger) {
+    public Composite103Codec(Lucene103Codec.Mode compressionMode, MapperService mapperService, Logger logger) {
         this(COMPOSITE_INDEX_CODEC_NAME, new PerFieldMappingPostingFormatCodec(compressionMode, mapperService, logger), mapperService);
     }
 
@@ -46,7 +46,7 @@ public class Composite101Codec extends FilterCodec {
      * @param delegate codec delegate
      * @param mapperService mapper service instance
      */
-    protected Composite101Codec(String name, Codec delegate, MapperService mapperService) {
+    protected Composite103Codec(String name, Codec delegate, MapperService mapperService) {
         super(name, delegate);
         this.mapperService = mapperService;
     }
