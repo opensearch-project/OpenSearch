@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -279,6 +280,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             "scaled_float",
             true,
             false,
+            true,
             true,
             Collections.emptyMap(),
             scalingFactor,
