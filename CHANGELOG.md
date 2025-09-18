@@ -51,7 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix QueryPhaseResultConsumer incomplete callback loops ([#19231](https://github.com/opensearch-project/OpenSearch/pull/19231))
 - Fix the `scaled_float` precision issue ([#19188](https://github.com/opensearch-project/OpenSearch/pull/19188))
 - Fix Using an excessively large reindex slice can lead to a JVM OutOfMemoryError on coordinator.([#18964](https://github.com/opensearch-project/OpenSearch/pull/18964))
-- [Flakey Test] Fix flakey tests in SecureReactorNetty4HttpServerTransportTests ([#19327](https://github.com/opensearch-project/OpenSearch/pull/19327))
+- [Flaky Test] Fix flakey tests in SecureReactorNetty4HttpServerTransportTests ([#19327](https://github.com/opensearch-project/OpenSearch/pull/19327))
 
 ### Dependencies
 - Bump `com.netflix.nebula.ospackage-base` from 12.0.0 to 12.1.0 ([#19019](https://github.com/opensearch-project/OpenSearch/pull/19019))
