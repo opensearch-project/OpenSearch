@@ -85,7 +85,8 @@ public class RemoteManifestManager {
             clusterName,
             threadpool,
             ThreadPool.Names.REMOTE_STATE_READ,
-            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+            clusterSettings
         );
         ;
         clusterSettings.addSettingsUpdateConsumer(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING, this::setMetadataManifestUploadTimeout);
