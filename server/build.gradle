@@ -97,6 +97,11 @@ dependencies {
   api libs.log4japi
   api libs.log4jjul
   api libs.log4jcore, optional
+
+  compileOnly "com.github.spotbugs:spotbugs-annotations:${versions.spotbugs_annotations}"
+  compileOnly "org.jspecify:jspecify:1.0.0"
+  api "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
+
   annotationProcessor libs.log4jcore
   annotationProcessor project(':libs:opensearch-common')
 

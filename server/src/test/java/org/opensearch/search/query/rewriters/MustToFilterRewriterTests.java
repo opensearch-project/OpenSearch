@@ -202,6 +202,36 @@ public class MustToFilterRewriterTests extends OpenSearchTestCase {
         assertThat(nestedRewritten.must().get(0), instanceOf(TermQueryBuilder.class));
     }
 
+    public void testBoostedNumericQueriesMovedToFilter() {
+        // Even with boosts, numeric queries should be moved (boost irrelevant in filter)
+        QueryBuilder query = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery("age", 42).boost(3.0f))
+            .must(QueryBuilders.rangeQuery("price").gte(10).boost(1.5f))
+            .must(QueryBuilders.matchQuery("name", "foo").boost(2.0f));
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        BoolQueryBuilder b = (BoolQueryBuilder) rewritten;
+        // two moved
+        assertThat(b.filter().size(), equalTo(2));
+        // text match remains
+        assertThat(b.must().size(), equalTo(1));
+        assertThat(b.must().get(0), instanceOf(MatchQueryBuilder.class));
+    }
+
+    public void testNoContextDoesNotMoveNumericTerms() {
+        // Without context, numeric term/terms cannot be identified; range still moves
+        QueryBuilder query = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery("user_id", 7))
+            .must(QueryBuilders.rangeQuery("price").gte(1));
+
+        QueryBuilder rewritten = rewriter.rewrite(query, null);
+        BoolQueryBuilder b = (BoolQueryBuilder) rewritten;
+        // Range moved, term stayed
+        assertThat(b.filter().size(), equalTo(1));
+        assertThat(b.must().size(), equalTo(1));
+        assertThat(b.must().get(0), instanceOf(TermQueryBuilder.class));
+    }
+
     public void testBoolQueryPropertiesPreserved() {
         // All bool query properties should be preserved
         QueryBuilder query = QueryBuilders.boolQuery()

@@ -79,8 +79,9 @@ public class InnerHitsBuilderProtoUtils {
             }
             if (innerHit.getFieldsCount() > 0) {
                 List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-                for (org.opensearch.protobufs.FieldAndFormat fieldAndFormat : innerHit.getFieldsList()) {
-                    fieldAndFormatList.add(FieldAndFormatProtoUtils.fromProto(fieldAndFormat));
+                // TODO: this is not correct, we need to use FieldAndFormatProtoUtils.fromProto() and fix the protobufs in 0.11.0
+                for (String fieldName : innerHit.getFieldsList()) {
+                    fieldAndFormatList.add(new FieldAndFormat(fieldName, null));
                 }
                 innerHitBuilder.setFetchFields(fieldAndFormatList);
             }
@@ -100,8 +101,8 @@ public class InnerHitsBuilderProtoUtils {
             if (innerHit.getSortCount() > 0) {
                 innerHitBuilder.setSorts(SortBuilderProtoUtils.fromProto(innerHit.getSortList()));
             }
-            if (innerHit.hasSource()) {
-                innerHitBuilder.setFetchSourceContext(FetchSourceContextProtoUtils.fromProto(innerHit.getSource()));
+            if (innerHit.hasXSource()) {
+                innerHitBuilder.setFetchSourceContext(FetchSourceContextProtoUtils.fromProto(innerHit.getXSource()));
             }
             if (innerHit.hasHighlight()) {
                 innerHitBuilder.setHighlightBuilder(HighlightBuilderProtoUtils.fromProto(innerHit.getHighlight()));
