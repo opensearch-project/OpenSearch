@@ -50,6 +50,8 @@ import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketUtils;
 import org.opensearch.search.aggregations.bucket.terms.NumericTermsAggregator.ResultStrategy;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+import org.opensearch.search.aggregations.bucket.terms.stream.StreamNumericTermsAggregator;
+import org.opensearch.search.aggregations.bucket.terms.stream.StreamStringTermsAggregator;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -121,7 +123,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     // if user doesn't provide execution mode, and using stream search
                     // we use stream aggregation
                     if (context.isStreamSearch()) {
-                        return createStreamAggregator(
+                        return createStreamStringTermsAggregator(
                             name,
                             factories,
                             valuesSource,
@@ -207,7 +209,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                             + "include/exclude clauses used to filter numeric fields"
                     );
                 }
-
                 if (subAggCollectMode == null) {
                     subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), -1, context);
                 }
@@ -230,6 +231,23 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         longFilter = includeExclude.convertToLongFilter(format);
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+                }
+                if (context.isStreamSearch()) {
+                    return createStreamNumericTermsAggregator(
+                        name,
+                        factories,
+                        numericValuesSource,
+                        format,
+                        order,
+                        bucketCountThresholds,
+                        context,
+                        parent,
+                        longFilter,
+                        includeExclude,
+                        showTermDocCountError,
+                        cardinality,
+                        metadata
+                    );
                 }
                 return new NumericTermsAggregator(
                     name,
@@ -578,7 +596,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
-    static Aggregator createStreamAggregator(
+    static Aggregator createStreamStringTermsAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource valuesSource,
@@ -608,6 +626,55 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 metadata
             );
         }
+    }
+
+    static Aggregator createStreamNumericTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        BucketOrder order,
+        BucketCountThresholds bucketCountThresholds,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        IncludeExclude.LongFilter longFilter,
+        IncludeExclude includeExclude,
+        boolean showTermDocCountError,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        Function<StreamNumericTermsAggregator, StreamNumericTermsAggregator.ResultStrategy<?, ?>> resultStrategy;
+        if (valuesSource.isFloatingPoint()) {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToDoubleFilter();
+            }
+            resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+        } else if (valuesSource.isBigInteger()) {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToDoubleFilter();
+            }
+            resultStrategy = agg -> agg.new UnsignedLongTermsResults(showTermDocCountError);
+        } else {
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter(format);
+            }
+            resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+        }
+        return new StreamNumericTermsAggregator(
+            name,
+            factories,
+            resultStrategy,
+            valuesSource,
+            format,
+            order,
+            bucketCountThresholds,
+            aggregationContext,
+            parent,
+            SubAggCollectionMode.DEPTH_FIRST,
+            longFilter,
+            cardinality,
+            metadata
+        );
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.bucket.terms.stream.StreamStringTermsAggregator;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalSum;
