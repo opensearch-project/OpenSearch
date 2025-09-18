@@ -399,6 +399,7 @@ public class SegmentReplicator {
         onGoingMergedSegmentReplications.cancelForShard(shardId, reason);
         replicationCheckpointStats.remove(shardId);
         primaryCheckpoint.remove(shardId);
+        completedReplications.remove(shardId);
     }
 
     SegmentReplicationTarget get(ShardId shardId) {

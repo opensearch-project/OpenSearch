@@ -37,7 +37,7 @@ versions << [
 ]
 
 dependencies {
-  api("org.apache.hadoop:hadoop-minicluster:3.4.1") {
+  api("org.apache.hadoop:hadoop-minicluster:3.4.2") {
     exclude module: 'websocket-client'
     exclude module: 'jettison'
     exclude module: 'netty'
@@ -63,7 +63,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
-  api 'com.google.code.gson:gson:2.13.1'
+  api 'com.google.code.gson:gson:2.13.2'
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
@@ -78,7 +78,7 @@ dependencies {
   api "commons-net:commons-net:3.11.1"
   api "ch.qos.logback:logback-core:1.5.18"
   api "ch.qos.logback:logback-classic:1.5.18"
-  api "org.jboss.xnio:xnio-nio:3.8.16.Final"
+  api "org.jboss.xnio:xnio-nio:3.8.17.Final"
   api 'org.jline:jline:3.30.5'
   api 'org.apache.commons:commons-configuration2:2.12.0'
   api 'com.nimbusds:nimbus-jose-jwt:10.4.2'

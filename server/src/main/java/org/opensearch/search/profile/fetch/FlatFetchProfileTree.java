@@ -12,11 +12,12 @@ import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.Timer;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Simplified profiling tree for fetch phase operations. Each fetch phase is
@@ -59,8 +60,8 @@ class FlatFetchProfileTree {
     }
 
     private final List<Node> roots = new ArrayList<>();
-    private final Map<String, Node> rootsMap = new HashMap<>();
-    private final Map<String, Node> phaseMap = new HashMap<>();
+    private final ConcurrentMap<String, Node> rootsMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Node> phaseMap = new ConcurrentHashMap<>();
 
     /** Start profiling a new fetch phase and return its breakdown. */
     FetchProfileBreakdown startFetchPhase(String element) {
