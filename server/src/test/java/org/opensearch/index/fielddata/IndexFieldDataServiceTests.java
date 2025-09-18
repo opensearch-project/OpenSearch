@@ -72,10 +72,12 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -230,18 +232,31 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         doc2.add(new StringField("field_1", "stringstring", Store.NO));
         writer.addDocument(doc2);
         writer.flush();
-        final IndexReader reader = DirectoryReader.open(writer);
+        IndexReader reader = DirectoryReader.open(writer);
 
         IndexFieldData<?> ifd = ifdService.getForField(mapper1, "test", () -> { throw new UnsupportedOperationException(); });
+        List<LeafFieldData> loadFields = new ArrayList<>();
         for (LeafReaderContext lrContext : reader.getContext().leaves()) {
-            ifd.load(lrContext);
+            loadFields.add(ifd.load(lrContext));
         }
         assertEquals(2, reader.getContext().leaves().size()); // Equivalent to asserting 2 segments made
         assertEquals(2, indicesService.getIndicesFieldDataCache().getCache().count());
 
         // Merge, assert both entries are gone after segments close
         writer.forceMerge(1);
+
+        // Close and reopen reader so changes are visible, this calls onClosed() hook invalidating key
+        reader.close();
+        reader = DirectoryReader.open(writer);
         assertBusy(() -> assertEquals(0, indicesService.getIndicesFieldDataCache().getCache().count()));
+
+        reader.close();
+        for (LeafFieldData loadField : loadFields) {
+            loadField.close();
+        }
+        writer.close();
+        // Ensure cache fully cleared before other tests in the suite begin
+        indicesService.getIndicesFieldDataCache().close();
     }
 
     public void testGetForFieldRuntimeField() {
@@ -560,7 +575,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData loadField1 = ifd1.load(leafReaderContext);
         LeafFieldData loadField2 = ifd2.load(leafReaderContext);
-        assertEquals(2, internalCacheSpy.count());
+        assertBusy(() -> assertEquals(2, internalCacheSpy.count()));
 
         Iterator<IndicesFieldDataCache.Key> realIterator = internalCacheSpy.keys().iterator();
         Iterator<IndicesFieldDataCache.Key> erroringIterator = new Iterator<IndicesFieldDataCache.Key>() {
