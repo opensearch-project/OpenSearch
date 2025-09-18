@@ -145,11 +145,11 @@ public class TransportGetIngestionStateActionTests extends OpenSearchTestCase {
         when(clusterService.localNode()).thenReturn(localNode);
 
         ShardIngestionState result = action.shardOperation(request, shardRouting);
-        assertThat(result.index(), equalTo(expectedState.index()));
-        assertThat(result.shardId(), equalTo(expectedState.shardId()));
-        assertThat(result.pollerState(), equalTo(expectedState.pollerState()));
-        assertThat(result.errorPolicy(), equalTo(expectedState.errorPolicy()));
-        assertThat(result.nodeName(), equalTo(expectedState.nodeName()));
+        assertThat(result.getIndex(), equalTo(expectedState.getIndex()));
+        assertThat(result.getShardId(), equalTo(expectedState.getShardId()));
+        assertThat(result.getPollerState(), equalTo(expectedState.getPollerState()));
+        assertThat(result.getErrorPolicy(), equalTo(expectedState.getErrorPolicy()));
+        assertThat(result.getNodeName(), equalTo(expectedState.getNodeName()));
 
     }
 
@@ -200,7 +200,7 @@ public class TransportGetIngestionStateActionTests extends OpenSearchTestCase {
         assertThat(response.getSuccessfulShards(), equalTo(1));
         assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getShardStates().length, equalTo(1));
-        assertThat(response.getShardStates()[0].index(), equalTo("test-index"));
-        assertThat(response.getShardStates()[0].shardId(), equalTo(0));
+        assertThat(response.getShardStates()[0].getIndex(), equalTo("test-index"));
+        assertThat(response.getShardStates()[0].getShardId(), equalTo(0));
     }
 }

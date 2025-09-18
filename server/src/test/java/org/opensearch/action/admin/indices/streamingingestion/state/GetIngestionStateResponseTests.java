@@ -28,8 +28,8 @@ public class GetIngestionStateResponseTests extends OpenSearchTestCase {
 
             try (StreamInput in = out.bytes().streamInput()) {
                 GetIngestionStateResponse deserializedResponse = new GetIngestionStateResponse(in);
-                assertEquals(response.getShardStates()[0].shardId(), deserializedResponse.getShardStates()[0].shardId());
-                assertEquals(response.getShardStates()[1].shardId(), deserializedResponse.getShardStates()[1].shardId());
+                assertEquals(response.getShardStates()[0].getShardId(), deserializedResponse.getShardStates()[0].getShardId());
+                assertEquals(response.getShardStates()[1].getShardId(), deserializedResponse.getShardStates()[1].getShardId());
                 assertEquals(response.getTotalShards(), deserializedResponse.getTotalShards());
                 assertEquals(response.getSuccessfulShards(), deserializedResponse.getSuccessfulShards());
                 assertEquals(response.getFailedShards(), deserializedResponse.getFailedShards());

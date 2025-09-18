@@ -230,21 +230,10 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         }
 
         try {
-            ShardIngestionState baseState = indexShard.getIngestionState();
-            String nodeName = clusterService.localNode().getName();
-
-            // rebuild ingestion state with primary/replica and node details
-            return new ShardIngestionState(
-                baseState.index(),
-                baseState.shardId(),
-                baseState.pollerState(),
-                baseState.errorPolicy(),
-                baseState.isPollerPaused(),
-                baseState.isWriteBlockEnabled(),
-                baseState.batchStartPointer(),
-                shardRouting.primary(),
-                nodeName != null ? nodeName : ""
-            );
+            ShardIngestionState shardIngestionState = indexShard.getIngestionState();
+            shardIngestionState.setNodeName(clusterService.localNode().getName());
+            shardIngestionState.setPrimary(shardRouting.primary());
+            return shardIngestionState;
         } catch (final AlreadyClosedException e) {
             throw new ShardNotFoundException(indexShard.shardId());
         }

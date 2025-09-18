@@ -274,11 +274,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         );
 
         ensureYellowAndNoInitializingShards(indexName);
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse response = client(nodeA).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return response.getHits().getTotalHits().value() == 10;
-        });
+        waitForSearchableDocs(10, List.of(nodeA));
         flush(indexName);
 
         // add a second node and verify the replica ingests the data
@@ -286,11 +282,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         ensureGreen(indexName);
         assertTrue(nodeA.equals(primaryNodeName(indexName)));
         assertTrue(nodeB.equals(replicaNodeName(indexName)));
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse response = client(nodeB).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return response.getHits().getTotalHits().value() == 10;
-        });
+        waitForSearchableDocs(10, List.of(nodeB));
 
         // verify pause and resume functionality on replica
 
@@ -303,7 +295,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             return ingestionState.getShardStates().length == 2
                 && ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         for (int i = 10; i < 20; i++) {
@@ -312,12 +304,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
 
         // replica must not ingest when paused
         Thread.sleep(1000);
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("age").gte(28);
-        SearchResponse replicaResponse = client(nodeB).prepareSearch(indexName)
-            .setPreference("_only_local")
-            .setQuery(rangeQueryBuilder)
-            .get();
-        assertEquals(10, replicaResponse.getHits().getTotalHits().value());
+        assertEquals(10, getSearchableDocCount(nodeB));
 
         // resume ingestion
         ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
@@ -329,17 +316,12 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 && Arrays.stream(ingestionState.getShardStates())
                     .allMatch(
                         state -> state.isPollerPaused() == false
-                            && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
                     );
         });
 
         // verify replica ingests data after resuming ingestion
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse responseA = client(nodeA).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            SearchResponse responseB = client(nodeB).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return responseA.getHits().getTotalHits().value() == 20 && responseB.getHits().getTotalHits().value() == 20;
-        });
+        waitForSearchableDocs(20, List.of(nodeA, nodeB));
 
         // produce 10 more messages
         for (int i = 20; i < 30; i++) {
@@ -349,7 +331,11 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         // Add new node and wait for new node to join cluster
         final String nodeC = internalCluster().startDataOnlyNode();
         assertBusy(() -> {
-            assertEquals("Should have 4 nodes total (1 master + 3 data)", 4, internalCluster().clusterService().state().nodes().getSize());
+            assertEquals(
+                "Should have 4 nodes total (1 cluster manager + 3 data)",
+                4,
+                internalCluster().clusterService().state().nodes().getSize()
+            );
         }, 30, TimeUnit.SECONDS);
 
         // move replica from nodeB to nodeC
@@ -358,12 +344,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         ensureGreen(indexName);
 
         // confirm replica ingests messages after moving to new node
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse responseA = client(nodeA).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            SearchResponse responseC = client(nodeC).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return responseA.getHits().getTotalHits().value() == 30 && responseC.getHits().getTotalHits().value() == 30;
-        });
+        waitForSearchableDocs(30, List.of(nodeA, nodeC));
 
         for (int i = 30; i < 40; i++) {
             produceData(Integer.toString(i), "name" + i, "30");
@@ -372,12 +353,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         // restart replica node and verify ingestion
         internalCluster().restartNode(nodeC);
         ensureGreen(indexName);
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse responseA = client(nodeA).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            SearchResponse responseC = client(nodeC).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return responseA.getHits().getTotalHits().value() == 40 && responseC.getHits().getTotalHits().value() == 40;
-        });
+        waitForSearchableDocs(40, List.of(nodeA, nodeC));
 
         // Verify both primary and replica do not have failed messages
         Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
@@ -416,22 +392,14 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         );
 
         ensureYellowAndNoInitializingShards(indexName);
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse response = client(nodeA).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return response.getHits().getTotalHits().value() == 10;
-        });
+        waitForSearchableDocs(10, List.of(nodeA));
 
         // add second node
         final String nodeB = internalCluster().startDataOnlyNode();
         ensureGreen(indexName);
         assertTrue(nodeA.equals(primaryNodeName(indexName)));
         assertTrue(nodeB.equals(replicaNodeName(indexName)));
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse response = client(nodeB).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return response.getHits().getTotalHits().value() == 10;
-        });
+        waitForSearchableDocs(10, List.of(nodeB));
 
         // Validate replica promotion
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
@@ -441,22 +409,14 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             produceData(Integer.toString(i), "name" + i, "30");
         }
 
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse responseC = client(nodeB).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return responseC.getHits().getTotalHits().value() == 20;
-        });
+        waitForSearchableDocs(20, List.of(nodeB));
 
         // add third node and allocate the replica once the node joins the cluster
         final String nodeC = internalCluster().startDataOnlyNode();
         assertBusy(() -> { assertEquals(3, internalCluster().clusterService().state().nodes().getSize()); }, 30, TimeUnit.SECONDS);
         client().admin().cluster().prepareReroute().add(new AllocateReplicaAllocationCommand(indexName, 0, nodeC)).get();
         ensureGreen(indexName);
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse responseC = client(nodeC).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return responseC.getHits().getTotalHits().value() == 20;
-        });
+        waitForSearchableDocs(20, List.of(nodeC));
 
     }
 
@@ -482,12 +442,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );
         ensureGreen(indexName);
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse responseA = client(nodeA).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            SearchResponse responseB = client(nodeB).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return responseA.getHits().getTotalHits().value() == 20 && responseB.getHits().getTotalHits().value() == 20;
-        });
+        waitForSearchableDocs(20, List.of(nodeA, nodeB));
 
         // Register snapshot repository
         String snapshotRepositoryName = "test-snapshot-repo";
@@ -531,12 +486,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         ensureGreen(indexName);
 
         refresh(indexName);
-        waitForState(() -> {
-            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
-            SearchResponse responseA = client(nodeA).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            SearchResponse responseB = client(nodeB).prepareSearch(indexName).setPreference("_only_local").setQuery(query).get();
-            return responseA.getHits().getTotalHits().value() == 40 && responseB.getHits().getTotalHits().value() == 40;
-        });
+        waitForSearchableDocs(40, List.of(nodeA, nodeB));
 
         // Verify both primary and replica have polled only remaining 20 messages
         Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
