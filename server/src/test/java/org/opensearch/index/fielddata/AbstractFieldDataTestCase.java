@@ -108,7 +108,10 @@ public abstract class AbstractFieldDataTestCase extends OpenSearchSingleNodeTest
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s").build();
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
+            .build();
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
