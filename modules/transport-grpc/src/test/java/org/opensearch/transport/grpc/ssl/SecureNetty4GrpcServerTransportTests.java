@@ -12,6 +12,9 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -30,6 +33,7 @@ import static org.opensearch.transport.grpc.ssl.SecureSettingsHelpers.getServerC
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private NetworkService networkService;
+    private ThreadPool threadPool;
     private final List<BindableService> services = new ArrayList<>();
 
     static Settings createSettings() {
@@ -39,10 +43,21 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     @Before
     public void setup() {
         networkService = new NetworkService(Collections.emptyList());
+
+        // Create a ThreadPool with the gRPC executor
+        Settings settings = Settings.builder()
+            .put("node.name", "test-node")
+            .put("grpc.netty.executor_count", 4)
+            .build();
+        ExecutorBuilder<?> grpcExecutorBuilder = new FixedExecutorBuilder(settings, "grpc", 4, 1000, "thread_pool.grpc");
+        threadPool = new ThreadPool(settings, grpcExecutorBuilder);
     }
 
     @After
     public void shutdown() {
+        if (threadPool != null) {
+            threadPool.shutdown();
+        }
         networkService = null;
     }
 
@@ -52,6 +67,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
+                threadPool,
                 getServerClientAuthNone()
             )
         ) {
@@ -70,6 +86,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
+                threadPool,
                 getServerClientAuthNone()
             )
         ) {
@@ -95,6 +112,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
+                threadPool,
                 getServerClientAuthOptional()
             )
         ) {
@@ -125,6 +143,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
+                threadPool,
                 getServerClientAuthRequired()
             )
         ) {

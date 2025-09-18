@@ -59,6 +59,16 @@ setting 'grpc.netty.max_msg_size',                      '10mb'
 setting 'grpc.netty.keepalive_timeout',                 '1s'
 ```
 
+## Thread Pool Monitoring
+
+The dedicated thread pool used for gRPC request processing is registered as a standard OpenSearch thread pool named `grpc`, controlled by the `grpc.netty.executor_count` setting/
+
+The gRPC thread pool stats can be monitored using:
+
+```bash
+curl -X GET "localhost:9200/_nodes/stats/thread_pool?filter_path=nodes.*.thread_pool.grpc"
+```
+
 ## Testing
 
 ### Unit Tests

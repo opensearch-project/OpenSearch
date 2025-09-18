@@ -21,6 +21,7 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.BindTransportException;
 
@@ -33,7 +34,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -201,6 +201,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     protected final Settings settings;
 
     private final NetworkService networkService;
+    private final ThreadPool threadPool;
     private final List<BindableService> services;
     private final String[] bindHosts;
     private final String[] publishHosts;
@@ -224,12 +225,14 @@ public class Netty4GrpcServerTransport extends AuxTransport {
      * @param settings the configured settings.
      * @param services the gRPC compatible services to be registered with the server.
      * @param networkService the bind/publish addresses.
+     * @param threadPool the thread pool for gRPC request processing.
      */
-    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService) {
+    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService, ThreadPool threadPool) {
         logger.debug("Initializing Netty4GrpcServerTransport with settings = {}", settings);
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
         this.networkService = Objects.requireNonNull(networkService);
+        this.threadPool = Objects.requireNonNull(threadPool);
         final List<String> grpcBindHost = SETTING_GRPC_BIND_HOST.get(settings);
         this.bindHosts = (grpcBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : grpcBindHost).toArray(
             Strings.EMPTY_ARRAY
@@ -279,8 +282,8 @@ public class Netty4GrpcServerTransport extends AuxTransport {
             this.bossEventLoopGroup = new NioEventLoopGroup(1, daemonThreadFactory(settings, "grpc_boss"));
             this.workerEventLoopGroup = new NioEventLoopGroup(nettyEventLoopThreads, daemonThreadFactory(settings, "grpc_worker"));
 
-            // Create dedicated executor for gRPC handlers to avoid blocking event loops
-            this.grpcExecutor = new ForkJoinPool(executorThreads, ForkJoinPool.defaultForkJoinWorkerThreadFactory, null, true);
+            // Use OpenSearch's managed thread pool for gRPC request processing
+            this.grpcExecutor = threadPool.executor("grpc");
 
             bindServer();
             success = true;
@@ -312,18 +315,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
             }
         }
 
-        // Shutdown executor
-        if (grpcExecutor != null) {
-            grpcExecutor.shutdown();
-            try {
-                if (!grpcExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
-                    grpcExecutor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                grpcExecutor.shutdownNow();
-            }
-        }
+        // Note: grpcExecutor is managed by OpenSearch's ThreadPool, so we don't shut it down here
 
         // Shutdown event loop groups
         if (bossEventLoopGroup != null) {

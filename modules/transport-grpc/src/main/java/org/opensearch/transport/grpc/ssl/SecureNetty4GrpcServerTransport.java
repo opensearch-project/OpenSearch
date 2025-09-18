@@ -13,6 +13,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 
 import javax.net.ssl.SSLContext;
@@ -79,9 +80,10 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         Settings settings,
         List<BindableService> services,
         NetworkService networkService,
+        ThreadPool threadPool,
         SecureAuxTransportSettingsProvider secureTransportSettingsProvider
     ) {
-        super(settings, services, networkService);
+        super(settings, services, networkService, threadPool);
         this.port = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.get(settings);
         this.portSettingKey = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.getKey();
         try {
