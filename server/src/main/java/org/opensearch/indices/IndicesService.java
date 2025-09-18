@@ -106,6 +106,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
@@ -591,6 +592,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
+                this::onMaxForceMergeMBPerSecUpdate
+            );
     }
 
     @InternalApi
@@ -691,6 +697,20 @@ public class IndicesService extends AbstractLifecycleComponent
         for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
             IndexService indexService = entry.getValue();
             indexService.onDefaultMaxMergeAtOnceChanged(newDefaultMaxMergeAtOnce);
+        }
+    }
+
+    /**
+     * The changes to dynamic cluster setting {@code cluster.merge.scheduler.max_force_merge_mb_per_sec} needs to be updated. This
+     * method gets called whenever the setting changes. We notify the change to all IndexService instances that are created on this node
+     * so they can update their merge schedulers accordingly.
+     *
+     * @param maxForceMergeMBPerSec the updated cluster max force merge MB per second rate.
+     */
+    private void onMaxForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
+        for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
+            IndexService indexService = entry.getValue();
+            indexService.onMaxForceMergeMBPerSecUpdate(maxForceMergeMBPerSec);
         }
     }
 

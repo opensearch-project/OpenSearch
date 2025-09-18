@@ -1236,6 +1236,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
+     * Called whenever the cluster level {@code cluster.merge.scheduler.max_force_merge_mb_per_sec} changes.
+     * The change is only applied if the index doesn't have its own explicit force merge MB per sec setting.
+     *
+     * @param maxForceMergeMBPerSec the updated cluster max force merge MB per second rate.
+     */
+    public void onMaxForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
+        if (!MergeSchedulerConfig.MAX_FORCE_MERGE_MB_PER_SEC_SETTING.exists(indexSettings.getSettings())) {
+            indexSettings.getMergeSchedulerConfig().setMaxForceMergeMBPerSec(maxForceMergeMBPerSec);
+        }
+    }
+
+    /**
      * Called whenever the refresh interval changes. This can happen in 2 cases -
      * 1. {@code cluster.default.index.refresh_interval} cluster setting changes. The change would only happen for
      * indexes relying on cluster default.
