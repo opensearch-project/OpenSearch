@@ -93,11 +93,13 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
 
     @Override
     protected void onRequestStart(SearchRequestContext searchRequestContext) {
+        searchRequestContext.startRequest();
         tookStatsHolder.current.inc();
     }
 
     @Override
     protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        searchRequestContext.endRequest();
         tookStatsHolder.current.dec();
         tookStatsHolder.total.inc();
         tookStatsHolder.timing.inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - searchRequestContext.getAbsoluteStartNanos()));
@@ -105,6 +107,7 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
 
     @Override
     protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        searchRequestContext.endRequest();
         tookStatsHolder.current.dec();
     }
 

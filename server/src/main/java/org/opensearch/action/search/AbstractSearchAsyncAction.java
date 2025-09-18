@@ -488,6 +488,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         }
         if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.endPhase(getCurrentPhase());
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
         }
     }
@@ -495,6 +496,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
         if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.startPhase(phase);
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
         }
     }
@@ -803,6 +805,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         setPhaseResourceUsages();
         if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.endPhase(phase);
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, cause);
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
