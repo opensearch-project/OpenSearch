@@ -63,18 +63,18 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-class SignificanceLookup {
+public class SignificanceLookup {
     /**
      * Lookup frequencies for {@link BytesRef} terms.
      */
-    interface BackgroundFrequencyForBytes extends Releasable {
+    public interface BackgroundFrequencyForBytes extends Releasable {
         long freq(BytesRef term) throws IOException;
     }
 
     /**
      * Lookup frequencies for {@code long} terms.
      */
-    interface BackgroundFrequencyForLong extends Releasable {
+    public interface BackgroundFrequencyForLong extends Releasable {
         long freq(long term) throws IOException;
     }
 
@@ -103,7 +103,7 @@ class SignificanceLookup {
     /**
      * Get the number of docs in the superset.
      */
-    long supersetSize() {
+    public long supersetSize() {
         return supersetNumDocs;
     }
 
@@ -155,7 +155,7 @@ class SignificanceLookup {
     /**
      * Get the background frequency of a {@code long} term.
      */
-    BackgroundFrequencyForLong longLookup(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+    public BackgroundFrequencyForLong longLookup(BigArrays bigArrays, CardinalityUpperBound cardinality) {
         if (cardinality == CardinalityUpperBound.ONE) {
             return new BackgroundFrequencyForLong() {
                 @Override

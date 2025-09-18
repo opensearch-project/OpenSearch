@@ -53,7 +53,6 @@ import org.opensearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -258,23 +257,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
             });
         }
         return result;
-    }
-
-    /**
-     * Build the sub aggregation results for a list of buckets and set them on
-     * the buckets. This is usually used by aggregations that are selective
-     * in which bucket they build. They use some mechanism of selecting a list
-     * of buckets to build use this method to "finish" building the results.
-     * @param buckets the buckets to finish building
-     * @param bucketToOrd how to convert a bucket into an ordinal
-     * @param setAggs how to set the sub-aggregation results on a bucket
-     */
-    protected final <B> void buildSubAggsForBuckets(B[] buckets, ToLongFunction<B> bucketToOrd, BiConsumer<B, InternalAggregations> setAggs)
-        throws IOException {
-        InternalAggregations[] results = buildSubAggsForBuckets(Arrays.stream(buckets).mapToLong(bucketToOrd).toArray());
-        for (int i = 0; i < buckets.length; i++) {
-            setAggs.accept(buckets[i], results[i]);
-        }
     }
 
     /**

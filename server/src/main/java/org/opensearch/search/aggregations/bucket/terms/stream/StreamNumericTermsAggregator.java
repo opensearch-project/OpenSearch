@@ -1,0 +1,653 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.search.aggregations.bucket.terms.stream;
+
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Numbers;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.LongArray;
+import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.InternalOrder;
+import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.opensearch.search.aggregations.bucket.terms.InternalMappedTerms;
+import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
+import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup;
+import org.opensearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.opensearch.search.aggregations.bucket.terms.UnsignedLongTerms;
+import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+
+import static java.util.Collections.emptyList;
+import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
+
+public class StreamNumericTermsAggregator extends TermsAggregator {
+    private final ResultStrategy<?, ?> resultStrategy;
+    private final ValuesSource.Numeric valuesSource;
+    private final IncludeExclude.LongFilter longFilter;
+    private long valueCount;
+    private LongKeyedBucketOrds bucketOrds;
+    private final CardinalityUpperBound cardinality;
+
+    public StreamNumericTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        Function<StreamNumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        BucketOrder order,
+        BucketCountThresholds bucketCountThresholds,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        SubAggCollectionMode subAggCollectMode,
+        IncludeExclude.LongFilter longFilter,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
+        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
+        this.valuesSource = valuesSource;
+        this.longFilter = longFilter;
+        this.cardinality = cardinality;
+    }
+
+    @Override
+    public void doReset() {
+        super.doReset();
+        // TODO: reset bucketOrds here
+        valueCount = 0;
+    }
+
+    @Override
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        SortedNumericDocValues values = resultStrategy.getValues(ctx);
+        this.valueCount = values.docValueCount();
+        if (docCounts == null) {
+            this.docCounts = context.bigArrays().newLongArray(valueCount, true);
+        } else {
+            // TODO: check performance of grow vs creating a new one
+            this.docCounts = context.bigArrays().grow(docCounts, valueCount);
+        }
+        return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    int valuesCount = values.docValueCount();
+                    long previous = Long.MAX_VALUE;
+                    for (int i = 0; i < valuesCount; ++i) {
+                        long val = values.nextValue();
+                        if (previous != val || i == 0) {
+                            if ((longFilter == null) || (longFilter.accept(val))) {
+                                long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+                                if (bucketOrdinal < 0) { // already seen
+                                    bucketOrdinal = -1 - bucketOrdinal;
+                                }
+                                // TODO: do we need to call #collectBucket actually?
+                                collectExistingBucket(sub, doc, bucketOrdinal);
+                            }
+                            previous = val;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    @Override
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return resultStrategy.buildAggregationsBatch(owningBucketOrds);
+    }
+
+    /**
+     * Strategy for building results.
+     */
+    public abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
+        implements
+            Releasable {
+        private InternalAggregation[] buildAggregationsBatch(long[] owningBucketOrds) throws IOException {
+            LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
+            B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
+            long[] otherDocCounts = new long[owningBucketOrds.length];
+            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                checkCancelled();
+                collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
+                LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                List<B> bucketsPerOwningOrd = new ArrayList<>();
+                while (ordsEnum.next()) {
+                    long docCount = bucketDocCount(ordsEnum.ord());
+                    otherDocCounts[ordIdx] += docCount;
+                    if (docCount < localBucketCountThresholds.getMinDocCount()) {
+                        continue;
+                    }
+                    B finalBucket = buildFinalBucket(ordsEnum, docCount, owningBucketOrds[ordIdx]);
+                    bucketsPerOwningOrd.add(finalBucket);
+                }
+                topBucketsPerOrd[ordIdx] = buildBuckets(bucketsPerOwningOrd.size());
+                for (int i = 0; i < topBucketsPerOrd[ordIdx].length; i++) {
+                    topBucketsPerOrd[ordIdx][i] = bucketsPerOwningOrd.get(i);
+                }
+            }
+
+            buildSubAggs(topBucketsPerOrd);
+            InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
+            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
+            }
+            return result;
+        }
+
+        /**
+         * Short description of the collection mechanism added to the profile
+         * output to help with debugging.
+         */
+        abstract String describe();
+
+        /**
+         * Resolve the doc values to collect results of this type.
+         */
+        abstract SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException;
+
+        /**
+         * Wrap the "standard" numeric terms collector to collect any more
+         * information that this result type may need.
+         */
+        abstract LeafBucketCollector wrapCollector(LeafBucketCollector primary);
+
+        /**
+         * Build an array to hold the "top" buckets for each ordinal.
+         */
+        abstract B[][] buildTopBucketsPerOrd(int size);
+
+        /**
+         * Build an array of buckets for a particular ordinal. These arrays
+         * are asigned to the value returned by {@link #buildTopBucketsPerOrd}.
+         */
+        abstract B[] buildBuckets(int size);
+
+        /**
+         * Build the sub-aggregations into the buckets. This will usually
+         * delegate to {@link #buildSubAggsForAllBuckets}.
+         */
+        abstract void buildSubAggs(B[][] topBucketsPerOrd) throws IOException;
+
+        /**
+         * Collect extra entries for "zero" hit documents if they were requested
+         * and required.
+         */
+        abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException;
+
+        /**
+         * Turn the buckets into an aggregation result.
+         */
+        abstract R buildResult(long owningBucketOrd, long otherDocCounts, B[] topBuckets);
+
+        /**
+         * Build an "empty" result. Only called if there isn't any data on this
+         * shard.
+         */
+        abstract R buildEmptyResult();
+
+        /**
+         * Build a final bucket directly with the provided data, skipping temporary bucket creation.
+         */
+        abstract B buildFinalBucket(LongKeyedBucketOrds.BucketOrdsEnum ordinal, long docCount, long owningBucketOrd) throws IOException;
+    }
+
+    abstract class StandardTermsResultStrategy<R extends InternalMappedTerms<R, B>, B extends InternalTerms.Bucket<B>> extends
+        ResultStrategy<R, B> {
+        protected final boolean showTermDocCountError;
+
+        StandardTermsResultStrategy(boolean showTermDocCountError) {
+            this.showTermDocCountError = showTermDocCountError;
+        }
+
+        @Override
+        final LeafBucketCollector wrapCollector(LeafBucketCollector primary) {
+            return primary;
+        }
+
+        @Override
+        final void buildSubAggs(B[][] topBucketsPerOrd) throws IOException {
+            buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
+        }
+
+        @Override
+        final void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
+            if (bucketCountThresholds.getMinDocCount() != 0) {
+                return;
+            }
+            if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
+                return;
+            }
+            // we need to fill-in the blanks
+            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+                SortedNumericDocValues values = getValues(ctx);
+                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                    if (values.advanceExact(docId)) {
+                        int valueCount = values.docValueCount();
+                        for (int v = 0; v < valueCount; ++v) {
+                            long value = values.nextValue();
+                            if (longFilter == null || longFilter.accept(value)) {
+                                bucketOrds.add(owningBucketOrd, value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        @Override
+        public final void close() {}
+    }
+
+    public class LongTermsResults extends StandardTermsResultStrategy<LongTerms, LongTerms.Bucket> {
+        public LongTermsResults(boolean showTermDocCountError) {
+            super(showTermDocCountError);
+        }
+
+        @Override
+        String describe() {
+            return "stream_long_terms";
+        }
+
+        @Override
+        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+            return valuesSource.longValues(ctx);
+        }
+
+        @Override
+        LongTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
+            return new LongTerms.Bucket[size][];
+        }
+
+        @Override
+        LongTerms.Bucket[] buildBuckets(int size) {
+            return new LongTerms.Bucket[size];
+        }
+
+        @Override
+        LongTerms buildResult(long owningBucketOrd, long otherDocCount, LongTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
+            return new LongTerms(
+                name,
+                reduceOrder,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                List.of(topBuckets),
+                0,
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        LongTerms buildEmptyResult() {
+            return new LongTerms(
+                name,
+                order,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0,
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        LongTerms.Bucket buildFinalBucket(LongKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount, long owningBucketOrd) {
+            LongTerms.Bucket result = new LongTerms.Bucket(ordsEnum.value(), docCount, null, showTermDocCountError, 0, format);
+            result.bucketOrd = ordsEnum.ord();
+            result.setDocCountError(0);
+            return result;
+        }
+    }
+
+    public class DoubleTermsResults extends StandardTermsResultStrategy<DoubleTerms, DoubleTerms.Bucket> {
+
+        public DoubleTermsResults(boolean showTermDocCountError) {
+            super(showTermDocCountError);
+        }
+
+        @Override
+        String describe() {
+            return "stream_double_terms";
+        }
+
+        @Override
+        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+            return FieldData.toSortableLongBits(valuesSource.doubleValues(ctx));
+        }
+
+        @Override
+        DoubleTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
+            return new DoubleTerms.Bucket[size][];
+        }
+
+        @Override
+        DoubleTerms.Bucket[] buildBuckets(int size) {
+            return new DoubleTerms.Bucket[size];
+        }
+
+        @Override
+        DoubleTerms buildResult(long owningBucketOrd, long otherDocCount, DoubleTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
+            return new DoubleTerms(
+                name,
+                reduceOrder,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                List.of(topBuckets),
+                0,
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        DoubleTerms buildEmptyResult() {
+            return new DoubleTerms(
+                name,
+                order,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0,
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        DoubleTerms.Bucket buildFinalBucket(LongKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount, long owningBucketOrd) {
+            DoubleTerms.Bucket result = new DoubleTerms.Bucket(
+                NumericUtils.sortableLongToDouble(ordsEnum.value()),
+                docCount,
+                null,
+                showTermDocCountError,
+                0,
+                format
+            );
+            result.bucketOrd = ordsEnum.ord();
+            result.setDocCountError(0);
+            return result;
+        }
+    }
+
+    public class UnsignedLongTermsResults extends StandardTermsResultStrategy<UnsignedLongTerms, UnsignedLongTerms.Bucket> {
+        public UnsignedLongTermsResults(boolean showTermDocCountError) {
+            super(showTermDocCountError);
+        }
+
+        @Override
+        String describe() {
+            return "stream_unsigned_long_terms";
+        }
+
+        @Override
+        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+            return valuesSource.longValues(ctx);
+        }
+
+        @Override
+        UnsignedLongTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
+            return new UnsignedLongTerms.Bucket[size][];
+        }
+
+        @Override
+        UnsignedLongTerms.Bucket[] buildBuckets(int size) {
+            return new UnsignedLongTerms.Bucket[size];
+        }
+
+        @Override
+        UnsignedLongTerms buildResult(long owningBucketOrd, long otherDocCount, UnsignedLongTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
+            return new UnsignedLongTerms(
+                name,
+                reduceOrder,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                List.of(topBuckets),
+                0,
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        UnsignedLongTerms buildEmptyResult() {
+            return new UnsignedLongTerms(
+                name,
+                order,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0,
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        UnsignedLongTerms.Bucket buildFinalBucket(LongKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount, long owningBucketOrd) {
+            UnsignedLongTerms.Bucket result = new UnsignedLongTerms.Bucket(
+                Numbers.toUnsignedBigInteger(ordsEnum.value()),
+                docCount,
+                null,
+                showTermDocCountError,
+                0,
+                format
+            );
+            result.bucketOrd = ordsEnum.ord();
+            result.setDocCountError(0);
+            return result;
+        }
+    }
+
+    class SignificantLongTermsResults extends ResultStrategy<SignificantLongTerms, SignificantLongTerms.Bucket> {
+        private final SignificanceLookup.BackgroundFrequencyForLong backgroundFrequencies;
+        private final long supersetSize;
+        private final SignificanceHeuristic significanceHeuristic;
+        private LongArray subsetSizes;
+
+        SignificantLongTermsResults(
+            SignificanceLookup significanceLookup,
+            SignificanceHeuristic significanceHeuristic,
+            CardinalityUpperBound cardinality
+        ) {
+            backgroundFrequencies = significanceLookup.longLookup(context.bigArrays(), cardinality);
+            supersetSize = significanceLookup.supersetSize();
+            this.significanceHeuristic = significanceHeuristic;
+            subsetSizes = context.bigArrays().newLongArray(1, true);
+        }
+
+        @Override
+        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+            return valuesSource.longValues(ctx);
+        }
+
+        @Override
+        String describe() {
+            return "stream_significant_terms";
+        }
+
+        @Override
+        LeafBucketCollector wrapCollector(LeafBucketCollector primary) {
+            return new LeafBucketCollectorBase(primary, null) {
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    super.collect(doc, owningBucketOrd);
+                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+                    subsetSizes.increment(owningBucketOrd, 1);
+                }
+            };
+        }
+
+        @Override
+        SignificantLongTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
+            return new SignificantLongTerms.Bucket[size][];
+        }
+
+        @Override
+        SignificantLongTerms.Bucket[] buildBuckets(int size) {
+            return new SignificantLongTerms.Bucket[size];
+        }
+
+        @Override
+        void buildSubAggs(SignificantLongTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+            buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
+        }
+
+        @Override
+        void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {}
+
+        @Override
+        SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCoun, SignificantLongTerms.Bucket[] topBuckets) {
+            SignificantLongTerms significantLongTerms = new SignificantLongTerms(
+                name,
+                metadata(),
+                format,
+                subsetSizes.get(owningBucketOrd),
+                supersetSize,
+                significanceHeuristic,
+                List.of(topBuckets),
+                bucketCountThresholds
+            );
+            return significantLongTerms;
+        }
+
+        @Override
+        SignificantLongTerms buildEmptyResult() {
+            // We need to account for the significance of a miss in our global stats - provide corpus size as context
+            ContextIndexSearcher searcher = context.searcher();
+            IndexReader topReader = searcher.getIndexReader();
+            int supersetSize = topReader.numDocs();
+            return new SignificantLongTerms(
+                name,
+                metadata(),
+                format,
+                0,
+                supersetSize,
+                significanceHeuristic,
+                emptyList(),
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        SignificantLongTerms.Bucket buildFinalBucket(LongKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount, long owningBucketOrd)
+            throws IOException {
+            long subsetSize = subsetSizes.get(owningBucketOrd);
+            double score = significanceHeuristic.getScore(
+                ordsEnum.value(),
+                subsetSize,
+                backgroundFrequencies.freq(ordsEnum.value()),
+                supersetSize
+            );
+            SignificantLongTerms.Bucket result = new SignificantLongTerms.Bucket(
+                docCount,
+                subsetSize,
+                backgroundFrequencies.freq(ordsEnum.value()),
+                supersetSize,
+                ordsEnum.value(),
+                null,
+                format,
+                score
+            );
+            result.bucketOrd = ordsEnum.ord();
+            return result;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(backgroundFrequencies, subsetSizes);
+        }
+    }
+
+    @Override
+    public InternalAggregation buildEmptyAggregation() {
+        return resultStrategy.buildEmptyResult();
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("result_strategy", resultStrategy.describe());
+        add.accept("total_buckets", bucketOrds.size());
+    }
+
+    @Override
+    public void doClose() {
+        Releasables.close(super::doClose, bucketOrds, resultStrategy);
+    }
+}
