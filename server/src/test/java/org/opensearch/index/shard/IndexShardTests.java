@@ -3357,7 +3357,8 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.indexSettings.getNodeSettings(),
             new IndexFieldDataCache.Listener() {
             },
-            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool)
+            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool),
+            threadPool
         );
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(
             shard.indexSettings,

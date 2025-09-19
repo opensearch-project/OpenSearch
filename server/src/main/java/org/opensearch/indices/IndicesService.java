@@ -502,7 +502,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     + "]";
                 circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
             }
-        }, clusterService);
+        }, clusterService, threadPool);
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
@@ -1203,7 +1203,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final List<Closeable> closeables = new ArrayList<>();
         try {
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            }, clusterService);
+            }, clusterService, threadPool);
             closeables.add(indicesFieldDataCache);
             IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings, clusterService.getClusterSettings());
             closeables.add(indicesQueryCache);

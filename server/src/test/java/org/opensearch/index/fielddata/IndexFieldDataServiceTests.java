@@ -385,7 +385,12 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
     private void doTestRequireDocValues(MappedFieldType ft) {
         ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
         try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null, getInstanceFromNode(ClusterService.class));
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(
+                Settings.EMPTY,
+                null,
+                getInstanceFromNode(ClusterService.class),
+                threadPool
+            );
             IndexFieldDataService ifds = new IndexFieldDataService(
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 cache,

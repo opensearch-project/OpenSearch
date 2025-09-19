@@ -440,7 +440,8 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                     Settings.EMPTY,
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     threadPool
-                )
+                ),
+                threadPool
             );
             indexFieldDataService = new IndexFieldDataService(
                 idxSettings,

@@ -60,6 +60,7 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.shard.ShardUtils;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,19 +90,21 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
+    private final ThreadPool threadPool;
 
     /**
      * Deprecated ctor. Use the ctor with the clusterService argument.
      */
     @Deprecated
     public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
-        this(settings, indicesFieldDataCacheListener, null);
+        this(settings, indicesFieldDataCacheListener, null, null);
     }
 
     public IndicesFieldDataCache(
         Settings settings,
         IndexFieldDataCache.Listener indicesFieldDataCacheListener,
-        ClusterService clusterService
+        ClusterService clusterService,
+        ThreadPool threadPool
     ) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();
@@ -116,6 +119,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             logger.warn(
                 "IndicesFieldDataCache ctor got null clusterService argument! Cluster setting updates for cache size will not work!"
             );
+        }
+        this.threadPool = threadPool;
+        if (threadPool == null) {
+            logger.warn("IndicesFieldDataCache ctor got null threadPool! Evictions on cache resize will happen on cluster applier thread!");
         }
     }
 
@@ -281,7 +288,13 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         long oldMaximumWeight = cache.getMaximumWeight();
         cache.setMaximumWeight(newMaximumWeight.getBytes());
         if (newMaximumWeight.getBytes() < oldMaximumWeight) {
-            cache.refresh(); // Evict entries if needed, if the new size is smaller than the old
+            // Evict entries if needed, if the new size is smaller than the old.
+            // Do it asynchronously to avoid blocking cluster applier thread
+            if (threadPool != null) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(cache::refresh);
+            } else {
+                cache.refresh();
+            }
         }
     }
 
