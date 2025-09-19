@@ -8,8 +8,11 @@
 package org.opensearch.transport.grpc.proto.response.search;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.UnsafeByteOperations;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -194,7 +197,18 @@ public class SearchHitProtoUtils {
      */
     private static void processSource(SearchHit hit, org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder) {
         if (hit.getSourceRef() != null) {
-            hitBuilder.setXSource(ByteString.copyFrom(BytesReference.toBytes(hit.getSourceRef())));
+            BytesReference sourceRef = hit.getSourceRef();
+            BytesRef bytesRef = sourceRef.toBytesRef();
+
+            if (sourceRef instanceof BytesArray) {
+                if (bytesRef.offset == 0 && bytesRef.length == bytesRef.bytes.length) {
+                    hitBuilder.setXSource(UnsafeByteOperations.unsafeWrap(bytesRef.bytes));
+                } else {
+                    hitBuilder.setXSource(UnsafeByteOperations.unsafeWrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+                }
+            } else {
+                hitBuilder.setXSource(ByteString.copyFrom(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+            }
         }
     }
 
