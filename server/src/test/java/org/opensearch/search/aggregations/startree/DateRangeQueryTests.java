@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -32,7 +32,7 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite101.Composite101Codec;
+import org.opensearch.index.codec.composite.composite103.Composite103Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -87,7 +87,7 @@ public class DateRangeQueryTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite103Codec(Lucene103Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeValidDateRangeQuery() throws IOException {

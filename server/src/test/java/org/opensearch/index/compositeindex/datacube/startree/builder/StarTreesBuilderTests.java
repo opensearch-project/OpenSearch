@@ -8,9 +8,9 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
+import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
