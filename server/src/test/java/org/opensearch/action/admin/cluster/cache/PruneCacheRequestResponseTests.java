@@ -28,7 +28,7 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
      */
     public void testPruneCacheRequestSerialization() throws IOException {
         PruneCacheRequest originalRequest = new PruneCacheRequest();
-        originalRequest.clusterManagerNodeTimeout(TimeValue.timeValueSeconds(30));
+        originalRequest.timeout(TimeValue.timeValueSeconds(30));
 
         // Serialize the request
         BytesStreamOutput out = new BytesStreamOutput();
@@ -39,7 +39,7 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
         PruneCacheRequest deserializedRequest = new PruneCacheRequest(in);
 
         // Assert that timeout is properly serialized/deserialized
-        assertEquals(originalRequest.clusterManagerNodeTimeout(), deserializedRequest.clusterManagerNodeTimeout());
+        assertEquals(originalRequest.timeout(), deserializedRequest.timeout());
     }
 
     /**
@@ -58,7 +58,7 @@ public class PruneCacheRequestResponseTests extends OpenSearchTestCase {
         PruneCacheRequest deserializedRequest = new PruneCacheRequest(in);
 
         // Assert that default timeout is maintained
-        assertEquals(originalRequest.clusterManagerNodeTimeout(), deserializedRequest.clusterManagerNodeTimeout());
+        assertEquals(originalRequest.timeout(), deserializedRequest.timeout());
     }
 
     /**

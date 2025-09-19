@@ -82,7 +82,7 @@ public class RestPruneCacheActionTests extends RestActionTestCase {
             assertEquals(PruneCacheAction.INSTANCE, actionType);
             assertThat(request, instanceOf(PruneCacheRequest.class));
             PruneCacheRequest pruneCacheRequest = (PruneCacheRequest) request;
-            assertEquals(30000, pruneCacheRequest.clusterManagerNodeTimeout().getMillis());
+            assertEquals(30000, pruneCacheRequest.timeout().getMillis());
             return new PruneCacheResponse(true, 1024);
         });
 
