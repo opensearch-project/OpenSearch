@@ -60,6 +60,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -686,15 +687,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 }
                 Set<String> sourcePaths = mapperService.sourcePath(field);
                 for (String sourcePath : sourcePaths) {
-                    Object diffForField;
-                    try {
-                        diffForField = getFromNestedMap(parsedDiffMap, "properties." + sourcePath); // TODO: always right?
-                    } catch (IllegalArgumentException e) {
-                        logger.warn(
-                            "Could not parse path properties." + sourcePath + " from cluster mapping diff map. Wiping cache for index"
-                        );
-                        return true;
-                    }
+                    Object diffForField = XContentMapValues.extractValue("properties." + sourcePath, parsedDiffMap); // TODO: Is it always "properties"?
                     if (diffForField != null) {
                         // Something about this field was changed in the diff
                         Map<String, Object> fieldDiffMap = (Map<String, Object>) diffForField; // TODO: ensure if this is null or something
@@ -711,23 +704,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
         }
         return false;
-    }
-
-    private Object getFromNestedMap(Map<String, Object> map, String sourcePath) throws IllegalArgumentException {
-        String[] parts = sourcePath.split("\\.");
-        Object next = map;
-        for (String part : parts) {
-            if (!(next instanceof Map<?, ?> nextMap)) {
-                throw new IllegalArgumentException("Expected Map<String, Object>");
-            }
-            try {
-                next = nextMap.get(part);
-            } catch (ClassCastException e) {
-                throw new IllegalArgumentException("Got nested map with non-String keys");
-            }
-            if (next == null) return null;
-        }
-        return next;
     }
 
     private void createOrUpdateShards(final ClusterState state) {
