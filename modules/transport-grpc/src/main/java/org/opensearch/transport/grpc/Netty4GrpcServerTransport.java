@@ -39,6 +39,7 @@ import java.util.function.UnaryOperator;
 
 import io.grpc.BindableService;
 import io.grpc.Server;
+import io.grpc.ServerInterceptor;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
 import io.grpc.netty.shaded.io.netty.channel.nio.NioEventLoopGroup;
@@ -195,6 +196,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     private final int nettyEventLoopThreads;
     private final long maxInboundMessageSize;
     private final long maxConcurrentConnectionCalls;
+    private final ServerInterceptor serverInterceptor;
     private final TimeValue maxConnectionAge;
     private final TimeValue maxConnectionIdle;
     private final TimeValue keepAliveTimeout;
@@ -209,11 +211,18 @@ public class Netty4GrpcServerTransport extends AuxTransport {
      * @param settings the configured settings.
      * @param services the gRPC compatible services to be registered with the server.
      * @param networkService the bind/publish addresses.
+     * @param serverInterceptor the gRPC server interceptor to be applied.
      */
-    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService) {
+    public Netty4GrpcServerTransport(
+        Settings settings,
+        List<BindableService> services,
+        NetworkService networkService,
+        ServerInterceptor serverInterceptor
+    ) {
         logger.debug("Initializing Netty4GrpcServerTransport with settings = {}", settings);
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
+        this.serverInterceptor = serverInterceptor;
         this.networkService = Objects.requireNonNull(networkService);
         final List<String> grpcBindHost = SETTING_GRPC_BIND_HOST.get(settings);
         this.bindHosts = (grpcBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : grpcBindHost).toArray(
@@ -367,6 +376,10 @@ public class Netty4GrpcServerTransport extends AuxTransport {
                     .channelType(NioServerSocketChannel.class)
                     .addService(new HealthStatusManager().getHealthService())
                     .addService(ProtoReflectionService.newInstance());
+
+                if (serverInterceptor != null) {
+                    serverBuilder.intercept(serverInterceptor);
+                }
 
                 for (UnaryOperator<NettyServerBuilder> op : serverBuilderConfigs) {
                     op.apply(serverBuilder);

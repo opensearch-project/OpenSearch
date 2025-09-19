@@ -52,7 +52,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getServerClientAuthNone()
+                getServerClientAuthNone(),
+                null
             )
         ) {
             transport.start();
@@ -70,7 +71,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getServerClientAuthNone()
+                getServerClientAuthNone(),
+                null
             )
         ) {
             transport.start();
@@ -95,7 +97,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getServerClientAuthOptional()
+                getServerClientAuthOptional(),
+                null
             )
         ) {
             transport.start();
@@ -125,7 +128,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getServerClientAuthRequired()
+                getServerClientAuthRequired(),
+                null
             )
         ) {
             transport.start();
