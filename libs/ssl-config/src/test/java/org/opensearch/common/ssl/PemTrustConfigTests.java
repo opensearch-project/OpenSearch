@@ -32,6 +32,9 @@
 
 package org.opensearch.common.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -51,6 +54,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class PemTrustConfigTests extends OpenSearchTestCase {
 
     public void testBuildTrustConfigFromSinglePemFile() throws Exception {
@@ -146,7 +150,7 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         final X509Certificate[] issuers = trustManager.getAcceptedIssuers();
         final Set<String> issuerNames = Stream.of(issuers)
-            .map(X509Certificate::getSubjectDN)
+            .map(X509Certificate::getSubjectX500Principal)
             .map(Principal::getName)
             .collect(Collectors.toSet());
 

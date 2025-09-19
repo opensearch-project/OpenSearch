@@ -53,6 +53,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.RatioValue;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -65,7 +66,12 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -91,6 +97,9 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
     private final ThreadPool threadPool;
+    private Set<Index> indicesToClear;
+    private Map<Index, Set<String>> fieldsToClear;
+    private Set<CacheKey> cacheKeysToClear;
 
     /**
      * Deprecated ctor. Use the ctor with the clusterService argument.
@@ -124,6 +133,9 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         if (threadPool == null) {
             logger.warn("IndicesFieldDataCache ctor got null threadPool! Evictions on cache resize will happen on cluster applier thread!");
         }
+        this.indicesToClear = ConcurrentCollections.newConcurrentSet();
+        this.fieldsToClear = new ConcurrentHashMap<>();
+        this.cacheKeysToClear = ConcurrentCollections.newConcurrentSet();
     }
 
     @Override
@@ -132,7 +144,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
-        return new IndexFieldCache(logger, cache, index, fieldName, indicesFieldDataCacheListener, listener);
+        return new IndexFieldCache(logger, this, index, fieldName, indicesFieldDataCacheListener, listener);
     }
 
     public Cache<Key, Accountable> getCache() {
@@ -161,6 +173,74 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     /**
+     * Mark all keys in the node-level cache which match the given index for cleanup.
+     * @param index The index to clear
+     */
+    public void clear(Index index) {
+        indicesToClear.add(index);
+    }
+
+    /**
+     * Mark all keys in the node-level cache which match the given index and field for cleanup.
+     * @param index The index to clear
+     * @param field The field to clear
+     */
+    public void clear(Index index, String field) {
+        Set<String> fieldsOfIndex = fieldsToClear.computeIfAbsent(index, (idx) -> { return ConcurrentCollections.newConcurrentSet(); });
+        fieldsOfIndex.add(field);
+    }
+
+    // The synchronized block is to avoid having multiple simultaneous cache iterators removing keys.
+    public void clear() {
+        if (!(indicesToClear.isEmpty() && fieldsToClear.isEmpty() && cacheKeysToClear.isEmpty())) {
+            // Copy marked indices/fields/keys before iteration, and only remove keys matching the copies
+            // in case new entries are marked for cleanup mid-iteration
+            Set<Index> indicesToClearCopy = Set.copyOf(indicesToClear);
+            Set<CacheKey> cacheKeysToClearCopy = Set.copyOf(cacheKeysToClear);
+            Map<Index, Set<String>> fieldsToClearCopy = new HashMap<>();
+            for (Map.Entry<Index, Set<String>> entry : fieldsToClear.entrySet()) {
+                fieldsToClearCopy.put(entry.getKey(), Set.copyOf(entry.getValue()));
+            }
+            // remove this way instead of clearing all, in case a new entry has been marked since copying
+            indicesToClear.removeAll(indicesToClearCopy);
+            cacheKeysToClear.removeAll(cacheKeysToClearCopy);
+            for (Map.Entry<Index, Set<String>> entry : fieldsToClearCopy.entrySet()) {
+                Set<String> fieldsForIndex = fieldsToClear.get(entry.getKey());
+                if (fieldsForIndex != null) {
+                    fieldsForIndex.removeAll(entry.getValue());
+                }
+            }
+
+            synchronized (this) {
+                for (Iterator<Key> iterator = getCache().keys().iterator(); iterator.hasNext();) {
+                    Key key = iterator.next();
+                    if (indicesToClearCopy.contains(key.indexCache.index)) {
+                        removeKey(iterator);
+                        continue;
+                    }
+                    Set<String> fieldsOfIndexToClear = fieldsToClearCopy.get(key.indexCache.index);
+                    if (fieldsOfIndexToClear != null && fieldsOfIndexToClear.contains(key.indexCache.fieldName)) {
+                        removeKey(iterator);
+                        continue;
+                    }
+                    if (cacheKeysToClearCopy.contains(key.readerKey)) {
+                        removeKey(iterator);
+                    }
+                }
+            }
+        }
+        cache.refresh();
+    }
+
+    private void removeKey(Iterator<Key> iterator) {
+        try {
+            iterator.remove();
+        } catch (Exception e) {
+            logger.warn("Exception occurred while removing key from cache", e);
+        }
+    }
+
+    /**
      * Computes a weight based on ramBytesUsed
      *
      * @opensearch.internal
@@ -182,15 +262,15 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         private final Logger logger;
         final Index index;
         final String fieldName;
-        private final Cache<Key, Accountable> cache;
+        final IndicesFieldDataCache nodeLevelCache;
         private final Listener[] listeners;
 
-        IndexFieldCache(Logger logger, final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
+        IndexFieldCache(Logger logger, final IndicesFieldDataCache nodeLevelCache, Index index, String fieldName, Listener... listeners) {
             this.logger = logger;
             this.listeners = listeners;
             this.index = index;
             this.fieldName = fieldName;
-            this.cache = cache;
+            this.nodeLevelCache = nodeLevelCache;
         }
 
         @Override
@@ -204,7 +284,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
             // noinspection unchecked
-            final Accountable accountable = cache.computeIfAbsent(key, k -> {
+            final Accountable accountable = nodeLevelCache.getCache().computeIfAbsent(key, k -> {
                 cacheHelper.addClosedListener(IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
                 final LeafFieldData fieldData = indexFieldData.loadDirect(context);
@@ -234,7 +314,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
             // noinspection unchecked
-            final Accountable accountable = cache.computeIfAbsent(key, k -> {
+            final Accountable accountable = nodeLevelCache.getCache().computeIfAbsent(key, k -> {
                 OpenSearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
                 final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
@@ -253,34 +333,19 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         public void onClose(CacheKey key) throws IOException {
-            cache.invalidate(new Key(this, key, null));
-            // don't call cache.cleanUp here as it would have bad performance implications
+            nodeLevelCache.cacheKeysToClear.add(key);
         }
 
         @Override
         public void clear() {
-            for (Key key : cache.keys()) {
-                if (key.indexCache.index.equals(index)) {
-                    cache.invalidate(key);
-                }
-            }
-            // force eviction
-            cache.refresh();
+            // This method must work to support the interface, but we don't use it directly in the actual cache clear path
+            nodeLevelCache.clear(index);
         }
 
         @Override
         public void clear(String fieldName) {
-            for (Key key : cache.keys()) {
-                if (key.indexCache.index.equals(index)) {
-                    if (key.indexCache.fieldName.equals(fieldName)) {
-                        cache.invalidate(key);
-                    }
-                }
-            }
-            // we call refresh because this is a manual operation, should happen
-            // rarely and probably means the user wants to see memory returned as
-            // soon as possible
-            cache.refresh();
+            // This method must work to support the interface, but we don't use it directly in the actual cache clear path
+            nodeLevelCache.clear(index, fieldName);
         }
     }
 
@@ -334,5 +399,4 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             return result;
         }
     }
-
 }

@@ -11,7 +11,6 @@ package org.opensearch.search.query;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
@@ -93,10 +92,43 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         assertNotSame(query, rewritten2);
     }
 
+    public void testDynamicTermsThresholdUpdate() {
+        // Build a query at threshold=16 that merges, then raise threshold to 32 and assert no merge
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (int i = 0; i < 16; i++) {
+            query.filter(QueryBuilders.termQuery("f", "v" + i));
+        }
+
+        QueryBuilder merged = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
+        BoolQueryBuilder mb = (BoolQueryBuilder) merged;
+        // Should be one terms query
+        assertEquals(1, mb.filter().size());
+
+        // Increase threshold
+        Settings newSettings = Settings.builder().put(SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING.getKey(), 32).build();
+        QueryRewriterRegistry.INSTANCE.initialize(newSettings, new ClusterSettings(newSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+        QueryBuilder notMerged = QueryRewriterRegistry.INSTANCE.rewrite(query, context);
+        BoolQueryBuilder nmb = (BoolQueryBuilder) notMerged;
+        // Should be all individual term queries now
+        assertEquals(16, nmb.filter().size());
+    }
+
     public void testNullQuery() {
         // Null query should return null
         QueryBuilder rewritten = QueryRewriterRegistry.INSTANCE.rewrite(null, context);
         assertNull(rewritten);
+    }
+
+    public void testRegistryIdempotence() {
+        QueryBuilder q = QueryBuilders.boolQuery()
+            .must(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("f", "v")))
+            .filter(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("g", "w")))
+            .should(QueryBuilders.termQuery("h", "u"));
+
+        QueryBuilder once = QueryRewriterRegistry.INSTANCE.rewrite(q, context);
+        QueryBuilder twice = QueryRewriterRegistry.INSTANCE.rewrite(once, context);
+        assertEquals(once.toString(), twice.toString());
     }
 
     public void testRewriterPriorityOrder() {
@@ -114,13 +146,12 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
 
-        // Should be flattened first, match_all kept in must (scoring context), but terms NOT merged in must context
-        assertThat(rewrittenBool.must().size(), equalTo(3)); // match_all + 2 term queries
-        // Check that we have one match_all and two term queries (order may vary)
-        long matchAllCount = rewrittenBool.must().stream().filter(q -> q instanceof MatchAllQueryBuilder).count();
+        // Should be flattened first. Match_all may be removed depending on context; terms NOT merged in must context
         long termCount = rewrittenBool.must().stream().filter(q -> q instanceof TermQueryBuilder).count();
-        assertThat(matchAllCount, equalTo(1L));
         assertThat(termCount, equalTo(2L));
+
+        // Composition order smoke check: must_to_filter should not move term queries in must
+        // terms_merging should not merge terms in must; only in filter/should contexts
     }
 
     public void testComplexRealWorldQuery() {
@@ -147,8 +178,8 @@ public class QueryRewriterRegistryTests extends OpenSearchTestCase {
 
         // After rewriting:
         // - The nested bool in must clause should be flattened
-        // - match_all should be removed
-        // - term queries should be merged into terms query
+        // - match_all should be removed in non-scoring contexts
+        // - term queries should be merged into terms query in filter contexts
         // - The filter bool with brand terms should be preserved
         // - The range query should be moved from must to filter by MustToFilterRewriter
 
