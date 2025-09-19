@@ -8,15 +8,13 @@
 
 package org.opensearch.indices.pollingingest;
 
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.index.IndexSettings;
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.NRTReplicationEngine;
-import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.Objects;
 
@@ -32,25 +30,30 @@ public class IngestionEngineFactory implements EngineFactory {
     }
 
     /**
-     * Document replication equivalent in pull-based ingestion is to ingest on both primary and replica nodes using the
-     * IngestionEngine. Segment replication will use the NRTReplicationEngine on replicas.
+     * Segment replication will use the IngestionEngine on primary and NRTReplicationEngine on replicas.
+     * All-active ingestion mode is supported, where the replicas will consume and process messages from the streaming
+     * source similar to the primary.
      */
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
-        boolean isDocRep = getReplicationType(config) == ReplicationType.DOCUMENT;
+        IngestionSource ingestionSource = config.getIndexSettings().getIndexMetadata().getIngestionSource();
+        boolean isAllActiveIngestion = ingestionSource != null && ingestionSource.isAllActiveIngestionEnabled();
 
+        if (isAllActiveIngestion) {
+            // use ingestion engine on both primary and replica in all-active mode
+            IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory);
+            ingestionEngine.start();
+            return ingestionEngine;
+        }
+
+        // For non all-active modes, fallback to the standard segrep model
         // NRTReplicationEngine is used for segment replication on replicas
-        if (isDocRep == false && config.isReadOnlyReplica()) {
+        if (config.isReadOnlyReplica()) {
             return new NRTReplicationEngine(config);
         }
 
         IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory);
         ingestionEngine.start();
         return ingestionEngine;
-    }
-
-    private ReplicationType getReplicationType(EngineConfig config) {
-        IndexSettings indexSettings = config.getIndexSettings();
-        return indexSettings.getValue(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING);
     }
 }

@@ -16,6 +16,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
@@ -186,5 +187,28 @@ public class TransportUpdateIngestionStateActionTests extends OpenSearchTestCase
         assertThat(response.getTotalShards(), equalTo(1));
         assertThat(response.getSuccessfulShards(), equalTo(1));
         assertThat(response.getFailedShards(), equalTo(0));
+    }
+
+    public void testAllActiveIngestionEnabled() {
+        UpdateIngestionStateRequest request = new UpdateIngestionStateRequest(new String[] { "test-index" }, new int[] { 0, 1 });
+        ClusterState clusterState = mock(ClusterState.class);
+        ShardsIterator shardsIterator = mock(ShardsIterator.class);
+
+        when(clusterState.routingTable()).thenReturn(mock(org.opensearch.cluster.routing.RoutingTable.class));
+        when(clusterState.routingTable().allShardsSatisfyingPredicate(any(), any())).thenReturn(shardsIterator);
+
+        Metadata metadata = mock(Metadata.class);
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        IngestionSource ingestionSource = mock(IngestionSource.class);
+
+        // Set up mocks for all-active ingestion enabled
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.index("test-index")).thenReturn(indexMetadata);
+        when(indexMetadata.useIngestionSource()).thenReturn(true);
+        when(indexMetadata.getIngestionSource()).thenReturn(ingestionSource);
+        when(ingestionSource.isAllActiveIngestionEnabled()).thenReturn(true);
+
+        ShardsIterator result = action.shards(clusterState, request, new String[] { "test-index" });
+        assertThat(result, equalTo(shardsIterator));
     }
 }

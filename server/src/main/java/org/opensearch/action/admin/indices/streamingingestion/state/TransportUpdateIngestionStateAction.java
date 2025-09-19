@@ -29,7 +29,6 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.StreamPoller;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -84,20 +83,17 @@ public class TransportUpdateIngestionStateAction extends TransportBroadcastByNod
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, UpdateIngestionStateRequest request, String[] concreteIndices) {
-        Set<String> docRepIndexSet = new HashSet<>();
+        Set<String> allActiveIndexSet = new HashSet<>();
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
-            if (indexMetadata != null) {
-                ReplicationType replicationType = getReplicationType(indexMetadata);
-                if (replicationType == ReplicationType.DOCUMENT) {
-                    docRepIndexSet.add(index);
-                }
+            if (indexMetadata != null && isAllActiveIngestionEnabled(indexMetadata)) {
+                allActiveIndexSet.add(index);
             }
         }
 
         Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
         Predicate<ShardRouting> shardFilter = shardRouting -> shardRouting.primary()
-            || docRepIndexSet.contains(shardRouting.getIndexName());
+            || allActiveIndexSet.contains(shardRouting.getIndexName());
         if (shardSet.isEmpty() == false) {
             shardFilter = shardFilter.and(shardRouting -> shardSet.contains(shardRouting.shardId().getId()));
         }
@@ -193,7 +189,9 @@ public class TransportUpdateIngestionStateAction extends TransportBroadcastByNod
         return Arrays.stream(resetSettings).filter(setting -> setting.getShard() == targetShardId).findFirst().orElse(null);
     }
 
-    private ReplicationType getReplicationType(IndexMetadata indexMetadata) {
-        return IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexMetadata.getSettings());
+    private boolean isAllActiveIngestionEnabled(IndexMetadata indexMetadata) {
+        return indexMetadata.useIngestionSource()
+            && indexMetadata.getIngestionSource() != null
+            && indexMetadata.getIngestionSource().isAllActiveIngestionEnabled();
     }
 }

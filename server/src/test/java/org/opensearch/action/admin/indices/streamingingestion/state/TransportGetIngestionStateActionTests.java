@@ -16,6 +16,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -202,5 +203,29 @@ public class TransportGetIngestionStateActionTests extends OpenSearchTestCase {
         assertThat(response.getShardStates().length, equalTo(1));
         assertThat(response.getShardStates()[0].getIndex(), equalTo("test-index"));
         assertThat(response.getShardStates()[0].getShardId(), equalTo(0));
+    }
+
+    public void testShardsWithAllActiveIngestionEnabled() {
+        GetIngestionStateRequest request = new GetIngestionStateRequest(new String[] { "test-index" });
+        request.setShards(new int[] { 0, 1 });
+        ClusterState clusterState = mock(ClusterState.class);
+        ShardsIterator shardsIterator = mock(ShardsIterator.class);
+
+        when(clusterState.routingTable()).thenReturn(mock(org.opensearch.cluster.routing.RoutingTable.class));
+        when(clusterState.routingTable().allShardsSatisfyingPredicate(any(), any())).thenReturn(shardsIterator);
+
+        Metadata metadata = mock(Metadata.class);
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        IngestionSource ingestionSource = mock(IngestionSource.class);
+
+        // Set up mocks for all-active ingestion enabled
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.index("test-index")).thenReturn(indexMetadata);
+        when(indexMetadata.useIngestionSource()).thenReturn(true);
+        when(indexMetadata.getIngestionSource()).thenReturn(ingestionSource);
+        when(ingestionSource.isAllActiveIngestionEnabled()).thenReturn(true);
+
+        ShardsIterator result = action.shards(clusterState, request, new String[] { "test-index" });
+        assertThat(result, equalTo(shardsIterator));
     }
 }

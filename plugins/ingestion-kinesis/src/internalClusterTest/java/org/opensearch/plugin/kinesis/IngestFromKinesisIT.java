@@ -159,6 +159,7 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
                 .put("ingestion_source.param.region", localstack.getRegion())
                 .put("ingestion_source.param.access_key", localstack.getAccessKey())
                 .put("ingestion_source.param.secret_key", localstack.getSecretKey())
+                .put("ingestion_source.all_active", true)
                 .put(
                     "ingestion_source.param.endpoint_override",
                     localstack.getEndpointOverride(LocalStackContainer.Service.KINESIS).toString()
@@ -167,7 +168,6 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );
 
-        flush(indexName);
         waitForSearchableDocs(10, List.of(nodeA, nodeB));
     }
 
