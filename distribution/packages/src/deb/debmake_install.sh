@@ -42,7 +42,6 @@ find "${buildroot}" -type f -exec chmod 640 {} \;
 # Permissions for the Systemd files
 systemd_files=()
 systemd_files+=("${buildroot}/${service_dir}/${name}.service")
-systemd_files+=("${buildroot}/etc/init.d/${name}")
 systemd_files+=("${buildroot}/usr/lib/sysctl.d/${name}.conf")
 systemd_files+=("${buildroot}/usr/lib/tmpfiles.d/${name}.conf")
 
@@ -77,6 +76,7 @@ fi
 
 binary_files=()
 binary_files+=("${buildroot}${product_dir}"/bin/*)
+binary_files+=("${buildroot}/etc/init.d/${name}")
 binary_files+=("${buildroot}${product_dir}"/jdk/bin/*)
 binary_files+=("${buildroot}${product_dir}"/jdk/lib/jspawnhelper)
 binary_files+=("${buildroot}${product_dir}"/jdk/lib/modules)
