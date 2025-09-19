@@ -306,7 +306,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             boolean requestCache,
             String... fields
         ) {
-            return; // TODO
+            return;
         }
     }
 
@@ -376,7 +376,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
 
         @Override
         public MapperService mapperService() {
-            return null; // TODO
+            return null;
         }
     }
 

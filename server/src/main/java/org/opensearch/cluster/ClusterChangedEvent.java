@@ -203,8 +203,7 @@ public class ClusterChangedEvent {
 
     public static boolean indexMappingMetadataChanged(IndexMetadata metadata1, IndexMetadata metadata2) {
         assert metadata1 != null && metadata2 != null;
-        return metadata1.mapping() != metadata2.mapping(); // TODO: Not sure this is fine - gets the "_doc" key from map, which appears to
-                                                           // hold what I want, but not sure of purpose of map
+        return metadata1.mapping() != metadata2.mapping();
     }
 
     /**

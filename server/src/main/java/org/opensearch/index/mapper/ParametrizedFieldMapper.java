@@ -772,7 +772,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
-         * TODO: Name is TBD, maybe can think of smth better
          * @return A set of the names of the parameters for this field which, when updated, can affect query results.
          */
         public Set<String> getParametersAffectingQueryResults() {
