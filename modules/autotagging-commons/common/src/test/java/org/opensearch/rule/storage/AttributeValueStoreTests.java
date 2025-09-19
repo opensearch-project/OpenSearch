@@ -26,18 +26,24 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
 
     public void testPut() {
         subjectUnderTest.put("foo", "bar");
-        assertEquals("bar", subjectUnderTest.get("foo").get());
+        assertEquals("bar", subjectUnderTest.get("foo").getFirst().iterator().next());
+        subjectUnderTest.put("foo", "sing");
+        assertEquals(1, subjectUnderTest.get("foo").size());
+        assertEquals(2, subjectUnderTest.get("foo").get(0).size());
+        assertTrue(subjectUnderTest.get("foo").get(0).contains("sing"));
     }
 
     public void testRemove() {
         subjectUnderTest.put("foo", "bar");
-        subjectUnderTest.remove("foo");
+        subjectUnderTest.remove("foo", "bar");
         assertEquals(0, subjectUnderTest.size());
     }
 
     public void tesGet() {
         subjectUnderTest.put("foo", "bar");
-        assertEquals("bar", subjectUnderTest.get("foo").get());
+        assertEquals("bar", subjectUnderTest.get("foo").getFirst());
+        subjectUnderTest.put("foo", "sing");
+        assertEquals(2, subjectUnderTest.get("foo").size());
     }
 
     public void testGetWhenNoProperPrefixIsPresent() {

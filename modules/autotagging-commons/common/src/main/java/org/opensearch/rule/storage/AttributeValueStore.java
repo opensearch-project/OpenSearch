@@ -8,7 +8,9 @@
 
 package org.opensearch.rule.storage;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This interface provides apis to store Rule attribute values
@@ -23,16 +25,34 @@ public interface AttributeValueStore<K, V> {
 
     /**
      * removes the key and associated value from attribute value store
+     * @param key key of the value to be removed
+     * @param value to be removed
+     */
+    void remove(K key, V value);
+
+    /**
+     * removes the key and associated value from attribute value store
      * @param key to be removed
      */
-    void remove(K key);
+    @Deprecated
+    default void removeOld(K key) {};
 
     /**
      * Returns the value associated with the key
      * @param key in the data structure
      * @return
      */
-    Optional<V> get(K key);
+    List<Set<V>> get(K key);
+
+    /**
+     * Returns the value associated with the key
+     * @param key in the data structure
+     * @return
+     */
+    @Deprecated
+    default Optional<V> getOld(K key) {
+        return Optional.empty();
+    };
 
     /**
      * Clears all the keys and their associated values from the attribute value store
