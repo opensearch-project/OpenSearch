@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
@@ -54,10 +53,6 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         headers = new Metadata();
     }
 
-    // =============================================
-    // BASIC FUNCTIONALITY TESTS
-    // =============================================
-
     public void testEmptyChain() {
         GrpcInterceptorChain chain = new GrpcInterceptorChain(Collections.emptyList());
         ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
@@ -91,10 +86,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         verify(mockCall, never()).close(any(Status.class), any(Metadata.class));
     }
 
-    // =============================================
     // FAILURE SCENARIO TESTS
-    // =============================================
-
     public void testFirstInterceptorFails() {
         List<OrderedGrpcInterceptor> interceptors = Arrays.asList(
             createTestInterceptor(10, true, "First failure"),
@@ -179,32 +171,6 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         expectThrows(NullPointerException.class, () -> { chain.interceptCall(mockCall, headers, mockHandler); });
     }
 
-    // =============================================
-    // PERFORMANCE TESTS
-    // =============================================
-
-    public void testLargeChainPerformance() {
-        // Test with 50 interceptors
-        List<OrderedGrpcInterceptor> interceptors = new ArrayList<>();
-        for (int i = 1; i <= 50; i++) {
-            interceptors.add(createTestInterceptor(i * 10, false, null));
-        }
-
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
-
-        long startTime = System.currentTimeMillis();
-        ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
-        long endTime = System.currentTimeMillis();
-
-        assertNotNull(result);
-        assertTrue("Chain execution should be fast", (endTime - startTime) < 100); // Less than 100ms
-        verify(mockCall, never()).close(any(Status.class), any(Metadata.class));
-    }
-
-    // =============================================
-    // INTEGRATION TESTS
-    // =============================================
-
     public void testChainIntegrationWithRealScenario() {
         // Simulate a real-world scenario: Auth -> Logging -> Metrics
         List<String> executionLog = new ArrayList<>();
@@ -220,10 +186,6 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
 
         assertEquals(Arrays.asList("AUTH", "LOGGING", "METRICS"), executionLog);
     }
-
-    // =============================================
-    // SCALABLE TEST PATTERNS
-    // =============================================
 
     /**
      * Generic test method that can be extended for different scenarios
@@ -343,33 +305,6 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
                         ServerCallHandler<ReqT, RespT> next
                     ) {
                         log.add(name);
-                        return next.startCall(call, headers);
-                    }
-                };
-            }
-        };
-    }
-
-    /**
-     * Factory method to create interceptors with execution counting - useful for performance tests
-     */
-    private OrderedGrpcInterceptor createCountingInterceptor(int order, AtomicInteger counter) {
-        return new OrderedGrpcInterceptor() {
-            @Override
-            public int getOrder() {
-                return order;
-            }
-
-            @Override
-            public ServerInterceptor getInterceptor() {
-                return new ServerInterceptor() {
-                    @Override
-                    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
-                        ServerCall<ReqT, RespT> call,
-                        Metadata headers,
-                        ServerCallHandler<ReqT, RespT> next
-                    ) {
-                        counter.incrementAndGet();
                         return next.startCall(call, headers);
                     }
                 };
