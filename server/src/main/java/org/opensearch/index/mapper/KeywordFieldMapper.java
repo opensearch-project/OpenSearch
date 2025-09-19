@@ -77,8 +77,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.opensearch.index.mapper.KeywordFieldMapper.Builder.splitQueriesOnWhitespaceName;
+import static org.opensearch.index.mapper.KeywordFieldMapper.Builder.useSimilarityName;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
@@ -159,12 +163,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
-        private final Parameter<Boolean> useSimilarity = Parameter.boolParam("use_similarity", true, m -> toType(m).useSimilarity, false);
+        static final String useSimilarityName = "use_similarity";
+        private final Parameter<Boolean> useSimilarity = Parameter.boolParam(useSimilarityName, true, m -> toType(m).useSimilarity, false);
 
         private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
 
+        static final String splitQueriesOnWhitespaceName = "split_queries_on_whitespace";
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
-            "split_queries_on_whitespace",
+            splitQueriesOnWhitespaceName,
             true,
             m -> toType(m).splitQueriesOnWhitespace,
             false
@@ -760,6 +766,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final boolean splitQueriesOnWhitespace;
 
     private final IndexAnalyzers indexAnalyzers;
+    private static final Set<String> parametersAffectingQueryResults = Set.of(useSimilarityName, splitQueriesOnWhitespaceName);
 
     protected KeywordFieldMapper(
         String simpleName,
@@ -885,5 +892,16 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers).init(this);
+    }
+
+    public static class TypeParser extends ParametrizedFieldMapper.TypeParser {
+        public TypeParser(BiFunction<String, ParserContext, ParametrizedFieldMapper.Builder> builderFunction) {
+            super(builderFunction);
+        }
+
+        @Override
+        public Set<String> getParametersAffectingQueryResults() {
+            return parametersAffectingQueryResults;
+        }
     }
 }

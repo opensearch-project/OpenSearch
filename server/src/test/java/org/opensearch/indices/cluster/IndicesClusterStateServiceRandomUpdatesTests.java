@@ -589,7 +589,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             null,
             MergedSegmentPublisher.EMPTY,
-            ReferencedSegmentsPublisher.EMPTY
+            ReferencedSegmentsPublisher.EMPTY,
+            Map.of()
         );
     }
 

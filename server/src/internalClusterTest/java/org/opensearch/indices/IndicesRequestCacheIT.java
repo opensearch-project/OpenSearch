@@ -47,6 +47,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterState;
@@ -56,6 +57,7 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
@@ -65,6 +67,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
@@ -859,6 +862,140 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);
         // The cache should be empty as the timed-out query was invalidated
         assertEquals(0, requestCacheStats.getMemorySizeInBytes());
+    }
+
+    public void testMappingUpdateClearsCache() throws Exception {
+        String node = internalCluster().startNode(
+            Settings.builder().put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(50))
+        ); // Set IRC cleanup frequency low to ensure we don't get false positives when we check the cache hasn't been cleared
+        Client client = client(node);
+        String index = "index";
+        String field = "k";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setMapping("k", "type=keyword,use_similarity=false")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        // Disable index refreshing to avoid cache being invalidated mid-test
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
+                )
+                .get()
+        );
+        for (int i = 0; i < 5; i++) {
+            indexRandom(true, client.prepareIndex(index).setSource(field, "foo"));
+        }
+        indexRandom(true, client.prepareIndex(index).setSource(field, "bar"));
+        ensureSearchable(index);
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        forceMerge(client, index);
+
+        SearchResponse resp = client.prepareSearch(index)
+            .setRequestCache(true)
+            .setQuery(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery(field, "foo")).add(QueryBuilders.termQuery(field, "bar")))
+            .get();
+        assertSearchResponse(resp);
+        // When use_similarity=false all 6 docs should have equal scores
+        double delta = 0.0001;
+        float score = resp.getHits().getMaxScore();
+        for (SearchHit hit : resp.getHits()) {
+            assertEquals(score, hit.getScore(), delta);
+        }
+        assertEquals(resp.getHits().getHits().length, 6);
+
+        RequestCacheStats stats = getNodeCacheStats(client);
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        PutMappingRequest mappingRequest = new PutMappingRequest().indices(index).source(field, "type=keyword,use_similarity=true");
+        client.admin().indices().putMapping(mappingRequest).actionGet();
+
+        // The request cache should be wiped
+        assertBusy(() -> { assertEquals(getNodeCacheStats(client).getMemorySizeInBytes(), 0); });
+
+        // Run same search again and ensure docs do NOT all have same scores anymore, and that RC is not used (no hits)
+        resp = client.prepareSearch(index)
+            .setRequestCache(true)
+            .setQuery(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery(field, "foo")).add(QueryBuilders.termQuery(field, "bar")))
+            .get();
+        assertSearchResponse(resp);
+        // the doc with the rarer term should now have a higher score than the others, which should all have equal scores
+        assertEquals(resp.getHits().getHits().length, 6);
+        float maxScore = resp.getHits().getMaxScore();
+        assertEquals(resp.getHits().getAt(0).getScore(), maxScore, delta);
+        float otherScore = resp.getHits().getAt(1).getScore();
+        assertTrue(maxScore > otherScore);
+        for (int i = 2; i < 6; i++) {
+            assertEquals(resp.getHits().getAt(i).getScore(), otherScore, delta);
+        }
+
+        // There should be no request cache hits, but nonzero memory (from last search)
+        stats = getNodeCacheStats(client);
+        assertEquals(0, stats.getHitCount());
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        // Sending the same request again should cause no mapping diff --> no cache wipe
+        mappingRequest = new PutMappingRequest().indices(index).source(field, "type=keyword,use_similarity=true");
+        client.admin().indices().putMapping(mappingRequest).actionGet();
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        // Updating some other parameter like eager_global_ordinals shouldn't wipe cache
+        mappingRequest = new PutMappingRequest().indices(index).source(field, "type=keyword,eager_global_ordinals=true");
+        client.admin().indices().putMapping(mappingRequest).actionGet();
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        // Creating some new field should not wipe cache even if it involves a query-affecting param
+        String field2 = "new_field";
+        mappingRequest = new PutMappingRequest().indices(index).source(field2, "type=keyword,use_similarity=true");
+        client.admin().indices().putMapping(mappingRequest).actionGet();
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        // Test functionality for nested fields
+        // Creating a nested field similarly shouldn't wipe
+        PutMappingRequest createNestedField = new PutMappingRequest().indices(index)
+            .source(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("nest_outer")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("nest_inner")
+                    .field("type", "keyword")
+                    .field("use_similarity", false)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
+        client.admin().indices().putMapping(createNestedField).actionGet();
+        assertTrue(getNodeCacheStats(client).getMemorySizeInBytes() > 0);
+        int k = 0;
+
+        // Changing the value for an existing nested field should wipe
+        PutMappingRequest nestedFlip = new PutMappingRequest().indices(index)
+            .source(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("nest_outer")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("nest_inner")
+                    .field("type", "keyword")
+                    .field("use_similarity", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
+        client.admin().indices().putMapping(nestedFlip).actionGet();
+        assertBusy(() -> assertEquals(0L, getNodeCacheStats(client).getMemorySizeInBytes()));
     }
 
     private Path[] shardDirectory(String server, Index index, int shard) {
