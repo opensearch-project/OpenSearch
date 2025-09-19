@@ -9,9 +9,6 @@
 package org.opensearch.action.admin.cluster.cache;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.test.OpenSearchTestCase;
@@ -27,15 +24,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link TransportPruneCacheAction}.
+ * Tests for {@link TransportPruneCacheAction} using HandledTransportAction pattern.
  */
 public class TransportPruneCacheActionTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private TransportService transportService;
-    private ClusterService clusterService;
     private ActionFilters actionFilters;
-    private IndexNameExpressionResolver indexNameExpressionResolver;
     private FileCache fileCache;
     private TransportPruneCacheAction action;
 
@@ -45,19 +40,10 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
 
         threadPool = new TestThreadPool("test");
         transportService = mock(TransportService.class);
-        clusterService = mock(ClusterService.class);
         actionFilters = mock(ActionFilters.class);
-        indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         fileCache = mock(FileCache.class);
 
-        action = new TransportPruneCacheAction(
-            threadPool,
-            transportService,
-            clusterService,
-            actionFilters,
-            indexNameExpressionResolver,
-            fileCache
-        );
+        action = new TransportPruneCacheAction(transportService, actionFilters, fileCache);
     }
 
     @After
@@ -75,7 +61,6 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
         when(fileCache.prune()).thenReturn(expectedPrunedBytes);
 
         PruneCacheRequest request = new PruneCacheRequest();
-        ClusterState clusterState = mock(ClusterState.class);
 
         ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
             @Override
@@ -90,7 +75,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
             }
         };
 
-        action.clusterManagerOperation(request, clusterState, listener);
+        action.doExecute(null, request, listener);
 
         verify(fileCache).prune();
     }
@@ -101,16 +86,12 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
     public void testNullFileCache() throws Exception {
         // Create action with null FileCache
         TransportPruneCacheAction nullCacheAction = new TransportPruneCacheAction(
-            threadPool,
             transportService,
-            clusterService,
             actionFilters,
-            indexNameExpressionResolver,
             null // null FileCache
         );
 
         PruneCacheRequest request = new PruneCacheRequest();
-        ClusterState clusterState = mock(ClusterState.class);
 
         ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
             @Override
@@ -125,7 +106,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
             }
         };
 
-        nullCacheAction.clusterManagerOperation(request, clusterState, listener);
+        nullCacheAction.doExecute(null, request, listener);
     }
 
     /**
@@ -137,7 +118,6 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
         when(fileCache.prune()).thenThrow(expectedException);
 
         PruneCacheRequest request = new PruneCacheRequest();
-        ClusterState clusterState = mock(ClusterState.class);
 
         ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
             @Override
@@ -151,36 +131,18 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
             }
         };
 
-        action.clusterManagerOperation(request, clusterState, listener);
+        action.doExecute(null, request, listener);
 
         verify(fileCache).prune();
-    }
-
-    /**
-     * Tests that the executor is correctly set to SAME.
-     */
-    public void testExecutor() {
-        assertEquals("Executor should be SAME for non-blocking operations", ThreadPool.Names.SAME, action.executor());
-    }
-
-    /**
-     * Tests that checkBlock returns null (no blocking).
-     */
-    public void testCheckBlock() {
-        PruneCacheRequest request = new PruneCacheRequest();
-        ClusterState clusterState = mock(ClusterState.class);
-
-        assertNull("Prune cache operation should not be blocked", action.checkBlock(request, clusterState));
     }
 
     /**
      * Tests response deserialization.
      */
     public void testResponseDeserialization() throws Exception {
-        // This tests the read method implementation
-        // In a real test, you'd create a StreamInput with serialized response data
-        // For this test, we'll just verify the method exists and can be called
-        assertNotNull("Action should have read method", action);
+        // This tests the basic action functionality
+        // For HandledTransportAction, we verify the action instance is created correctly
+        assertNotNull("Action should be created successfully", action);
     }
 
     /**
@@ -193,7 +155,6 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
             when(fileCache.prune()).thenReturn(expectedBytes);
 
             PruneCacheRequest request = new PruneCacheRequest();
-            ClusterState clusterState = mock(ClusterState.class);
 
             ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
                 @Override
@@ -208,7 +169,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
                 }
             };
 
-            action.clusterManagerOperation(request, clusterState, listener);
+            action.doExecute(null, request, listener);
         }
     }
 
@@ -225,7 +186,6 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
         }).when(fileCache).prune();
 
         PruneCacheRequest request = new PruneCacheRequest();
-        ClusterState clusterState = mock(ClusterState.class);
 
         final boolean[] callbackInvoked = { false };
 
@@ -243,7 +203,7 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
             }
         };
 
-        action.clusterManagerOperation(request, clusterState, listener);
+        action.doExecute(null, request, listener);
 
         assertTrue("Callback should have been invoked", callbackInvoked[0]);
         verify(fileCache).prune();

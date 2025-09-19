@@ -8,19 +8,24 @@
 
 package org.opensearch.action.admin.cluster.cache;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 /**
- * Request for pruning remote file cache
+ * Request for pruning file cache.
+ * Extends ActionRequest for direct node execution.
  *
  * @opensearch.internal
  */
-public class PruneCacheRequest extends ClusterManagerNodeRequest<PruneCacheRequest> {
+public class PruneCacheRequest extends ActionRequest {
+
+    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
+    private TimeValue timeout = DEFAULT_TIMEOUT;
 
     /**
      * Default constructor
@@ -35,11 +40,37 @@ public class PruneCacheRequest extends ClusterManagerNodeRequest<PruneCacheReque
      */
     public PruneCacheRequest(StreamInput in) throws IOException {
         super(in);
+        timeout = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeTimeValue(timeout);
+    }
+
+    /**
+     * Sets the timeout for this request.
+     * Note: Currently preserved for API compatibility but not actively enforced
+     * in HandledTransportAction implementation.
+     *
+     * @param timeout operation timeout (passed through but not enforced by transport layer)
+     * @return this request
+     */
+    public PruneCacheRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    /**
+     * Gets the timeout for this request.
+     * Note: Currently preserved for API compatibility but not actively enforced
+     * in HandledTransportAction implementation.
+     *
+     * @return operation timeout (passed through but not enforced by transport layer)
+     */
+    public TimeValue timeout() {
+        return timeout;
     }
 
     @Override

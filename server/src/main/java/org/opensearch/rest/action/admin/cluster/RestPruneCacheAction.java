@@ -49,7 +49,7 @@ public class RestPruneCacheAction extends BaseRestHandler {
         PruneCacheRequest pruneCacheRequest = new PruneCacheRequest();
 
         // Handle timeout parameter
-        pruneCacheRequest.clusterManagerNodeTimeout(request.paramAsTime("timeout", pruneCacheRequest.clusterManagerNodeTimeout()));
+        pruneCacheRequest.timeout(request.paramAsTime("timeout", pruneCacheRequest.timeout()));
 
         // Delegate to Transport Action with standard response handling
         return channel -> client.execute(PruneCacheAction.INSTANCE, pruneCacheRequest, new RestToXContentListener<>(channel));

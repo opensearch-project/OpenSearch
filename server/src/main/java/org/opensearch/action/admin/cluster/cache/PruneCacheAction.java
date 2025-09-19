@@ -11,16 +11,16 @@ package org.opensearch.action.admin.cluster.cache;
 import org.opensearch.action.ActionType;
 
 /**
- * Transport action to prune remote file cache
+ * Transport action to prune file cache
  *
  * @opensearch.internal
  */
 public class PruneCacheAction extends ActionType<PruneCacheResponse> {
 
     public static final PruneCacheAction INSTANCE = new PruneCacheAction();
-    public static final String NAME = "cluster:admin/cache/remote/prune";
+    public static final String NAME = "cluster:admin/filecache/prune";
 
-    public PruneCacheAction() {
+    private PruneCacheAction() {
         super(NAME, PruneCacheResponse::new);
     }
 }
