@@ -9,7 +9,7 @@
 package org.opensearch.search.startree;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 /**
  * Stores the star tree related context of a search request.
  */
-@ExperimentalApi
+@PublicApi(since = "2.18.0")
 public class StarTreeQueryContext {
 
     private final CompositeDataCubeFieldType compositeMappedFieldType;
