@@ -632,8 +632,6 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         }
     }
 
-    // Test interceptors for actual request processing
-
     /**
      * Test interceptor that simulates request processing with success/failure
      */
