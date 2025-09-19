@@ -35,7 +35,6 @@ public class GrpcInterceptorChain implements ServerInterceptor {
         this.interceptors = interceptors;
     }
 
-
     /**
      * Intercepts a gRPC call, executing the chain of interceptors in order.
      * @param call object to receive response messages
