@@ -121,6 +121,12 @@ public class FeatureFlags {
     public static final Setting<Boolean> ARROW_STREAMS_SETTING = Setting.boolSetting(ARROW_STREAMS, false, Property.NodeScope);
 
     /**
+     * Gates the query planner functionality.
+     */
+    public static final String QUERY_PLANNER = FEATURE_FLAG_PREFIX + "query_planner.enabled";
+    public static final Setting<Boolean> QUERY_PLANNER_SETTING = Setting.boolSetting(QUERY_PLANNER, false, Property.NodeScope);
+
+    /**
      * Underlying implementation for feature flags.
      * All settable feature flags are tracked here in FeatureFlagsImpl.featureFlags.
      * Contains all functionality across test and server use cases.
@@ -146,6 +152,7 @@ public class FeatureFlags {
                 put(ARROW_STREAMS_SETTING, ARROW_STREAMS_SETTING.getDefault(Settings.EMPTY));
                 put(STREAM_TRANSPORT_SETTING, STREAM_TRANSPORT_SETTING.getDefault(Settings.EMPTY));
                 put(MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING, MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
+                put(QUERY_PLANNER_SETTING, QUERY_PLANNER_SETTING.getDefault(Settings.EMPTY));
             }
         };
 
