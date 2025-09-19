@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 
 public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     InMemoryRuleProcessingService sut;
@@ -149,8 +150,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return Map.of(TestAttribute.TEST_ATTRIBUTE, 1);
         }
     }
 
@@ -167,6 +168,11 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         @Override
         public String getName() {
             return name;
+        }
+
+        @Override
+        public TreeMap<Integer, String> getPrioritizedSubfields() {
+            return new TreeMap<>();
         }
 
         @Override

@@ -10,6 +10,8 @@ package org.opensearch.rule;
 
 import org.opensearch.rule.autotagging.Attribute;
 
+import java.util.TreeMap;
+
 /**
  * Generic Rule attributes that features can use out of the use by using the lib.
  * @opensearch.experimental
@@ -30,6 +32,11 @@ public enum RuleAttribute implements Attribute {
     @Override
     public String getName() {
         return name;
+    }
+
+    @Override
+    public TreeMap<Integer, String> getPrioritizedSubfields() {
+        return new TreeMap<>();
     }
 
     /**
