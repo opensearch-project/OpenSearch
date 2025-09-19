@@ -103,7 +103,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
      * but theoretically possible
      */
     synchronized void doRun() {
-        if (nonPluginSettingValuesProvider.getWlmMode() != WlmMode.ENABLED) {
+        if (nonPluginSettingValuesProvider.getWlmMode() == WlmMode.DISABLED) {
             return;
         }
 
