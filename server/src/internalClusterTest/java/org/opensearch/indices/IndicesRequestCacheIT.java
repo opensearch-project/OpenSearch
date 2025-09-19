@@ -57,6 +57,7 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
@@ -864,7 +865,10 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     public void testMappingUpdateClearsCache() throws Exception {
-        Client client = client();
+        String node = internalCluster().startNode(
+            Settings.builder().put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(50))
+        ); // Set IRC cleanup frequency low to ensure we don't get false positives when we check the cache hasn't been cleared
+        Client client = client(node);
         String index = "index";
         String field = "k";
         assertAcked(
@@ -928,14 +932,70 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             assertEquals(resp.getHits().getAt(i).getScore(), otherScore, delta);
         }
 
-        // There should be no request cache hits
+        // There should be no request cache hits, but nonzero memory (from last search)
         stats = getNodeCacheStats(client);
         assertEquals(0, stats.getHitCount());
         assertTrue(stats.getMemorySizeInBytes() > 0);
 
-        // TODO: Test that updating some other value like eager_global_ordinals does NOT wipe cache
-        // and that adding a totally new field does not wipe cache even if it's got use_similarity
-        // also test more structures like nested fields, missing field type name, ...
+        // Sending the same request again should cause no mapping diff --> no cache wipe
+        mappingRequest = new PutMappingRequest().indices(index).source(field, "type=keyword,use_similarity=true");
+        client.admin().indices().putMapping(mappingRequest).actionGet();
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        // Updating some other parameter like eager_global_ordinals shouldn't wipe cache
+        mappingRequest = new PutMappingRequest().indices(index).source(field, "type=keyword,eager_global_ordinals=true");
+        client.admin().indices().putMapping(mappingRequest).actionGet();
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        // Creating some new field should not wipe cache even if it involves a query-affecting param
+        String field2 = "new_field";
+        mappingRequest = new PutMappingRequest().indices(index).source(field2, "type=keyword,use_similarity=true");
+        client.admin().indices().putMapping(mappingRequest).actionGet();
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        // Test functionality for nested fields
+        // Creating a nested field similarly shouldn't wipe
+        PutMappingRequest createNestedField = new PutMappingRequest().indices(index)
+            .source(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("nest_outer")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("nest_inner")
+                    .field("type", "keyword")
+                    .field("use_similarity", false)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
+        client.admin().indices().putMapping(createNestedField).actionGet();
+        assertTrue(getNodeCacheStats(client).getMemorySizeInBytes() > 0);
+        int k = 0;
+
+        // Changing the value for an existing nested field should wipe
+        PutMappingRequest nestedFlip = new PutMappingRequest().indices(index)
+            .source(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("nest_outer")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("nest_inner")
+                    .field("type", "keyword")
+                    .field("use_similarity", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
+        client.admin().indices().putMapping(nestedFlip).actionGet();
+        assertBusy(() -> assertEquals(0L, getNodeCacheStats(client).getMemorySizeInBytes()));
     }
 
     private Path[] shardDirectory(String server, Index index, int shard) {

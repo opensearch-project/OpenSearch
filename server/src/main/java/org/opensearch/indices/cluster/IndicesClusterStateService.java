@@ -676,6 +676,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         Diff<MappingMetadata> metadataDiff = newIndexMetadata.mapping().diff(currentIndexMetadata.mapping());
         Map<String, Object> parsedDiffMap = metadataDiff.apply(MappingMetadata.EMPTY_MAPPINGS).sourceAsMap();
+        Map<String, Object> parsedOriginalMap = currentIndexMetadata.mapping().sourceAsMap();
 
         for (MappedFieldType ft : mapperService.fieldTypes()) {
             String field = ft.name();
@@ -687,11 +688,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 }
                 Set<String> sourcePaths = mapperService.sourcePath(field);
                 for (String sourcePath : sourcePaths) {
-                    Object diffForField = XContentMapValues.extractValue("properties." + sourcePath, parsedDiffMap); // TODO: Is it always "properties"?
+                    // Need to insert "properties." ahead of each field, including for nested fields
+                    String sourcePathWithProperties = getSourceFieldWithProperties(sourcePath);
+                    Object diffForField = XContentMapValues.extractValue(sourcePathWithProperties, parsedDiffMap);
                     if (diffForField != null) {
+                        // If this is a new field (absent in the current index metadata), we can skip clearing
+                        if (XContentMapValues.extractValue(sourcePathWithProperties, parsedOriginalMap) == null) {
+                            continue;
+                        }
                         // Something about this field was changed in the diff
-                        Map<String, Object> fieldDiffMap = (Map<String, Object>) diffForField; // TODO: ensure if this is null or something
-                                                                                               // we dont get class cast exceptions
+                        Map<String, Object> fieldDiffMap = (Map<String, Object>) diffForField;
                         boolean hasOverlap = !Collections.disjoint(
                             fieldDiffMap.keySet(),
                             parametersAffectingQueryResults.get(fieldTypeName)
@@ -704,6 +710,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
         }
         return false;
+    }
+
+    private String getSourceFieldWithProperties(String fieldName) {
+        String[] parts = fieldName.split("\\.");
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            sb.append("properties.").append(part).append(".");
+        }
+        sb.deleteCharAt(sb.length() - 1); // Remove trailing "."
+        return sb.toString();
     }
 
     private void createOrUpdateShards(final ClusterState state) {
