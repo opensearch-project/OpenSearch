@@ -37,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Create and attach interclusterTest and yamlRestTest code coverage reports to gradle check task([#19165](https://github.com/opensearch-project/OpenSearch/pull/19165))
 - Optimized date histogram aggregations by preventing unnecessary object allocations in date rounding utils ([19088](https://github.com/opensearch-project/OpenSearch/pull/19088))
 - Optimize source conversion in gRPC search hits using zero-copy BytesRef ([#19280](https://github.com/opensearch-project/OpenSearch/pull/19280))
+- Allow plugins to copy folders into their config dir during installation ([#19343](https://github.com/opensearch-project/OpenSearch/pull/19343))
 
 ### Fixed
 - Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
