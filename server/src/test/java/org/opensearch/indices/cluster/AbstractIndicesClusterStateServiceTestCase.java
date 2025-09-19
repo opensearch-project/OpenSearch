@@ -48,6 +48,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
@@ -296,6 +297,17 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         public Iterator<MockIndexService> iterator() {
             return indices.values().iterator();
         }
+
+        @Override
+        public void clearIndexShardCacheForAllShards(
+            Index index,
+            boolean queryCache,
+            boolean fieldDataCache,
+            boolean requestCache,
+            String... fields
+        ) {
+            return; // TODO
+        }
     }
 
     /**
@@ -360,6 +372,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         @Override
         public Index index() {
             return indexSettings.getIndex();
+        }
+
+        @Override
+        public MapperService mapperService() {
+            return null; // TODO
         }
     }
 

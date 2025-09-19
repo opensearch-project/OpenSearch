@@ -2129,6 +2129,19 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
+    @Override
+    public void clearIndexShardCacheForAllShards(
+        Index index,
+        boolean queryCache,
+        boolean fieldDataCache,
+        boolean requestCache,
+        String... fields
+    ) {
+        for (IndexShard indexShard : indexService(index)) {
+            clearIndexShardCache(indexShard.shardId(), queryCache, fieldDataCache, requestCache, fields);
+        }
+    }
+
     /**
      * Returns a function which given an index name, returns a predicate which fields must match in order to be returned by get mappings,
      * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return.
@@ -2145,6 +2158,10 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean isMetadataField(String field) {
         return mapperRegistry.isMetadataField(field);
+    }
+
+    public Map<String, Set<String>> getParametersAffectingQueryResults() {
+        return mapperRegistry.getParametersAffectingQueryResults();
     }
 
     /**

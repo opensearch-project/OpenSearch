@@ -39,9 +39,11 @@ import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -67,6 +69,8 @@ import org.opensearch.index.IndexComponent;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -159,6 +163,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final MergedSegmentPublisher mergedSegmentPublisher;
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
 
+    private final Map<String, Set<String>> parametersAffectingQueryResults;
+
     @Inject
     public IndicesClusterStateService(
         final Settings settings,
@@ -204,7 +210,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             remoteStoreStatsTrackerFactory,
             mergedSegmentWarmerFactory,
             mergedSegmentPublisher,
-            referencedSegmentsPublisher
+            referencedSegmentsPublisher,
+            indicesService.getParametersAffectingQueryResults()
         );
     }
 
@@ -230,7 +237,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
         final MergedSegmentPublisher mergedSegmentPublisher,
-        final ReferencedSegmentsPublisher referencedSegmentsPublisher
+        final ReferencedSegmentsPublisher referencedSegmentsPublisher,
+        Map<String, Set<String>> parametersAffectingQueryResults
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
@@ -258,6 +266,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.mergedSegmentWarmerFactory = mergedSegmentWarmerFactory;
         this.mergedSegmentPublisher = mergedSegmentPublisher;
         this.referencedSegmentsPublisher = referencedSegmentsPublisher;
+        this.parametersAffectingQueryResults = parametersAffectingQueryResults;
     }
 
     @Override
@@ -645,8 +654,80 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         }
                     }
                 }
+                if (ClusterChangedEvent.indexMappingMetadataChanged(newIndexMetadata, currentIndexMetadata)) {
+                    boolean updated = parameterAffectingQueryResultUpdated(
+                        newIndexMetadata,
+                        currentIndexMetadata,
+                        indexService.mapperService()
+                    );
+                    if (updated) {
+                        indicesService.clearIndexShardCacheForAllShards(index, false, false, true);
+                    }
+                }
             }
         }
+    }
+
+    private boolean parameterAffectingQueryResultUpdated(
+        IndexMetadata newIndexMetadata,
+        IndexMetadata currentIndexMetadata,
+        MapperService mapperService
+    ) {
+        Diff<MappingMetadata> metadataDiff = newIndexMetadata.mapping().diff(currentIndexMetadata.mapping());
+        Map<String, Object> parsedDiffMap = metadataDiff.apply(MappingMetadata.EMPTY_MAPPINGS).sourceAsMap();
+
+        for (MappedFieldType ft : mapperService.fieldTypes()) {
+            String field = ft.name();
+            if (!mapperService.isMetadataField(field)) {
+                String fieldTypeName = ft.typeName();
+                // See if this field type name is present in parametersAffectingQueryResults
+                if (!parametersAffectingQueryResults.containsKey(fieldTypeName)) {
+                    continue;
+                }
+                Set<String> sourcePaths = mapperService.sourcePath(field);
+                for (String sourcePath : sourcePaths) {
+                    Object diffForField;
+                    try {
+                        diffForField = getFromNestedMap(parsedDiffMap, "properties." + sourcePath); // TODO: always right?
+                    } catch (IllegalArgumentException e) {
+                        logger.warn(
+                            "Could not parse path properties." + sourcePath + " from cluster mapping diff map. Wiping cache for index"
+                        );
+                        return true;
+                    }
+                    if (diffForField != null) {
+                        // Something about this field was changed in the diff
+                        Map<String, Object> fieldDiffMap = (Map<String, Object>) diffForField; // TODO: ensure if this is null or something
+                                                                                               // we dont get class cast exceptions
+                        boolean hasOverlap = !Collections.disjoint(
+                            fieldDiffMap.keySet(),
+                            parametersAffectingQueryResults.get(fieldTypeName)
+                        );
+                        if (hasOverlap) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private Object getFromNestedMap(Map<String, Object> map, String sourcePath) throws IllegalArgumentException {
+        String[] parts = sourcePath.split("\\.");
+        Object next = map;
+        for (String part : parts) {
+            if (!(next instanceof Map<?, ?> nextMap)) {
+                throw new IllegalArgumentException("Expected Map<String, Object>");
+            }
+            try {
+                next = nextMap.get(part);
+            } catch (ClassCastException e) {
+                throw new IllegalArgumentException("Got nested map with non-String keys");
+            }
+            if (next == null) return null;
+        }
+        return next;
     }
 
     private void createOrUpdateShards(final ClusterState state) {
@@ -1005,6 +1086,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Removes shard with given id.
          */
         void removeShard(int shardId, String message);
+
+        MapperService mapperService();
     }
 
     /**
@@ -1106,6 +1189,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException, InterruptedException,
             ShardLockObtainFailedException;
+
+        void clearIndexShardCacheForAllShards(
+            Index index,
+            boolean queryCache,
+            boolean fieldDataCache,
+            boolean requestCache,
+            String... fields
+        );
 
         /**
          * Why the index was removed

@@ -201,6 +201,12 @@ public class ClusterChangedEvent {
         return metadata1 != metadata2;
     }
 
+    public static boolean indexMappingMetadataChanged(IndexMetadata metadata1, IndexMetadata metadata2) {
+        assert metadata1 != null && metadata2 != null;
+        return metadata1.mapping() != metadata2.mapping(); // TODO: Not sure this is fine - gets the "_doc" key from map, which appears to
+                                                           // hold what I want, but not sure of purpose of map
+    }
+
     /**
      * Returns <code>true</code> iff the cluster level blocks have changed between cluster states.
      * Note that this is an object reference equality test, not an equals test.
