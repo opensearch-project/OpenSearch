@@ -39,6 +39,10 @@ public class SearchRequestContext {
     private TotalHits totalHits;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
     private Set<Index> successfulSearchShardIndices;
+    private Map<SearchPhase, Boolean> phaseStartedMap;
+    private Map<SearchPhase, Boolean> phaseEndedMap;
+    private boolean requestStarted;
+    private boolean requestEnded;
 
     private final SearchRequest searchRequest;
     private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
@@ -56,6 +60,10 @@ public class SearchRequestContext {
         this.searchRequest = searchRequest;
         this.phaseResourceUsage = new LinkedBlockingQueue<>();
         this.taskResourceUsageSupplier = taskResourceUsageSupplier;
+        this.phaseStartedMap = new HashMap<>();
+        this.phaseEndedMap = new HashMap<>();
+        this.requestStarted = false;
+        this.requestEnded = false;
     }
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
@@ -155,6 +163,42 @@ public class SearchRequestContext {
      */
     public Set<Index> getSuccessfulSearchShardIndices() {
         return successfulSearchShardIndices;
+    }
+
+    void startPhase(SearchPhase searchPhase) {
+        if (phaseStartedMap.containsKey(searchPhase)) {
+            logger.debug("[SearchRequestContext] startPhase() called but phase '{}' is already started", searchPhase.getName());
+        } else {
+            phaseStartedMap.put(searchPhase, true);
+        }
+    }
+
+    void endPhase(SearchPhase searchPhase) {
+        if (!phaseStartedMap.containsKey(searchPhase)) {
+            logger.debug("[SearchRequestContext] endPhase() called but phase '{}' is not started", searchPhase.getName());
+        } else if (phaseEndedMap.containsKey(searchPhase)) {
+            logger.debug("[SearchRequestContext] endPhase() called but phase '{}' is already ended", searchPhase.getName());
+        } else {
+            phaseEndedMap.put(searchPhase, true);
+        }
+    }
+
+    void startRequest() {
+        if (requestStarted) {
+            logger.debug("[SearchRequestContext] startRequest() called but request is already started");
+        } else {
+            requestStarted = true;
+        }
+    }
+
+    void endRequest() {
+        if (!requestStarted) {
+            logger.debug("[SearchRequestContext] endRequest() called but request is not started");
+        } else if (requestEnded) {
+            logger.debug("[SearchRequestContext] endRequest() called but request is already ended");
+        } else {
+            requestEnded = true;
+        }
     }
 }
 
