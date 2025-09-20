@@ -201,6 +201,8 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
             test.systemProperty("io.netty.noUnsafe", "true");
             test.systemProperty("io.netty.noKeySetOptimization", "true");
             test.systemProperty("io.netty.recycler.maxCapacityPerThread", "0");
+            // See please https://github.com/netty/netty/issues/15631
+            test.systemProperty("io.netty.allocator.type", "pooled");
 
             test.testLogging(logging -> {
                 logging.setShowExceptions(true);
