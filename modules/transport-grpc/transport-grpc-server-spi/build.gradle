@@ -9,18 +9,9 @@
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
-apply plugin: 'opensearch.testclusters'
-apply plugin: 'opensearch.internal-cluster-test'
-
 base {
   group = 'org.opensearch.plugin'
   archivesName = 'transport-grpc-server-spi'
-}
-
-testClusters {
-  integTest {
-    setting 'aux.transport.types', '[transport-grpc]'
-  }
 }
 
 dependencies {
@@ -31,9 +22,15 @@ dependencies {
   runtimeOnly "com.google.guava:failureaccess:1.0.2"
 
   testImplementation project(":test:framework")
-//  integrationTestImplementation "io.grpc:grpc-stub:${versions.grpc}"
-//  integrationTestImplementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
 
+  testImplementation "io.grpc:grpc-api:${versions.grpc}"
+  testImplementation "io.grpc:grpc-core:${versions.grpc}"
+  testImplementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
+  testImplementation "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+  testImplementation "io.grpc:grpc-protobuf:${versions.grpc}"
+  testImplementation "io.grpc:grpc-services:${versions.grpc}"
+  testImplementation "io.grpc:grpc-stub:${versions.grpc}"
+  testImplementation "io.grpc:grpc-util:${versions.grpc}"
 }
 
 thirdPartyAudit {
