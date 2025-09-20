@@ -165,6 +165,26 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             docStatusStats = new DocStatusStats();
         }
 
+        /**
+         * Private constructor that takes a builder.
+         * This is the sole entry point for creating a new Stats object.
+         * @param builder The builder instance containing all the values.
+         */
+        private Stats(Builder builder) {
+            this.indexCount = builder.indexCount;
+            this.indexTimeInMillis = builder.indexTimeInMillis;
+            this.indexCurrent = builder.indexCurrent;
+            this.indexFailedCount = builder.indexFailedCount;
+            this.deleteCount = builder.deleteCount;
+            this.deleteTimeInMillis = builder.deleteTimeInMillis;
+            this.deleteCurrent = builder.deleteCurrent;
+            this.noopUpdateCount = builder.noopUpdateCount;
+            this.throttleTimeInMillis = builder.throttleTimeInMillis;
+            this.isThrottled = builder.isThrottled;
+            this.docStatusStats = builder.docStatusStats;
+            this.maxLastIndexRequestTimestamp = builder.maxLastIndexRequestTimestamp;
+        }
+
         public Stats(StreamInput in) throws IOException {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
@@ -188,6 +208,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             }
         }
 
+        /**
+         * This constructor will be deprecated starting in version 3.3.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         public Stats(
             long indexCount,
             long indexTimeInMillis,
@@ -217,6 +242,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             );
         }
 
+        /**
+         * This constructor will be deprecated starting in version 3.3.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         public Stats(
             long indexCount,
             long indexTimeInMillis,
@@ -386,6 +416,94 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return builder;
         }
 
+        /**
+         * Builder for the {@link Stats} class.
+         * Provides a fluent API for constructing a Stats object.
+         */
+        public static class Builder {
+            private long indexCount = 0;
+            private long indexTimeInMillis = 0;
+            private long indexCurrent = 0;
+            private long indexFailedCount = 0;
+            private long deleteCount = 0;
+            private long deleteTimeInMillis = 0;
+            private long deleteCurrent = 0;
+            private long noopUpdateCount = 0;
+            private long throttleTimeInMillis = 0;
+            private boolean isThrottled = false;
+            private DocStatusStats docStatusStats = null;
+            private long maxLastIndexRequestTimestamp = 0;
+
+            public Builder() {}
+
+            public Builder indexCount(long count) {
+                this.indexCount = count;
+                return this;
+            }
+
+            public Builder indexTimeInMillis(long time) {
+                this.indexTimeInMillis = time;
+                return this;
+            }
+
+            public Builder indexCurrent(long current) {
+                this.indexCurrent = current;
+                return this;
+            }
+
+            public Builder indexFailedCount(long count) {
+                this.indexFailedCount = count;
+                return this;
+            }
+
+            public Builder deleteCount(long count) {
+                this.deleteCount = count;
+                return this;
+            }
+
+            public Builder deleteTimeInMillis(long time) {
+                this.deleteTimeInMillis = time;
+                return this;
+            }
+
+            public Builder deleteCurrent(long current) {
+                this.deleteCurrent = current;
+                return this;
+            }
+
+            public Builder noopUpdateCount(long count) {
+                this.noopUpdateCount = count;
+                return this;
+            }
+
+            public Builder throttleTimeInMillis(long time) {
+                this.throttleTimeInMillis = time;
+                return this;
+            }
+
+            public Builder isThrottled(boolean throttled) {
+                this.isThrottled = throttled;
+                return this;
+            }
+
+            public Builder docStatusStats(DocStatusStats stats) {
+                this.docStatusStats = stats;
+                return this;
+            }
+
+            public Builder maxLastIndexRequestTimestamp(long timestamp) {
+                this.maxLastIndexRequestTimestamp = timestamp;
+                return this;
+            }
+
+            /**
+             * Creates a {@link Stats} object from the builder's current state.
+             * @return A new Stats instance.
+             */
+            public Stats build() {
+                return new Stats(this);
+            }
+        }
     }
 
     private final Stats totalStats;
