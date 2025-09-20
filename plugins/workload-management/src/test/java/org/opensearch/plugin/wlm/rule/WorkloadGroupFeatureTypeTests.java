@@ -10,6 +10,7 @@ package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.rule.RuleAttribute;
+import org.opensearch.rule.SecurityAttribute;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.test.OpenSearchTestCase;
@@ -37,6 +38,14 @@ public class WorkloadGroupFeatureTypeTests extends OpenSearchTestCase {
         Map<String, Attribute> allowedAttributes = featureType.getAllowedAttributesRegistry();
         assertTrue(allowedAttributes.containsKey("index_pattern"));
         assertEquals(RuleAttribute.INDEX_PATTERN, allowedAttributes.get("index_pattern"));
+    }
+
+    public void testGetOrderedAttributes_containsIndexPattern() {
+        Map<Attribute, Integer> orderedAttributes = featureType.getOrderedAttributes();
+        assertTrue(orderedAttributes.containsKey(RuleAttribute.INDEX_PATTERN));
+        assertEquals(2, orderedAttributes.get(RuleAttribute.INDEX_PATTERN).intValue());
+        assertTrue(orderedAttributes.containsKey(SecurityAttribute.PRINCIPAL));
+        assertEquals(1, orderedAttributes.get(SecurityAttribute.PRINCIPAL).intValue());
     }
 
     public void testRegisterFeatureType() {
