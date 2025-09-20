@@ -11,7 +11,7 @@ apply plugin: 'opensearch.publish'
 
 base {
   group = 'org.opensearch.plugin'
-  archivesName = 'transport-grpc-spi'
+  archivesName = 'transport-grpc-protobuf-spi'
 }
 
 dependencies {

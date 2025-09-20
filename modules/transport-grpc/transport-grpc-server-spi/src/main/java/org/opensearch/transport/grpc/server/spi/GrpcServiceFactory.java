@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.transport.grpc;
+package org.opensearch.transport.grpc.server.spi;
 
 import org.opensearch.transport.client.Client;
 
