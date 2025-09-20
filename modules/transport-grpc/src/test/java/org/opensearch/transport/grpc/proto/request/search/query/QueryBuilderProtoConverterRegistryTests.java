@@ -13,18 +13,19 @@ import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.TermQuery;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 
 /**
  * Test class for QueryBuilderProtoConverterRegistry to verify the map-based optimization.
  */
 public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase {
 
-    private QueryBuilderProtoConverterRegistry registry;
+    private QueryBuilderProtoConverterRegistryImpl registry;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        registry = new QueryBuilderProtoConverterRegistry();
+        registry = new QueryBuilderProtoConverterRegistryImpl();
     }
 
     public void testMatchAllQueryConversion() {
@@ -47,7 +48,7 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Create a Term query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
             .setTerm(
-                TermQuery.newBuilder().setField("test_field").setValue(FieldValue.newBuilder().setStringValue("test_value").build()).build()
+                TermQuery.newBuilder().setField("test_field").setValue(FieldValue.newBuilder().setString("test_value").build()).build()
             )
             .build();
 

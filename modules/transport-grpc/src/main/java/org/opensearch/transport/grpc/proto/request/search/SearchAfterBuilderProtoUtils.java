@@ -9,7 +9,6 @@ package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.GeneralNumber;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 
 import java.io.IOException;
@@ -43,25 +42,23 @@ public class SearchAfterBuilderProtoUtils {
 
         for (FieldValue fieldValue : searchAfterProto) {
             if (fieldValue.hasGeneralNumber()) {
-                GeneralNumber generalNumber = fieldValue.getGeneralNumber();
-                if (generalNumber.hasInt32Value()) {
-                    values.add(generalNumber.getInt32Value());
-                } else if (generalNumber.hasInt64Value()) {
-                    values.add(generalNumber.getInt64Value());
-                } else if (generalNumber.hasDoubleValue()) {
-                    values.add(generalNumber.getDoubleValue());
-                } else if (generalNumber.hasFloatValue()) {
-                    values.add(generalNumber.getFloatValue());
+                org.opensearch.protobufs.GeneralNumber number = fieldValue.getGeneralNumber();
+                if (number.hasDoubleValue()) {
+                    values.add(number.getDoubleValue());
+                } else if (number.hasFloatValue()) {
+                    values.add(number.getFloatValue());
+                } else if (number.hasInt64Value()) {
+                    values.add(number.getInt64Value());
+                } else if (number.hasInt32Value()) {
+                    values.add(number.getInt32Value());
                 }
-            } else if (fieldValue.hasStringValue()) {
-                values.add(fieldValue.getStringValue());
-            } else if (fieldValue.hasBoolValue()) {
-                values.add(fieldValue.getBoolValue());
+            } else if (fieldValue.hasString()) {
+                values.add(fieldValue.getString());
+            } else if (fieldValue.hasBool()) {
+                values.add(fieldValue.getBool());
+            } else if (fieldValue.hasNullValue()) {
+                values.add(null);
             }
-            // TODO missing null value
-            // else if(fieldValue.hasNullValue ()){
-            // values.add(fieldValue.getNullValue());
-            // }
         }
         return values.toArray();
     }

@@ -104,13 +104,16 @@ enum GrokCaptureType {
     protected final GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
         return new GrokCaptureExtracter() {
             @Override
-            void extract(byte[] utf8Bytes, int offset, Region region) {
+            void extract(byte[] utf8Bytes, int offset, Region region, boolean captureAllMatches) {
                 for (int number : backRefs) {
                     if (region.getBeg(number) >= 0) {
                         int matchOffset = offset + region.getBeg(number);
                         int matchLength = region.getEnd(number) - region.getBeg(number);
                         emit.accept(new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8));
-                        return; // Capture only the first value.
+                        // return the first match value if captureAllMatches is false, else continue to capture all values
+                        if (!captureAllMatches) {
+                            return;
+                        }
                     }
                 }
             }
