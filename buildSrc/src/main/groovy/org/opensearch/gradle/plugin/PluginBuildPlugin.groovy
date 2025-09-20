@@ -174,7 +174,7 @@ class PluginBuildPlugin implements Plugin<Project> {
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            if (BuildParams.internal) {
+            if (BuildParams.isInternal) {
                 compileOnly project.project(':server')
                 testImplementation project.project(':test:framework')
             } else {

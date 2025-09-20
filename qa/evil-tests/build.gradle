@@ -57,15 +57,6 @@ thirdPartyAudit {
   ignoreMissingClasses(
     'com.ibm.icu.lang.UCharacter'
   )
-
-  ignoreViolations(
-    // uses internal java api: sun.misc.Unsafe
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper'
-  )
 }
 
 tasks.test {
