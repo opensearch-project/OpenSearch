@@ -24,10 +24,10 @@ dependencies {
   api project('spi')
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
+  runtimeOnly "com.google.guava:failureaccess:1.0.2"
 
   compileOnly "com.github.spotbugs:spotbugs-annotations:${versions.spotbugs_annotations}"
   compileOnly "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
-  compileOnly "com.google.guava:failureaccess:1.0.2"
 
   implementation "io.grpc:grpc-api:${versions.grpc}"
   implementation "io.grpc:grpc-core:${versions.grpc}"

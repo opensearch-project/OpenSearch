@@ -39,6 +39,9 @@ teardown:
 
 ---
 "Test Grok Pipeline with capture_all_matches enabled":
+  - skip:
+      version: " - 3.2.99"
+      reason: Introduced in 3.3.0
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -76,6 +79,9 @@ teardown:
 
 ---
 "Test Grok Pipeline with capture_all_matches and multiple patterns":
+  - skip:
+      version: " - 3.2.99"
+      reason: Introduced in 3.3.0
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -126,6 +132,9 @@ teardown:
 
 ---
 "Test Grok Pipeline with capture_all_matches and custom pattern":
+  - skip:
+      version: " - 3.2.99"
+      reason: Introduced in 3.3.0
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
