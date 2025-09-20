@@ -22,15 +22,8 @@ dependencies {
   runtimeOnly "com.google.guava:failureaccess:1.0.2"
 
   testImplementation project(":test:framework")
-
-  testImplementation "io.grpc:grpc-api:${versions.grpc}"
-  testImplementation "io.grpc:grpc-core:${versions.grpc}"
-  testImplementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
-  testImplementation "io.grpc:grpc-protobuf-lite:${versions.grpc}"
-  testImplementation "io.grpc:grpc-protobuf:${versions.grpc}"
   testImplementation "io.grpc:grpc-services:${versions.grpc}"
   testImplementation "io.grpc:grpc-stub:${versions.grpc}"
-  testImplementation "io.grpc:grpc-util:${versions.grpc}"
 }
 
 thirdPartyAudit {

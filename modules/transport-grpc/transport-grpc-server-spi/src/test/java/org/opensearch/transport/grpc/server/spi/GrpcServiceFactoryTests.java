@@ -11,11 +11,24 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.Client;
 
 import io.grpc.BindableService;
+import io.grpc.channelz.v1.ChannelzGrpc;
+import io.grpc.channelz.v1.GetChannelRequest;
+import io.grpc.channelz.v1.GetChannelResponse;
+import io.grpc.stub.StreamObserver;
 
 public class GrpcServiceFactoryTests extends OpenSearchTestCase {
 
-    class MockGrpcServiceProvider implements GrpcServiceFactory {
-        MockGrpcServiceProvider() {}
+    private static class MockChannelzService extends ChannelzGrpc.ChannelzImplBase {
+        @Override
+        public void getChannel(GetChannelRequest request, StreamObserver<GetChannelResponse> responseObserver) {
+            GetChannelResponse response = GetChannelResponse.newBuilder().build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        }
+    }
+
+    public static class MockServiceProvider implements GrpcServiceFactory {
+        public MockServiceProvider() {}
 
         @Override
         public GrpcServiceFactory initClient(Client client) {
@@ -24,12 +37,12 @@ public class GrpcServiceFactoryTests extends OpenSearchTestCase {
 
         @Override
         public BindableService build() {
-            return null;
+            return new MockChannelzService();
         }
     }
 
     public void testGrcpServiceFactory() {
-        GrpcServiceFactory grpcServiceFactory = new MockGrpcServiceProvider();
+        GrpcServiceFactory grpcServiceFactory = new MockServiceProvider();
         assert (true);
     }
 }
