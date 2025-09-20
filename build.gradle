@@ -410,7 +410,8 @@ gradle.projectsEvaluated {
       if (task != null) {
         task.jvmArgs += [
             "--add-modules=jdk.incubator.vector",
-            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED"
+            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED",
+            "--enable-native-access=ALL-UNNAMED"
         ]
 
         // Add Java Agent for security sandboxing
