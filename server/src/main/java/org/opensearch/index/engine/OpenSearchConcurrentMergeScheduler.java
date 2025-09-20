@@ -224,6 +224,26 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         } else if (config.isAutoThrottle() == false && isEnabled) {
             disableAutoIOThrottle();
         }
+        applyMergeRateLimit();
+    }
+
+    /**
+     * Applies the merge rate limit based on the current configuration.
+     * If the setting value is Double.POSITIVE_INFINITY, rate limiting is disabled.
+     * Otherwise, auto-throttling is enabled as the available rate limiting mechanism.
+     */
+    private void applyMergeRateLimit() {
+        double maxForceMergeMBPerSec = config.getMaxForceMergeMBPerSec();
+        if (maxForceMergeMBPerSec != super.getForceMergeMBPerSec()) {
+            logger.info(
+                "[{}][{}] updating force merge rate limit from [{}] to [{}] MB/sec",
+                shardId.getIndexName(),
+                shardId.id(),
+                super.getForceMergeMBPerSec(),
+                maxForceMergeMBPerSec
+            );
+            super.setForceMergeMBPerSec(maxForceMergeMBPerSec);
+        }
     }
 
 }
