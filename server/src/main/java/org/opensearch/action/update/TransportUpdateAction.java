@@ -39,6 +39,7 @@ import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.admin.indices.stats.DocStatusStats;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -71,7 +72,6 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -355,7 +355,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 DocStatusStats stats = new DocStatusStats();
                 stats.inc(RestStatus.OK);
 
-                indicesService.addDocStatusStats(stats);
+                indicesService.addNewDocStatusStats(stats);
                 listener.onResponse(update);
 
                 break;
@@ -392,6 +392,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private void incDocStatusStats(final Exception e) {
         DocStatusStats stats = new DocStatusStats();
         stats.inc(ExceptionsHelper.status(e));
-        indicesService.addDocStatusStats(stats);
+        indicesService.addNewDocStatusStats(stats);
     }
 }
