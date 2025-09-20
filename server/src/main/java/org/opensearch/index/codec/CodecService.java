@@ -34,8 +34,7 @@ package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec.Mode;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
@@ -72,20 +71,23 @@ public class CodecService {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene101Codec());
-            codecs.put(LZ4, new Lucene101Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene101Codec(Mode.BEST_COMPRESSION));
-            codecs.put(ZLIB, new Lucene101Codec(Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Lucene103Codec());
+            codecs.put(LZ4, new Lucene103Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene103Codec(Lucene103Codec.Mode.BEST_COMPRESSION));
+            codecs.put(ZLIB, new Lucene103Codec(Lucene103Codec.Mode.BEST_COMPRESSION));
         } else {
             // CompositeCodec still delegates to PerFieldMappingPostingFormatCodec
             // We can still support all the compression codecs when composite index is present
             if (mapperService.isCompositeIndexPresent()) {
                 codecs.putAll(compositeCodecFactory.getCompositeIndexCodecs(mapperService, logger));
             } else {
-                codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
-                codecs.put(LZ4, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
-                codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
-                codecs.put(ZLIB, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
+                codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, logger));
+                codecs.put(LZ4, new PerFieldMappingPostingFormatCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, logger));
+                codecs.put(
+                    BEST_COMPRESSION_CODEC,
+                    new PerFieldMappingPostingFormatCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, logger)
+                );
+                codecs.put(ZLIB, new PerFieldMappingPostingFormatCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, logger));
             }
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());

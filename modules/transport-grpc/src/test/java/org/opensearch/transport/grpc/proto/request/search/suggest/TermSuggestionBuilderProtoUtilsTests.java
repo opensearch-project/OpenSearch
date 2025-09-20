@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc.proto.request.search.suggest;
 
-import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -16,7 +15,9 @@ public class TermSuggestionBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testResolveWithAlwaysMode() {
         // Call the method under test with ALWAYS mode
-        TermSuggestionBuilder.SuggestMode result = TermSuggestionBuilderProtoUtils.resolve(SearchRequest.SuggestMode.SUGGEST_MODE_ALWAYS);
+        TermSuggestionBuilder.SuggestMode result = TermSuggestionBuilderProtoUtils.resolve(
+            org.opensearch.protobufs.SuggestMode.SUGGEST_MODE_ALWAYS
+        );
 
         // Verify the result
         assertEquals("SuggestMode should be ALWAYS", TermSuggestionBuilder.SuggestMode.ALWAYS, result);
@@ -24,7 +25,9 @@ public class TermSuggestionBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testResolveWithMissingMode() {
         // Call the method under test with MISSING mode
-        TermSuggestionBuilder.SuggestMode result = TermSuggestionBuilderProtoUtils.resolve(SearchRequest.SuggestMode.SUGGEST_MODE_MISSING);
+        TermSuggestionBuilder.SuggestMode result = TermSuggestionBuilderProtoUtils.resolve(
+            org.opensearch.protobufs.SuggestMode.SUGGEST_MODE_MISSING
+        );
 
         // Verify the result
         assertEquals("SuggestMode should be MISSING", TermSuggestionBuilder.SuggestMode.MISSING, result);
@@ -32,7 +35,9 @@ public class TermSuggestionBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testResolveWithPopularMode() {
         // Call the method under test with POPULAR mode
-        TermSuggestionBuilder.SuggestMode result = TermSuggestionBuilderProtoUtils.resolve(SearchRequest.SuggestMode.SUGGEST_MODE_POPULAR);
+        TermSuggestionBuilder.SuggestMode result = TermSuggestionBuilderProtoUtils.resolve(
+            org.opensearch.protobufs.SuggestMode.SUGGEST_MODE_POPULAR
+        );
 
         // Verify the result
         assertEquals("SuggestMode should be POPULAR", TermSuggestionBuilder.SuggestMode.POPULAR, result);
@@ -42,7 +47,7 @@ public class TermSuggestionBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Call the method under test with UNRECOGNIZED mode, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TermSuggestionBuilderProtoUtils.resolve(SearchRequest.SuggestMode.UNRECOGNIZED)
+            () -> TermSuggestionBuilderProtoUtils.resolve(org.opensearch.protobufs.SuggestMode.UNRECOGNIZED)
         );
 
         // Verify the exception message
