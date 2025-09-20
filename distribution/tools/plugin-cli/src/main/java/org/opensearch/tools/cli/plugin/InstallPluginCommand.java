@@ -960,16 +960,21 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpConfigDir)) {
             for (Path srcFile : stream) {
-                if (Files.isDirectory(srcFile)) {
-                    throw new UserException(PLUGIN_MALFORMED, "Directories not allowed in config dir for plugin " + info.getName());
-                }
-
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
                 if (Files.exists(destFile) == false) {
-                    Files.copy(srcFile, destFile);
-                    setFileAttributes(destFile, CONFIG_FILES_PERMS);
-                    if (destConfigDirAttributes != null) {
-                        setOwnerGroup(destFile, destConfigDirAttributes);
+                    if (Files.isDirectory(srcFile)) {
+                        Files.copy(srcFile, destFile);
+                        setFileAttributes(destFile, CONFIG_DIR_PERMS);
+                        if (destConfigDirAttributes != null) {
+                            setOwnerGroup(destFile, destConfigDirAttributes);
+                        }
+                        copyDirectoryRecursively(srcFile, destFile, destConfigDirAttributes);
+                    } else {
+                        Files.copy(srcFile, destFile);
+                        setFileAttributes(destFile, CONFIG_FILES_PERMS);
+                        if (destConfigDirAttributes != null) {
+                            setOwnerGroup(destFile, destConfigDirAttributes);
+                        }
                     }
                 }
             }
@@ -992,6 +997,34 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
         if (fileAttributeView != null) {
             Files.setPosixFilePermissions(path, permissions);
+        }
+    }
+
+    /**
+     * Recursively copies directory contents from source to destination.
+     */
+    private static void copyDirectoryRecursively(Path srcDir, Path destDir, PosixFileAttributes destConfigDirAttributes)
+        throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(srcDir)) {
+            for (Path srcFile : stream) {
+                Path destFile = destDir.resolve(srcDir.relativize(srcFile));
+                if (Files.exists(destFile) == false) {
+                    if (Files.isDirectory(srcFile)) {
+                        Files.copy(srcFile, destFile);
+                        setFileAttributes(destFile, CONFIG_DIR_PERMS);
+                        if (destConfigDirAttributes != null) {
+                            setOwnerGroup(destFile, destConfigDirAttributes);
+                        }
+                        copyDirectoryRecursively(srcFile, destFile, destConfigDirAttributes);
+                    } else {
+                        Files.copy(srcFile, destFile);
+                        setFileAttributes(destFile, CONFIG_FILES_PERMS);
+                        if (destConfigDirAttributes != null) {
+                            setOwnerGroup(destFile, destConfigDirAttributes);
+                        }
+                    }
+                }
+            }
         }
     }
 
