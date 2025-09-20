@@ -218,32 +218,81 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 equalTo(List.of("2020-01-01T00:00Z"))
             );
         });
-        builder = new TermsAggregationBuilder("k2").field("k2").subAggregation(builder);
+        builder = new TermsAggregationBuilder("k2").field("k2")
+            .subAggregation(new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR));
         asSubAggTestCase(builder, (StringTerms terms) -> {
             StringTerms.Bucket a = terms.getBucketByKey("a");
-            StringTerms ak1 = a.getAggregations().get("k1");
-            StringTerms.Bucket ak1a = ak1.getBucketByKey("a");
-            InternalDateHistogram ak1adh = ak1a.getAggregations().get("dh");
+            InternalDateHistogram adh = a.getAggregations().get("dh");
             assertThat(
-                ak1adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
+                adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
                 equalTo(List.of("2020-01-01T00:00Z", "2021-01-01T00:00Z"))
             );
 
             StringTerms.Bucket b = terms.getBucketByKey("b");
-            StringTerms bk1 = b.getAggregations().get("k1");
-            StringTerms.Bucket bk1a = bk1.getBucketByKey("a");
-            InternalDateHistogram bk1adh = bk1a.getAggregations().get("dh");
+            InternalDateHistogram bdh = b.getAggregations().get("dh");
             assertThat(
-                bk1adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
-                equalTo(List.of("2021-01-01T00:00Z"))
-            );
-            StringTerms.Bucket bk1b = bk1.getBucketByKey("b");
-            InternalDateHistogram bk1bdh = bk1b.getAggregations().get("dh");
-            assertThat(
-                bk1bdh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
+                bdh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
                 equalTo(List.of("2020-01-01T00:00Z"))
             );
         });
+    }
+
+    public void testSkiplistWithSingleValueDates() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = newIndexWriterConfig();
+            String filterField = "type";
+            try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
+
+                // First commit - 5 dates with type 1
+                for (int i = 0; i < 5; i++) {
+                    Document doc = new Document();
+                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i))).toInstant().toEpochMilli();
+                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                    doc.add(new LongPoint(filterField, 1));
+                    doc.add(new NumericDocValuesField(filterField, 1));
+                    indexWriter.addDocument(doc);
+                }
+                indexWriter.commit();
+
+                // Second commit - 5 more dates with type 2
+                for (int i = 5; i < 10; i++) {
+                    Document doc = new Document();
+                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i))).toInstant().toEpochMilli();
+                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                    doc.add(new LongPoint(filterField, 2));
+                    doc.add(new NumericDocValuesField(filterField, 2));
+                    indexWriter.addDocument(doc);
+                }
+                indexWriter.commit();
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("test")
+                    .field(AGGREGABLE_DATE)
+                    .calendarInterval(DateHistogramInterval.YEAR);
+
+                MappedFieldType fieldType = new DateFieldMapper.DateFieldType(AGGREGABLE_DATE);
+                Query query = LongPoint.newExactQuery(filterField, 2);
+                DateHistogramAggregator aggregator = createAggregator(query, aggregationBuilder, indexSearcher, createIndexSettings(), fieldType);
+
+                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, 1000, fieldType);
+
+                System.out.println(histogram.toString());
+                assertEquals(3, histogram.getBuckets().size()); // 2015, 2016, 2017 (only type 2 docs)
+
+                assertEquals("2015-01-01T00:00:00.000Z", histogram.getBuckets().get(0).getKeyAsString());
+                assertEquals(3, histogram.getBuckets().get(0).getDocCount());
+
+                assertEquals("2016-01-01T00:00:00.000Z", histogram.getBuckets().get(1).getKeyAsString());
+                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
+
+                assertEquals("2017-01-01T00:00:00.000Z", histogram.getBuckets().get(2).getKeyAsString());
+                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+            }
+        }
+
     }
 
     public void testNoDocsDeprecatedInterval() throws IOException {
