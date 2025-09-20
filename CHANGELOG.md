@@ -39,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Create and attach interclusterTest and yamlRestTest code coverage reports to gradle check task([#19165](https://github.com/opensearch-project/OpenSearch/pull/19165))
 - Optimized date histogram aggregations by preventing unnecessary object allocations in date rounding utils ([19088](https://github.com/opensearch-project/OpenSearch/pull/19088))
 - Optimize source conversion in gRPC search hits using zero-copy BytesRef ([#19280](https://github.com/opensearch-project/OpenSearch/pull/19280))
-- Faster `terms` query creation for `keyword` field with index docValues enabled and terms were pre-sorted ([#19350](https://github.com/opensearch-project/OpenSearch/pull/19350))
+- Faster `terms` query creation for `keyword` field with index docValues enabled ([#19350](https://github.com/opensearch-project/OpenSearch/pull/19350))
 - Add failureaccess as runtime dependency to transport-grpc module  ([#19339](https://github.com/opensearch-project/OpenSearch/pull/19339))
 
 ### Fixed
