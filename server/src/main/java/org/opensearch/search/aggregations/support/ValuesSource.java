@@ -73,6 +73,8 @@ import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 
+import static java.util.Collections.sort;
+
 /**
  * Base class for a ValuesSource; the primitive data for an agg
  *
@@ -113,6 +115,10 @@ public abstract class ValuesSource {
         return false;
     }
 
+    public String getIndexFieldName() {
+        return null;
+    }
+
     /**
      * Range type
      *
@@ -125,6 +131,11 @@ public abstract class ValuesSource {
         public Range(IndexFieldData<?> indexFieldData, RangeType rangeType) {
             this.indexFieldData = indexFieldData;
             this.rangeType = rangeType;
+        }
+
+        @Override
+        public String getIndexFieldName() {
+            return this.indexFieldData.getFieldName();
         }
 
         @Override
@@ -249,6 +260,7 @@ public abstract class ValuesSource {
                     this.indexFieldData = indexFieldData;
                 }
 
+                @Override
                 public String getIndexFieldName() {
                     return this.indexFieldData.getFieldName();
                 }
@@ -309,6 +321,11 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
+            @Override
+            public String getIndexFieldName() {
+                return this.indexFieldData.getFieldName();
+            }
+
         }
 
         /**
@@ -354,6 +371,11 @@ public abstract class ValuesSource {
             @Override
             public boolean needsScores() {
                 return script.needs_score();
+            }
+
+            @Override
+            public String getIndexFieldName() {
+                return delegate.getIndexFieldName();
             }
 
             @Override
@@ -501,6 +523,11 @@ public abstract class ValuesSource {
             }
 
             @Override
+            public String getIndexFieldName() {
+                return delegate.getIndexFieldName();
+            }
+
+            @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return new Bytes.WithScript.BytesValues(delegate.bytesValues(context), script.newInstance(context));
             }
@@ -631,6 +658,7 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getDoubleValues();
             }
 
+            @Override
             public String getIndexFieldName() {
                 return indexFieldData.getFieldName();
             }
@@ -731,6 +759,11 @@ public abstract class ValuesSource {
             }
 
             @Override
+            public String getIndexFieldName() {
+                return indexFieldData.getFieldName();
+            }
+
+            @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
@@ -800,6 +833,11 @@ public abstract class ValuesSource {
 
             public FieldData(AbstractGeoShapeIndexFieldData indexFieldData) {
                 this.indexFieldData = indexFieldData;
+            }
+
+            @Override
+            public String getIndexFieldName() {
+                return indexFieldData.getFieldName();
             }
 
             /**

@@ -37,6 +37,7 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -61,6 +62,7 @@ interface SignificantTermsAggregatorSupplier {
         SignificanceHeuristic significanceHeuristic,
         SignificanceLookup lookup,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        ValuesSourceConfig config
     ) throws IOException;
 }
