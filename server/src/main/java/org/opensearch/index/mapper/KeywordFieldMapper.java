@@ -500,22 +500,41 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                     return super.termsQuery(values, context);
                 }
                 BytesRefsCollectionBuilder iBytesRefs = new BytesRefsCollectionBuilder(values.size());
-                BytesRefsCollectionBuilder dVByteRefs = new BytesRefsCollectionBuilder(values.size());
+                BytesRefsCollectionBuilder dVByteRefs = null;
                 for (int i = 0; i < values.size(); i++) {
-                    BytesRef idxBytes = indexedValueForSearch(values.get(i));
+                    Object value = values.get(i);
+                    BytesRef idxBytes = indexedValueForSearch(value);
                     iBytesRefs.accept(idxBytes);
-                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
-                    dVByteRefs.accept(dvBytes);
+
+                    Object rewritten = rewriteForDocValue(value);
+                    if (dVByteRefs == null) { // needs to check
+                        if (rewritten != value && !rewritten.equals(value)) {
+                            // first time index and dv are divergent
+                            dVByteRefs = new BytesRefsCollectionBuilder(values.size());
+                            for (int rewind = 0; rewind <= i; rewind++) {
+                                Object rewrittenOld = rewind < i ? rewriteForDocValue(values.get(rewind)) : rewritten;
+                                BytesRef dvBytesOld = indexedValueForSearch(rewrittenOld);
+                                dVByteRefs.accept(dvBytesOld);
+                            }
+                        }
+                    } else {
+                        BytesRef dvBytes = indexedValueForSearch(rewritten);
+                        dVByteRefs.accept(dvBytes);
+                    }
                 }
-                Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs.get());
-                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs.get());
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                if (dVByteRefs == null) { // index and docValues are the same, pack them once
+                    return TermInSetQuery.newIndexOrDocValuesQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs.get());
+                } else {
+                    Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs.get());
+                    Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs.get());
+                    return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                }
             }
             // if we only have doc_values enabled, we construct a new query with doc_values re-written
             if (hasDocValues()) {
                 BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
-                for (int i = 0; i < values.size(); i++) {
-                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                for (Object value : values) {
+                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(value));
                     bytesCollector.accept(dvBytes);
                 }
                 return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesCollector.get());
