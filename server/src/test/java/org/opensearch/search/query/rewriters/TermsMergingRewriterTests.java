@@ -56,6 +56,34 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
         assertThat(termsQuery.values().size(), equalTo(20));
     }
 
+    public void testShouldMergingWithThreshold() {
+        // Ensure should clauses merge when exceeding threshold
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (int i = 0; i < 17; i++) {
+            query.should(QueryBuilders.termQuery("tag", "t" + i));
+        }
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        BoolQueryBuilder b = (BoolQueryBuilder) rewritten;
+        assertThat(b.should().size(), equalTo(1));
+        assertThat(b.should().get(0), instanceOf(TermsQueryBuilder.class));
+    }
+
+    public void testMixedFieldsAboveThresholdOnlyMergesPerField() {
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (int i = 0; i < 18; i++) {
+            query.filter(QueryBuilders.termQuery("f1", "v" + i));
+        }
+        for (int i = 0; i < 5; i++) {
+            query.filter(QueryBuilders.termQuery("f2", "v" + i));
+        }
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        BoolQueryBuilder b = (BoolQueryBuilder) rewritten;
+        // one terms for f1, and 5 single terms for f2
+        assertThat(b.filter().size(), equalTo(6));
+    }
+
     public void testMustClauseNoMerging() {
         // Term queries in must clauses should NOT be merged (different semantics)
         QueryBuilder query = QueryBuilders.boolQuery()

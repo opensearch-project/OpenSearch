@@ -610,6 +610,7 @@ public class IngestionEngine extends InternalEngine {
      */
     public ShardIngestionState getIngestionState() {
         IngestionShardPointer shardPointer = streamPoller.getBatchStartPointer();
+
         return new ShardIngestionState(
             engineConfig.getIndexSettings().getIndex().getName(),
             engineConfig.getShardId().getId(),

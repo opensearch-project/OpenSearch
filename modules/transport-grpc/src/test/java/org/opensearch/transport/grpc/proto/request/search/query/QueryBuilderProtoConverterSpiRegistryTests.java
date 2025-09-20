@@ -151,7 +151,7 @@ public class QueryBuilderProtoConverterSpiRegistryTests extends OpenSearchTestCa
             .setTerm(
                 org.opensearch.protobufs.TermQuery.newBuilder()
                     .setField("test_field")
-                    .setValue(org.opensearch.protobufs.FieldValue.newBuilder().setStringValue("test_value").build())
+                    .setValue(org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build())
                     .build()
             )
             .build();
@@ -183,7 +183,7 @@ public class QueryBuilderProtoConverterSpiRegistryTests extends OpenSearchTestCa
 
             org.opensearch.protobufs.TermQuery termQuery = queryContainer.getTerm();
             String field = termQuery.getField();
-            String value = termQuery.getValue().getStringValue();
+            String value = termQuery.getValue().getString();
 
             return new TermQueryBuilder(field, value);
         }
