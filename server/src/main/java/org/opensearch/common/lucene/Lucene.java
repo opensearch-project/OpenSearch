@@ -198,7 +198,7 @@ public class Lucene {
      */
     public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
         final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
-        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+        try (Lock ignored = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             int foundSegmentFiles = 0;
             for (final String file : directory.listAll()) {
                 /*
@@ -222,7 +222,7 @@ public class Lucene {
         }
         final IndexCommit cp = getIndexCommit(si, directory);
         try (
-            IndexWriter writer = new IndexWriter(
+            IndexWriter ignored = new IndexWriter(
                 directory,
                 new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                     .setIndexCommit(cp)
@@ -249,7 +249,7 @@ public class Lucene {
      * this operation fails.
      */
     public static void cleanLuceneIndex(Directory directory) throws IOException {
-        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+        try (Lock ignored = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             for (final String file : directory.listAll()) {
                 if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     directory.deleteFile(file); // remove all segment_N files
@@ -257,7 +257,7 @@ public class Lucene {
             }
         }
         try (
-            IndexWriter writer = new IndexWriter(
+            IndexWriter ignored = new IndexWriter(
                 directory,
                 new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                     .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
@@ -388,7 +388,7 @@ public class Lucene {
             case 7 -> in.readShort();
             case 8 -> in.readBoolean();
             case 9 -> in.readBytesRef();
-            case 10 -> new BigInteger(in.readString());
+            case 10 -> new BigInteger(in.readByteArray());
             default -> throw new IOException("Can't match type [" + type + "]");
         };
     }
@@ -405,9 +405,8 @@ public class Lucene {
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
-        if (topDocs.topDocs instanceof CollapseTopFieldDocs) {
+        if (topDocs.topDocs instanceof CollapseTopFieldDocs collapseDocs) {
             out.writeByte((byte) 2);
-            CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs.topDocs;
 
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
@@ -421,9 +420,8 @@ public class Lucene {
                 writeFieldDoc(out, (FieldDoc) doc);
                 writeSortValue(out, collapseDocs.collapseValues[i]);
             }
-        } else if (topDocs.topDocs instanceof TopFieldDocs) {
+        } else if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
             out.writeByte((byte) 1);
-            TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs.topDocs;
 
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
@@ -459,57 +457,58 @@ public class Lucene {
 
     private static Object readMissingValue(StreamInput in) throws IOException {
         final byte id = in.readByte();
-        switch (id) {
-            case 0:
-                return in.readGenericValue();
-            case 1:
-                return SortField.STRING_FIRST;
-            case 2:
-                return SortField.STRING_LAST;
-            default:
-                throw new IOException("Unknown missing value id: " + id);
-        }
+        return switch (id) {
+            case 0 -> in.readGenericValue();
+            case 1 -> SortField.STRING_FIRST;
+            case 2 -> SortField.STRING_LAST;
+            default -> throw new IOException("Unknown missing value id: " + id);
+        };
     }
 
     public static void writeSortValue(StreamOutput out, Object field) throws IOException {
-        if (field == null) {
-            out.writeByte((byte) 0);
-        } else {
-            Class type = field.getClass();
-            if (type == String.class) {
+        switch (field) {
+            case null -> out.writeByte((byte) 0);
+            case String s -> {
                 out.writeByte((byte) 1);
-                out.writeString((String) field);
-            } else if (type == Integer.class) {
-                out.writeByte((byte) 2);
-                out.writeInt((Integer) field);
-            } else if (type == Long.class) {
-                out.writeByte((byte) 3);
-                out.writeLong((Long) field);
-            } else if (type == Float.class) {
-                out.writeByte((byte) 4);
-                out.writeFloat((Float) field);
-            } else if (type == Double.class) {
-                out.writeByte((byte) 5);
-                out.writeDouble((Double) field);
-            } else if (type == Byte.class) {
-                out.writeByte((byte) 6);
-                out.writeByte((Byte) field);
-            } else if (type == Short.class) {
-                out.writeByte((byte) 7);
-                out.writeShort((Short) field);
-            } else if (type == Boolean.class) {
-                out.writeByte((byte) 8);
-                out.writeBoolean((Boolean) field);
-            } else if (type == BytesRef.class) {
-                out.writeByte((byte) 9);
-                out.writeBytesRef((BytesRef) field);
-            } else if (type == BigInteger.class) {
-                // TODO: improve serialization of BigInteger
-                out.writeByte((byte) 10);
-                out.writeString(field.toString());
-            } else {
-                throw new IOException("Can't handle sort field value of type [" + type + "]");
+                out.writeString(s);
             }
+            case Integer i -> {
+                out.writeByte((byte) 2);
+                out.writeInt(i);
+            }
+            case Long l -> {
+                out.writeByte((byte) 3);
+                out.writeLong(l);
+            }
+            case Float f -> {
+                out.writeByte((byte) 4);
+                out.writeFloat(f);
+            }
+            case Double d -> {
+                out.writeByte((byte) 5);
+                out.writeDouble(d);
+            }
+            case Byte b -> {
+                out.writeByte((byte) 6);
+                out.writeByte(b);
+            }
+            case Short s -> {
+                out.writeByte((byte) 7);
+                out.writeShort(s);
+            }
+            case Boolean b -> {
+                out.writeByte((byte) 8);
+                out.writeBoolean(b);
+            }
+            case BytesRef b -> {
+                out.writeByte((byte) 9);
+                out.writeBytesRef(b);
+            }
+            case BigInteger i -> {
+                out.writeByte((byte) 10);
+                out.writeByteArray(i.toByteArray());
+            }
+            default -> throw new IOException("Can't handle sort field value of type [" + field.getClass() + "]");
         }
     }
 
@@ -577,13 +576,12 @@ public class Lucene {
             );
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
-        } else if (sortField instanceof NonPruningSortField) {
+        } else if (sortField instanceof NonPruningSortField nonPruningSortField) {
             // There are 2 cases of how NonPruningSortField wraps around its underlying sort field.
             // Which are through the SortField class or SortedSetSortField class
             // We will serialize the sort field based on the type of underlying sort field
             // Here the underlying sort field is SortedSetSortField, therefore, we will follow the
             // logic in serializing SortedSetSortField and also unwrap the SortField case.
-            NonPruningSortField nonPruningSortField = (NonPruningSortField) sortField;
             if (nonPruningSortField.getDelegate().getClass() == SortedSetSortField.class) {
                 SortField newSortField = new SortField(
                     nonPruningSortField.getField(),
@@ -620,16 +618,12 @@ public class Lucene {
 
     private static Number readExplanationValue(StreamInput in) throws IOException {
         final int numberType = in.readByte();
-        switch (numberType) {
-            case 0:
-                return in.readFloat();
-            case 1:
-                return in.readDouble();
-            case 2:
-                return in.readZLong();
-            default:
-                throw new IOException("Unexpected number type: " + numberType);
-        }
+        return switch (numberType) {
+            case 0 -> in.readFloat();
+            case 1 -> in.readDouble();
+            case 2 -> in.readZLong();
+            default -> throw new IOException("Unexpected number type: " + numberType);
+        };
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
@@ -678,7 +672,7 @@ public class Lucene {
 
     /**
      * Returns {@code true} iff the given exception or
-     * one of it's causes is an instance of {@link CorruptIndexException},
+     * one of its causes is an instance of {@link CorruptIndexException},
      * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise {@code false}.
      */
     public static boolean isCorruptionException(Throwable t) {
@@ -694,20 +688,15 @@ public class Lucene {
 
     /**
      * Tries to extract a segment reader from the given index reader.
-     * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
+     * Throws {@link IllegalStateException} if segment reader cannot be extracted.
      */
     public static SegmentReader segmentReader(LeafReader reader) {
-        if (reader instanceof SegmentReader) {
-            return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
-            return segmentReader(FilterLeafReader.unwrap(fReader));
-        } else if (reader instanceof FilterCodecReader) {
-            final FilterCodecReader fReader = (FilterCodecReader) reader;
-            return segmentReader(FilterCodecReader.unwrap(fReader));
-        }
-        // hard fail - we can't get a SegmentReader
-        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+        return switch (reader) {
+            case SegmentReader sReader -> sReader;
+            case FilterLeafReader fReader -> segmentReader(FilterLeafReader.unwrap(fReader));
+            case FilterCodecReader fcReader -> segmentReader(FilterCodecReader.unwrap(fcReader));
+            default -> throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+        };
     }
 
     @SuppressForbidden(reason = "Version#parseLeniently() used in a central place")
