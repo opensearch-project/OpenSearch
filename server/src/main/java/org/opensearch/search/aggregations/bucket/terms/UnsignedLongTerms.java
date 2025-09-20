@@ -38,7 +38,7 @@ public class UnsignedLongTerms extends InternalMappedTerms<UnsignedLongTerms, Un
      * @opensearch.internal
      */
     public static class Bucket extends InternalTerms.Bucket<Bucket> {
-        BigInteger term;
+        public BigInteger term;
 
         public Bucket(
             BigInteger term,
