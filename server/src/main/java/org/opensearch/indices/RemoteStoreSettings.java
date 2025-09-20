@@ -94,6 +94,19 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * This setting is used to enable decoupling refresh from segment upload operations in RemoteStoreRefreshListener.
+     * When enabled, refresh operations can proceed independently from segment upload completion, improving refresh performance.
+     * This setting is effective only for remote store enabled clusters.
+     */
+    @ExperimentalApi
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_REFRESH_SEGMENT_UPLOAD_DECOUPLE = Setting.boolSetting(
+        "cluster.remote_store.index.refresh.segment_upload_decouple",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * This setting is used to set the remote store blob store path hash algorithm strategy. This setting is effective only for
      * remote store enabled cluster. This setting will come to effect if the {@link #CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING}
      * is either {@code HASHED_PREFIX} or {@code HASHED_INFIX}.
@@ -192,6 +205,7 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
     private volatile boolean isTranslogMetadataEnabled;
+    private volatile boolean isRefreshSegmentUploadDecoupleEnabled;
     private static volatile boolean isPinnedTimestampsEnabled;
     private static volatile TimeValue pinnedTimestampsSchedulerInterval;
     private static volatile TimeValue pinnedTimestampsLookbackInterval;
@@ -222,6 +236,12 @@ public class RemoteStoreSettings {
 
         isTranslogMetadataEnabled = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA, this::setTranslogMetadataEnabled);
+
+        isRefreshSegmentUploadDecoupleEnabled = clusterSettings.get(CLUSTER_REMOTE_STORE_REFRESH_SEGMENT_UPLOAD_DECOUPLE);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_STORE_REFRESH_SEGMENT_UPLOAD_DECOUPLE,
+            this::setRefreshSegmentUploadDecoupleEnabled
+        );
 
         pathHashAlgorithm = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setPathHashAlgorithm);
@@ -295,6 +315,15 @@ public class RemoteStoreSettings {
 
     public boolean isTranslogMetadataEnabled() {
         return isTranslogMetadataEnabled;
+    }
+
+    private void setRefreshSegmentUploadDecoupleEnabled(boolean isRefreshSegmentUploadDecoupleEnabled) {
+        this.isRefreshSegmentUploadDecoupleEnabled = isRefreshSegmentUploadDecoupleEnabled;
+    }
+
+    @ExperimentalApi
+    public boolean isRefreshSegmentUploadDecoupleEnabled() {
+        return isRefreshSegmentUploadDecoupleEnabled;
     }
 
     private void setPathHashAlgorithm(RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm) {

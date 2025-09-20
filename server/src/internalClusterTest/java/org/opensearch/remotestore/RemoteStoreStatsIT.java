@@ -378,8 +378,8 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 // Assertions
                 assertEquals(0, uploadBytesFailed);
                 for (int j = 0; j < response.getSuccessfulShards() - 1; j++) {
-                    assertTrue(uploadBytesStarted - zeroStatePrimaryStats.get().uploadBytesStarted > downloadBytesStarted.get(j));
-                    assertTrue(uploadBytesSucceeded - zeroStatePrimaryStats.get().uploadBytesSucceeded > downloadBytesSucceeded.get(j));
+                    assertTrue(uploadBytesStarted - zeroStatePrimaryStats.get().uploadBytesStarted == downloadBytesStarted.get(j));
+                    assertTrue(uploadBytesSucceeded - zeroStatePrimaryStats.get().uploadBytesSucceeded == downloadBytesSucceeded.get(j));
                     assertEquals(0, (long) downloadBytesFailed.get(j));
                 }
             });
@@ -392,7 +392,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(primaryStats.totalUploadsStarted, primaryStats.totalUploadsSucceeded);
         assertTrue(primaryStats.totalUploadsSucceeded >= 1);
         assertEquals(primaryStats.uploadBytesStarted, primaryStats.uploadBytesSucceeded);
-        assertTrue(primaryStats.uploadBytesSucceeded > 0);
+        assertEquals(0, primaryStats.uploadBytesSucceeded);
         assertEquals(0, primaryStats.totalUploadsFailed);
         assertEquals(0, primaryStats.uploadBytesFailed);
     }
