@@ -17,8 +17,6 @@ import org.opensearch.node.Node;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory;
 import java.util.concurrent.ForkJoinWorkerThread;
@@ -31,23 +29,6 @@ import java.util.concurrent.ForkJoinWorkerThread;
 public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinPoolExecutorBuilder.ForkJoinPoolExecutorSettings> {
 
     private final Setting<Integer> parallelismSetting;
-    private static final Set<String> ALLOWED_FJP_POOLS = ConcurrentHashMap.newKeySet();
-
-    static {
-        // Default allowed pool(s)
-        ALLOWED_FJP_POOLS.add("fork_join");
-    }
-
-    /**
-     * Registers an additional allowed ForkJoinPool name.
-     * Plugins should call this to register their pool.
-     * @param poolName The pool name to allow
-     */
-    public static void registerAllowedForkJoinPool(String poolName) {
-        if (poolName != null && !poolName.isEmpty()) {
-            ALLOWED_FJP_POOLS.add(poolName);
-        }
-    }
 
     public ForkJoinPoolExecutorBuilder(final String name, final int parallelism) {
         this(name, parallelism, "thread_pool." + name);
@@ -72,16 +53,6 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
 
     @Override
     ThreadPool.ExecutorHolder build(final ForkJoinPoolExecutorSettings settings, final ThreadContext threadContext) {
-        if (!ALLOWED_FJP_POOLS.contains(name())) {
-            throw new IllegalArgumentException(
-                "ForkJoinPool is not enabled for: ["
-                    + name()
-                    + "]. "
-                    + "To allow, call ForkJoinPoolExecutorBuilder.registerAllowedForkJoinPool(\""
-                    + name()
-                    + "\") from your plugin."
-            );
-        }
         int parallelism = settings.parallelism;
         ForkJoinWorkerThreadFactory factory = pool -> {
             ForkJoinWorkerThread worker = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
