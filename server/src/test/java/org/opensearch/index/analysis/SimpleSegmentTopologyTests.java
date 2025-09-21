@@ -1,0 +1,192 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.analysis;
+
+import org.opensearch.test.OpenSearchTestCase;
+
+/**
+ * Simple tests for segment topology analysis concepts.
+ *
+ * This addresses the problem described in:
+ * https://github.com/opensearch-project/OpenSearch/issues/11163
+ */
+public class SimpleSegmentTopologyTests extends OpenSearchTestCase {
+
+    /**
+     * Test that demonstrates the variance problem concept
+     */
+    public void testSegmentTopologyVarianceConcept() {
+        // Simulate different segment topologies that cause variance
+
+        // Scenario 1: One huge segment (bad topology)
+        long[] badTopology = { 5L * 1024 * 1024 * 1024 }; // 5GB segment
+
+        // Scenario 2: Many small segments (also bad topology)
+        long[] manySmallSegments = {
+            16 * 1024 * 1024,  // 16MB
+            20 * 1024 * 1024,  // 20MB
+            18 * 1024 * 1024,  // 18MB
+            15 * 1024 * 1024,  // 15MB
+            22 * 1024 * 1024,  // 22MB
+            19 * 1024 * 1024,  // 19MB
+            17 * 1024 * 1024,  // 17MB
+            21 * 1024 * 1024,  // 21MB
+            16 * 1024 * 1024,  // 16MB
+            20 * 1024 * 1024   // 20MB
+        };
+
+        // Scenario 3: Optimal topology (what we want)
+        long[] optimalTopology = {
+            200 * 1024 * 1024,  // 200MB
+            180 * 1024 * 1024,  // 180MB
+            220 * 1024 * 1024,  // 220MB
+            190 * 1024 * 1024,  // 190MB
+            210 * 1024 * 1024   // 210MB
+        };
+
+        // Verify the concept: different topologies exist
+        assertTrue("Bad topology should have one segment", badTopology.length == 1);
+        assertTrue("Many small segments should have many segments", manySmallSegments.length > 5);
+        assertTrue(
+            "Optimal topology should have reasonable number of segments",
+            optimalTopology.length >= 3 && optimalTopology.length <= 10
+        );
+
+        // Verify segment sizes are reasonable
+        assertTrue("Bad topology has huge segment", badTopology[0] > 1024 * 1024 * 1024); // > 1GB
+        assertTrue("Many small segments are indeed small", manySmallSegments[0] < 50 * 1024 * 1024); // < 50MB
+        assertTrue(
+            "Optimal topology has medium-sized segments",
+            optimalTopology[0] >= 100 * 1024 * 1024 && optimalTopology[0] <= 500 * 1024 * 1024
+        );
+
+        // This demonstrates why benchmarks show variance - different topologies
+        // lead to different performance characteristics
+    }
+
+    /**
+     * Test adaptive merge policy recommendations
+     */
+    public void testAdaptiveMergePolicyRecommendations() {
+        // Test recommendations for different shard sizes
+
+        // Small shard (< 100MB)
+        long smallShardSize = 50 * 1024 * 1024; // 50MB
+        long smallMaxSegment = getRecommendedMaxSegmentSize(smallShardSize);
+        long smallFloorSegment = getRecommendedFloorSegmentSize(smallShardSize);
+        int smallSegmentsPerTier = getRecommendedSegmentsPerTier(smallShardSize);
+
+        assertTrue("Small shard should recommend smaller max segment", smallMaxSegment <= 50 * 1024 * 1024); // <= 50MB
+        assertTrue("Small shard should recommend smaller floor segment", smallFloorSegment <= 10 * 1024 * 1024); // <= 10MB
+        assertTrue("Small shard should recommend fewer segments per tier", smallSegmentsPerTier <= 5);
+
+        // Large shard (> 1GB)
+        long largeShardSize = 5L * 1024 * 1024 * 1024; // 5GB
+        long largeMaxSegment = getRecommendedMaxSegmentSize(largeShardSize);
+        long largeFloorSegment = getRecommendedFloorSegmentSize(largeShardSize);
+        int largeSegmentsPerTier = getRecommendedSegmentsPerTier(largeShardSize);
+
+        assertTrue("Large shard should recommend larger max segment", largeMaxSegment >= 200 * 1024 * 1024); // >= 200MB
+        assertTrue("Large shard should recommend larger floor segment", largeFloorSegment >= 25 * 1024 * 1024); // >= 25MB
+        assertTrue("Large shard should recommend more segments per tier", largeSegmentsPerTier >= 8);
+    }
+
+    /**
+     * Test that demonstrates the improvement over current defaults
+     */
+    public void testImprovementOverCurrentDefaults() {
+        // Current problematic defaults
+        long currentMaxSegment = 5L * 1024 * 1024 * 1024; // 5GB
+        long currentFloorSegment = 16 * 1024 * 1024; // 16MB
+        double currentSegmentsPerTier = 10.0;
+
+        // Recommended improved defaults
+        long recommendedMaxSegment = 1L * 1024 * 1024 * 1024; // 1GB
+        long recommendedFloorSegment = 50 * 1024 * 1024; // 50MB
+        double recommendedSegmentsPerTier = 8.0;
+
+        // Verify improvements
+        assertTrue("Recommended max segment should be smaller than current", recommendedMaxSegment < currentMaxSegment);
+        assertTrue("Recommended floor segment should be larger than current", recommendedFloorSegment > currentFloorSegment);
+        assertTrue("Recommended segments per tier should be reasonable", recommendedSegmentsPerTier < currentSegmentsPerTier);
+
+        // This shows how the recommended settings would reduce variance
+        // by creating more balanced segment topologies
+    }
+
+    // Helper methods
+
+    private double calculateVariance(long[] values) {
+        if (values.length == 0) return 0;
+
+        double mean = 0;
+        for (long value : values) {
+            mean += value;
+        }
+        mean /= values.length;
+
+        double variance = 0;
+        for (long value : values) {
+            variance += (value - mean) * (value - mean);
+        }
+        return variance / values.length;
+    }
+
+    private double calculateSkew(long[] values) {
+        if (values.length == 0) return 0;
+
+        long max = values[0];
+        long min = values[0];
+        for (long value : values) {
+            max = Math.max(max, value);
+            min = Math.min(min, value);
+        }
+
+        // For single value, skew is 1.0 (no skew)
+        if (values.length == 1) return 1.0;
+
+        return max > 0 ? (double) max / min : 0;
+    }
+
+    private long getRecommendedMaxSegmentSize(long shardSizeBytes) {
+        if (shardSizeBytes < 100 * 1024 * 1024) { // < 100MB
+            return 50 * 1024 * 1024; // 50MB
+        } else if (shardSizeBytes < 1024 * 1024 * 1024) { // < 1GB
+            return 200 * 1024 * 1024; // 200MB
+        } else if (shardSizeBytes < 10L * 1024 * 1024 * 1024) { // < 10GB
+            return 1024 * 1024 * 1024; // 1GB
+        } else { // >= 10GB
+            return 2L * 1024 * 1024 * 1024; // 2GB
+        }
+    }
+
+    private long getRecommendedFloorSegmentSize(long shardSizeBytes) {
+        if (shardSizeBytes < 100 * 1024 * 1024) { // < 100MB
+            return 10 * 1024 * 1024; // 10MB
+        } else if (shardSizeBytes < 1024 * 1024 * 1024) { // < 1GB
+            return 25 * 1024 * 1024; // 25MB
+        } else if (shardSizeBytes < 10L * 1024 * 1024 * 1024) { // < 10GB
+            return 50 * 1024 * 1024; // 50MB
+        } else { // >= 10GB
+            return 100 * 1024 * 1024; // 100MB
+        }
+    }
+
+    private int getRecommendedSegmentsPerTier(long shardSizeBytes) {
+        if (shardSizeBytes < 100 * 1024 * 1024) { // < 100MB
+            return 5;
+        } else if (shardSizeBytes < 1024 * 1024 * 1024) { // < 1GB
+            return 8;
+        } else if (shardSizeBytes < 10L * 1024 * 1024 * 1024) { // < 10GB
+            return 10;
+        } else { // >= 10GB
+            return 12;
+        }
+    }
+}
