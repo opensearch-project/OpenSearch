@@ -9,6 +9,7 @@
 package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.protobufs.ExpandWildcard;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -42,8 +43,8 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
             .setIgnoreUnavailable(true)
             .setAllowNoIndices(false)
             .setIgnoreThrottled(true)
-            .addExpandWildcards(SearchRequest.ExpandWildcard.EXPAND_WILDCARD_OPEN)
-            .addExpandWildcards(SearchRequest.ExpandWildcard.EXPAND_WILDCARD_CLOSED)
+            .addExpandWildcards(ExpandWildcard.EXPAND_WILDCARD_OPEN)
+            .addExpandWildcards(ExpandWildcard.EXPAND_WILDCARD_CLOSED)
             .build();
 
         // Create default settings
@@ -68,7 +69,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
             .setIgnoreUnavailable(true)
             // allowNoIndices not set
             .setIgnoreThrottled(true)
-            .addExpandWildcards(SearchRequest.ExpandWildcard.EXPAND_WILDCARD_OPEN)
+            .addExpandWildcards(ExpandWildcard.EXPAND_WILDCARD_OPEN)
             .build();
 
         // Create default settings
@@ -89,7 +90,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseProtoParameterWithEmptyList() {
         // Create an empty list of ExpandWildcard
-        List<SearchRequest.ExpandWildcard> wildcardList = Collections.emptyList();
+        List<ExpandWildcard> wildcardList = Collections.emptyList();
 
         // Create default states
         EnumSet<WildcardStates> defaultStates = EnumSet.of(WildcardStates.OPEN);
@@ -104,7 +105,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseProtoParameterWithSingleValue() {
         // Create a list with a single ExpandWildcard
-        List<SearchRequest.ExpandWildcard> wildcardList = Collections.singletonList(SearchRequest.ExpandWildcard.EXPAND_WILDCARD_CLOSED);
+        List<ExpandWildcard> wildcardList = Collections.singletonList(ExpandWildcard.EXPAND_WILDCARD_CLOSED);
 
         // Create default states
         EnumSet<WildcardStates> defaultStates = EnumSet.of(WildcardStates.OPEN);
@@ -121,10 +122,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseProtoParameterWithMultipleValues() {
         // Create a list with multiple ExpandWildcard values
-        List<SearchRequest.ExpandWildcard> wildcardList = Arrays.asList(
-            SearchRequest.ExpandWildcard.EXPAND_WILDCARD_OPEN,
-            SearchRequest.ExpandWildcard.EXPAND_WILDCARD_HIDDEN
-        );
+        List<ExpandWildcard> wildcardList = Arrays.asList(ExpandWildcard.EXPAND_WILDCARD_OPEN, ExpandWildcard.EXPAND_WILDCARD_HIDDEN);
 
         // Create default states
         EnumSet<WildcardStates> defaultStates = EnumSet.of(WildcardStates.CLOSED);
@@ -142,7 +140,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseProtoParameterWithNoneValue() {
         // Create a list with NONE value
-        List<SearchRequest.ExpandWildcard> wildcardList = Collections.singletonList(SearchRequest.ExpandWildcard.EXPAND_WILDCARD_NONE);
+        List<ExpandWildcard> wildcardList = Collections.singletonList(ExpandWildcard.EXPAND_WILDCARD_NONE);
 
         // Create default states with all values
         EnumSet<WildcardStates> defaultStates = EnumSet.allOf(WildcardStates.class);
@@ -157,7 +155,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseProtoParameterWithAllValue() {
         // Create a list with ALL value
-        List<SearchRequest.ExpandWildcard> wildcardList = Collections.singletonList(SearchRequest.ExpandWildcard.EXPAND_WILDCARD_ALL);
+        List<ExpandWildcard> wildcardList = Collections.singletonList(ExpandWildcard.EXPAND_WILDCARD_ALL);
 
         // Create default states with no values
         EnumSet<WildcardStates> defaultStates = EnumSet.noneOf(WildcardStates.class);
@@ -172,10 +170,10 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseProtoParameterWithNoneFollowedByValues() {
         // Create a list with NONE followed by other values
-        List<SearchRequest.ExpandWildcard> wildcardList = Arrays.asList(
-            SearchRequest.ExpandWildcard.EXPAND_WILDCARD_NONE,
-            SearchRequest.ExpandWildcard.EXPAND_WILDCARD_OPEN,
-            SearchRequest.ExpandWildcard.EXPAND_WILDCARD_CLOSED
+        List<ExpandWildcard> wildcardList = Arrays.asList(
+            ExpandWildcard.EXPAND_WILDCARD_NONE,
+            ExpandWildcard.EXPAND_WILDCARD_OPEN,
+            ExpandWildcard.EXPAND_WILDCARD_CLOSED
         );
 
         // Create default states
@@ -194,10 +192,10 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseProtoParameterWithValuesFollowedByNone() {
         // Create a list with values followed by NONE
-        List<SearchRequest.ExpandWildcard> wildcardList = Arrays.asList(
-            SearchRequest.ExpandWildcard.EXPAND_WILDCARD_OPEN,
-            SearchRequest.ExpandWildcard.EXPAND_WILDCARD_CLOSED,
-            SearchRequest.ExpandWildcard.EXPAND_WILDCARD_NONE
+        List<ExpandWildcard> wildcardList = Arrays.asList(
+            ExpandWildcard.EXPAND_WILDCARD_OPEN,
+            ExpandWildcard.EXPAND_WILDCARD_CLOSED,
+            ExpandWildcard.EXPAND_WILDCARD_NONE
         );
 
         // Create default states
@@ -216,7 +214,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
 
         // Call the method under test
-        IndicesOptionsProtoUtils.updateSetForValue(states, SearchRequest.ExpandWildcard.EXPAND_WILDCARD_OPEN);
+        IndicesOptionsProtoUtils.updateSetForValue(states, ExpandWildcard.EXPAND_WILDCARD_OPEN);
 
         // Verify the result
         assertNotNull("States should not be null", states);
@@ -229,7 +227,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
 
         // Call the method under test
-        IndicesOptionsProtoUtils.updateSetForValue(states, SearchRequest.ExpandWildcard.EXPAND_WILDCARD_CLOSED);
+        IndicesOptionsProtoUtils.updateSetForValue(states, ExpandWildcard.EXPAND_WILDCARD_CLOSED);
 
         // Verify the result
         assertNotNull("States should not be null", states);
@@ -242,7 +240,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
 
         // Call the method under test
-        IndicesOptionsProtoUtils.updateSetForValue(states, SearchRequest.ExpandWildcard.EXPAND_WILDCARD_HIDDEN);
+        IndicesOptionsProtoUtils.updateSetForValue(states, ExpandWildcard.EXPAND_WILDCARD_HIDDEN);
 
         // Verify the result
         assertNotNull("States should not be null", states);
@@ -255,7 +253,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
         EnumSet<WildcardStates> states = EnumSet.allOf(WildcardStates.class);
 
         // Call the method under test
-        IndicesOptionsProtoUtils.updateSetForValue(states, SearchRequest.ExpandWildcard.EXPAND_WILDCARD_NONE);
+        IndicesOptionsProtoUtils.updateSetForValue(states, ExpandWildcard.EXPAND_WILDCARD_NONE);
 
         // Verify the result
         assertNotNull("States should not be null", states);
@@ -267,7 +265,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
 
         // Call the method under test
-        IndicesOptionsProtoUtils.updateSetForValue(states, SearchRequest.ExpandWildcard.EXPAND_WILDCARD_ALL);
+        IndicesOptionsProtoUtils.updateSetForValue(states, ExpandWildcard.EXPAND_WILDCARD_ALL);
 
         // Verify the result
         assertNotNull("States should not be null", states);
@@ -281,7 +279,7 @@ public class IndicesOptionsProtoUtilsTests extends OpenSearchTestCase {
         // Call the method under test with UNRECOGNIZED value, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> IndicesOptionsProtoUtils.updateSetForValue(states, SearchRequest.ExpandWildcard.UNRECOGNIZED)
+            () -> IndicesOptionsProtoUtils.updateSetForValue(states, ExpandWildcard.UNRECOGNIZED)
         );
 
         assertTrue(

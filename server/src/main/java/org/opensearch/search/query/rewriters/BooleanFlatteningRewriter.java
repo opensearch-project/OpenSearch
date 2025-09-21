@@ -130,10 +130,9 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
                 BoolQueryBuilder nestedBool = (BoolQueryBuilder) clause;
 
                 if (canFlatten(nestedBool, clauseType)) {
-                    // Flatten the nested bool query by extracting its clauses
+                    // General flattening for same-clause-type nesting
                     List<QueryBuilder> nestedClauses = getClausesForType(nestedBool, clauseType);
                     for (QueryBuilder nestedClause : nestedClauses) {
-                        // Recursively flatten if needed
                         if (nestedClause instanceof BoolQueryBuilder) {
                             nestedClause = flattenBoolQuery((BoolQueryBuilder) nestedClause);
                         }
@@ -160,6 +159,11 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
             return false;
         }
 
+        // Never flatten under MUST_NOT to preserve semantics and avoid non-idempotent transforms
+        if (parentType == ClauseType.MUST_NOT) {
+            return false;
+        }
+
         // Check if only has clauses matching parent type
         switch (parentType) {
             case MUST:
@@ -178,11 +182,6 @@ public class BooleanFlatteningRewriter implements QueryRewriter {
                     && !nestedBool.should().isEmpty()
                     && nestedBool.mustNot().isEmpty()
                     && nestedBool.minimumShouldMatch() == null;
-            case MUST_NOT:
-                return nestedBool.must().isEmpty()
-                    && nestedBool.filter().isEmpty()
-                    && nestedBool.should().isEmpty()
-                    && !nestedBool.mustNot().isEmpty();
             default:
                 return false;
         }

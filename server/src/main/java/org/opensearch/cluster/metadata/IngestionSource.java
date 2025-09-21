@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
@@ -35,6 +36,7 @@ public class IngestionSource {
     private final int pollTimeout;
     private int numProcessorThreads;
     private int blockingQueueSize;
+    private final boolean allActiveIngestion;
 
     private IngestionSource(
         String type,
@@ -44,7 +46,8 @@ public class IngestionSource {
         long maxPollSize,
         int pollTimeout,
         int numProcessorThreads,
-        int blockingQueueSize
+        int blockingQueueSize,
+        boolean allActiveIngestion
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -54,6 +57,7 @@ public class IngestionSource {
         this.pollTimeout = pollTimeout;
         this.numProcessorThreads = numProcessorThreads;
         this.blockingQueueSize = blockingQueueSize;
+        this.allActiveIngestion = allActiveIngestion;
     }
 
     public String getType() {
@@ -88,6 +92,10 @@ public class IngestionSource {
         return blockingQueueSize;
     }
 
+    public boolean isAllActiveIngestionEnabled() {
+        return allActiveIngestion;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -100,7 +108,8 @@ public class IngestionSource {
             && Objects.equals(maxPollSize, ingestionSource.maxPollSize)
             && Objects.equals(pollTimeout, ingestionSource.pollTimeout)
             && Objects.equals(numProcessorThreads, ingestionSource.numProcessorThreads)
-            && Objects.equals(blockingQueueSize, ingestionSource.blockingQueueSize);
+            && Objects.equals(blockingQueueSize, ingestionSource.blockingQueueSize)
+            && Objects.equals(allActiveIngestion, ingestionSource.allActiveIngestion);
     }
 
     @Override
@@ -113,7 +122,8 @@ public class IngestionSource {
             maxPollSize,
             pollTimeout,
             numProcessorThreads,
-            blockingQueueSize
+            blockingQueueSize,
+            allActiveIngestion
         );
     }
 
@@ -139,6 +149,8 @@ public class IngestionSource {
             + numProcessorThreads
             + ", blockingQueueSize="
             + blockingQueueSize
+            + ", allActiveIngestion="
+            + allActiveIngestion
             + '}';
     }
 
@@ -196,6 +208,7 @@ public class IngestionSource {
         private int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.getDefault(Settings.EMPTY);
         private int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.getDefault(Settings.EMPTY);
         private int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.getDefault(Settings.EMPTY);
+        private boolean allActiveIngestion = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getDefault(Settings.EMPTY);
 
         public Builder(String type) {
             this.type = type;
@@ -208,6 +221,7 @@ public class IngestionSource {
             this.errorStrategy = ingestionSource.errorStrategy;
             this.params = ingestionSource.params;
             this.blockingQueueSize = ingestionSource.blockingQueueSize;
+            this.allActiveIngestion = ingestionSource.allActiveIngestion;
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -250,6 +264,11 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setAllActiveIngestion(boolean allActiveIngestion) {
+            this.allActiveIngestion = allActiveIngestion;
+            return this;
+        }
+
         public IngestionSource build() {
             return new IngestionSource(
                 type,
@@ -259,7 +278,8 @@ public class IngestionSource {
                 maxPollSize,
                 pollTimeout,
                 numProcessorThreads,
-                blockingQueueSize
+                blockingQueueSize,
+                allActiveIngestion
             );
         }
 
