@@ -8,15 +8,24 @@
 
 package org.opensearch.search.sort;
 
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitAction;
+import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -34,30 +43,45 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX);
     }
 
-    public void testEmptyIndex() {
-        SearchResponse resp = client().prepareSearch(INDEX).addSort(SortBuilders.shardDocSort().order(SortOrder.ASC)).setSize(10).get();
+    public void testEmptyIndex() throws Exception {
+        String pitId = openPit(INDEX, TimeValue.timeValueMinutes(1));
+        SearchSourceBuilder ssb = new SearchSourceBuilder().size(10)
+            .sort(SortBuilders.shardDocSort().order(SortOrder.ASC))
+            .pointInTimeBuilder(pit(pitId));
+        SearchResponse resp = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
 
         // no hits at all
         SearchHit[] hits = resp.getHits().getHits();
         assertThat(hits.length, equalTo(0));
         assertThat(resp.getHits().getTotalHits().value(), equalTo(0L));
+        closePit(pitId);
     }
 
-    public void testSingleDocument() {
+    public void testSingleDocument() throws Exception {
         client().prepareIndex(INDEX).setId("42").setSource("foo", "bar").get();
         refresh();
 
-        SearchResponse resp = client().prepareSearch(INDEX).addSort(SortBuilders.shardDocSort().order(SortOrder.ASC)).setSize(5).get();
+        String pitId = openPit(INDEX, TimeValue.timeValueMinutes(1));
+        SearchSourceBuilder ssb = new SearchSourceBuilder().size(5)
+            .sort(SortBuilders.shardDocSort().order(SortOrder.ASC))
+            .pointInTimeBuilder(pit(pitId));
+        SearchResponse resp = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
 
         assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(resp.getHits().getHits()[0].getId(), equalTo("42"));
+        closePit(pitId);
     }
 
-    public void testSearchAfterBeyondEndYieldsNoHits() {
+    public void testSearchAfterBeyondEndYieldsNoHits() throws Exception {
         indexSequentialDocs(5);
         refresh();
         List<Long> allKeys = new ArrayList<>();
-        SearchSourceBuilder ssb = new SearchSourceBuilder().size(5).sort(SortBuilders.shardDocSort().order(SortOrder.ASC));
+
+        String pitId = openPit(INDEX, TimeValue.timeValueMinutes(1));
+        SearchSourceBuilder ssb = new SearchSourceBuilder().size(5)
+            .sort(SortBuilders.shardDocSort().order(SortOrder.ASC))
+            .pointInTimeBuilder(pit(pitId));
+
         SearchResponse resp0 = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
         // collect first page
         for (SearchHit hit : resp0.getHits().getHits()) {
@@ -66,14 +90,16 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         }
 
         long globalMax = allKeys.get(allKeys.size() - 1);
-        SearchResponse resp = client().prepareSearch(INDEX)
-            .addSort(SortBuilders.shardDocSort().order(SortOrder.ASC))
-            .setSize(3)
-            .searchAfter(new Object[] { globalMax + 1 })
-            .get();
 
+        SearchSourceBuilder next = new SearchSourceBuilder().size(3)
+            .sort(SortBuilders.shardDocSort().order(SortOrder.ASC))
+            .pointInTimeBuilder(pit(pitId))
+            .searchAfter(new Object[] { globalMax + 1 });
+
+        SearchResponse resp = client().search(new SearchRequest(INDEX).source(next)).actionGet();
         SearchHit[] hits = resp.getHits().getHits();
         assertThat(hits.length, equalTo(0));
+        closePit(pitId);
     }
 
     public void testSearchAfterBeyondEndYieldsNoHits_DESC() throws Exception {
@@ -81,30 +107,36 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         refresh();
 
         // First page: _shard_doc DESC, grab the SMALLEST key (last hit on the page)
-        SearchSourceBuilder ssb = new SearchSourceBuilder().size(5).sort(SortBuilders.shardDocSort().order(SortOrder.DESC));
-        SearchResponse first = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
+        String pitId = openPit(INDEX, TimeValue.timeValueMinutes(1));
+        SearchSourceBuilder ssb = new SearchSourceBuilder().size(5)
+            .sort(SortBuilders.shardDocSort().order(SortOrder.DESC))
+            .pointInTimeBuilder(pit(pitId));
 
+        SearchResponse first = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
         assertThat(first.getHits().getHits().length, equalTo(5));
-        long minKey = ((Number) first.getHits().getHits()[4].getSortValues()[0]).longValue(); // smallest in DESC page
 
         // Probe strictly beyond the end for DESC: use search_after < min (min - 1) => expect 0 hits
-        SearchResponse resp = client().prepareSearch(INDEX)
-            .addSort(SortBuilders.shardDocSort().order(SortOrder.DESC))
-            .setSize(3)
-            .searchAfter(new Object[] { minKey - 1 })
-            .get();
+        long minKey = ((Number) first.getHits().getHits()[4].getSortValues()[0]).longValue(); // smallest in DESC page
+        SearchSourceBuilder probe = new SearchSourceBuilder().size(3)
+            .sort(SortBuilders.shardDocSort().order(SortOrder.DESC))
+            .pointInTimeBuilder(pit(pitId))
+            .searchAfter(new Object[] { minKey - 1 });
 
+        SearchResponse resp = client().search(new SearchRequest(INDEX).source(probe)).actionGet();
         assertThat(resp.getHits().getHits().length, equalTo(0));
+        closePit(pitId);
     }
 
-    public void testPrimaryFieldSortThenShardDocTieBreaker() {
+    public void testPrimaryFieldSortThenShardDocTieBreaker() throws Exception {
         // force ties on primary
         for (int i = 1; i <= 30; i++) {
             client().prepareIndex(INDEX).setId(Integer.toString(i)).setSource("val", 123).get();
         }
         refresh();
 
+        String pitId = openPit(INDEX, TimeValue.timeValueMinutes(1));
         var shardDocKeys = collectAllSortKeys(
+            pitId,
             10,
             1,
             new FieldSortBuilder("val").order(SortOrder.ASC),
@@ -115,6 +147,7 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         for (int i = 1; i < shardDocKeys.size(); i++) {
             assertThat(shardDocKeys.get(i), greaterThan(shardDocKeys.get(i - 1)));
         }
+        closePit(pitId);
     }
 
     public void testOrderingAscAndPagination() throws Exception {
@@ -125,12 +158,13 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
         assertShardDocOrdering(SortOrder.DESC, 8, 20);
     }
 
-    private void assertShardDocOrdering(SortOrder order, int pageSize, int expectedCount) {
+    private void assertShardDocOrdering(SortOrder order, int pageSize, int expectedCount) throws Exception {
         indexSequentialDocs(expectedCount);
         refresh();
 
+        String pitId = openPit(INDEX, TimeValue.timeValueMinutes(1));
         // shardDocIndex = 0 because we're only sorting by _shard_doc here
-        List<Long> keys = collectAllSortKeys(pageSize, 0, SortBuilders.shardDocSort().order(order));
+        List<Long> keys = collectAllSortKeys(pitId, pageSize, 0, SortBuilders.shardDocSort().order(order));
 
         assertThat(keys.size(), equalTo(expectedCount));
 
@@ -141,19 +175,20 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
                 assertThat("not strictly decreasing at i=" + i, keys.get(i), lessThan(keys.get(i - 1)));
             }
         }
+        closePit(pitId);
     }
 
     // Generic paginator: works for 1 or many sort keys.
     // - pageSize: page size
     // - shardDocIndex: which position in sortValues[]
     // - sorts: the full sort list to apply (e.g., only _shard_doc, or primary then _shard_doc)
-    private List<Long> collectAllSortKeys(int pageSize, int shardDocIndex, SortBuilder<?>... sorts) {
+    private List<Long> collectAllSortKeys(String pitId, int pageSize, int shardDocIndex, SortBuilder<?>... sorts) {
         List<Long> all = new ArrayList<>();
 
-        SearchSourceBuilder ssb = new SearchSourceBuilder().size(pageSize);
-        for (var s : sorts)
+        SearchSourceBuilder ssb = new SearchSourceBuilder().size(pageSize).pointInTimeBuilder(pit(pitId));
+        for (var s : sorts) {
             ssb.sort(s);
-
+        }
         SearchResponse resp = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
 
         while (true) {
@@ -167,9 +202,10 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
             // use the FULL last sortValues[] as search_after for correctness
             Object[] nextAfter = resp.getHits().getHits()[resp.getHits().getHits().length - 1].getSortValues();
 
-            ssb = new SearchSourceBuilder().size(pageSize);
-            for (var s : sorts)
+            ssb = new SearchSourceBuilder().size(pageSize).pointInTimeBuilder(pit(pitId));
+            for (var s : sorts) {
                 ssb.sort(s);
+            }
             ssb.searchAfter(nextAfter);
 
             resp = client().search(new SearchRequest(INDEX).source(ssb)).actionGet();
@@ -185,5 +221,23 @@ public class ShardDocFieldComparatorSourceIT extends OpenSearchIntegTestCase {
                 .setSource("val", i)
                 .get();
         }
+    }
+
+    private String openPit(String index, TimeValue keepAlive) throws Exception {
+        CreatePitRequest request = new CreatePitRequest(keepAlive, true);
+        request.setIndices(new String[] { index });
+        ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
+        CreatePitResponse pitResponse = execute.get();
+        return pitResponse.getId();
+    }
+
+    private void closePit(String pitId) {
+        if (pitId == null) return;
+        DeletePitRequest del = new DeletePitRequest(Collections.singletonList(pitId));
+        client().execute(DeletePitAction.INSTANCE, del).actionGet();
+    }
+
+    private static PointInTimeBuilder pit(String pitId) {
+        return new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(1));
     }
 }
