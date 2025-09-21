@@ -267,7 +267,6 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         LARGE,
         VERY_LARGE
     }
-
     /**
      * Test performance metrics validation
      */

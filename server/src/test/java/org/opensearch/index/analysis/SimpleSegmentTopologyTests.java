@@ -149,7 +149,6 @@ public class SimpleSegmentTopologyTests extends OpenSearchTestCase {
             return 12;
         }
     }
-
     /**
      * Test edge cases for segment size recommendations
      */
