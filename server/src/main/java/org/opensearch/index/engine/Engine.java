@@ -124,6 +124,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static java.util.Collections.emptySet;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -748,10 +749,15 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
     }
 
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        return acquireSearcherSupplier(wrapper, scope, emptySet());
+    }
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope, Set<String> criteria)
+        throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -761,7 +767,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
         Releasable releasable = store::decRef;
         try {
             ReferenceManager<OpenSearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            OpenSearchDirectoryReader acquire = referenceManager.acquire();
+            OpenSearchDirectoryReader acquire;
+            if (criteria != null && !criteria.isEmpty()) {
+                acquire = referenceManager.acquire().getCriteriaBasedReader(criteria);
+            } else {
+                acquire = referenceManager.acquire();
+            }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
