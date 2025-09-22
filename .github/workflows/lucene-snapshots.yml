@@ -47,7 +47,7 @@ jobs:
         run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ env.REVISION }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_SECRET_ROLE }}
           aws-region: us-east-1
@@ -60,7 +60,7 @@ jobs:
           echo "LUCENE_SNAPSHOTS_BUCKET=$lucene_snapshots_bucket" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_S3_ROLE }}
           aws-region: us-east-1
@@ -70,7 +70,7 @@ jobs:
           aws s3 cp ~/.m2/repository/org/apache/lucene/ s3://${{ steps.get_s3_bucket.outputs.LUCENE_SNAPSHOTS_BUCKET }}/snapshots/lucene/org/apache/lucene/  --recursive --no-progress
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_ROLE }}
           aws-region: us-west-2

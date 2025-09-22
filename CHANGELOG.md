@@ -97,6 +97,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Apache Lucene from 10.2.2 to 10.3.0 ([#19296](https://github.com/opensearch-project/OpenSearch/pull/19296))
 - Add com.google.code.gson:gson to the gradle version catalog ([#19328](https://github.com/opensearch-project/OpenSearch/pull/19328))
 - Bump `org.apache.logging.log4j:log4j-core` from 2.25.1 to 2.25.2 ([#19357](https://github.com/opensearch-project/OpenSearch/pull/19357))
+- Bump `aws-actions/configure-aws-credentials` from 4 to 5 ([#19363](https://github.com/opensearch-project/OpenSearch/pull/19363))
+- Bump `com.azure:azure-identity` from 1.14.2 to 1.18.0 ([#19361](https://github.com/opensearch-project/OpenSearch/pull/19361))
 
 ### Deprecated
 
