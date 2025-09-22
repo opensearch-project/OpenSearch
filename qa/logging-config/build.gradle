@@ -34,7 +34,7 @@ apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.standalone-test'
 
 dependencies {
-  testCompileOnly "com.github.spotbugs:spotbugs-annotations:4.9.4"
+  testCompileOnly "com.github.spotbugs:spotbugs-annotations:4.9.6"
 }
 
 testClusters.integTest {
