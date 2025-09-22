@@ -112,6 +112,16 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters
+    ) {
+        return getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters, name -> null);
+    }
+
+    @Override
+    public TokenFilterFactory getChainAwareTokenFilterFactory(
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters,
         Function<String, Analyzer> analyzersBuiltSoFar
     ) {
