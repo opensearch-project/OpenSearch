@@ -240,7 +240,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                     if (randomBoolean()) {
                         return super.rewriteForDocValue(value);
                     } else {
-                        return value;
+                        return randomBoolean() ? value : new String(strVal);
                     }
                 }
             }
