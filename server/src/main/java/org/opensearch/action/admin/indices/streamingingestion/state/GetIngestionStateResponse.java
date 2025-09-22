@@ -75,7 +75,7 @@ public class GetIngestionStateResponse extends BroadcastResponse {
 
         for (Map.Entry<String, List<ShardIngestionState>> indexShardIngestionStateEntry : shardStateByIndex.entrySet()) {
             builder.startArray(indexShardIngestionStateEntry.getKey());
-            indexShardIngestionStateEntry.getValue().sort(Comparator.comparingInt(ShardIngestionState::shardId));
+            indexShardIngestionStateEntry.getValue().sort(Comparator.comparingInt(ShardIngestionState::getShardId));
             for (ShardIngestionState shardIngestionState : indexShardIngestionStateEntry.getValue()) {
                 shardIngestionState.toXContent(builder, params);
             }

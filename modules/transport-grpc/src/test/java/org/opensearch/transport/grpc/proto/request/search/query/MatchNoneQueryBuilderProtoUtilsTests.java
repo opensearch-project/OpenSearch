@@ -42,7 +42,7 @@ public class MatchNoneQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithName() {
         // Create a protobuf MatchNoneQuery with name
-        MatchNoneQuery matchNoneQueryProto = MatchNoneQuery.newBuilder().setUnderscoreName("test_query").build();
+        MatchNoneQuery matchNoneQueryProto = MatchNoneQuery.newBuilder().setXName("test_query").build();
 
         // Call the method under test
         MatchNoneQueryBuilder matchNoneQueryBuilder = MatchNoneQueryBuilderProtoUtils.fromProto(matchNoneQueryProto);
@@ -55,7 +55,7 @@ public class MatchNoneQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithBoostAndName() {
         // Create a protobuf MatchNoneQuery with boost and name
-        MatchNoneQuery matchNoneQueryProto = MatchNoneQuery.newBuilder().setBoost(3.0f).setUnderscoreName("test_query").build();
+        MatchNoneQuery matchNoneQueryProto = MatchNoneQuery.newBuilder().setBoost(3.0f).setXName("test_query").build();
 
         // Call the method under test
         MatchNoneQueryBuilder matchNoneQueryBuilder = MatchNoneQueryBuilderProtoUtils.fromProto(matchNoneQueryProto);

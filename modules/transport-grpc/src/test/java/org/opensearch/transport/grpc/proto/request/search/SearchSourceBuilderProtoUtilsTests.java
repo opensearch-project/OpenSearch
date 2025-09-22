@@ -14,17 +14,16 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.GeneralNumber;
+import org.opensearch.protobufs.FloatMap;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
-import org.opensearch.protobufs.NumberMap;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.protobufs.SlicedScroll;
-import org.opensearch.protobufs.SortCombinations;
+import org.opensearch.protobufs.SortOptions;
 import org.opensearch.protobufs.TrackHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -196,7 +195,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testParseProtoWithTrackTotalHitsBooleanTrue() throws IOException {
         // Create a protobuf SearchRequestBody with trackTotalHits boolean true
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .setTrackTotalHits(TrackHits.newBuilder().setBoolValue(true).build())
+            .setTrackTotalHits(TrackHits.newBuilder().setEnabled(true).build())
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -212,7 +211,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testParseProtoWithTrackTotalHitsBooleanFalse() throws IOException {
         // Create a protobuf SearchRequestBody with trackTotalHits boolean false
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .setTrackTotalHits(TrackHits.newBuilder().setBoolValue(false).build())
+            .setTrackTotalHits(TrackHits.newBuilder().setEnabled(false).build())
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -228,7 +227,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testParseProtoWithTrackTotalHitsInteger() throws IOException {
         // Create a protobuf SearchRequestBody with trackTotalHits integer
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .setTrackTotalHits(TrackHits.newBuilder().setInt32Value(1000).build())
+            .setTrackTotalHits(TrackHits.newBuilder().setCount(1000).build())
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -360,7 +359,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         boostMap.put("index2", 2.0f);
 
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .addIndicesBoost(NumberMap.newBuilder().putAllNumberMap(boostMap).build())
+            .addIndicesBoost(FloatMap.newBuilder().putAllFloatMap(boostMap).build())
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -377,7 +376,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testParseProtoWithSortString() throws IOException {
         // Create a protobuf SearchRequestBody with sort string
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .addSort(SortCombinations.newBuilder().setStringValue("field1").build())
+            .addSort(SortOptions.newBuilder().setString("field1").build())
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -414,18 +413,14 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         scriptFieldsMap.put(
             "script_field_1",
             ScriptField.newBuilder()
-                .setScript(
-                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
                 .setIgnoreFailure(true)
                 .build()
         );
         scriptFieldsMap.put(
             "script_field_2",
             ScriptField.newBuilder()
-                .setScript(
-                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
                 .build()
         );
 
@@ -482,18 +477,14 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
             "derived_field_1",
             DerivedField.newBuilder()
                 .setType("number")
-                .setScript(
-                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
                 .build()
         );
         derivedFieldsMap.put(
             "derived_field_2",
             DerivedField.newBuilder()
                 .setType("string")
-                .setScript(
-                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
                 .build()
         );
 
@@ -535,8 +526,10 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testParseProtoWithSearchAfter() throws IOException {
         // Create a protobuf SearchRequestBody with searchAfter
         SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .addSearchAfter(FieldValue.newBuilder().setStringValue("value1").build())
-            .addSearchAfter(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(42).build()).build())
+            .addSearchAfter(FieldValue.newBuilder().setString("value1").build())
+            .addSearchAfter(
+                FieldValue.newBuilder().setGeneralNumber(org.opensearch.protobufs.GeneralNumber.newBuilder().setFloatValue(42.0f)).build()
+            )
             .build();
 
         // Create a SearchSourceBuilder to populate
@@ -549,7 +542,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("SearchAfter should not be null", searchSourceBuilder.searchAfter());
         assertEquals("SearchAfter should have 2 values", 2, searchSourceBuilder.searchAfter().length);
         assertEquals("First value should match", "value1", searchSourceBuilder.searchAfter()[0]);
-        assertEquals("Second value should match", 42L, searchSourceBuilder.searchAfter()[1]);
+        assertEquals("Second value should match", 42.0f, searchSourceBuilder.searchAfter()[1]);
     }
 
     public void testParseProtoWithExtThrowsUnsupportedOperationException() throws IOException {
@@ -571,7 +564,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testScriptFieldProtoUtilsFromProto() throws IOException {
         // Create a protobuf ScriptField
         ScriptField scriptFieldProto = ScriptField.newBuilder()
-            .setScript(Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
+            .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
             .setIgnoreFailure(true)
             .build();
 
@@ -592,7 +585,7 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testScriptFieldProtoUtilsFromProtoWithDefaultIgnoreFailure() throws IOException {
         // Create a protobuf ScriptField without ignoreFailure
         ScriptField scriptFieldProto = ScriptField.newBuilder()
-            .setScript(Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
+            .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
             .build();
 
         // Call the method under test

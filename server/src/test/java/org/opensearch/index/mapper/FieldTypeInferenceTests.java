@@ -47,6 +47,7 @@ public class FieldTypeInferenceTests extends MapperServiceTestCase {
         documentMap.put("object_type", List.of(Map.of("foo", Map.of("bar", 10))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/19334")
     public void testJsonSupportedTypes() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> {}));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);

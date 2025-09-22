@@ -69,6 +69,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.HTTP;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.OpenSearchTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -269,11 +270,17 @@ public final class ExternalTestCluster extends TestCluster {
                 .execute()
                 .actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat(
-                    "Fielddata breaker not reset to 0 on node: " + stats.getNode(),
-                    stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
-                    equalTo(0L)
-                );
+                try {
+                    assertBusy(() -> {
+                        assertThat(
+                            "Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                            stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
+                            equalTo(0L)
+                        );
+                    });
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for request breaker reset to 0", e);
+                }
                 // ExternalTestCluster does not check the request breaker,
                 // because checking it requires a network request, which in
                 // turn increments the breaker, making it non-0

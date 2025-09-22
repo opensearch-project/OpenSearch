@@ -62,8 +62,8 @@ dependencies {
   api 'com.microsoft.azure:msal4j-persistence-extension:1.3.0'
   api "net.java.dev.jna:jna-platform:${versions.jna}"
   api 'com.microsoft.azure:msal4j:1.21.0'
-  api 'com.nimbusds:oauth2-oidc-sdk:11.25'
-  api 'com.nimbusds:nimbus-jose-jwt:10.4.2'
+  api 'com.nimbusds:oauth2-oidc-sdk:11.28'
+  api 'com.nimbusds:nimbus-jose-jwt:10.5'
   api 'com.nimbusds:content-type:2.3'
   api 'com.nimbusds:lang-tag:1.7'
   // Both msal4j:1.14.3 and oauth2-oidc-sdk:11.9.1 has compile dependency on different versions of json-smart,
@@ -84,6 +84,8 @@ dependencies {
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "org.apache.commons:commons-lang3:${versions.commonslang}"
+  compileOnly "com.github.spotbugs:spotbugs-annotations:${versions.spotbugs_annotations}"
+
   testImplementation project(':test:fixtures:azure-fixture')
 }
 

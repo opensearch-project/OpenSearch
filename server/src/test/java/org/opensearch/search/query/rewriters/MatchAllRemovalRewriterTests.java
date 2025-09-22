@@ -97,6 +97,33 @@ public class MatchAllRemovalRewriterTests extends OpenSearchTestCase {
         assertThat(rewrittenBool.filter().size(), equalTo(0));
     }
 
+    public void testMustMatchAllRemovedWhenFilterPresent() {
+        // must contains match_all + term, and there is a filter clause => remove match_all from must
+        QueryBuilder query = QueryBuilders.boolQuery()
+            .must(QueryBuilders.matchAllQuery())
+            .must(QueryBuilders.termQuery("field", "v"))
+            .filter(QueryBuilders.termQuery("f2", "x"));
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+        // match_all removed from must because non-scoring context exists (filter present)
+        assertThat(rewrittenBool.must().size(), equalTo(1));
+    }
+
+    public void testNestedFilterMatchAllRemoved() {
+        // match_all inside nested bool under filter should be removed
+        QueryBuilder nested = QueryBuilders.boolQuery().filter(QueryBuilders.matchAllQuery()).filter(QueryBuilders.termQuery("a", "b"));
+        QueryBuilder query = QueryBuilders.boolQuery().filter(nested);
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+        BoolQueryBuilder nestedRewritten = (BoolQueryBuilder) rewrittenBool.filter().get(0);
+        // Only the real filter remains
+        assertThat(nestedRewritten.filter().size(), equalTo(1));
+    }
+
     public void testNestedBooleanWithMatchAll() {
         // Nested boolean queries should also have match_all removed
         QueryBuilder nested = QueryBuilders.boolQuery()
