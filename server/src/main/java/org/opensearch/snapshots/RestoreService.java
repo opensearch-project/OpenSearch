@@ -420,6 +420,18 @@ public class RestoreService implements ClusterStateApplier {
                                             + "] as some of the nodes in cluster have version less than 2.9"
                                     );
                                 }
+
+                                String sourceRemoteSegmentRepo = request.getSourceRemoteStoreRepository();
+                                String sourceRemoteTransLogRepo = request.getSourceRemoteStoreRepository();
+
+                                boolean isSSEEnabledIndex = IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING.get(metadata.index(index).getSettings());
+                                if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())
+                                    && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled()
+                                    && isSSEEnabledIndex) {
+                                    sourceRemoteSegmentRepo = RemoteStoreNodeAttribute.getServerSideEncryptedRepoName(sourceRemoteSegmentRepo);
+                                    sourceRemoteTransLogRepo = RemoteStoreNodeAttribute.getServerSideEncryptedRepoName(sourceRemoteTransLogRepo);
+                                }
+
                                 final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                                     restoreUUID,
                                     snapshot,
@@ -427,8 +439,8 @@ public class RestoreService implements ClusterStateApplier {
                                     snapshotIndexId,
                                     isSearchableSnapshot,
                                     isRemoteStoreShallowCopy,
-                                    request.getSourceRemoteStoreRepository(),
-                                    request.getSourceRemoteTranslogRepository(),
+                                    sourceRemoteSegmentRepo,
+                                    sourceRemoteTransLogRepo,
                                     snapshotInfo.getPinnedTimestamp()
                                 );
                                 final Version minIndexCompatibilityVersion = currentState.getNodes()

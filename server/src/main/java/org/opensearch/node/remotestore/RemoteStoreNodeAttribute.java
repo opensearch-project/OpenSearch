@@ -197,7 +197,7 @@ public class RemoteStoreNodeAttribute {
             sseSetting.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
             sseSetting.put(REPOSITORY_SETTINGS_SSE_ENABLED_ATTRIBUTE_KEY, true);
             sseSetting.put("server_side_encryption_type", S3_ENCRYPTION_TYPE_KMS);
-            repoList.add(new RepositoryMetadata(name + REMOTE_STORE_SSE_REPO_SUFFIX, type, sseSetting.build()));
+            repoList.add(new RepositoryMetadata(getServerSideEncryptedRepoName(name), type, sseSetting.build()));
         }
         return repoList;
     }
@@ -238,7 +238,7 @@ public class RemoteStoreNodeAttribute {
                 repositoryMetadataMap.get(repositoryName)
             );
 
-            String sseRepositoryName = repositoryTypeToNameEntry.getValue() + REMOTE_STORE_SSE_REPO_SUFFIX;
+            String sseRepositoryName = getServerSideEncryptedRepoName(repositoryTypeToNameEntry.getValue());
             if (repositoryMetadataMap.containsKey(sseRepositoryName)) {
                 encryptionType = CompositeRemoteRepository.CompositeRepositoryEncryptionType.SERVER;
                 compositeRemoteRepository.registerCompositeRepository(
@@ -516,6 +516,10 @@ public class RemoteStoreNodeAttribute {
 
     public static boolean isSegmentRepoConfigured(Map<String, String> attributes) {
         return containsKey(attributes, REMOTE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEYS);
+    }
+
+    public static String getServerSideEncryptedRepoName(String remoteRepoName) {
+        return remoteRepoName + REMOTE_STORE_SSE_REPO_SUFFIX;
     }
 
     private static boolean containsKey(Map<String, String> attributes, List<String> keys) {
