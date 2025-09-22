@@ -11,36 +11,32 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Streaming collector context for CONFIDENCE_BASED mode.
  * Collects documents with scores for progressive confidence-based emission.
- * 
+ *
  * Implements memory-bounded collection using a "topK" pattern where the best K
  * documents by score are retained. Documents are collected in batches controlled
  * by search.streaming.batch_size setting (default: 10, max: 100).
- * 
+ *
  * Memory footprint: O(K + batchSize) where K is the requested number of hits.
- * 
+ *
  * Circuit Breaker Policy:
- * - Batch buffers: No CB checks as they're strictly bounded (10-100 docs) and cleared after emission  
+ * - Batch buffers: No CB checks as they're strictly bounded (10-100 docs) and cleared after emission
  * - TopK list: Protected by parent QueryPhaseResultConsumer's circuit breaker during final reduction
  * - Max memory per collector: ~8KB for batch (100 docs * 16 bytes) + ~80KB for topK (10000 docs * 16 bytes)
  * - Decision rationale: The overhead of CB checks (atomic operations) would exceed the memory saved
  *   for such small, bounded allocations that are immediately released
  */
 public class StreamingConfidenceCollectorContext extends TopDocsCollectorContext {
-    
+
     private static final Logger logger = LogManager.getLogger(StreamingConfidenceCollectorContext.class);
 
     private final CircuitBreaker circuitBreaker;
@@ -183,7 +179,7 @@ public class StreamingConfidenceCollectorContext extends TopDocsCollectorContext
         public List<ScoreDoc> getTopKDocs() {
             return topK;
         }
-        
+
         public int getTotalHitsCount() {
             return totalHitsCount;
         }
@@ -193,7 +189,7 @@ public class StreamingConfidenceCollectorContext extends TopDocsCollectorContext
          */
         private void emitCurrentBatch(boolean isFinal) {
             if (currentBatch.isEmpty()) return;
-            
+
             try {
                 // Create partial result
                 QuerySearchResult partial = new QuerySearchResult();

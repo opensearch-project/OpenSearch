@@ -15,7 +15,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
-import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
@@ -148,25 +147,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
      */
     @Override
     protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
-        QuerySearchResult queryResult = result.queryResult();
-
-        // For streaming search, if topDocs has already been consumed,
-        // we need to handle this gracefully to avoid the error
-        if (queryResult.hasConsumedTopDocs()) {
-            // This is a streaming result that has already been processed
-            // We can't call the parent's onShardResult because it will try to access topDocs
-            // Instead, we'll just mark this as successful and continue
-            if (getLogger().isDebugEnabled()) {
-                getLogger().debug(
-                    "Skipping onShardResult for already consumed streaming result from shard {}",
-                    queryResult.getShardIndex()
-                );
-            }
-            // Don't call super.onShardResult() to avoid the error
-            return;
-        }
-
-        // For normal cases, call the parent method
+        // Always delegate to the parent to ensure shard accounting and phase transitions.
         super.onShardResult(result, shardIt);
     }
 

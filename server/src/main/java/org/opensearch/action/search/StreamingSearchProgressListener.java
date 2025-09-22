@@ -104,11 +104,43 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
     }
 
     private void collectPartialResponse(SearchResponse partialResponse) {
-        if (responseListener instanceof StreamingSearchResponseListener) {
-            ((StreamingSearchResponseListener) responseListener).onPartialResponse(partialResponse);
-        } else {
-            logger.debug("Partial result computed, listener type: {}", responseListener.getClass().getSimpleName());
+        ActionListener<SearchResponse> target = unwrapListener(responseListener, 3);
+        if (target instanceof StreamingSearchResponseListener) {
+            ((StreamingSearchResponseListener) target).onPartialResponse(partialResponse);
+            return;
         }
+        logger.debug("Partial result computed, listener type: {}", responseListener.getClass().getSimpleName());
+    }
+
+    /**
+     * Attempt to unwrap tracing/decorated listeners to reach the original delegate.
+     * This enables partial emissions to reach StreamingSearchResponseListener even when wrapped.
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private ActionListener<SearchResponse> unwrapListener(ActionListener<SearchResponse> listener, int depth) {
+        if (listener == null || depth <= 0) {
+            return listener;
+        }
+        try {
+            // Best-effort unwrap for TraceableActionListener without direct dependency
+            Class<?> cls = listener.getClass();
+            while (cls != null) {
+                try {
+                    java.lang.reflect.Field delegateField = cls.getDeclaredField("delegate");
+                    delegateField.setAccessible(true);
+                    Object delegate = delegateField.get(listener);
+                    if (delegate instanceof ActionListener) {
+                        return unwrapListener((ActionListener) delegate, depth - 1);
+                    }
+                    break;
+                } catch (NoSuchFieldException e) {
+                    cls = cls.getSuperclass();
+                }
+            }
+        } catch (Throwable t) {
+            logger.debug("Failed to unwrap listener: {}", t.toString());
+        }
+        return listener;
     }
 
     @Override
@@ -133,7 +165,7 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
         // Trigger a partial reduce to emit current results
         // This will call onPartialReduceWithTopDocs if there are results to emit
         logger.debug("Triggering partial emission, current emissions: {}", streamEmissions.get());
-        
+
         // For now, just log that we're triggering emission
         // The actual emission will happen when onPartialReduceWithTopDocs is called
         // by the parent class's reduce logic

@@ -286,7 +286,6 @@ import org.opensearch.action.search.PutSearchPipelineAction;
 import org.opensearch.action.search.PutSearchPipelineTransportAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchScrollAction;
-import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.search.TransportClearScrollAction;
 import org.opensearch.action.search.TransportCreatePitAction;
 import org.opensearch.action.search.TransportDeletePitAction;

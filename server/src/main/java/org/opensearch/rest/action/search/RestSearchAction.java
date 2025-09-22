@@ -37,7 +37,6 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.util.FeatureFlags;
@@ -230,6 +229,11 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         searchRequest.pipeline(request.param("search_pipeline", searchRequest.source().pipeline()));
+
+        // Add streaming mode support
+        if (request.hasParam("streaming_mode")) {
+            searchRequest.setStreamingSearchMode(request.param("streaming_mode"));
+        }
 
         checkRestTotalHits(request, searchRequest);
         request.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);

@@ -97,14 +97,12 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteTransportException;
-import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.OriginSettingClient;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.wlm.WorkloadGroupTask;
-import org.opensearch.common.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;

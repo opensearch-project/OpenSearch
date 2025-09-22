@@ -32,6 +32,8 @@
 
 package org.opensearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
@@ -65,8 +67,6 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.MaxScoreCollector;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.Lucene;
@@ -83,10 +83,6 @@ import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.query.StreamingUnsortedCollectorContext;
-import org.opensearch.search.query.StreamingScoredUnsortedCollectorContext;
-import org.opensearch.search.query.StreamingSortedCollectorContext;
-import org.opensearch.search.query.StreamingConfidenceCollectorContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -750,18 +746,15 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
      * Creates a streaming {@link TopDocsCollectorContext} for streaming search with scoring.
      * This method routes to the appropriate streaming collector based on the search mode.
      */
-    public static TopDocsCollectorContext createStreamingTopDocsCollectorContext(
-        SearchContext searchContext,
-        boolean hasFilterCollector
-    ) throws IOException {
+    public static TopDocsCollectorContext createStreamingTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
+        throws IOException {
 
         // Get circuit breaker from search context
         CircuitBreaker circuitBreaker = null;
         try {
             // Try to get REQUEST circuit breaker
             if (searchContext.bigArrays() != null && searchContext.bigArrays().breakerService() != null) {
-                circuitBreaker = searchContext.bigArrays().breakerService()
-                    .getBreaker(CircuitBreaker.REQUEST);
+                circuitBreaker = searchContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
             }
         } catch (Exception e) {
             logger.warn("Failed to get circuit breaker for streaming search", e);
@@ -780,11 +773,22 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             case NO_SCORING:
                 return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size(), searchContext, circuitBreaker);
             case SCORED_UNSORTED:
-                return new StreamingScoredUnsortedCollectorContext("streaming_scored_unsorted", searchContext.size(), searchContext, circuitBreaker);
+                return new StreamingScoredUnsortedCollectorContext(
+                    "streaming_scored_unsorted",
+                    searchContext.size(),
+                    searchContext,
+                    circuitBreaker
+                );
             case SCORED_SORTED:
                 SortAndFormats sortAndFormats = searchContext.sort();
                 Sort sort = (sortAndFormats != null) ? sortAndFormats.sort : Sort.RELEVANCE;
-                return new StreamingSortedCollectorContext("streaming_scored_sorted", searchContext.size(), searchContext, sort, circuitBreaker);
+                return new StreamingSortedCollectorContext(
+                    "streaming_scored_sorted",
+                    searchContext.size(),
+                    searchContext,
+                    sort,
+                    circuitBreaker
+                );
             case CONFIDENCE_BASED:
                 return new StreamingConfidenceCollectorContext("streaming_confidence", searchContext.size(), searchContext, circuitBreaker);
             default:

@@ -119,7 +119,7 @@ class MockStreamingTransportChannel extends TcpTransportChannel implements Strea
                     responsesCopy.size()
                 );
                 typedHandler.handleStreamResponse(streamResponse);
-                
+
                 // Success - release normally
                 release(false);
                 releaseNeeded = false;
@@ -148,8 +148,8 @@ class MockStreamingTransportChannel extends TcpTransportChannel implements Strea
         // Call parent's sendResponse which will handle release
         super.sendResponse(response);
     }
-    
-    @Override  
+
+    @Override
     public void sendResponse(Exception exception) throws IOException {
         // Mark stream as closed to prevent further operations
         streamOpen.set(false);

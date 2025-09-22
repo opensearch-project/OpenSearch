@@ -9,27 +9,23 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Streaming collector context for SCORED_UNSORTED mode.
  * Collects documents with scores but without sorting for fast emission with relevance.
- * 
+ *
  * Implements memory-bounded collection using a "firstK" pattern where only the first K
  * documents are retained for the final result. Documents are collected in batches
  * controlled by search.streaming.batch_size setting (default: 10, max: 100).
- * 
+ *
  * Memory footprint: O(K + batchSize) where K is the requested number of hits.
- * 
+ *
  * Circuit Breaker Policy:
  * - Batch buffers: No CB checks as they're strictly bounded (10-100 docs) and cleared after emission
  * - FirstK list: Protected by parent QueryPhaseResultConsumer's circuit breaker during final reduction
@@ -192,7 +188,7 @@ public class StreamingScoredUnsortedCollectorContext extends TopDocsCollectorCon
          */
         private void emitCurrentBatch(boolean isFinal) {
             if (currentBatch.isEmpty()) return;
-            
+
             try {
                 // Create partial result
                 QuerySearchResult partial = new QuerySearchResult();

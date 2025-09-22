@@ -141,7 +141,6 @@ import org.opensearch.search.query.QueryRewriterRegistry;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
-import org.opensearch.search.query.StreamingScoringConfig;
 import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.searchafter.SearchAfterBuilder;

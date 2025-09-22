@@ -679,7 +679,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     public boolean isStreamingScoring() {
         return streamingScoring;
     }
-    
+
     /**
      * Sets the streaming search mode for this request.
      * @param mode The streaming search mode to use

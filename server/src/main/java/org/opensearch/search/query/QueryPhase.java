@@ -318,11 +318,8 @@ public class QueryPhase {
      * Execute streaming query for progressive result emission.
      * This method handles the streaming search execution path.
      */
-        private static boolean executeStreamingQuery(
-        SearchContext searchContext,
-        ContextIndexSearcher searcher,
-        Query query
-    ) throws IOException {
+    private static boolean executeStreamingQuery(SearchContext searchContext, ContextIndexSearcher searcher, Query query)
+        throws IOException {
         QuerySearchResult queryResult = searchContext.queryResult();
 
         try {
