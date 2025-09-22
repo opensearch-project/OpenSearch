@@ -16,6 +16,8 @@ import io.grpc.channelz.v1.GetChannelRequest;
 import io.grpc.channelz.v1.GetChannelResponse;
 import io.grpc.stub.StreamObserver;
 
+import java.util.List;
+
 public class GrpcServiceFactoryTests extends OpenSearchTestCase {
 
     private static class MockChannelzService extends ChannelzGrpc.ChannelzImplBase {
@@ -36,8 +38,8 @@ public class GrpcServiceFactoryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public BindableService build() {
-            return new MockChannelzService();
+        public List<BindableService> build() {
+            return List.of(new MockChannelzService());
         }
     }
 

@@ -12,6 +12,8 @@ import org.opensearch.transport.client.Client;
 
 import io.grpc.BindableService;
 
+import java.util.List;
+
 /**
  * Extension point for plugins to add a BindableService to the grpc-transport.
  */
@@ -27,5 +29,5 @@ public interface GrpcServiceFactory {
      * Build gRPC service.
      * @return BindableService.
      */
-    BindableService build();
+    List<BindableService> build();
 }
