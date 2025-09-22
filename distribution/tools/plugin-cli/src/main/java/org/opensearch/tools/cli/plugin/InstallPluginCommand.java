@@ -963,18 +963,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
                 if (Files.exists(destFile) == false) {
                     if (Files.isDirectory(srcFile)) {
-                        Files.copy(srcFile, destFile);
-                        setFileAttributes(destFile, CONFIG_DIR_PERMS);
-                        if (destConfigDirAttributes != null) {
-                            setOwnerGroup(destFile, destConfigDirAttributes);
-                        }
+                        copyWithPermissions(srcFile, destFile, CONFIG_DIR_PERMS, destConfigDirAttributes);
                         copyDirectoryRecursively(srcFile, destFile, destConfigDirAttributes);
                     } else {
-                        Files.copy(srcFile, destFile);
-                        setFileAttributes(destFile, CONFIG_FILES_PERMS);
-                        if (destConfigDirAttributes != null) {
-                            setOwnerGroup(destFile, destConfigDirAttributes);
-                        }
+                        copyWithPermissions(srcFile, destFile, CONFIG_FILES_PERMS, destConfigDirAttributes);
                     }
                 }
             }
@@ -1001,6 +993,22 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /**
+     * Copies a file and sets permissions and ownership
+     */
+    private static void copyWithPermissions(
+        Path srcFile,
+        Path destFile,
+        Set<PosixFilePermission> permissions,
+        PosixFileAttributes attributes
+    ) throws IOException {
+        Files.copy(srcFile, destFile);
+        setFileAttributes(destFile, permissions);
+        if (attributes != null) {
+            setOwnerGroup(destFile, attributes);
+        }
+    }
+
+    /**
      * Recursively copies directory contents from source to destination.
      */
     private static void copyDirectoryRecursively(Path srcDir, Path destDir, PosixFileAttributes destConfigDirAttributes)
@@ -1010,18 +1018,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 Path destFile = destDir.resolve(srcDir.relativize(srcFile));
                 if (Files.exists(destFile) == false) {
                     if (Files.isDirectory(srcFile)) {
-                        Files.copy(srcFile, destFile);
-                        setFileAttributes(destFile, CONFIG_DIR_PERMS);
-                        if (destConfigDirAttributes != null) {
-                            setOwnerGroup(destFile, destConfigDirAttributes);
-                        }
+                        copyWithPermissions(srcFile, destFile, CONFIG_DIR_PERMS, destConfigDirAttributes);
                         copyDirectoryRecursively(srcFile, destFile, destConfigDirAttributes);
                     } else {
-                        Files.copy(srcFile, destFile);
-                        setFileAttributes(destFile, CONFIG_FILES_PERMS);
-                        if (destConfigDirAttributes != null) {
-                            setOwnerGroup(destFile, destConfigDirAttributes);
-                        }
+                        copyWithPermissions(srcFile, destFile, CONFIG_FILES_PERMS, destConfigDirAttributes);
                     }
                 }
             }
