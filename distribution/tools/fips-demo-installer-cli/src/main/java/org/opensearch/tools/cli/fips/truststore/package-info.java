@@ -6,5 +6,7 @@
  * compatible open source license.
  */
 
-/** Foundation classes to ensure FIPS compliance. */
-package org.opensearch.cluster.fips.truststore;
+/**
+ * Tools to check and generate a FIPS-compliant trust store
+ */
+package org.opensearch.tools.cli.fips.truststore;

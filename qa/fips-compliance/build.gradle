@@ -31,10 +31,12 @@ dependencies {
 
 afterEvaluate {
   testClusters {
+    systemProperty 'org.bouncycastle.fips.approved_only', 'true'
     // configure cluster to start in FIPS JVM
     javaRestTest {
       keystorePassword 'notarealpasswordphrase'
-      setting 'cluster.fips.truststore.source', 'GENERATED'
+      extraConfigFile 'opensearch-fips-truststore.bcfks',
+          file("${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks")
       configurations.bcFips.resolve().each { jarFile ->
         extraJarFile jarFile
       }

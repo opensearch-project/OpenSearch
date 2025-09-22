@@ -140,7 +140,7 @@ tasks.named("test").configure {
 
   // Setting a custom policy to manipulate aws.ec2MetadataServiceEndpoint system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
-  if (BuildParams.inFipsJvm){
+  if (BuildParams.inFipsJvm) {
     // Using the key==value format to override default JVM security settings and policy
     // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
     systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"

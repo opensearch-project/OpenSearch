@@ -1238,6 +1238,13 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
         tweakJvmOptions(configFileRoot);
         LOGGER.info("Written config file:{} for {}", configFile, this);
+
+        if (FipsBuildParams.isInFipsMode() || "true".equalsIgnoreCase(System.getProperty("org.bouncycastle.fips.approved_only"))) {
+            systemProperty("javax.net.ssl.trustStore", getConfigDir().resolve("opensearch-fips-truststore.bcfks").toString());
+            systemProperty("javax.net.ssl.trustStoreType", "BCFKS");
+            systemProperty("javax.net.ssl.trustStoreProvider", "BCFIPS");
+            systemProperty("javax.net.ssl.trustStorePassword", "changeit");
+        }
     }
 
     private void tweakJvmOptions(Path configFileRoot) {

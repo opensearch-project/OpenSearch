@@ -694,15 +694,6 @@ allprojects {
   plugins.withId('lifecycle-base') {
     checkPart1.configure { dependsOn 'check' }
   }
-
-  plugins.withId('opensearch.testclusters') {
-    testClusters.configureEach {
-      if (BuildParams.inFipsJvm) {
-        keystorePassword 'notarealpasswordphrase'
-        setting 'cluster.fips.truststore.source', 'GENERATED'
-      }
-    }
-  }
 }
 
 subprojects {

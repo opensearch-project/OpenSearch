@@ -1,3 +1,5 @@
+import org.opensearch.gradle.info.BuildParams
+
 // Create isolated configurations for FIPS-specific dependencies.
 // These are used to isolate BC FIPS libraries from regular build classpaths,
 // avoiding accidental propagation to non-FIPS code paths.
@@ -28,6 +30,16 @@ afterEvaluate {
       if (dep.metaClass.hasProperty(dep, "transitive")) {
         dep.transitive = false
       }
+    }
+  }
+}
+
+plugins.withId('opensearch.testclusters') {
+  testClusters.configureEach {
+    if (BuildParams.inFipsJvm) {
+      keystorePassword 'notarealpasswordphrase'
+      extraConfigFile 'opensearch-fips-truststore.bcfks',
+          file("${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks")
     }
   }
 }
