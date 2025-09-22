@@ -85,6 +85,10 @@ preProcessFixture {
   dependsOn war, opensearch_distributions.docker
 }
 
+tasks.named('spotlessJava').configure {
+  mustRunAfter preProcessFixture
+}
+
 dockerCompose {
   def composeFiles = ['docker-compose.yml']
   if (BuildParams.inFipsJvm) {

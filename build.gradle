@@ -70,6 +70,11 @@ apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
 
+// Apply FIPS configuration to all projects
+allprojects {
+  apply from: "${rootProject.projectDir}/gradle/fips.gradle"
+}
+
 // common maven publishing configuration
 allprojects {
   group = 'org.opensearch'
@@ -693,15 +698,6 @@ allprojects {
   def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
     checkPart1.configure { dependsOn 'check' }
-  }
-
-  plugins.withId('opensearch.testclusters') {
-    testClusters.configureEach {
-      if (BuildParams.inFipsJvm) {
-        keystorePassword 'notarealpasswordphrase'
-        setting 'cluster.fips.truststore.source', 'GENERATED'
-      }
-    }
   }
 }
 

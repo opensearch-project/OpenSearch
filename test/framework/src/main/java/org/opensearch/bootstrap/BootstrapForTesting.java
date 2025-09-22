@@ -37,7 +37,6 @@ import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.opensearch.cluster.fips.truststore.FipsTrustStore;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bootstrap.JarHell;
@@ -139,10 +138,7 @@ public class BootstrapForTesting {
         IfConfig.logIfNecessary();
         if (FipsMode.CHECK.isFipsEnabled()) {
             SecurityProviderManager.removeNonCompliantFipsProviders();
-            var settings = Settings.builder()
-                .put(FipsTrustStore.SETTING_CLUSTER_FIPS_TRUSTSTORE_SOURCE, FipsTrustStore.TrustStoreSource.GENERATED)
-                .build();
-            MultiProviderTrustStoreHandler.configureTrustStore(settings, javaTmpDir, Path.of(System.getProperty("java.home")));
+            FipsTrustStoreValidator.validateRequiredProperties();
         }
 
         // install security manager if requested
