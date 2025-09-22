@@ -3368,8 +3368,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     localCheckpointOfSafeCommit = failableTLog.getDeletionPolicy().getLocalCheckpointOfSafeCommit();
                     IOUtils.closeWhileHandlingException(failableTLog);
                 }
-            } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                // failed - that's ok, we didn't even create it
+            } catch (TranslogException | MockDirectoryWrapper.FakeIOException | TranslogCorruptedException ex) {
+                // failed - that's ok, we didn't even create it or it was corrupted from partial writes
             } catch (IOException ex) {
                 assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
             }
@@ -3379,8 +3379,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy();
                     deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
                     IOUtils.close(getFailableTranslog(fail, config, randomBoolean(), false, generationUUID, deletionPolicy));
-                } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                    // failed - that's ok, we didn't even create it
+                } catch (TranslogException | MockDirectoryWrapper.FakeIOException | TranslogCorruptedException ex) {
+                    // failed - that's ok, we didn't even create it or it was corrupted from partial writes
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
                 }

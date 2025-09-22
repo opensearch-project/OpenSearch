@@ -102,6 +102,64 @@ public class BooleanFlatteningRewriterTests extends OpenSearchTestCase {
         assertThat(rewrittenBool.mustNot().get(0), instanceOf(BoolQueryBuilder.class));
     }
 
+    public void testDoubleNegationNotFlattenedUnderMustNot() {
+        // not( bool( must_not: [ term ] ) ) should NOT be flattened by the rewriter
+        QueryBuilder inner = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("product", "Oranges"));
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(inner);
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+
+        // Outer must_not remains and inner bool is preserved
+        assertThat(rewrittenBool.mustNot().size(), equalTo(1));
+        assertThat(rewrittenBool.mustNot().get(0), instanceOf(BoolQueryBuilder.class));
+    }
+
+    public void testDeMorganPatternNotFlattenedUnderMustNot() {
+        // not( bool( must: [A, B] ) ) should not be flattened by BooleanFlatteningRewriter
+        QueryBuilder inner = QueryBuilders.boolQuery().must(QueryBuilders.termQuery("f", "A")).must(QueryBuilders.termQuery("f", "B"));
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(inner);
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+        assertThat(rewrittenBool.mustNot().size(), equalTo(1));
+        assertThat(rewrittenBool.mustNot().get(0), instanceOf(BoolQueryBuilder.class));
+    }
+
+    public void testRandomizedMustNotInnerNotFlattened() {
+        // Build inner bool with random number of must_not terms
+        int n = between(1, 5);
+        BoolQueryBuilder inner = QueryBuilders.boolQuery();
+        for (int i = 0; i < n; i++) {
+            inner.mustNot(QueryBuilders.termQuery("p", "v" + i));
+        }
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(inner);
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+        assertThat(rewrittenBool.mustNot().size(), equalTo(1));
+        assertThat(rewrittenBool.mustNot().get(0), instanceOf(BoolQueryBuilder.class));
+    }
+
+    public void testTopLevelPropertiesPreserved() {
+        BoolQueryBuilder query = QueryBuilders.boolQuery()
+            .queryName("qn")
+            .boost(2.0f)
+            .minimumShouldMatch(2)
+            .must(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("field", "v")))
+            .should(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("f2", "v2")));
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder rewrittenBool = (BoolQueryBuilder) rewritten;
+        assertThat(rewrittenBool.queryName(), equalTo("qn"));
+        assertThat(rewrittenBool.boost(), equalTo(2.0f));
+        assertThat(rewrittenBool.minimumShouldMatch(), equalTo("2"));
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18906")
     public void testDeepNesting() {
         // TODO: This test expects complete flattening of deeply nested bool queries
@@ -138,6 +196,53 @@ public class BooleanFlatteningRewriterTests extends OpenSearchTestCase {
 
         QueryBuilder rewritten = rewriter.rewrite(query, context);
         assertSame(query, rewritten); // Should not flatten due to different minimumShouldMatch
+    }
+
+    public void testDoNotFlattenWhenNestedHasNonDefaultBoost() {
+        // Nested bool with non-default boost should not be flattened
+        BoolQueryBuilder nested = QueryBuilders.boolQuery().boost(2.0f).must(QueryBuilders.termQuery("field", "value"));
+        BoolQueryBuilder query = QueryBuilders.boolQuery().must(nested);
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder outer = (BoolQueryBuilder) rewritten;
+        assertThat(outer.must().size(), equalTo(1));
+        assertThat(outer.must().get(0), instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder preserved = (BoolQueryBuilder) outer.must().get(0);
+        assertThat(preserved.boost(), equalTo(2.0f));
+        assertThat(preserved.must().size(), equalTo(1));
+    }
+
+    public void testDoNotFlattenWhenNestedHasQueryName() {
+        // Nested bool with queryName should not be flattened
+        BoolQueryBuilder nested = QueryBuilders.boolQuery().queryName("inner").must(QueryBuilders.termQuery("f", "v"));
+        BoolQueryBuilder query = QueryBuilders.boolQuery().must(nested);
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder outer = (BoolQueryBuilder) rewritten;
+        assertThat(outer.must().size(), equalTo(1));
+        assertThat(outer.must().get(0), instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder preserved = (BoolQueryBuilder) outer.must().get(0);
+        assertThat(preserved.queryName(), equalTo("inner"));
+    }
+
+    public void testShouldClauseNotFlattenedWhenNestedHasMinimumShouldMatch() {
+        // Nested should with MSM should not be flattened
+        BoolQueryBuilder nested = QueryBuilders.boolQuery()
+            .should(QueryBuilders.termQuery("f1", "v1"))
+            .should(QueryBuilders.termQuery("f2", "v2"))
+            .minimumShouldMatch(1);
+        BoolQueryBuilder query = QueryBuilders.boolQuery().should(nested).must(QueryBuilders.termQuery("g", "w"));
+
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder outer = (BoolQueryBuilder) rewritten;
+        assertThat(outer.should().size(), equalTo(1));
+        assertThat(outer.should().get(0), instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder preserved = (BoolQueryBuilder) outer.should().get(0);
+        assertThat(preserved.minimumShouldMatch(), equalTo("1"));
+        assertThat(outer.must().size(), equalTo(1));
     }
 
     public void testEmptyBooleanQuery() {
@@ -178,5 +283,16 @@ public class BooleanFlatteningRewriterTests extends OpenSearchTestCase {
         QueryBuilder rewritten = rewriter.rewrite(query, context);
         BoolQueryBuilder result = (BoolQueryBuilder) rewritten;
         assertThat(result.queryName(), equalTo("outer"));
+    }
+
+    public void testIdempotence() {
+        // After one rewrite, a second rewrite should be a no-op (structurally identical)
+        QueryBuilder query = QueryBuilders.boolQuery()
+            .must(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("f", "v")))
+            .filter(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("g", "w")));
+
+        QueryBuilder once = rewriter.rewrite(query, context);
+        QueryBuilder twice = rewriter.rewrite(once, context);
+        assertEquals(once.toString(), twice.toString());
     }
 }

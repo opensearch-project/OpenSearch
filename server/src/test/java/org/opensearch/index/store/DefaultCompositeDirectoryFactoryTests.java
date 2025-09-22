@@ -11,8 +11,6 @@ package org.opensearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
@@ -45,7 +43,7 @@ public class DefaultCompositeDirectoryFactoryTests extends BaseRemoteSegmentStor
         shardPath = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
         localDirectoryFactory = mock(IndexStorePlugin.DirectoryFactory.class);
         localDirectory = FSDirectory.open(createTempDir());
-        fileCache = FileCacheFactory.createConcurrentLRUFileCache(10000, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        fileCache = FileCacheFactory.createConcurrentLRUFileCache(10000);
         when(localDirectoryFactory.newDirectory(indexSettings, shardPath)).thenReturn(localDirectory);
         setupRemoteSegmentStoreDirectory();
         populateMetadata();
