@@ -8,6 +8,9 @@
 
 package org.opensearch.transport.grpc.server.spi;
 
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
 import io.grpc.BindableService;
@@ -15,18 +18,50 @@ import io.grpc.BindableService;
 import java.util.List;
 
 /**
- * Extension point for plugins to add a BindableService to the grpc-transport.
+ * Extension point for plugins to add a BindableService list to the grpc-transport.
+ * Provides init methods to allow service definitions access to OpenSearch clients, settings, ect.
  */
 public interface GrpcServiceFactory {
-    /**
-     * Called previous to build.
-     * @param client OpenSearch client for use in gRPC service definition.
-     * @return GrpcServiceFactory for chaining.
-     */
-    GrpcServiceFactory initClient(Client client);
 
     /**
-     * Build gRPC service.
+     * @return owning plugin identifier for service validation.
+     */
+    String plugin();
+
+    /**
+     * @param client for use in services.
+     * @return chaining.
+     */
+    default GrpcServiceFactory initClient(Client client) {
+        return this;
+    }
+
+    /**
+     * @param settings for use in services.
+     * @return chaining.
+     */
+    default GrpcServiceFactory initSettings(Settings settings) {
+        return this;
+    }
+
+    /**
+     * @param clusterSettings for use in services.
+     * @return chaining.
+     */
+    default GrpcServiceFactory initClusterSettings(ClusterSettings clusterSettings) {
+        return this;
+    }
+
+    /**
+     * @param threadPool for use in services.
+     * @return chaining.
+     */
+    default GrpcServiceFactory initThreadPool(ThreadPool threadPool) {
+        return this;
+    }
+
+    /**
+     * Build gRPC services.
      * @return BindableService.
      */
     List<BindableService> build();

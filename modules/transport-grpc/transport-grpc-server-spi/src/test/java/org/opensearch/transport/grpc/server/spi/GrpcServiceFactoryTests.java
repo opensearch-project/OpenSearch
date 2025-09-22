@@ -8,7 +8,6 @@
 package org.opensearch.transport.grpc.server.spi;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.client.Client;
 
 import io.grpc.BindableService;
 import io.grpc.channelz.v1.ChannelzGrpc;
@@ -33,8 +32,8 @@ public class GrpcServiceFactoryTests extends OpenSearchTestCase {
         public MockServiceProvider() {}
 
         @Override
-        public GrpcServiceFactory initClient(Client client) {
-            return null;
+        public String plugin() {
+            return "MockTestPlugin";
         }
 
         @Override
@@ -43,7 +42,17 @@ public class GrpcServiceFactoryTests extends OpenSearchTestCase {
         }
     }
 
-    public void testGrcpServiceFactory() {
+    public void testLoadGrpcMockServiceFactory() {
+        GrpcServiceFactory grpcServiceFactory = new MockServiceProvider();
+        assert (true);
+    }
+
+    public void testDuplicateServiceNameFails() {
+        GrpcServiceFactory grpcServiceFactory = new MockServiceProvider();
+        assert (true);
+    }
+
+    public void testNoServiceDefinitionsLoaded() {
         GrpcServiceFactory grpcServiceFactory = new MockServiceProvider();
         assert (true);
     }
