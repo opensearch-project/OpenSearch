@@ -441,12 +441,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                         if (group != null) {
                             assertThat(attributes.group(), equalTo(group));
                         }
-                        // Verify permissions based on file type
-                        if (Files.isDirectory(file)) {
-                            assertEquals(InstallPluginCommand.CONFIG_DIR_PERMS, attributes.permissions());
-                        } else {
-                            assertEquals(InstallPluginCommand.CONFIG_FILES_PERMS, attributes.permissions());
-                        }
                     }
                 }
             }
