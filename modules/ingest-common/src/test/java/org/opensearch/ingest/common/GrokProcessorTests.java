@@ -40,10 +40,12 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class GrokProcessorTests extends OpenSearchTestCase {
 
@@ -57,6 +59,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             Collections.singletonMap("ONE", "1"),
             Collections.singletonList("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -77,6 +80,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             false,
             false,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -93,6 +97,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             Collections.singletonMap("ONE", "1"),
             Collections.singletonList("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -115,6 +120,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
                 fieldName,
                 false,
                 false,
+                false,
                 MatcherWatchdog.noop()
             )
         );
@@ -134,6 +140,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             false,
             false,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -150,6 +157,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             Collections.singletonMap("ONE", "1"),
             Collections.singletonList("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -171,6 +179,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             false,
             true,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(ingestDocument);
@@ -187,6 +196,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             Collections.singletonMap("ONE", "1"),
             Collections.singletonList("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -207,6 +217,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             false,
             true,
+            false,
             MatcherWatchdog.noop()
         );
         Exception e = expectThrows(Exception.class, () -> processor.execute(doc));
@@ -222,6 +233,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             Collections.singletonMap("ONE", "1"),
             Collections.singletonList("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -242,6 +254,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             false,
             true,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(ingestDocument);
@@ -262,6 +275,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             patternBank,
             Arrays.asList("%{ONE:one}", "%{TWO:two}", "%{THREE:three}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -288,6 +302,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             true,
             false,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -310,6 +325,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             Arrays.asList("%{ONE:one}"),
             fieldName,
             true,
+            false,
             false,
             MatcherWatchdog.noop()
         );
@@ -350,6 +366,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             randomBoolean(),
             randomBoolean(),
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -371,6 +388,7 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             randomBoolean(),
             randomBoolean(),
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -392,10 +410,106 @@ public class GrokProcessorTests extends OpenSearchTestCase {
             fieldName,
             randomBoolean(),
             randomBoolean(),
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
         assertFalse(doc.hasField("first"));
         assertThat(doc.getFieldValue("second", String.class), equalTo("3"));
+    }
+
+    public void testCaptureAllMatchesWithSameFieldName() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "1 2 3");
+        Map<String, String> patternBank = new HashMap<>();
+        patternBank.put("NUMBER", "\\d");
+
+        // Create processor with captureAllMatches=true
+        GrokProcessor processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            patternBank,
+            Collections.singletonList("%{NUMBER:num} %{NUMBER:num} %{NUMBER:num}"),
+            fieldName,
+            false,
+            false,
+            true,
+            MatcherWatchdog.noop()
+        );
+
+        processor.execute(doc);
+
+        // Verify that 'num' field contains a list of all matches
+        Object numField = doc.getFieldValue("num", Object.class);
+        assertThat(numField, instanceOf(List.class));
+
+        @SuppressWarnings("unchecked")
+        List<String> numList = (List<String>) numField;
+        assertEquals(3, numList.size());
+        assertEquals("1", numList.get(0));
+        assertEquals("2", numList.get(1));
+        assertEquals("3", numList.get(2));
+
+        fieldName = RandomDocumentPicks.randomFieldName(random());
+        doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "192.168.1.1 172.16.0.1");
+        patternBank = new HashMap<>();
+        patternBank.put(
+            "IP",
+            "(?<![0-9])(?:(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5]))(?![0-9])"
+        );
+
+        // Create multiple patterns to match each IP address separately
+        processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            patternBank,
+            Collections.singletonList("%{IP:ipAddress} (%{IP:ipAddress})?"),
+            fieldName,
+            false,
+            false,
+            true,
+            MatcherWatchdog.noop()
+        );
+
+        processor.execute(doc);
+
+        // Verify that 'ipAddress' field contains a list of all IP addresses
+        Object ipField = doc.getFieldValue("ipAddress", Object.class);
+        assertThat(ipField, instanceOf(List.class));
+
+        @SuppressWarnings("unchecked")
+        List<String> ipList = (List<String>) ipField;
+        assertEquals(2, ipList.size());
+        assertEquals("192.168.1.1", ipList.get(0));
+        assertEquals("172.16.0.1", ipList.get(1));
+    }
+
+    public void testCaptureAllMatchesDisabled() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "1 2 3");
+        Map<String, String> patternBank = new HashMap<>();
+        patternBank.put("NUMBER", "\\d");
+
+        // Create processor with captureAllMatches=false (default behavior)
+        GrokProcessor processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            patternBank,
+            Collections.singletonList("%{NUMBER:num} %{NUMBER:num} %{NUMBER:num}"),
+            fieldName,
+            false,
+            false,
+            false,
+            MatcherWatchdog.noop()
+        );
+
+        processor.execute(doc);
+
+        // Verify that only the first match is captured
+        String numValue = doc.getFieldValue("num", String.class);
+        assertEquals("1", numValue);
     }
 }

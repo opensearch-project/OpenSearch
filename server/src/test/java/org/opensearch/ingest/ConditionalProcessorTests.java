@@ -255,6 +255,6 @@ public class ConditionalProcessorTests extends OpenSearchTestCase {
         assertThat(stats.getCount(), equalTo(count));
         assertThat(stats.getCurrent(), equalTo(0L));
         assertThat(stats.getFailedCount(), equalTo(failed));
-        assertThat(stats.getTotalTimeInMillis(), greaterThanOrEqualTo(time));
+        assertThat(stats.getTotalTime(), greaterThanOrEqualTo(time));
     }
 }

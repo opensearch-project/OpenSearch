@@ -1,0 +1,106 @@
+---
+"Use system generated search request processors and user defined search pipeline":
+  # 1. Enable example-search-response-processor-factory
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.search.enabled_system_generated_factories:
+              - "example-search-response-processor-factory"
+
+  # 2. Create test search pipeline
+  - do:
+      search_pipeline.put:
+        id: "test-user-defined-pipeline"
+        body:
+          response_processors:
+            - truncate_hits:
+                target_size: 1
+
+  # 3. Create test index
+  - do:
+      indices.create:
+        index: "test-system-generated-search-processor-index"
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              trigger_field:
+                type: keyword
+              content:
+                type: text
+
+  # 4. Index 10 dummy docs
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc1"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc2"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc3"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc4"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc5"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc6"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc7"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc8"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc9"}
+          {"index": {"_index": "test-system-generated-search-processor-index"}}
+          {"trigger_field": "match", "content": "doc10"}
+
+  # 5. Search
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: "test-system-generated-search-processor-index"
+        search_pipeline: "test-user-defined-pipeline"
+        body:
+          query:
+            # Use this to auto generate the search response processor to truncate the response
+            match:
+              trigger_field: "match"
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.reason: "The [truncate_hits] processor cannot be used in a search pipeline because it conflicts with the [example-search-response-processor] processor, which is automatically generated when executing a match query against [trigger_field]." }
+
+  # 6. Disable system-generated factories
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.search.enabled_system_generated_factories: []
+
+  # 7. Search again. This time it will work since the system generated processor is disabled
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test-system-generated-search-processor-index"
+        search_pipeline: "test-user-defined-pipeline"
+        body:
+          query:
+            match:
+              trigger_field: "match"
+
+  - match: { hits.total: 10 }
+  # Only the user defined search pipeline works to truncate the hits to 1
+  - length: { hits.hits: 1 }
+
+  # Cleanup
+  - do:
+      indices.delete:
+        index: "test-system-generated-search-processor-index"
+
+  - do:
+      ingest.delete_pipeline:
+        id: "test-user-defined-pipeline"

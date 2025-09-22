@@ -232,6 +232,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         private final CollapseContext collapseContext;
         private final boolean trackMaxScore;
         private final Sort sort;
+        private final FieldDoc searchAfter;
 
         /**
          * Ctr
@@ -246,16 +247,35 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             int numHits,
             boolean trackMaxScore
         ) {
+            this(collapseContext, sortAndFormats, numHits, trackMaxScore, null);
+        }
+
+        /**
+         * Ctr
+         * @param collapseContext The collapsing context
+         * @param sortAndFormats The query sort
+         * @param numHits The number of collapsed top hits to retrieve.
+         * @param trackMaxScore True if max score should be tracked
+         * @param searchAfter The search after value
+         */
+        private CollapsingTopDocsCollectorContext(
+            CollapseContext collapseContext,
+            @Nullable SortAndFormats sortAndFormats,
+            int numHits,
+            boolean trackMaxScore,
+            FieldDoc searchAfter
+        ) {
             super(REASON_SEARCH_TOP_HITS, numHits);
             assert numHits > 0;
             assert collapseContext != null;
             this.sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
             this.collapseContext = collapseContext;
-            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits);
+            this.searchAfter = searchAfter;
+            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, searchAfter);
             this.trackMaxScore = trackMaxScore;
 
-            MaxScoreCollector maxScoreCollector = null;
+            MaxScoreCollector maxScoreCollector;
             if (trackMaxScore) {
                 maxScoreCollector = new MaxScoreCollector();
                 maxScoreSupplier = maxScoreCollector::getMaxScore;
@@ -290,7 +310,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                         maxScoreCollector = new MaxScoreCollector();
                     }
 
-                    return MultiCollectorWrapper.wrap(collapseContext.createTopDocs(sort, numHits), maxScoreCollector);
+                    return MultiCollectorWrapper.wrap(collapseContext.createTopDocs(sort, numHits, searchAfter), maxScoreCollector);
                 }
 
                 @Override
@@ -817,7 +837,13 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            return new CollapsingTopDocsCollectorContext(searchContext.collapse(), searchContext.sort(), numDocs, trackScores);
+            return new CollapsingTopDocsCollectorContext(
+                searchContext.collapse(),
+                searchContext.sort(),
+                numDocs,
+                trackScores,
+                searchContext.searchAfter()
+            );
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;

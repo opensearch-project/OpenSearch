@@ -134,4 +134,19 @@ public class GrokProcessorFactoryTests extends OpenSearchTestCase {
             equalTo("[patterns] Invalid regex pattern found in: [%{MY_PATTERN:name}!]. premature end of char-class")
         );
     }
+
+    public void testBuildWithCaptureAllMatches() throws Exception {
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(Collections.emptyMap(), MatcherWatchdog.noop());
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
+        config.put("capture_all_matches", true);
+        String processorTag = randomAlphaOfLength(10);
+        GrokProcessor processor = factory.create(null, processorTag, null, config);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getGrok(), notNullValue());
+        assertThat(processor.isCaptureAllMatches(), is(true));
+    }
 }

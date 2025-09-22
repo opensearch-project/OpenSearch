@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
@@ -28,7 +28,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
-import org.opensearch.index.codec.composite.composite101.Composite101Codec;
+import org.opensearch.index.codec.composite.composite103.Composite103Codec;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService;
@@ -75,7 +75,7 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        Codec codec = new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        Codec codec = new Composite103Codec(Lucene103Codec.Mode.BEST_SPEED, mapperService, testLogger);
         return codec;
     }
 
