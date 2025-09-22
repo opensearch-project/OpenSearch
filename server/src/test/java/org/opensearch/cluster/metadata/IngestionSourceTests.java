@@ -105,7 +105,33 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             .setErrorStrategy(DROP)
             .build();
         String expected =
-            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100}";
+            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false}";
         assertEquals(expected, source.toString());
+    }
+
+    public void testAllActiveIngestionConstructorAndGetter() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("key", "value");
+
+        // Test with all-active ingestion enabled
+        IngestionSource sourceEnabled = new IngestionSource.Builder("type").setParams(params)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .setAllActiveIngestion(true)
+            .build();
+
+        assertTrue("All-active ingestion should be enabled", sourceEnabled.isAllActiveIngestionEnabled());
+
+        // Test with all-active ingestion disabled
+        IngestionSource sourceDisabled = new IngestionSource.Builder("type").setParams(params)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .setAllActiveIngestion(false)
+            .build();
+
+        assertFalse("All-active ingestion should be disabled", sourceDisabled.isAllActiveIngestionEnabled());
+
+        IngestionSource ingestionSourceClone = new IngestionSource.Builder(sourceEnabled).build();
+        assertTrue(ingestionSourceClone.isAllActiveIngestionEnabled());
     }
 }

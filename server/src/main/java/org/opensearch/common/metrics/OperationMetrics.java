@@ -8,6 +8,7 @@
 
 package org.opensearch.common.metrics;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class OperationMetrics {
     /**
      * The mean time it takes to complete the measured item.
+     * Time unit should be nanoseconds to accurate record the time.
      */
     private final MeanMetric time = new MeanMetric();
     /**
@@ -29,6 +31,16 @@ public class OperationMetrics {
      * The non-decreasing count of failures
      */
     private final CounterMetric failed = new CounterMetric();
+    /**
+     * The target time unit used in the stats
+     */
+    private TimeUnit targetTimeUnit = TimeUnit.MILLISECONDS;
+
+    public OperationMetrics() {}
+
+    public OperationMetrics(TimeUnit targetTimeUnit) {
+        this.targetTimeUnit = targetTimeUnit;
+    }
 
     /**
      * Invoked before the given operation begins.
@@ -93,6 +105,12 @@ public class OperationMetrics {
      * @return an immutable snapshot of the current metric values.
      */
     public OperationStats createStats() {
-        return new OperationStats(time.count(), time.sum(), current.get(), failed.count());
+        return new OperationStats(
+            time.count(),
+            targetTimeUnit.convert(time.sum(), TimeUnit.NANOSECONDS),
+            current.get(),
+            failed.count(),
+            targetTimeUnit
+        );
     }
 }
