@@ -43,8 +43,8 @@ import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 

@@ -39,8 +39,8 @@ public class StreamingSearchResponseListener implements ActionListener<SearchRes
     }
 
     /**
-     * Collect a partial response. Since we can't stream to client,
-     * we collect them for logging and metadata purposes.
+     * Collect a partial response and track TTFB.
+     * Store first partial response time for TTFB measurement.
      */
     public void onPartialResponse(SearchResponse partialResponse) {
         if (isComplete.get()) {
@@ -54,6 +54,14 @@ public class StreamingSearchResponseListener implements ActionListener<SearchRes
 
         partialResponses.add(partialResponse);
         logPartialResponse(partialResponse, count);
+
+        // Track TTFB - first partial result delivery time
+        if (count == 1 && partialResponse.getHits() != null) {
+            int numHits = partialResponse.getHits().getHits().length;
+            logger.info("TTFB ACHIEVED: First partial result delivered with {} hits", numHits);
+            // This is where TTFB happens in streaming mode
+            // Store this timestamp if needed for benchmarking
+        }
     }
 
     /**

@@ -109,10 +109,8 @@ import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.startree.StarTreeQueryHelper;
-import org.opensearch.search.streaming.FlushMode;
-import org.opensearch.search.suggest.SuggestionSearchContext;
 import org.opensearch.search.streaming.StreamingSearchSettings;
+import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -310,7 +308,7 @@ final class DefaultSearchContext extends SearchContext {
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
-        
+
         // Initialize streaming mode from request
         if (request.getStreamingSearchMode() != null) {
             try {

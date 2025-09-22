@@ -3,31 +3,29 @@ package org.opensearch.search.query;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
+import org.apache.lucene.search.TotalHits;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * Streaming collector context for SCORED_SORTED mode.
  * Collects and maintains documents in sorted order (by score or custom sort).
- * 
+ *
  * Uses Lucene's TopScoreDocCollectorManager for efficient sorted collection with
  * incremental merging. Documents are collected in larger batches (10x default multiplier)
  * to amortize sorting costs, controlled by search.streaming.scored_sorted.batch_multiplier.
- * 
+ *
  * Memory footprint: O(K) where K is the requested number of hits.
  * The TopScoreDocCollector maintains a min-heap of size K.
- * 
+ *
  * Circuit Breaker Policy:
  * - Heap structure: Protected by TopScoreDocCollector's internal memory management
  * - Parent reduction: Protected by QueryPhaseResultConsumer's circuit breaker
@@ -55,7 +53,13 @@ public class StreamingSortedCollectorContext extends TopDocsCollectorContext {
         this.circuitBreaker = null;
     }
 
-    public StreamingSortedCollectorContext(String profilerName, int numHits, SearchContext searchContext, Sort sort, CircuitBreaker breaker) {
+    public StreamingSortedCollectorContext(
+        String profilerName,
+        int numHits,
+        SearchContext searchContext,
+        Sort sort,
+        CircuitBreaker breaker
+    ) {
         super(profilerName, numHits);
         this.searchContext = searchContext;
         this.sort = sort != null ? sort : Sort.RELEVANCE;

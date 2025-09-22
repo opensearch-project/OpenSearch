@@ -32,10 +32,10 @@
 
 package org.opensearch.action.search;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CollectionStatistics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -847,7 +847,6 @@ public final class SearchPhaseController {
             );
         }
     }
-
 
     /**
      * The top docs statistics

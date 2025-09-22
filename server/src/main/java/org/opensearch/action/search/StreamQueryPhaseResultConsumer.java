@@ -13,30 +13,29 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.search.streaming.StreamingSearchSettings;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.StreamingSearchMode;
-
-import java.util.concurrent.atomic.AtomicInteger;
+import org.opensearch.search.streaming.StreamingSearchSettings;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
  * Query phase result consumer for streaming search.
  * Supports progressive batch reduction with configurable scoring modes.
- * 
+ *
  * Batch reduction frequency is controlled by per-mode multipliers from cluster settings:
  * - NO_SCORING: Immediate reduction (batch size = 1) for fastest time-to-first-byte
  * - SCORED_UNSORTED: Small batches controlled by search.streaming.scored_unsorted.batch_multiplier (default: 2)
  * - CONFIDENCE_BASED: Moderate batches controlled by search.streaming.confidence.batch_multiplier (default: 3)
  * - SCORED_SORTED: Larger batches controlled by search.streaming.scored_sorted.batch_multiplier (default: 10)
- * 
+ *
  * These multipliers are applied to the base batch reduce size (typically 5) to determine
  * how many shard results are accumulated before triggering a partial reduction. Lower values
  * mean more frequent reductions and faster streaming, but higher coordinator CPU usage.
- * 
+ *
  * ClusterSettings must be provided (non-null) to enable dynamic configuration. Tests should
  * provide a properly configured ClusterSettings instance rather than null.
  *
@@ -45,14 +44,20 @@ import java.util.function.Consumer;
 public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
 
     private static final Logger logger = LogManager.getLogger(StreamQueryPhaseResultConsumer.class);
-    
+
     private final StreamingSearchMode scoringMode;
     private final ClusterSettings clusterSettings;
     private int resultsReceived = 0;
-    
+
+    // TTFB tracking for demonstrating fetch phase timing
+    private long queryStartTime = System.currentTimeMillis();
+    private long firstBatchReadyForFetchTime = -1;
+    private boolean firstBatchReadyForFetch = false;
+    private final AtomicInteger batchesReduced = new AtomicInteger(0);
+
     /**
      * Creates a streaming query phase result consumer.
-     * 
+     *
      * @param clusterSettings cluster settings for dynamic multipliers (must not be null)
      */
     public StreamQueryPhaseResultConsumer(
@@ -76,11 +81,11 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
             expectedResultSize,
             onPartialMergeFailure
         );
-        
+
         // Initialize scoring mode from request
         String mode = request.getStreamingSearchMode();
         this.scoringMode = (mode != null) ? StreamingSearchMode.fromString(mode) : StreamingSearchMode.SCORED_SORTED;
-        
+
         // ClusterSettings is required for dynamic configuration
         if (clusterSettings == null) {
             throw new IllegalArgumentException("ClusterSettings must not be null for StreamQueryPhaseResultConsumer");
@@ -101,7 +106,7 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         if (scoringMode == null || clusterSettings == null) {
             return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
         }
-        
+
         switch (scoringMode) {
             case NO_SCORING:
                 // Reduce immediately for fastest TTFB (similar to streaming aggs with low batch size)
@@ -127,7 +132,7 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
     /**
      * Consume streaming results with frequency-based emission
      */
-    void consumeStreamResult(SearchPhaseResult result, Runnable next) {
+    public void consumeStreamResult(SearchPhaseResult result, Runnable next) {
         QuerySearchResult querySearchResult = result.queryResult();
 
         // Check if already consumed
@@ -138,13 +143,46 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         }
 
         resultsReceived++;
-        logger.debug("Consumed result #{} from shard {}, partial={}, hasTopDocs={}", 
-                    resultsReceived, result.getShardIndex(), querySearchResult.isPartial(), 
-                    querySearchResult.topDocs() != null);
-        
+
+        // Track when first batch is ready for fetch phase
+        // Use the batch size that was configured for this mode
+        int batchSize = getBatchReduceSize(Integer.MAX_VALUE, 5);
+        if (!firstBatchReadyForFetch && resultsReceived >= batchSize) {
+            firstBatchReadyForFetch = true;
+            firstBatchReadyForFetchTime = System.currentTimeMillis();
+            long ttfb = firstBatchReadyForFetchTime - queryStartTime;
+            logger.info(
+                "STREAMING TTFB: First batch ready for fetch after {} ms with {} results (batch size: {})",
+                ttfb,
+                resultsReceived,
+                batchSize
+            );
+        }
+
+        logger.debug(
+            "Consumed result #{} from shard {}, partial={}, hasTopDocs={}",
+            resultsReceived,
+            result.getShardIndex(),
+            querySearchResult.isPartial(),
+            querySearchResult.topDocs() != null
+        );
+
         // Use parent's pendingMerges to consume the result
         // Partial reduces are automatically triggered by batchReduceSize
         pendingMerges.consume(querySearchResult, next);
     }
-}
 
+    /**
+     * Get TTFB metrics for benchmarking
+     */
+    public long getTimeToFirstBatch() {
+        if (firstBatchReadyForFetchTime > 0) {
+            return firstBatchReadyForFetchTime - queryStartTime;
+        }
+        return -1;
+    }
+
+    public boolean isFirstBatchReady() {
+        return firstBatchReadyForFetch;
+    }
+}
