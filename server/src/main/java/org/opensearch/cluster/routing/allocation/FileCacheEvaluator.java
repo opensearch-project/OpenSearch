@@ -8,13 +8,14 @@
 
 package org.opensearch.cluster.routing.allocation;
 
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 
 /**
  * Evaluates file cache active usage thresholds for warm nodes in the cluster.
  * This class provides methods to check if nodes are exceeding various file cache watermark levels
  */
-public class FileCacheEvaluator implements FileCacheThresholdEvaluator {
+public class FileCacheEvaluator {
 
     private final FileCacheThresholdSettings fileCacheThresholdSettings;
 
@@ -22,15 +23,31 @@ public class FileCacheEvaluator implements FileCacheThresholdEvaluator {
         this.fileCacheThresholdSettings = fileCacheThresholdSettings;
     }
 
-    @Override
     public boolean isNodeExceedingIndexingThreshold(AggregateFileCacheStats aggregateFileCacheStats) {
-        return fileCacheThresholdSettings.isEnabled()
-            && aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFileCacheIndexThreshold();
+        if (fileCacheThresholdSettings.isEnabled()) {
+            if (!fileCacheThresholdSettings.getFileCacheIndexThresholdPercentage().equals(0.0)) {
+                return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings
+                    .getFileCacheIndexThresholdPercentage();
+            }
+            if (!fileCacheThresholdSettings.getFileCacheIndexThresholdBytes().equals(ByteSizeValue.ZERO)) {
+                return aggregateFileCacheStats.getActive().getBytes() >= fileCacheThresholdSettings.getFileCacheIndexThresholdBytes()
+                    .getBytes();
+            }
+        }
+        return false;
     }
 
-    @Override
     public boolean isNodeExceedingSearchThreshold(AggregateFileCacheStats aggregateFileCacheStats) {
-        return fileCacheThresholdSettings.isEnabled()
-            && aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFileCacheSearchThreshold();
+        if (fileCacheThresholdSettings.isEnabled()) {
+            if (!fileCacheThresholdSettings.getFileCacheSearchThresholdPercentage().equals(0.0)) {
+                return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings
+                    .getFileCacheSearchThresholdPercentage();
+            }
+            if (!fileCacheThresholdSettings.getFileCacheSearchThresholdBytes().equals(ByteSizeValue.ZERO)) {
+                return aggregateFileCacheStats.getActive().getBytes() >= fileCacheThresholdSettings.getFileCacheSearchThresholdBytes()
+                    .getBytes();
+            }
+        }
+        return false;
     }
 }

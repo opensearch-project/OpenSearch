@@ -74,8 +74,10 @@ public class FileCacheThresholdSettings {
         Setting.Property.NodeScope
     );
 
-    private volatile Double fileCacheIndexThreshold;
-    private volatile Double fileCacheSearchThreshold;
+    private volatile Double fileCacheIndexThresholdPercentage;
+    private volatile Double fileCacheSearchThresholdPercentage;
+    private volatile ByteSizeValue fileCacheIndexThresholdBytes;
+    private volatile ByteSizeValue fileCacheSearchThresholdBytes;
     private volatile boolean enabled;
 
     public FileCacheThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
@@ -101,8 +103,8 @@ public class FileCacheThresholdSettings {
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String searchThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING);
-            doValidate(value, searchThreshold);
+            final String indexThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING);
+            doValidate(value, indexThreshold);
         }
 
         @Override
@@ -124,8 +126,8 @@ public class FileCacheThresholdSettings {
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String indexThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING);
-            doValidate(indexThreshold, value);
+            final String searchThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING);
+            doValidate(searchThreshold, value);
         }
 
         @Override
@@ -135,21 +137,21 @@ public class FileCacheThresholdSettings {
         }
     }
 
-    private static void doValidate(String high, String search) {
+    private static void doValidate(String index, String search) {
         try {
-            doValidateAsPercentage(high, search);
+            doValidateAsPercentage(index, search);
             return;
         } catch (final OpenSearchParseException e) {
             // swallow as we are now going to try to parse as bytes
         }
         try {
-            doValidateAsBytes(high, search);
+            doValidateAsBytes(index, search);
         } catch (final OpenSearchParseException e) {
             final String message = String.format(
                 Locale.ROOT,
                 "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
                 CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.getKey(),
-                high,
+                index,
                 CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(),
                 search
             );
@@ -173,15 +175,45 @@ public class FileCacheThresholdSettings {
             CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.getKey(),
             false
         );
-        final ByteSizeValue searchStageBytes = thresholdBytesFromValue(
+        final ByteSizeValue searchBytes = thresholdBytesFromValue(
             search,
             CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(),
             false
         );
-        if (indexBytes.getBytes() < searchStageBytes.getBytes()) {
+        if (indexBytes.getBytes() > searchBytes.getBytes()) {
             throw new IllegalArgumentException(
                 "index file cache threshold [" + index + "] less than search file cache threshold [" + search + "]"
             );
+        }
+    }
+
+    /**
+     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning
+     * a ByteSizeValue of 0 bytes if the value cannot be parsed.
+     */
+    private static ByteSizeValue thresholdBytesFromSettings(String value, String settingName) {
+        return thresholdBytesFromSettings(value, settingName, true);
+    }
+
+    /**
+     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
+     * parameter is true, otherwise throwing an {@link OpenSearchParseException}.
+     *
+     * @param value   the watermark to parse as a byte size
+     * @param settingName the name of the setting
+     * @param lenient     true if lenient parsing should be applied
+     * @return the parsed byte size value
+     */
+    private static ByteSizeValue thresholdBytesFromSettings(String value, String settingName, boolean lenient) {
+        try {
+            return ByteSizeValue.parseBytesSizeValue(value, settingName);
+        } catch (OpenSearchParseException ex) {
+            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
+            // cases separately
+            if (lenient) {
+                return ByteSizeValue.parseBytesSizeValue("0b", settingName);
+            }
+            throw ex;
         }
     }
 
@@ -190,31 +222,51 @@ public class FileCacheThresholdSettings {
     }
 
     private void setIndexThreshold(String index) {
-        this.fileCacheIndexThreshold = thresholdPercentageFromValue(index);
+        this.fileCacheIndexThresholdPercentage = thresholdPercentageFromValue(index);
+        this.fileCacheIndexThresholdBytes = thresholdBytesFromSettings(
+            index,
+            CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.getKey()
+        );
     }
 
     private void setSearchThreshold(String search) {
-        this.fileCacheSearchThreshold = thresholdPercentageFromValue(search);
+        this.fileCacheSearchThresholdPercentage = thresholdPercentageFromValue(search);
+        this.fileCacheSearchThresholdBytes = thresholdBytesFromSettings(
+            search,
+            CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey()
+        );
     }
 
     public Boolean isEnabled() {
         return enabled;
     }
 
-    public Double getFileCacheIndexThreshold() {
-        return fileCacheIndexThreshold;
+    public Double getFileCacheIndexThresholdPercentage() {
+        return fileCacheIndexThresholdPercentage;
     }
 
-    public Double getFileCacheSearchThreshold() {
-        return fileCacheSearchThreshold;
+    public Double getFileCacheSearchThresholdPercentage() {
+        return fileCacheSearchThresholdPercentage;
+    }
+
+    public ByteSizeValue getFileCacheIndexThresholdBytes() {
+        return fileCacheIndexThresholdBytes;
+    }
+
+    public ByteSizeValue getFileCacheSearchThresholdBytes() {
+        return fileCacheSearchThresholdBytes;
     }
 
     String describeIndexThreshold() {
-        return fileCacheIndexThreshold + "%";
+        return fileCacheIndexThresholdBytes.equals(ByteSizeValue.ZERO)
+            ? fileCacheIndexThresholdPercentage + "%"
+            : fileCacheIndexThresholdBytes.toString();
     }
 
     String describeSearchThreshold() {
-        return fileCacheSearchThreshold + "%";
+        return fileCacheSearchThresholdBytes.equals(ByteSizeValue.ZERO)
+            ? fileCacheSearchThresholdPercentage + "%"
+            : fileCacheSearchThresholdBytes.toString();
     }
 
     /**
@@ -238,7 +290,7 @@ public class FileCacheThresholdSettings {
             return RatioValue.parseRatioValue(value).getAsPercent();
         } catch (OpenSearchParseException ex) {
             if (lenient) {
-                return 100.0;
+                return 0.0;
             }
             throw ex;
         }

@@ -54,6 +54,7 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.opensearch.cluster.routing.allocation.FileCacheThresholdSettings;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -291,6 +292,56 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
                 assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
             }
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexWriteBlockWhenNodeFileCacheActiveUsageExceedsSearchThresholdInBytes() throws Exception {
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        Settings nodeSettings = buildTestSettings(false, null);
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        var nodeNames = startTestNodes(1, nodeSettings);
+        Settings fileCacheModifiedSettings = Settings.builder()
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.getKey(), "900b")
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(), "1000b")
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(fileCacheModifiedSettings).get();
+        ensureStableCluster(2);
+
+        List<String> indexList = createTestIndices(nodeNames);
+        simulateFileCacheActiveUsage(getMockInternalClusterInfoService(), 1000L, 1000L, 1000L);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+            for (String index : indexList) {
+                assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK));
+                assertTrue(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexWriteBlockWhenNodeFileCacheActiveUsageExceedsSearchThresholdWithFeatureToggle() throws Exception {
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        Settings nodeSettings = buildTestSettings(false, null);
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        var nodeNames = startTestNodes(1, nodeSettings);
+        ensureStableCluster(2);
+
+        List<String> indexList = createTestIndices(nodeNames);
+        Settings clusterFileCacheDisabled = Settings.builder()
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_THRESHOLD_ENABLED_SETTING.getKey(), Boolean.FALSE.toString())
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(clusterFileCacheDisabled).get();
+        simulateFileCacheActiveUsage(getMockInternalClusterInfoService(), 100L, 100L, 100L);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+            for (String index : indexList) {
+                assertFalse(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK));
+                assertFalse(state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+            }
+        }, 30L, TimeUnit.SECONDS);
+
     }
 
     public void testIndexWriteBlockWhenNodeFileCacheActiveUsageDropsBelowSearchThreshold() throws Exception {

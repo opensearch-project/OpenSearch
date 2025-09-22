@@ -33,20 +33,36 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class FileCacheThresholdSettingsTests extends OpenSearchTestCase {
 
     public void testDefaults() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        FileCacheThresholdSettings fileCacheThreshldSettings = new FileCacheThresholdSettings(Settings.EMPTY, nss);
+        FileCacheThresholdSettings fileCacheThresholdSettings = new FileCacheThresholdSettings(Settings.EMPTY, nss);
+        ByteSizeValue zeroBytes = ByteSizeValue.parseBytesSizeValue("0b", "test");
 
-        assertEquals("90.0", fileCacheThreshldSettings.getFileCacheIndexThreshold().toString());
-        assertEquals("100.0", fileCacheThreshldSettings.getFileCacheSearchThreshold().toString());
+        assertEquals("90.0", fileCacheThresholdSettings.getFileCacheIndexThresholdPercentage().toString());
+        assertEquals("100.0", fileCacheThresholdSettings.getFileCacheSearchThresholdPercentage().toString());
+        assertEquals(zeroBytes, fileCacheThresholdSettings.getFileCacheIndexThresholdBytes());
+        assertEquals(zeroBytes, fileCacheThresholdSettings.getFileCacheSearchThresholdBytes());
+    }
+
+    public void testUpdateWithBytes() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        FileCacheThresholdSettings fileCacheThresholdSettings = new FileCacheThresholdSettings(Settings.EMPTY, nss);
+
+        Settings newSettings = Settings.builder()
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING.getKey(), "500mb")
+            .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(), "1000mb")
+            .build();
+        nss.applySettings(newSettings);
+
+        assertEquals(ByteSizeValue.parseBytesSizeValue("500mb", "test"), fileCacheThresholdSettings.getFileCacheIndexThresholdBytes());
+        assertEquals(ByteSizeValue.parseBytesSizeValue("1000mb", "test"), fileCacheThresholdSettings.getFileCacheSearchThresholdBytes());
+        assertEquals("0.0", fileCacheThresholdSettings.getFileCacheIndexThresholdPercentage().toString());
+        assertEquals("0.0", fileCacheThresholdSettings.getFileCacheSearchThresholdPercentage().toString());
     }
 
     public void testInvalidIndexThreshold() {
@@ -58,13 +74,13 @@ public class FileCacheThresholdSettingsTests extends OpenSearchTestCase {
             .put(FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING.getKey(), "95.0%")
             .build();
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
-        final String expected = "illegal value can't update [cluster.routing.allocation.filecache.index.threshold] from [90%] to [96.0%]";
-        assertThat(e, hasToString(containsString(expected)));
+        final IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
+        final String expected = "illegal value can't update [cluster.filecache.activeusage.indexing.threshold] from [90%] to [96.0%]";
+        assertTrue(e.getMessage().contains(expected));
         assertNotNull(e.getCause());
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertTrue(e.getCause() instanceof IllegalArgumentException);
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        assertThat(cause, hasToString(containsString("index file cache threshold [96.0%] more than search file cache threshold [95.0%]")));
+        assertTrue(cause.getMessage().contains("index file cache threshold [96.0%] more than search file cache threshold [95.0%]"));
     }
 
     public void testSequenceOfUpdates() {
