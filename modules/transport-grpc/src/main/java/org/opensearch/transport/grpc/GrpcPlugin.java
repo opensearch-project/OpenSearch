@@ -212,7 +212,13 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         );
         return Collections.singletonMap(
             GRPC_SECURE_TRANSPORT_SETTING_KEY,
-            () -> new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, threadPool, secureAuxTransportSettingsProvider)
+            () -> new SecureNetty4GrpcServerTransport(
+                settings,
+                grpcServices,
+                networkService,
+                threadPool,
+                secureAuxTransportSettingsProvider
+            )
         );
     }
 

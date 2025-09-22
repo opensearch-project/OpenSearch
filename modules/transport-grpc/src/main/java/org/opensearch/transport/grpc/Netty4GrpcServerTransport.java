@@ -227,7 +227,12 @@ public class Netty4GrpcServerTransport extends AuxTransport {
      * @param networkService the bind/publish addresses.
      * @param threadPool the thread pool for gRPC request processing.
      */
-    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService, ThreadPool threadPool) {
+    public Netty4GrpcServerTransport(
+        Settings settings,
+        List<BindableService> services,
+        NetworkService networkService,
+        ThreadPool threadPool
+    ) {
         logger.debug("Initializing Netty4GrpcServerTransport with settings = {}", settings);
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
@@ -251,12 +256,22 @@ public class Netty4GrpcServerTransport extends AuxTransport {
         this.portSettingKey = SETTING_GRPC_PORT.getKey();
     }
 
+    /**
+     * Returns the setting key used to identify this transport type.
+     *
+     * @return the gRPC transport setting key
+     */
     @Override
     public String settingKey() {
         return GRPC_TRANSPORT_SETTING_KEY;
     }
 
-    // public for tests
+    /**
+     * Returns the bound transport addresses for this gRPC server.
+     * This method is public for testing purposes.
+     *
+     * @return the bound transport address containing all bound addresses and publish address
+     */
     @Override
     public BoundTransportAddress getBoundAddress() {
         return this.boundAddress;

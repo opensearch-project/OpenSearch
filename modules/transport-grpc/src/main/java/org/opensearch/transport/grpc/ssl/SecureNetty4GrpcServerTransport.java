@@ -74,6 +74,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
      * @param settings the configured settings.
      * @param services the gRPC compatible services to be registered with the server.
      * @param networkService the bind/publish addresses.
+     * @param threadPool the thread pool for managing gRPC executor and monitoring.
      * @param secureTransportSettingsProvider TLS configuration settings.
      */
     public SecureNetty4GrpcServerTransport(
