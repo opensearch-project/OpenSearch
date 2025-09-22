@@ -169,8 +169,14 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
-                List<BindableService> service = serviceFac.initClient(client).build();
-                grpcServices.addAll(service);
+                List<BindableService> pluginServices = serviceFac
+                    .initClient(client)
+                    .initSettings(settings)
+                    .initClusterSettings(clusterSettings)
+                    .initThreadPool(threadPool)
+                    .build();
+                logger.info("{} gRPC services loaded from plugin: {}", pluginServices.size(), serviceFac.plugin());
+                grpcServices.addAll(pluginServices);
             }
             return new Netty4GrpcServerTransport(settings, grpcServices, networkService);
         });
@@ -214,8 +220,14 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
-                BindableService service = serviceFac.initClient(client).build();
-                grpcServices.add(service);
+                List<BindableService> pluginServices = serviceFac
+                    .initClient(client)
+                    .initSettings(settings)
+                    .initClusterSettings(clusterSettings)
+                    .initThreadPool(threadPool)
+                    .build();
+                logger.info("{} gRPC services loaded from plugin: {}", pluginServices.size(), serviceFac.plugin());
+                grpcServices.addAll(pluginServices);
             }
             return new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider);
         });
