@@ -676,7 +676,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         Diff<MappingMetadata> metadataDiff = newIndexMetadata.mapping().diff(currentIndexMetadata.mapping());
         Map<String, Object> parsedDiffMap = metadataDiff.apply(MappingMetadata.EMPTY_MAPPINGS).sourceAsMap();
-        Map<String, Object> parsedOriginalMap = currentIndexMetadata.mapping().sourceAsMap();
+        Map<String, Object> parsedOriginalMap = null;
+        if (currentIndexMetadata.mapping() != null) {
+            parsedOriginalMap = currentIndexMetadata.mapping().sourceAsMap();
+        }
 
         for (MappedFieldType ft : mapperService.fieldTypes()) {
             String field = ft.name();
@@ -692,8 +695,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     String sourcePathWithProperties = getSourceFieldWithProperties(sourcePath);
                     Object diffForField = XContentMapValues.extractValue(sourcePathWithProperties, parsedDiffMap);
                     if (diffForField != null) {
-                        // If this is a new field (absent in the current index metadata), we can skip clearing
-                        if (XContentMapValues.extractValue(sourcePathWithProperties, parsedOriginalMap) == null) {
+                        // If this is a new field (absent in the current index metadata), or if there was no mapping previously, we can skip
+                        // clearing
+                        if (parsedOriginalMap == null
+                            || XContentMapValues.extractValue(sourcePathWithProperties, parsedOriginalMap) == null) {
                             continue;
                         }
                         // Something about this field was changed in the diff
