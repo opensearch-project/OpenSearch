@@ -320,10 +320,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testUsageAtFullActiveCapacity() throws IOException {
-        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-            16 * MEGA_BYTES,
-            1
-        );
+        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(16 * MEGA_BYTES, 1);
         // Add some entries to cache
         int numEntries = 2;
         Path tempDir = createTempDir();
