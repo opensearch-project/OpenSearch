@@ -15,6 +15,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
@@ -321,8 +322,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     public void testUsageAtFullActiveCapacity() throws IOException {
         FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
             16 * MEGA_BYTES,
-            1,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+            1
         );
         // Add some entries to cache
         int numEntries = 2;
