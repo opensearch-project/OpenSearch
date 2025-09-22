@@ -77,7 +77,33 @@ public interface TokenFilterFactory {
      * @param charFilters           any CharFilterFactories for the preceding chain
      * @param previousTokenFilters  a list of TokenFilterFactories in the preceding chain
      * @param allFilters            access to previously defined TokenFilterFactories
-     * @param analyzersBuiltSoFar   already built analyzers
+     */
+    default TokenFilterFactory getChainAwareTokenFilterFactory(
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters
+    ) {
+        return this;
+    }
+
+    /**
+     * Like {@link #getChainAwareTokenFilterFactory(TokenizerFactory, List, List, Function)},
+     * but also provides a resolver for analyzers that have already been constructed
+     * earlier in this index build (e.g., a {@code synonym_analyzer} referenced by name).
+     *
+     * <p><b>Example:</b> {@code SynonymTokenFilterFactory} can resolve the analyzer named by
+     * {@code synonym_analyzer} using {@code analyzersBuiltSoFar}.</p>
+     *
+     * The call {@code analyzersBuiltSoFar.apply(name)} returns an {@link org.apache.lucene.analysis.Analyzer}
+     *       if (and only if) that analyzer was already built in the current index build; it may return {@code null}.
+     *
+     * @param tokenizer             the TokenizerFactory for the preceding chain
+     * @param charFilters           any CharFilterFactories for the preceding chain
+     * @param previousTokenFilters  a list of TokenFilterFactories in the preceding chain
+     * @param allFilters            access to previously defined TokenFilterFactories
+     * @param analyzersBuiltSoFar   {@code name -> Analyzer} for analyzers already built earlier in this index build (may return null)
+     * @since 3.3.0
      */
     default TokenFilterFactory getChainAwareTokenFilterFactory(
         TokenizerFactory tokenizer,
@@ -86,7 +112,7 @@ public interface TokenFilterFactory {
         Function<String, TokenFilterFactory> allFilters,
         Function<String, Analyzer> analyzersBuiltSoFar
     ) {
-        return this;
+        return getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
     }
 
     /**

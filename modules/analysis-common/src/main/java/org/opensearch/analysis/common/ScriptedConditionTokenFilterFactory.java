@@ -32,7 +32,6 @@
 
 package org.opensearch.analysis.common;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.opensearch.common.settings.Settings;
@@ -85,8 +84,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters,
-        Function<String, Analyzer> analyzersBuiltSoFar
+        Function<String, TokenFilterFactory> allFilters
     ) {
         List<TokenFilterFactory> filters = new ArrayList<>();
         List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
@@ -97,7 +95,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
                     "ScriptedConditionTokenFilter [" + name() + "] refers to undefined token filter [" + filter + "]"
                 );
             }
-            tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters, analyzersBuiltSoFar);
+            tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
             filters.add(tff);
             existingChain.add(tff);
         }
