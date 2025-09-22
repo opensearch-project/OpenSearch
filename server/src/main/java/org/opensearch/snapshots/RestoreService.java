@@ -71,6 +71,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
@@ -479,7 +480,7 @@ public class RestoreService implements ClusterStateApplier {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
-                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
+                                        applyAliasesWithRename(snapshotIndexMetadata.getAliases(), request, indexMdBuilder, aliases);
                                     }
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
                                     if (partial) {
@@ -524,7 +525,7 @@ public class RestoreService implements ClusterStateApplier {
                                             indexMdBuilder.putAlias(alias);
                                         }
                                     } else {
-                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
+                                        applyAliasesWithRename(snapshotIndexMetadata.getAliases(), request, indexMdBuilder, aliases);
                                     }
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
@@ -655,22 +656,37 @@ public class RestoreService implements ClusterStateApplier {
                     }
 
                     private void applyAliasesWithRename(
-                        IndexMetadata snapshotIndexMetadata,
+                        Map<String, AliasMetadata> snapshotAliases,
+                        RestoreSnapshotRequest request,
                         IndexMetadata.Builder indexMdBuilder,
                         Set<String> aliases
                     ) {
                         if (request.renameAliasPattern() == null || request.renameAliasReplacement() == null) {
-                            aliases.addAll(snapshotIndexMetadata.getAliases().keySet());
+                            for (final Map.Entry<String, AliasMetadata> alias : snapshotAliases.entrySet()) {
+                                AliasMetadata transformedAlias = applyAliasWriteIndexPolicy(
+                                    alias.getValue(),
+                                    request.aliasWriteIndexPolicy(),
+                                    request.aliasSuffix()
+                                );
+                                indexMdBuilder.removeAlias(alias.getKey());
+                                indexMdBuilder.putAlias(transformedAlias);
+                                aliases.add(transformedAlias.alias());
+                            }
                         } else {
                             Pattern renameAliasPattern = Pattern.compile(request.renameAliasPattern());
-                            for (final Map.Entry<String, AliasMetadata> alias : snapshotIndexMetadata.getAliases().entrySet()) {
+                            for (final Map.Entry<String, AliasMetadata> alias : snapshotAliases.entrySet()) {
                                 String currentAliasName = alias.getKey();
                                 indexMdBuilder.removeAlias(currentAliasName);
                                 String newAliasName = renameAliasPattern.matcher(currentAliasName)
                                     .replaceAll(request.renameAliasReplacement());
-                                AliasMetadata newAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
-                                indexMdBuilder.putAlias(newAlias);
-                                aliases.add(newAliasName);
+                                AliasMetadata renamedAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
+                                AliasMetadata transformedAlias = applyAliasWriteIndexPolicy(
+                                    renamedAlias,
+                                    request.aliasWriteIndexPolicy(),
+                                    request.aliasSuffix()
+                                );
+                                indexMdBuilder.putAlias(transformedAlias);
+                                aliases.add(transformedAlias.alias());
                             }
                         }
                     }
@@ -1366,6 +1382,46 @@ public class RestoreService implements ClusterStateApplier {
             }
         } catch (Exception t) {
             logger.warn("Failed to update restore state ", t);
+        }
+    }
+
+    /**
+     * Apply alias write index policy to transform alias metadata during restore.
+     * Package-private for testing.
+     */
+    static AliasMetadata applyAliasWriteIndexPolicy(
+        AliasMetadata aliasMd,
+        RestoreSnapshotRequest.AliasWriteIndexPolicy policy,
+        @Nullable String suffix
+    ) {
+        switch (policy) {
+            case STRIP_WRITE_INDEX:
+                if (Boolean.TRUE.equals(aliasMd.writeIndex())) {
+                    return AliasMetadata.builder(aliasMd.alias())
+                        .filter(aliasMd.filter())
+                        .indexRouting(aliasMd.indexRouting())
+                        .searchRouting(aliasMd.searchRouting())
+                        .isHidden(aliasMd.isHidden())
+                        .writeIndex(false)
+                        .build();
+                }
+                return aliasMd;
+
+            case CUSTOM_SUFFIX:
+                if (suffix == null || suffix.isEmpty()) {
+                    suffix = "_follower";
+                }
+                return AliasMetadata.builder(aliasMd.alias() + suffix)
+                    .filter(aliasMd.filter())
+                    .indexRouting(aliasMd.indexRouting())
+                    .searchRouting(aliasMd.searchRouting())
+                    .isHidden(aliasMd.isHidden())
+                    .writeIndex(false)
+                    .build();
+
+            case PRESERVE:
+            default:
+                return aliasMd;
         }
     }
 

@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -129,6 +130,32 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
 
+    /**
+     * Alias write index policy for controlling how writeIndex attribute is handled during restore
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "3.0.0")
+    public enum AliasWriteIndexPolicy {
+        PRESERVE,
+        STRIP_WRITE_INDEX,
+        CUSTOM_SUFFIX;
+
+        public static AliasWriteIndexPolicy fromString(String value) {
+            try {
+                return valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Unknown alias_write_index_policy [" + value + "]. Valid values are: " + Arrays.toString(values())
+                );
+            }
+        }
+    }
+
+    private AliasWriteIndexPolicy aliasWriteIndexPolicy = AliasWriteIndexPolicy.PRESERVE;
+    @Nullable
+    private String aliasSuffix;
+
     public RestoreSnapshotRequest() {}
 
     /**
@@ -172,6 +199,10 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             renameAliasReplacement = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            aliasWriteIndexPolicy = in.readEnum(AliasWriteIndexPolicy.class);
+            aliasSuffix = in.readOptionalString();
+        }
     }
 
     @Override
@@ -204,6 +235,10 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         }
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(renameAliasReplacement);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeEnum(aliasWriteIndexPolicy);
+            out.writeOptionalString(aliasSuffix);
         }
     }
 
@@ -641,6 +676,47 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     }
 
     /**
+     * Sets alias write index policy for controlling how writeIndex attribute is handled during restore
+     *
+     * @param policy the policy to apply
+     * @return this request
+     */
+    public RestoreSnapshotRequest aliasWriteIndexPolicy(AliasWriteIndexPolicy policy) {
+        this.aliasWriteIndexPolicy = Objects.requireNonNull(policy);
+        return this;
+    }
+
+    /**
+     * Returns alias write index policy
+     *
+     * @return alias write index policy
+     */
+    public AliasWriteIndexPolicy aliasWriteIndexPolicy() {
+        return aliasWriteIndexPolicy;
+    }
+
+    /**
+     * Sets suffix to append to alias names when using CUSTOM_SUFFIX policy
+     *
+     * @param suffix the suffix to append
+     * @return this request
+     */
+    public RestoreSnapshotRequest aliasSuffix(@Nullable String suffix) {
+        this.aliasSuffix = suffix;
+        return this;
+    }
+
+    /**
+     * Returns alias suffix
+     *
+     * @return alias suffix
+     */
+    @Nullable
+    public String aliasSuffix() {
+        return aliasSuffix;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -729,6 +805,10 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 } else {
                     throw new IllegalArgumentException("malformed source_remote_translog_repository");
                 }
+            } else if ("alias_write_index_policy".equals(name)) {
+                aliasWriteIndexPolicy(AliasWriteIndexPolicy.fromString((String) entry.getValue()));
+            } else if ("alias_suffix".equals(name)) {
+                aliasSuffix((String) entry.getValue());
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -786,6 +866,10 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (sourceRemoteTranslogRepository != null) {
             builder.field("source_remote_translog_repository", sourceRemoteTranslogRepository);
         }
+        builder.field("alias_write_index_policy", aliasWriteIndexPolicy.name().toLowerCase(Locale.ROOT));
+        if (aliasSuffix != null) {
+            builder.field("alias_suffix", aliasSuffix);
+        }
         builder.endObject();
         return builder;
     }
@@ -817,7 +901,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(snapshotUuid, that.snapshotUuid)
             && Objects.equals(storageType, that.storageType)
             && Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository)
-            && Objects.equals(sourceRemoteTranslogRepository, that.sourceRemoteTranslogRepository);
+            && Objects.equals(sourceRemoteTranslogRepository, that.sourceRemoteTranslogRepository)
+            && aliasWriteIndexPolicy == that.aliasWriteIndexPolicy
+            && Objects.equals(aliasSuffix, that.aliasSuffix);
         return equals;
     }
 
@@ -840,7 +926,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             snapshotUuid,
             storageType,
             sourceRemoteStoreRepository,
-            sourceRemoteTranslogRepository
+            sourceRemoteTranslogRepository,
+            aliasWriteIndexPolicy,
+            aliasSuffix
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
