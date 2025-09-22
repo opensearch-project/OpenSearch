@@ -83,16 +83,16 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     private static final String SEARCHABLE_DATE = "searchable_date";
 
     private static final List<String> DATASET = Arrays.asList(
-        "2010-03-12T01:07:45", // 0
-        "2010-04-27T03:43:34", // 1
-        "2012-05-18T04:11:00", // 2
-        "2013-05-29T05:11:31", // 3
-        "2013-10-31T08:24:05", // 4
-        "2015-02-13T13:09:32", // 5
-        "2015-06-24T13:47:43", // 6
-        "2015-11-13T16:14:34", // 7
-        "2016-03-04T17:09:50", // 8
-        "2017-12-12T22:55:46"  // 9
+        "2010-03-12T01:07:45",
+        "2010-04-27T03:43:34",
+        "2012-05-18T04:11:00",
+        "2013-05-29T05:11:31",
+        "2013-10-31T08:24:05",
+        "2015-02-13T13:09:32",
+        "2015-06-24T13:47:43",
+        "2015-11-13T16:14:34",
+        "2016-03-04T17:09:50",
+        "2017-12-12T22:55:46"
     );
 
     public void testMatchNoDocsDeprecatedInterval() throws IOException {
@@ -218,20 +218,29 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 equalTo(List.of("2020-01-01T00:00Z"))
             );
         });
-        builder = new TermsAggregationBuilder("k2").field("k2")
-            .subAggregation(new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR));
+        builder = new TermsAggregationBuilder("k2").field("k2").subAggregation(builder);
         asSubAggTestCase(builder, (StringTerms terms) -> {
             StringTerms.Bucket a = terms.getBucketByKey("a");
-            InternalDateHistogram adh = a.getAggregations().get("dh");
+            StringTerms ak1 = a.getAggregations().get("k1");
+            StringTerms.Bucket ak1a = ak1.getBucketByKey("a");
+            InternalDateHistogram ak1adh = ak1a.getAggregations().get("dh");
             assertThat(
-                adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
+                ak1adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
                 equalTo(List.of("2020-01-01T00:00Z", "2021-01-01T00:00Z"))
             );
 
             StringTerms.Bucket b = terms.getBucketByKey("b");
-            InternalDateHistogram bdh = b.getAggregations().get("dh");
+            StringTerms bk1 = b.getAggregations().get("k1");
+            StringTerms.Bucket bk1a = bk1.getBucketByKey("a");
+            InternalDateHistogram bk1adh = bk1a.getAggregations().get("dh");
             assertThat(
-                bdh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
+                bk1adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
+                equalTo(List.of("2021-01-01T00:00Z"))
+            );
+            StringTerms.Bucket bk1b = bk1.getBucketByKey("b");
+            InternalDateHistogram bk1bdh = bk1b.getAggregations().get("dh");
+            assertThat(
+                bk1bdh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
                 equalTo(List.of("2020-01-01T00:00Z"))
             );
         });
