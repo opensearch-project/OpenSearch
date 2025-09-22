@@ -83,16 +83,16 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     private static final String SEARCHABLE_DATE = "searchable_date";
 
     private static final List<String> DATASET = Arrays.asList(
-        "2010-03-12T01:07:45",
-        "2010-04-27T03:43:34",
-        "2012-05-18T04:11:00",
-        "2013-05-29T05:11:31",
-        "2013-10-31T08:24:05",
-        "2015-02-13T13:09:32",
-        "2015-06-24T13:47:43",
-        "2015-11-13T16:14:34",
-        "2016-03-04T17:09:50",
-        "2017-12-12T22:55:46"
+        "2010-03-12T01:07:45", // 0
+        "2010-04-27T03:43:34", // 1
+        "2012-05-18T04:11:00", // 2
+        "2013-05-29T05:11:31", // 3
+        "2013-10-31T08:24:05", // 4
+        "2015-02-13T13:09:32", // 5
+        "2015-06-24T13:47:43", // 6
+        "2015-11-13T16:14:34", // 7
+        "2016-03-04T17:09:50", // 8
+        "2017-12-12T22:55:46"  // 9
     );
 
     public void testMatchNoDocsDeprecatedInterval() throws IOException {
@@ -243,24 +243,38 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             String filterField = "type";
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
 
-                // First commit - 5 dates with type 1
+                // First commit - 7 dates with type 1
                 for (int i = 0; i < 5; i++) {
                     Document doc = new Document();
-                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i))).toInstant().toEpochMilli();
+                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                        .toInstant()
+                        .toEpochMilli();
                     doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
                     doc.add(new LongPoint(filterField, 1));
-                    doc.add(new NumericDocValuesField(filterField, 1));
                     indexWriter.addDocument(doc);
                 }
                 indexWriter.commit();
 
-                // Second commit - 5 more dates with type 2
-                for (int i = 5; i < 10; i++) {
+                // Second commit - 3 more dates with type 2, skiplist
+                for (int i = 5; i < 8; i++) {
                     Document doc = new Document();
-                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i))).toInstant().toEpochMilli();
+                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                        .toInstant()
+                        .toEpochMilli();
                     doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
                     doc.add(new LongPoint(filterField, 2));
-                    doc.add(new NumericDocValuesField(filterField, 2));
+                    indexWriter.addDocument(doc);
+                }
+                indexWriter.commit();
+
+                // Third commit - 3 more dates with type 2
+                for (int i = 8; i < 10; i++) {
+                    Document doc = new Document();
+                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                        .toInstant()
+                        .toEpochMilli();
+                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                    doc.add(new LongPoint(filterField, 2));
                     indexWriter.addDocument(doc);
                 }
                 indexWriter.commit();
@@ -269,17 +283,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("test")
-                    .field(AGGREGABLE_DATE)
+                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
                     .calendarInterval(DateHistogramInterval.YEAR);
 
                 MappedFieldType fieldType = new DateFieldMapper.DateFieldType(AGGREGABLE_DATE);
                 Query query = LongPoint.newExactQuery(filterField, 2);
-                DateHistogramAggregator aggregator = createAggregator(query, aggregationBuilder, indexSearcher, createIndexSettings(), fieldType);
 
                 InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, 1000, fieldType);
 
-                System.out.println(histogram.toString());
                 assertEquals(3, histogram.getBuckets().size()); // 2015, 2016, 2017 (only type 2 docs)
 
                 assertEquals("2015-01-01T00:00:00.000Z", histogram.getBuckets().get(0).getKeyAsString());

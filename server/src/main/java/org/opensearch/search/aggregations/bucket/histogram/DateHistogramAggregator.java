@@ -33,7 +33,11 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -215,19 +219,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         DocValuesSkipper skipper = null;
         if (this.fieldName != null) {
             skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
-            logger.warn("AGG: found skipper for {}:{}", this.fieldName, skipper);
         }
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
 
         // If no subaggregations, we can use skip list based collector
-        //TODO: add hard bounds support
-        if ((hardBounds != null || sub == null || sub == LeafBucketCollector.NO_OP_COLLECTOR) && skipper != null) {
-            return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, this::incrementBucketDocCount);
-        }
+        if (skipper != null)
+            // TODO: add hard bounds support
+            if (hardBounds != null || sub == null || sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+                logger.debug("using HistogramSkiplistLeafCollector");
+                return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, this::incrementBucketDocCount);
+            }
 
         if (singleton != null) {
-            logger.warn("AGG: using single valued leave collector");
+            logger.debug("using single valued leaf collector");
             // Optimized path for single-valued fields
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
@@ -241,6 +246,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
 
         // Original path for multi-valued fields
+        logger.debug("using multi-valued leaf collector");
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -441,7 +447,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             DocValuesSkipper skipper,
             Rounding.Prepared preparedRounding,
             LongKeyedBucketOrds bucketOrds,
-            BiConsumer<Long, Long> incrementDocCount) {
+            BiConsumer<Long, Long> incrementDocCount
+        ) {
             this.values = values;
             this.skipper = skipper;
             this.preparedRounding = preparedRounding;
@@ -450,8 +457,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
 
         @Override
-        public void setScorer(Scorable scorer) throws IOException {
-        }
+        public void setScorer(Scorable scorer) throws IOException {}
 
         private void advanceSkipper(int doc) throws IOException {
             if (doc > skipper.maxDocID(0)) {
@@ -480,7 +486,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     upToSameBucket = true;
                     upToBucketIndex = bucketOrds.add(0, maxBucket);
                     if (upToBucketIndex < 0) {
-                        upToBucketIndex = -1-upToBucketIndex;
+                        upToBucketIndex = -1 - upToBucketIndex;
                     }
                 } else {
                     break;
@@ -513,7 +519,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         @Override
         public void collect(DocIdStream stream) throws IOException {
-            for (; ; ) {
+            for (;;) {
                 int upToExclusive = upToInclusive + 1;
                 if (upToExclusive < 0) { // overflow
                     upToExclusive = Integer.MAX_VALUE;
