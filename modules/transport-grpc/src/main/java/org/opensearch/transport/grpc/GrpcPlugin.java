@@ -169,8 +169,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
-                BindableService service = serviceFac.initClient(client).build();
-                grpcServices.add(service);
+                List<BindableService> service = serviceFac.initClient(client).build();
+                grpcServices.addAll(service);
             }
             return new Netty4GrpcServerTransport(settings, grpcServices, networkService);
         });
