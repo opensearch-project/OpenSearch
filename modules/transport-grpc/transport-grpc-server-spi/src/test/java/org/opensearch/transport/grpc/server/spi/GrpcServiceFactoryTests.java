@@ -5,9 +5,11 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
+
 package org.opensearch.transport.grpc.server.spi;
 
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.client.Client;
 
 import io.grpc.BindableService;
 import io.grpc.channelz.v1.ChannelzGrpc;
@@ -16,6 +18,8 @@ import io.grpc.channelz.v1.GetChannelResponse;
 import io.grpc.stub.StreamObserver;
 
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
 
 public class GrpcServiceFactoryTests extends OpenSearchTestCase {
 
@@ -29,6 +33,8 @@ public class GrpcServiceFactoryTests extends OpenSearchTestCase {
     }
 
     public static class MockServiceProvider implements GrpcServiceFactory {
+        private Client client;
+
         public MockServiceProvider() {}
 
         @Override
@@ -37,23 +43,40 @@ public class GrpcServiceFactoryTests extends OpenSearchTestCase {
         }
 
         @Override
+        public GrpcServiceFactory initClient(Client client) {
+            this.client = client;
+            return this;
+        }
+
+        @Override
         public List<BindableService> build() {
             return List.of(new MockChannelzService());
         }
+
+        public Client getClient() { return client; }
     }
 
-    public void testLoadGrpcMockServiceFactory() {
-        GrpcServiceFactory grpcServiceFactory = new MockServiceProvider();
-        assert (true);
+    public void testGrpcServiceFactoryPlugin() {
+        MockServiceProvider factory = new MockServiceProvider();
+        assertEquals("MockTestPlugin", factory.plugin());
     }
 
-    public void testDuplicateServiceNameFails() {
-        GrpcServiceFactory grpcServiceFactory = new MockServiceProvider();
-        assert (true);
+    public void testGrpcServiceFactoryBuild() {
+        MockServiceProvider factory = new MockServiceProvider();
+        List<BindableService> services = factory.build();
+
+        assertNotNull(services);
+        assertEquals(1, services.size());
+        assertTrue(services.get(0) instanceof MockChannelzService);
     }
 
-    public void testNoServiceDefinitionsLoaded() {
-        GrpcServiceFactory grpcServiceFactory = new MockServiceProvider();
-        assert (true);
+    public void testGrpcServiceFactoryInitClient() {
+        MockServiceProvider factory = new MockServiceProvider();
+        Client mockClient = mock(Client.class);
+
+        GrpcServiceFactory result = factory.initClient(mockClient);
+
+        assertSame(factory, result);
+        assertSame(mockClient, factory.getClient());
     }
 }
