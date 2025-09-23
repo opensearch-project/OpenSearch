@@ -99,8 +99,7 @@ public class FileCacheThresholdSettings {
      */
     static final class IndexThresholdBreachValidator implements Setting.Validator<String> {
         @Override
-        public void validate(final String value) {
-        }
+        public void validate(final String value) {}
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
@@ -124,8 +123,7 @@ public class FileCacheThresholdSettings {
     static final class SearchThresholdBreachValidator implements Setting.Validator<String> {
 
         @Override
-        public void validate(final String value) {
-        }
+        public void validate(final String value) {}
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
