@@ -12,7 +12,6 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
-
 import java.io.IOException;
 
 public class FuzzySetTests extends OpenSearchTestCase {
@@ -90,7 +89,6 @@ public class FuzzySetTests extends OpenSearchTestCase {
             assertFalse("Should not be saturated with expected number of items", bloomFilter.isSaturated());
         }
     }
-
 
     private static class TestBloomFilterFuzzySet implements FuzzySet {
         private final long[] bitArray;
@@ -188,7 +186,6 @@ public class FuzzySetTests extends OpenSearchTestCase {
             return Math.max(1, (int) Math.round((double) m / n * Math.log(2)));
         }
     }
-
 
     public void testSetTypeDeserializer() throws IOException {
         FuzzySet.SetType type = FuzzySet.SetType.BLOOM_FILTER_V1;
