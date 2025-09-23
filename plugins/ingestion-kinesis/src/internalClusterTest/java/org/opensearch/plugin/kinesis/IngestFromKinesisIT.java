@@ -168,7 +168,15 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );
 
-        waitForSearchableDocs(10, List.of(nodeA, nodeB));
+        try {
+            ensureGreen(indexName);
+            waitForSearchableDocs(10, List.of(nodeA, nodeB));
+        } finally {
+            // Ensure index is deleted even if the assertion throws.
+            try {
+                client().admin().indices().prepareDelete(indexName).get();
+            } catch (Exception ignored) {}
+        }
     }
 
     private boolean isRewinded(String sequenceNumber) {
