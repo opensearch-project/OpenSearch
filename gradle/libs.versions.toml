@@ -23,6 +23,7 @@ woodstox          = "6.4.0"
 kotlin            = "1.7.10"
 antlr4            = "4.13.1"
 guava             = "33.2.1-jre"
+gson              = "2.13.2"
 opensearchprotobufs = "0.13.0"
 protobuf          = "3.25.8"
 jakarta_annotation = "1.3.5"
@@ -56,7 +57,7 @@ commonslang       = "3.18.0"
 commonscompress   = "1.28.0"
 commonsio         = "2.16.0"
 # plugin dependencies
-aws               = "2.30.31"
+aws               = "2.32.29"
 awscrt            = "0.35.0"
 reactivestreams   = "1.0.4"
 hadoop3           = "3.3.6"
@@ -77,7 +78,7 @@ junit             = "4.13.2"
 hamcrest          = "2.1"
 mockito           = "5.16.1"
 objenesis         = "3.3"
-bytebuddy         = "1.17.5"
+bytebuddy         = "1.17.7"
 
 # benchmark dependencies
 jmh               = "1.35"
@@ -109,6 +110,7 @@ bouncycastle-tls = { group = "org.bouncycastle", name = "bctls-fips", version.re
 bouncycastle-pkix = { group = "org.bouncycastle", name = "bcpkix-fips", version.ref = "bouncycastle_pkix"}
 bouncycastle-pg = { group = "org.bouncycastle", name = "bcpg-fips", version.ref = "bouncycastle_pg"}
 bouncycastle-util = { group = "org.bouncycastle", name = "bcutil-fips", version.ref = "bouncycastle_util"}
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 hamcrest = { group = "org.hamcrest", name = "hamcrest", version.ref = "hamcrest" }
 hdrhistogram = { group = "org.hdrhistogram", name = "HdrHistogram", version.ref = "hdrhistogram" }
 jackson-annotation = { group = "com.fasterxml.jackson.core", name = "jackson-annotations", version.ref = "jackson" }
