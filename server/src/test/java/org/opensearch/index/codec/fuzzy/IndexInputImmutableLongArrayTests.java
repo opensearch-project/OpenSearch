@@ -11,7 +11,6 @@ package org.opensearch.index.codec.fuzzy;
 import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.OpenSearchException;
 import org.opensearch.test.OpenSearchTestCase;
-
 import java.io.IOException;
 
 public class IndexInputImmutableLongArrayTests extends OpenSearchTestCase {
