@@ -18,6 +18,7 @@ import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeActi
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
@@ -37,6 +38,7 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -148,10 +150,17 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, GetIngestionStateRequest request, String[] concreteIndices) {
-        Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
+        Set<String> allActiveIndexSet = new HashSet<>();
+        for (String index : concreteIndices) {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata != null && isAllActiveIngestionEnabled(indexMetadata)) {
+                allActiveIndexSet.add(index);
+            }
+        }
 
-        // add filters for index and shard from the request
-        Predicate<ShardRouting> shardFilter = ShardRouting::primary;
+        Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
+        Predicate<ShardRouting> shardFilter = shardRouting -> shardRouting.primary()
+            || allActiveIndexSet.contains(shardRouting.getIndexName());
         if (shardSet.isEmpty() == false) {
             shardFilter = shardFilter.and(shardRouting -> shardSet.contains(shardRouting.shardId().getId()));
         }
@@ -217,9 +226,18 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         }
 
         try {
-            return indexShard.getIngestionState();
+            ShardIngestionState shardIngestionState = indexShard.getIngestionState();
+            shardIngestionState.setNodeName(clusterService.localNode().getName());
+            shardIngestionState.setPrimary(shardRouting.primary());
+            return shardIngestionState;
         } catch (final AlreadyClosedException e) {
             throw new ShardNotFoundException(indexShard.shardId());
         }
+    }
+
+    private boolean isAllActiveIngestionEnabled(IndexMetadata indexMetadata) {
+        return indexMetadata.useIngestionSource()
+            && indexMetadata.getIngestionSource() != null
+            && indexMetadata.getIngestionSource().isAllActiveIngestionEnabled();
     }
 }

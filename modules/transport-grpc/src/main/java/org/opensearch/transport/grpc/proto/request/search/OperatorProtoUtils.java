@@ -26,7 +26,7 @@ public class OperatorProtoUtils {
      * @param op
      * @return
      */
-    protected static Operator fromEnum(org.opensearch.protobufs.SearchRequest.Operator op) {
+    protected static Operator fromEnum(org.opensearch.protobufs.Operator op) {
         switch (op) {
             case OPERATOR_AND:
                 return Operator.AND;

@@ -61,7 +61,8 @@ dependencies {
 
   runtimeOnly "com.google.guava:guava:${guava_version}"
   runtimeOnly "com.google.guava:failureaccess:1.0.2"
-  compileOnly "com.google.errorprone:error_prone_annotations:2.38.0"
+  compileOnly "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}" // 2.15.0 in bom
+  compileOnly "com.github.spotbugs:spotbugs-annotations:${versions.spotbugs_annotations}"
 
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
@@ -71,7 +72,7 @@ dependencies {
   implementation "org.threeten:threetenbp:1.7.0"
   runtimeOnly "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
   runtimeOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  runtimeOnly "com.google.code.gson:gson:2.12.1"
+  runtimeOnly "com.google.code.gson:gson:${versions.gson}"
   runtimeOnly "com.google.api.grpc:proto-google-common-protos:2.60.0"
   runtimeOnly "com.google.api.grpc:proto-google-iam-v1:1.55.0"
   implementation "com.google.auth:google-auth-library-credentials:1.38.0"

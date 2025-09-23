@@ -110,7 +110,7 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
             assertEquals(0, ingestionState.getFailedShards());
             assertTrue(
                 Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"))
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"))
             );
         });
 
@@ -129,7 +129,7 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
                 Arrays.stream(ingestionState.getShardStates())
                     .allMatch(
                         state -> state.isPollerPaused() == false
-                            && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
                     )
             );
         });

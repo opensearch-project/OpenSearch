@@ -105,7 +105,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         produceData("{\"_id\":\"1\",\"_version\":\"2\",\"_op_type\":\"index\",\"_source\":{\"name\":\"name\", \"age\": 30}}");
@@ -121,7 +121,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
             return Arrays.stream(ingestionState.getShardStates())
                 .allMatch(
                     state -> state.isPollerPaused() == false
-                        && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                        && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
                 );
         });
 

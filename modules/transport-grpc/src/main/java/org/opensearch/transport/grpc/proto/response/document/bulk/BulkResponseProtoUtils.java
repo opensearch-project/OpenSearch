@@ -11,7 +11,6 @@ import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.protobufs.BulkResponseBody;
 
 import java.io.IOException;
 
@@ -39,27 +38,41 @@ public class BulkResponseProtoUtils {
 
         org.opensearch.protobufs.BulkResponse.Builder bulkResponse = org.opensearch.protobufs.BulkResponse.newBuilder();
 
-        // Create the bulk response body
-        BulkResponseBody.Builder bulkResponseBody = BulkResponseBody.newBuilder();
-
         // Set the time taken for the bulk operation (excluding ingest preprocessing)
-        bulkResponseBody.setTook(response.getTook().getMillis());
+        bulkResponse.setTook(response.getTook().getMillis());
 
         // Set ingest preprocessing time if available
         if (response.getIngestTookInMillis() != BulkResponse.NO_INGEST_TOOK) {
-            bulkResponseBody.setIngestTook(response.getIngestTookInMillis());
+            bulkResponse.setIngestTook(response.getIngestTookInMillis());
         }
 
         // Set whether any operations failed
-        bulkResponseBody.setErrors(response.hasFailures());
+        bulkResponse.setErrors(response.hasFailures());
 
         // Add individual item responses for each operation in the bulk request
         for (BulkItemResponse bulkItemResponse : response.getItems()) {
-            bulkResponseBody.addItems(BulkItemResponseProtoUtils.toProto(bulkItemResponse));
+            org.opensearch.protobufs.ResponseItem responseItem = BulkItemResponseProtoUtils.toProto(bulkItemResponse);
+            org.opensearch.protobufs.Item.Builder itemBuilder = org.opensearch.protobufs.Item.newBuilder();
+
+            // Wrap ResponseItem in Item based on operation type
+            switch (bulkItemResponse.getOpType()) {
+                case CREATE:
+                    itemBuilder.setCreate(responseItem);
+                    break;
+                case DELETE:
+                    itemBuilder.setDelete(responseItem);
+                    break;
+                case INDEX:
+                    itemBuilder.setIndex(responseItem);
+                    break;
+                case UPDATE:
+                    itemBuilder.setUpdate(responseItem);
+                    break;
+            }
+
+            bulkResponse.addItems(itemBuilder.build());
         }
 
-        // Set the bulk response body and build the final response
-        bulkResponse.setBulkResponseBody(bulkResponseBody.build());
         return bulkResponse.build();
     }
 }
