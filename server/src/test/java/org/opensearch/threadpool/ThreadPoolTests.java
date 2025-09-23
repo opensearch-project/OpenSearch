@@ -218,8 +218,8 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     public void testForkJoinPoolRegistrationAndTaskExecution() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
         int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         AtomicInteger result = new AtomicInteger(0);
         pool.submit(() -> result.set(42)).join();
         assertEquals(42, result.get());
@@ -229,8 +229,8 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     public void testForkJoinPoolRegistration() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
         int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
-        ThreadPool threadPool = new ThreadPool(settings);
-        ExecutorService pool = threadPool.executor("fork_join");
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ExecutorService pool = threadPool.executor("jvector");
         assertNotNull(pool);
         assertTrue(pool instanceof ForkJoinPool);
         assertEquals(expectedParallelism, ((ForkJoinPool) pool).getParallelism());
@@ -239,8 +239,9 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
     public void testForkJoinPoolTaskExecution() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         AtomicInteger result = new AtomicInteger(0);
         pool.submit(() -> result.set(42)).join();
         assertEquals(42, result.get());
@@ -250,8 +251,8 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     public void testForkJoinPoolParallelism() throws Exception {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
         int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
 
         CountDownLatch latch = new CountDownLatch(expectedParallelism);
         AtomicInteger counter = new AtomicInteger(0);
@@ -269,50 +270,53 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
     public void testForkJoinPoolShutdown() throws Exception {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         threadPool.shutdown();
         assertTrue(pool.isShutdown());
     }
 
     public void testSubmitAfterShutdownThrows() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         threadPool.shutdown();
         assertThrows(RejectedExecutionException.class, () -> pool.submit(() -> {}));
     }
 
     public void testForkJoinPoolParallelismOne() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
-        assertEquals(expectedParallelism, pool.getParallelism());
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", 1));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        assertEquals(1, pool.getParallelism());
         terminate(threadPool);
     }
 
     public void testForkJoinPoolHighParallelism() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        int expectedParallelism = 32;
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         assertEquals(expectedParallelism, pool.getParallelism());
         terminate(threadPool);
     }
 
     public void testForkJoinPoolNullTask() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         assertThrows(NullPointerException.class, () -> pool.submit((Runnable) null));
         threadPool.shutdown();
     }
 
     public void testForkJoinPoolTaskThrowsException() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         Future<?> future = pool.submit(() -> { throw new RuntimeException("fail!"); });
         assertThrows(ExecutionException.class, () -> future.get());
         threadPool.shutdown();
@@ -320,8 +324,9 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
     public void testForkJoinPoolRecursiveTask() {
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        ThreadPool threadPool = new ThreadPool(settings);
-        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("fork_join");
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         RecursiveTask<Integer> task = new RecursiveTask<>() {
             @Override
             protected Integer compute() {
@@ -336,10 +341,11 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     public void testValidateSettingSkipsForkJoinPool() {
         // Setup minimal settings with node name
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        ThreadPool threadPool = new ThreadPool(settings);
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
 
         // ForkJoinPool does not support any config, but we still add dummy settings to trigger validateSetting
-        Settings forkJoinSettings = Settings.builder().put("fork_join.size", "10").build();
+        Settings forkJoinSettings = Settings.builder().put("jvector.size", "10").build();
 
         // Should NOT throw, because validateSetting skips ForkJoinPool types
         threadPool.setThreadPool(forkJoinSettings);
@@ -350,7 +356,7 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
     public void testExecutorHolderAcceptsForkJoinPool() {
         ForkJoinPool pool = new ForkJoinPool(1);
-        ThreadPool.Info info = new ThreadPool.Info("fork_join", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+        ThreadPool.Info info = new ThreadPool.Info("jvector", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
         ThreadPool.ExecutorHolder holder = new ThreadPool.ExecutorHolder(pool, info);
         assertTrue(holder.executor() instanceof ForkJoinPool);
         assertEquals(info, holder.info);
@@ -358,7 +364,7 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testThreadPoolInfoWriteToForkJoinLegacyVersion() throws IOException {
-        ThreadPool.Info info = new ThreadPool.Info("fork_join", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+        ThreadPool.Info info = new ThreadPool.Info("jvector", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
 
         // Stub StreamOutput that sets legacy version and implements required methods
         StreamOutput out = new StreamOutput() {
@@ -399,7 +405,7 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testThreadPoolInfoWriteToForkJoinCurrentVersion() throws IOException {
-        ThreadPool.Info info = new ThreadPool.Info("fork_join", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+        ThreadPool.Info info = new ThreadPool.Info("jvector", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
 
         StreamOutput out = new StreamOutput() {
             private Version version = Version.CURRENT;

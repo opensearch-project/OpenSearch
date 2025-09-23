@@ -126,7 +126,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
         public static final String REMOTE_STATE_CHECKSUM = "remote_state_checksum";
-        public static final String FORK_JOIN = "fork_join";
     }
 
     static Set<String> scalingThreadPoolKeys = new HashSet<>(Arrays.asList("max", "core"));
@@ -206,7 +205,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
         map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
-        map.put(Names.FORK_JOIN, ThreadPoolType.FORK_JOIN);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -342,7 +340,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.REMOTE_STATE_CHECKSUM,
             new FixedExecutorBuilder(settings, Names.REMOTE_STATE_CHECKSUM, ClusterStateChecksum.COMPONENT_SIZE, 1000)
         );
-        builders.put(Names.FORK_JOIN, new ForkJoinPoolExecutorBuilder(Names.FORK_JOIN, allocatedProcessors));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
