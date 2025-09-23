@@ -121,6 +121,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -751,7 +752,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
-            featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService));
+            featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService), new HashMap<>());
             RuleEntityParser parser = new XContentRuleParser(featureType);
             AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
                 featureType,
@@ -862,5 +863,8 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         public Supplier<FeatureType> getFeatureTypeSupplier() {
             return () -> featureType;
         }
+
+        @Override
+        public void setAttributes(List<Attribute> attributes) {}
     }
 }

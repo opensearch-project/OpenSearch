@@ -10,17 +10,20 @@ package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.rule.RuleAttribute;
-import org.opensearch.rule.SecurityAttribute;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
 public class WorkloadGroupFeatureTypeTests extends OpenSearchTestCase {
-    WorkloadGroupFeatureType featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(mock(ClusterService.class)));
+    WorkloadGroupFeatureType featureType = new WorkloadGroupFeatureType(
+        new WorkloadGroupFeatureValueValidator(mock(ClusterService.class)),
+        new HashMap<>()
+    );
 
     public void testGetName_returnsCorrectName() {
         assertEquals("workload_group", featureType.getName());
@@ -44,8 +47,6 @@ public class WorkloadGroupFeatureTypeTests extends OpenSearchTestCase {
         Map<Attribute, Integer> orderedAttributes = featureType.getOrderedAttributes();
         assertTrue(orderedAttributes.containsKey(RuleAttribute.INDEX_PATTERN));
         assertEquals(2, orderedAttributes.get(RuleAttribute.INDEX_PATTERN).intValue());
-        assertTrue(orderedAttributes.containsKey(SecurityAttribute.PRINCIPAL));
-        assertEquals(1, orderedAttributes.get(SecurityAttribute.PRINCIPAL).intValue());
     }
 
     public void testRegisterFeatureType() {

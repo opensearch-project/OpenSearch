@@ -38,7 +38,9 @@ public interface Attribute extends Writeable {
     /**
      * Returns a map of subfields ordered by priority, where 1 represents the highest priority.
      */
-    TreeMap<Integer, String> getPrioritizedSubfields();
+    default TreeMap<Integer, String> getPrioritizedSubfields() {
+        return new TreeMap<>();
+    }
 
     /**
      * Ensure that `validateAttribute` is called in the constructor of attribute implementations

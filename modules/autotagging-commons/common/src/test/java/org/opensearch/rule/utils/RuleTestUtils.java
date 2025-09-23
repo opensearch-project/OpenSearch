@@ -17,7 +17,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 import static org.junit.Assert.assertEquals;
 
@@ -127,11 +126,6 @@ public class RuleTestUtils {
         @Override
         public String getName() {
             return name;
-        }
-
-        @Override
-        public TreeMap<Integer, String> getPrioritizedSubfields() {
-            return new TreeMap<>();
         }
     }
 }

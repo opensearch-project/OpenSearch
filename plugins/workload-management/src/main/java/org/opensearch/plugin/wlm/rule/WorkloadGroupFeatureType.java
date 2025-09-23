@@ -9,7 +9,6 @@
 package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.rule.RuleAttribute;
-import org.opensearch.rule.SecurityAttribute;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.FeatureValueValidator;
@@ -27,20 +26,18 @@ public class WorkloadGroupFeatureType implements FeatureType {
     public static final String NAME = "workload_group";
     private static final int MAX_ATTRIBUTE_VALUES = 10;
     private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
-    private static final Map<Attribute, Integer> PRIORITIZED_ATTRIBUTES = Map.of(
-        SecurityAttribute.PRINCIPAL,
-        1,
-        RuleAttribute.INDEX_PATTERN,
-        2
-    );
+    private final Map<Attribute, Integer> orderedAttributes;
     private final FeatureValueValidator featureValueValidator;
 
     /**
      * constructor for WorkloadGroupFeatureType
      * @param featureValueValidator
+     * @param orderedAttributes
      */
-    public WorkloadGroupFeatureType(FeatureValueValidator featureValueValidator) {
+    public WorkloadGroupFeatureType(FeatureValueValidator featureValueValidator, Map<Attribute, Integer> orderedAttributes) {
         this.featureValueValidator = featureValueValidator;
+        orderedAttributes.put(RuleAttribute.INDEX_PATTERN, 2);
+        this.orderedAttributes = orderedAttributes;
     }
 
     @Override
@@ -60,7 +57,7 @@ public class WorkloadGroupFeatureType implements FeatureType {
 
     @Override
     public Map<Attribute, Integer> getOrderedAttributes() {
-        return PRIORITIZED_ATTRIBUTES;
+        return orderedAttributes;
     }
 
     @Override

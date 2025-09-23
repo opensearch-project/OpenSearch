@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_2;
@@ -70,11 +69,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         @Override
         public String getName() {
             return name;
-        }
-
-        @Override
-        public TreeMap<Integer, String> getPrioritizedSubfields() {
-            return new TreeMap<>();
         }
     }
 

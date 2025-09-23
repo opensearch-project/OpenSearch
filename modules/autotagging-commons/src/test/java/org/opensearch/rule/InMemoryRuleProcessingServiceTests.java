@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 
 public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     InMemoryRuleProcessingService sut;
@@ -168,11 +167,6 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         @Override
         public String getName() {
             return name;
-        }
-
-        @Override
-        public TreeMap<Integer, String> getPrioritizedSubfields() {
-            return new TreeMap<>();
         }
 
         @Override
