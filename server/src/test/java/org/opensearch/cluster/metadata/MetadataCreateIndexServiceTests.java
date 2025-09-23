@@ -93,6 +93,8 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -1396,9 +1398,14 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteStoreNoUserOverrideExceptReplicationTypeSegmentIndexSettings() {
+        DiscoveryNode node = getRemoteNode();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(getRemoteNode()).build())
+            .nodes(DiscoveryNodes.builder().add(node).build())
             .build();
+
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+        assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
+
         Settings settings = Settings.builder().put(translogRepositoryNameAttributeKey, "my-translog-repo-1").build();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1426,9 +1433,14 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteStoreImplicitOverrideReplicationTypeToSegmentForRemoteStore() {
+        DiscoveryNode node = getRemoteNode();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(getRemoteNode()).build())
             .build();
+
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+        assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
+
         Settings settings = Settings.builder().put(translogRepositoryNameAttributeKey, "my-translog-repo-1").build();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1455,9 +1467,14 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteStoreNoUserOverrideIndexSettings() {
+        DiscoveryNode node = getRemoteNode();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(getRemoteNode()).build())
+            .nodes(DiscoveryNodes.builder().add(node).build())
             .build();
+
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+        assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
+
         Settings settings = Settings.builder().put(translogRepositoryNameAttributeKey, "my-translog-repo-1").build();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = aggregateIndexSettings(
@@ -1630,6 +1647,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         // remote data node
         DiscoveryNode remoteDataNode = getRemoteNode();
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(remoteDataNode);
+        assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
 
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).add(remoteDataNode).localNodeId(remoteDataNode.getId()).build();
 
@@ -1663,6 +1682,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             null
         );
 
+
+    }
+
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
+    public void testNewIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode_ExpectException() {
         Map<String, String> missingTranslogAttribute = Map.of(
             REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
             "cluster-state-repo-1",
@@ -1670,20 +1694,38 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             "my-segment-repo-1"
         );
 
-        DiscoveryNodes finalDiscoveryNodes = DiscoveryNodes.builder()
+        // non-remote cluster manager node
+        DiscoveryNode nonRemoteClusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(nonRemoteClusterManagerNode)
-            .add(
-                new DiscoveryNode(
-                    UUIDs.base64UUID(),
-                    buildNewFakeTransportAddress(),
-                    missingTranslogAttribute,
-                    Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, DiscoveryNodeRole.DATA_ROLE),
-                    Version.CURRENT
-                )
-            )
+            .localNodeId(nonRemoteClusterManagerNode.getId())
             .build();
 
+        DiscoveryNode missingTranslogNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            missingTranslogAttribute,
+            Set.of(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+        try {
+            RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(missingTranslogNode);
+        } catch (Exception e) {
+            // Just eatup the validation exception
+        }
+
+        DiscoveryNodes finalDiscoveryNodes = DiscoveryNodes.builder()
+            .add(nonRemoteClusterManagerNode)
+            .add(missingTranslogNode)
+            .build();
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test-index", "test-index");
         ClusterState finalClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(finalDiscoveryNodes).build();
+        Settings remoteStoreMigrationSettings = Settings.builder()
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
+            .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
+            .build();
+        clusterSettings = new ClusterSettings(remoteStoreMigrationSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterSettings finalClusterSettings = clusterSettings;
 
         final IndexCreationException error = expectThrows(IndexCreationException.class, () -> {
@@ -1702,7 +1744,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(error.getMessage(), "failed to create index [test-index]");
         assertThat(
             error.getCause().getMessage(),
-            containsString("Cluster is migrating to remote store but remote translog is not configured, failing index creation")
+            containsString("Cluster is migrating to remote store but no remote node found, failing index creation")
         );
     }
 
@@ -2701,9 +2743,18 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     private DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();
-        attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
-        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
-        attributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-segment-repo-1"), "s3");
+        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-segment-repo-1") + "bucket", "test-bucket");
+
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-translog-repo-1"), "s3");
+        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-translog-repo-1") + "bucket", "test-bucket");
+
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
+        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-cluster-rep-1"), "s3");
+        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-cluster-rep-1") + "bucket", "test-bucket");
+
         return new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),

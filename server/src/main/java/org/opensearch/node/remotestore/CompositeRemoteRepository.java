@@ -39,16 +39,13 @@ public class CompositeRemoteRepository {
     }
 
     public RepositoryMetadata getRepository(RemoteStoreRepositoryType repositoryType, CompositeRepositoryEncryptionType encryptionType) {
-        return repositoryEncryptionTypeMap.get(repositoryType).get(encryptionType);
-    }
-
-    @Override
-    public String toString() {
-        return "CompositeRemoteRepository{" + "repositoryEncryptionTypeMap=" + repositoryEncryptionTypeMap + '}';
+        Map<CompositeRepositoryEncryptionType, RepositoryMetadata> encTypeRepoMap = repositoryEncryptionTypeMap.get(repositoryType);
+        return encTypeRepoMap == null ? null : encTypeRepoMap.get(encryptionType);
     }
 
     public boolean isServerSideEncryptionEnabled() {
-        return repositoryEncryptionTypeMap.get(RemoteStoreRepositoryType.SEGMENT).containsKey(CompositeRepositoryEncryptionType.SERVER);
+        return repositoryEncryptionTypeMap.get(RemoteStoreRepositoryType.SEGMENT) != null
+            && repositoryEncryptionTypeMap.get(RemoteStoreRepositoryType.SEGMENT).containsKey(CompositeRepositoryEncryptionType.SERVER);
     }
 
     /**

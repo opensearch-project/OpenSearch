@@ -424,12 +424,18 @@ public class RestoreService implements ClusterStateApplier {
                                 String sourceRemoteSegmentRepo = request.getSourceRemoteStoreRepository();
                                 String sourceRemoteTransLogRepo = request.getSourceRemoteStoreRepository();
 
-                                boolean isSSEEnabledIndex = IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING.get(metadata.index(index).getSettings());
+                                boolean isSSEEnabledIndex = IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING.get(
+                                    metadata.index(index).getSettings()
+                                );
                                 if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())
                                     && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled()
                                     && isSSEEnabledIndex) {
-                                    sourceRemoteSegmentRepo = RemoteStoreNodeAttribute.getServerSideEncryptedRepoName(sourceRemoteSegmentRepo);
-                                    sourceRemoteTransLogRepo = RemoteStoreNodeAttribute.getServerSideEncryptedRepoName(sourceRemoteTransLogRepo);
+                                    sourceRemoteSegmentRepo = RemoteStoreNodeAttribute.getServerSideEncryptedRepoName(
+                                        sourceRemoteSegmentRepo
+                                    );
+                                    sourceRemoteTransLogRepo = RemoteStoreNodeAttribute.getServerSideEncryptedRepoName(
+                                        sourceRemoteTransLogRepo
+                                    );
                                 }
 
                                 final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(

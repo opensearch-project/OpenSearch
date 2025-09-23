@@ -8,10 +8,10 @@
 
 package org.opensearch.node.remotestore;
 
-import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -81,15 +81,19 @@ public class CompositeRemoteRepositoryTest {
             mockMetadata
         );
 
-        assertNotNull(compositeRepo.getRepository(
-            CompositeRemoteRepository.RemoteStoreRepositoryType.SEGMENT,
-            CompositeRemoteRepository.CompositeRepositoryEncryptionType.CLIENT
-        ));
+        assertNotNull(
+            compositeRepo.getRepository(
+                CompositeRemoteRepository.RemoteStoreRepositoryType.SEGMENT,
+                CompositeRemoteRepository.CompositeRepositoryEncryptionType.CLIENT
+            )
+        );
 
-        assertNotNull(compositeRepo.getRepository(
-            CompositeRemoteRepository.RemoteStoreRepositoryType.TRANSLOG,
-            CompositeRemoteRepository.CompositeRepositoryEncryptionType.SERVER
-        ));
+        assertNotNull(
+            compositeRepo.getRepository(
+                CompositeRemoteRepository.RemoteStoreRepositoryType.TRANSLOG,
+                CompositeRemoteRepository.CompositeRepositoryEncryptionType.SERVER
+            )
+        );
     }
 
     @Test

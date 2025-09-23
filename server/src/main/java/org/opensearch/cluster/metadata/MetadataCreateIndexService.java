@@ -1196,7 +1196,7 @@ public class MetadataCreateIndexService {
                 .filter(DiscoveryNode::isRemoteStoreNode)
                 .findFirst();
 
-            if (!isRestoreFromSnapshot && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled() && indexName.startsWith("sse-idx-")) {
+            if (!isRestoreFromSnapshot && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled()) {
                 settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, true);
             }
 

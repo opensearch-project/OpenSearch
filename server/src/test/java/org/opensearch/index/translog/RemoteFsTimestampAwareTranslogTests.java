@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -83,6 +84,31 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
     @Before
     public void setUp() throws Exception {
+        Supplier<RepositoriesService> repositoriesServiceSupplier = mock(Supplier.class);
+        Settings settings = Settings.builder()
+            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "segment-test-repo")
+            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "segment-test-repo"), "s3")
+            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "segment-test-repo") + "bucket", "test-bucket")
+
+            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "tlog-test-repo")
+            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "tlog-test-repo"), "s3")
+            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "tlog-test-repo") + "bucket", "test-bucket")
+
+            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "state-test-repo")
+            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "state-test-repo"), "s3")
+            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "state-test-repo") + "bucket", "test-bucket")
+
+            .build();
+        RepositoriesService repositoriesService = mock(RepositoriesService.class);
+        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
+        BlobStoreRepository blobStoreRepository = mock(BlobStoreRepository.class);
+        when(repositoriesService.repository("segment-test-repo")).thenReturn(blobStoreRepository);
+        when(repositoriesService.repository("tlog-test-repo")).thenReturn(blobStoreRepository);
+
+        DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
+        when(node.getAttributes()).thenReturn(Node.NODE_ATTRIBUTES.getAsMap(settings));
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+
         super.setUp();
 
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(
@@ -90,14 +116,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        Supplier<RepositoriesService> repositoriesServiceSupplier = mock(Supplier.class);
-        Settings settings = Settings.builder()
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "remote-repo")
-            .build();
-        RepositoriesService repositoriesService = mock(RepositoriesService.class);
-        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
-        BlobStoreRepository blobStoreRepository = mock(BlobStoreRepository.class);
-        when(repositoriesService.repository("remote-repo")).thenReturn(blobStoreRepository);
+
 
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.schedule(any(), any(), any())).then(invocationOnMock -> {
