@@ -175,7 +175,11 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                     .initThreadPool(threadPool)
                     .build();
                 for (BindableService pluginService : pluginServices) {
-                    logger.info("{} gRPC services loaded from plugin: {}", pluginService.bindService().getServiceDescriptor().getName(), serviceFac.plugin());
+                    logger.info(
+                        "{} gRPC services loaded from plugin: {}",
+                        pluginService.bindService().getServiceDescriptor().getName(),
+                        serviceFac.plugin()
+                    );
                 }
                 grpcServices.addAll(pluginServices);
             }
@@ -227,7 +231,11 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                     .initThreadPool(threadPool)
                     .build();
                 for (BindableService pluginService : pluginServices) {
-                    logger.info("{} gRPC services loaded from plugin: {}", pluginService.bindService().getServiceDescriptor().getName(), serviceFac.plugin());
+                    logger.info(
+                        "{} gRPC services loaded from plugin: {}",
+                        pluginService.bindService().getServiceDescriptor().getName(),
+                        serviceFac.plugin()
+                    );
                 }
                 grpcServices.addAll(pluginServices);
             }

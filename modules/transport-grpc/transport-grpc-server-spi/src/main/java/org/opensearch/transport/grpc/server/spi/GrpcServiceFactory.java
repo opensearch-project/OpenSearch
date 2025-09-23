@@ -24,6 +24,7 @@ import io.grpc.BindableService;
 public interface GrpcServiceFactory {
 
     /**
+     * For logging.
      * @return owning plugin identifier for service validation.
      */
     String plugin();
