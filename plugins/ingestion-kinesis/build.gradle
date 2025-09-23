@@ -45,6 +45,7 @@ dependencies {
   api "software.amazon.awssdk:profiles:${versions.aws}"
   api "software.amazon.awssdk:regions:${versions.aws}"
   api "software.amazon.awssdk:utils:${versions.aws}"
+  api "software.amazon.awssdk:utils-lite:${versions.aws}"
   api "software.amazon.awssdk:aws-json-protocol:${versions.aws}"
   api "software.amazon.awssdk:protocol-core:${versions.aws}"
   api "software.amazon.awssdk:json-utils:${versions.aws}"
