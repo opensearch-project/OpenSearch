@@ -7,19 +7,19 @@
  */
 
 /**
- * Service Provider Interface (SPI) for extending gRPC with additional gRPC BindableService implementations.
+ * Service Provider Interface (SPI) for extending the gRPC transport server.
+ * Extending plugins which want to modify the underlying netty grpc transport should implement an extension point here.
+ * Limits dependencies to core gRPC API, guava, and gRPC service libraries.
  * <p>
- * Enables plugins extending the grpc-transport module to inject their own services into the gRPC server by extending
- * {@link org.opensearch.transport.grpc.server.spi.GrpcServiceFactory} interface. Provides some additional resources
- * such as OpenSearch client, settings, thread pool, enabling more complex service implementations which can execute
- * requests on the OpenSearch server.
- * </p>
- * <p>
- * This SPI contains on interface:
+ * This SPI contains interface(s):
  * </p>
  * <ul>
  *   <li>{@link org.opensearch.transport.grpc.server.spi.GrpcServiceFactory} -
- *       Interface for implementing custom query converters</li>
+ *      * Enables plugins extending the grpc-transport module to inject their own services into the gRPC server by
+ *      * extending {@link org.opensearch.transport.grpc.server.spi.GrpcServiceFactory} interface. Provides some
+ *      * additional resources such as OpenSearch client, settings, thread pool, enabling more complex service
+ *      * implementations which can execute requests on the OpenSearch server.
+ *  </li>
  * </ul>
  * <p>
  * The SPI mechanism leverages OpenSearch's {@code ExtensiblePlugin} framework. Plugins must:
