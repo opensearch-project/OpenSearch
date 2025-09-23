@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -117,8 +116,8 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             final long startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.before();
             processor.execute(ingestDocument, (result, e) -> {
-                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-                metric.after(ingestTimeInMillis);
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.after(ingestTimeInNanos);
                 if (e != null) {
                     metric.failed();
                     handler.accept(null, e);
