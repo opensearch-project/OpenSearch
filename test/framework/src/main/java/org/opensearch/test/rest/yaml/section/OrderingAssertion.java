@@ -46,14 +46,14 @@ public abstract class OrderingAssertion extends Assertion {
     protected abstract String errorMessage();
 
     @FunctionalInterface
-    protected interface Ctor<T extends OrderingAssertion> {
+    protected interface OrderingAssertionFactory<T extends OrderingAssertion> {
         T create(XContentLocation location, String field, Object expectedValue);
     }
 
     /**
      * Common parser for {gt|gte|lt|lte}: { field: expectedValue }
      */
-    protected static <T extends OrderingAssertion> T parseCommon(XContentParser parser, String sectionName, Ctor<T> ctor)
+    protected static <T extends OrderingAssertion> T parseCommon(XContentParser parser, String sectionName, OrderingAssertionFactory<T> factory)
         throws IOException {
         XContentLocation location = parser.getTokenLocation();
         Tuple<String, Object> t = ParserUtils.parseTuple(parser);
@@ -65,7 +65,7 @@ public abstract class OrderingAssertion extends Assertion {
                     + expected.getClass().getSimpleName()
             );
         }
-        return ctor.create(location, t.v1(), expected);
+        return factory.create(location, t.v1(), expected);
     }
 
     @Override
