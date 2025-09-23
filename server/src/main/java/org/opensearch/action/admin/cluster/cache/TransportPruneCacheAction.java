@@ -126,6 +126,9 @@ public class TransportPruneCacheAction extends TransportNodesAction<
         }
     }
 
+    /**
+     * Node-level request for cache pruning operation.
+     */
     public static class NodeRequest extends TransportRequest {
         private PruneCacheRequest request;
 
