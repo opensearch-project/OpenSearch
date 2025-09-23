@@ -11,13 +11,13 @@ package org.opensearch.transport.grpc.server.spi;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.Client;
 
+import java.util.List;
+
 import io.grpc.BindableService;
 import io.grpc.channelz.v1.ChannelzGrpc;
 import io.grpc.channelz.v1.GetChannelRequest;
 import io.grpc.channelz.v1.GetChannelResponse;
 import io.grpc.stub.StreamObserver;
-
-import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
@@ -53,7 +53,9 @@ public class GrpcServiceFactoryTests extends OpenSearchTestCase {
             return List.of(new MockChannelzService());
         }
 
-        public Client getClient() { return client; }
+        public Client getClient() {
+            return client;
+        }
     }
 
     public void testGrpcServiceFactoryPlugin() {

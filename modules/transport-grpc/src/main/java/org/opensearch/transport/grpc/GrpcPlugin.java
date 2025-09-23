@@ -169,8 +169,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
-                List<BindableService> pluginServices = serviceFac
-                    .initClient(client)
+                List<BindableService> pluginServices = serviceFac.initClient(client)
                     .initSettings(settings)
                     .initClusterSettings(clusterSettings)
                     .initThreadPool(threadPool)
@@ -220,8 +219,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 List.of(new DocumentServiceImpl(client), new SearchServiceImpl(client, queryUtils))
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
-                List<BindableService> pluginServices = serviceFac
-                    .initClient(client)
+                List<BindableService> pluginServices = serviceFac.initClient(client)
                     .initSettings(settings)
                     .initClusterSettings(clusterSettings)
                     .initThreadPool(threadPool)
