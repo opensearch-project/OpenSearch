@@ -12,7 +12,6 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.test.OpenSearchTestCase;
-
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -22,7 +21,7 @@ public class BloomFilterTests extends OpenSearchTestCase {
 
     public void testBloomFilterSerializationDeserialization() throws IOException {
         int elementCount = randomIntBetween(1, 100);
-        long maxDocs = elementCount * 10L; // Keeping this high so that it ensures some bits are not set.
+        long maxDocs = elementCount * 10L;
         BloomFilter filter = new BloomFilter(maxDocs, getFpp(), () -> idIterator(elementCount));
         byte[] buffer = new byte[(int) maxDocs * 5];
         ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
@@ -45,7 +44,6 @@ public class BloomFilterTests extends OpenSearchTestCase {
     }
 
     public void testBloomFilterEnabled() throws IOException {
-        // Create a bloom filter with known elements
         int elementCount = 1000;
         double fpp = 0.01;
         List<String> addedElements = new ArrayList<>();
@@ -55,10 +53,7 @@ public class BloomFilterTests extends OpenSearchTestCase {
 
         BloomFilter filter = new BloomFilter(elementCount, fpp, () -> addedElements.stream().map(BytesRef::new).iterator());
 
-        // Verify filter type is BLOOM_FILTER_V1
         assertEquals(FuzzySet.SetType.BLOOM_FILTER_V1, filter.setType());
-
-        // Test all added elements are found (no false negatives)
         for (String element : addedElements) {
             assertEquals("Should find added element: " + element, FuzzySet.Result.MAYBE, filter.contains(new BytesRef(element)));
         }
@@ -67,24 +62,17 @@ public class BloomFilterTests extends OpenSearchTestCase {
     }
 
     public void testBloomFilterEffectiveness() throws IOException {
-        // Create bloom filter with controlled parameters
         int elementCount = 10000;
         double targetFpp = 0.01;
         Set<String> addedElements = new HashSet<>();
-
-        // Generate unique random elements
         for (int i = 0; i < elementCount; i++) {
             addedElements.add("element" + randomAlphaOfLength(10) + i);
         }
 
         BloomFilter filter = new BloomFilter(elementCount, targetFpp, () -> addedElements.stream().map(BytesRef::new).iterator());
-
-        // Test false positive rate
         int testCount = 20000;
         int falsePositives = 0;
         Set<String> testElements = new HashSet<>();
-
-        // Generate unique test elements different from added elements
         for (int i = 0; i < testCount; i++) {
             String testElement;
             do {
@@ -92,8 +80,6 @@ public class BloomFilterTests extends OpenSearchTestCase {
             } while (addedElements.contains(testElement));
             testElements.add(testElement);
         }
-
-        // Check for false positives
         for (String element : testElements) {
             if (filter.contains(new BytesRef(element)) == FuzzySet.Result.MAYBE) {
                 falsePositives++;
@@ -110,19 +96,13 @@ public class BloomFilterTests extends OpenSearchTestCase {
         int elementCount = 5000;
         double fpp = 0.01;
         List<String> elements = new ArrayList<>();
-
-        // Create elements with various patterns
         for (int i = 0; i < elementCount; i++) {
             elements.add("prefix" + randomAlphaOfLength(5) + i);
         }
 
         BloomFilter filter = new BloomFilter(elementCount, fpp, () -> elements.stream().map(BytesRef::new).iterator());
-
-        // Check bit distribution
         long setBits = 0;
-        long totalBits = filter.ramBytesUsed() * 8; // Approximate number of bits
-
-        // Count set bits (this is an approximation as we don't have direct access to the bitset)
+        long totalBits = filter.ramBytesUsed() * 8;
         for (int i = 0; i < totalBits; i++) {
             if (filter.containsHash(i) == FuzzySet.Result.MAYBE) {
                 setBits++;
@@ -139,7 +119,6 @@ public class BloomFilterTests extends OpenSearchTestCase {
         int numThreads = 3;
         double fpp = 0.01;
 
-        // Create initial filter with some elements
         Set<String> initialElements = new HashSet<>();
         for (int i = 0; i < elementsPerThread; i++) {
             initialElements.add("initial" + i);
@@ -147,12 +126,10 @@ public class BloomFilterTests extends OpenSearchTestCase {
 
         BloomFilter filter = new BloomFilter(elementsPerThread * (numThreads + 1), fpp, () -> initialElements.stream().map(BytesRef::new).iterator());
 
-        // Verify initial elements
         for (String element : initialElements) {
             assertEquals(FuzzySet.Result.MAYBE, filter.contains(new BytesRef(element)));
         }
 
-        // Test concurrent reads
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch endLatch = new CountDownLatch(numThreads);
         AtomicInteger falsePositives = new AtomicInteger(0);
@@ -184,7 +161,6 @@ public class BloomFilterTests extends OpenSearchTestCase {
         logger.info("Concurrent false positive rate: {}", fpRate);
         assertTrue("Concurrent false positive rate should be reasonable", fpRate <= fpp * 2);
     }
-
 
     public void testBloomFilterIsSaturated_returnsFalse() throws IOException {
         int elementCount = randomIntBetween(1, 100);
