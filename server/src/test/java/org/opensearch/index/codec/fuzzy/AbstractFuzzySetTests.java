@@ -92,8 +92,7 @@ public class AbstractFuzzySetTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void writeTo(DataOutput out) throws IOException {
-            }
+            public void writeTo(DataOutput out) throws IOException {}
 
             @Override
             public long ramBytesUsed() {
@@ -101,8 +100,7 @@ public class AbstractFuzzySetTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void close() throws IOException {
-            }
+            public void close() throws IOException {}
         };
 
         List<BytesRef> addedElements = new ArrayList<>();
