@@ -300,6 +300,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 queryRegistry.registerConverter(converter);
             }
             logger.info("Successfully injected registry and registered all {} external converters", queryConverters.size());
+
+            // Update the registry on all converters (including built-in ones) so they can access external converters
+            queryRegistry.updateRegistryOnAllConverters();
+            logger.info("Updated registry on all converters to include external converters");
         } else {
             logger.info("No external QueryBuilderProtoConverter(s) to register");
         }
