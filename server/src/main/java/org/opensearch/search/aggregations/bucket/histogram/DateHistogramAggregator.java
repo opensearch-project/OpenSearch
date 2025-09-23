@@ -230,13 +230,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (fieldIndexSort && skipper != null && singleton != null) {
             // TODO: add hard bounds support
             if (hardBounds != null || sub == null || sub == LeafBucketCollector.NO_OP_COLLECTOR) {
-                return new HistogramSkiplistLeafCollector(
-                    singleton,
-                    skipper,
-                    preparedRounding,
-                    bucketOrds,
-                    this::incrementBucketDocCount
-                );
+                return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, this::incrementBucketDocCount);
             }
         }
 
