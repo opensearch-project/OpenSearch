@@ -30,7 +30,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.remote.RemoteStoreUtils.determineRemoteStoreCustomMetadataDuringMigration;
-import static org.opensearch.index.remote.RemoteStoreUtils.getRemoteStoreRepoName;
 
 /**
  * Utils for checking and mutating cluster state during remote migration
@@ -72,13 +71,12 @@ public class RemoteMigrationIndexMetadataUpdater {
                 "Index {} does not have remote store based index settings but all primary shards and STARTED replica shards have moved to remote enabled nodes. Applying remote store settings to the index",
                 index
             );
-            Map<String, String> remoteRepoNames = getRemoteStoreRepoName(discoveryNodes);
-            String segmentRepoName = RemoteStoreNodeAttribute.getSegmentRepoName(remoteRepoNames);
-            String tlogRepoName = RemoteStoreNodeAttribute.getTranslogRepoName(remoteRepoNames);
+            String segmentRepoName = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(currentIndexSettings);
+            String translogRepoName = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(currentIndexSettings);
 
-            assert Objects.nonNull(segmentRepoName) && Objects.nonNull(tlogRepoName) : "Remote repo names cannot be null";
+            assert Objects.nonNull(segmentRepoName) && Objects.nonNull(translogRepoName) : "Remote repo names cannot be null";
             Settings.Builder indexSettingsBuilder = Settings.builder().put(currentIndexSettings);
-            updateRemoteStoreSettings(indexSettingsBuilder, segmentRepoName, tlogRepoName);
+            updateRemoteStoreSettings(indexSettingsBuilder, segmentRepoName, translogRepoName);
             indexMetadataBuilder.settings(indexSettingsBuilder);
             indexMetadataBuilder.settingsVersion(1 + indexMetadata.getVersion());
         } else {

@@ -68,7 +68,11 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "test-tlog-repo")
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "test-seg-repo")
             .build();
+
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
