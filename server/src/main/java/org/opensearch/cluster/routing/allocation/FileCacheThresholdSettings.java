@@ -99,12 +99,14 @@ public class FileCacheThresholdSettings {
      */
     static final class IndexThresholdBreachValidator implements Setting.Validator<String> {
         @Override
-        public void validate(final String value) {}
+        public void validate(final String value) {
+        }
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String indexThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING);
-            doValidate(value, indexThreshold);
+            final String searchThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_SEARCH_THRESHOLD_SETTING);
+            doValidate(value, searchThreshold);
+
         }
 
         @Override
@@ -122,12 +124,13 @@ public class FileCacheThresholdSettings {
     static final class SearchThresholdBreachValidator implements Setting.Validator<String> {
 
         @Override
-        public void validate(final String value) {}
+        public void validate(final String value) {
+        }
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String searchThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING);
-            doValidate(searchThreshold, value);
+            final String indexThreshold = (String) settings.get(CLUSTER_FILECACHE_ACTIVEUSAGE_INDEXING_THRESHOLD_SETTING);
+            doValidate(indexThreshold, value);
         }
 
         @Override
@@ -199,7 +202,7 @@ public class FileCacheThresholdSettings {
      * Attempts to parse the watermark into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
      * parameter is true, otherwise throwing an {@link OpenSearchParseException}.
      *
-     * @param value   the watermark to parse as a byte size
+     * @param value       the watermark to parse as a byte size
      * @param settingName the name of the setting
      * @param lenient     true if lenient parsing should be applied
      * @return the parsed byte size value
