@@ -8,27 +8,43 @@
 
 package org.opensearch.action.admin.cluster.cache;
 
+import org.opensearch.Version;
+import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.core.action.ActionListener;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
-import static org.mockito.Mockito.doAnswer;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link TransportPruneCacheAction} using HandledTransportAction pattern.
+ * Tests for {@link TransportPruneCacheAction} using TransportNodesAction pattern.
+ * Tests enhanced multi-node architecture and warm node intelligence.
  */
 public class TransportPruneCacheActionTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
+    private ClusterService clusterService;
+    private CapturingTransport transport;
     private TransportService transportService;
     private ActionFilters actionFilters;
     private FileCache fileCache;
@@ -39,173 +55,213 @@ public class TransportPruneCacheActionTests extends OpenSearchTestCase {
         super.setUp();
 
         threadPool = new TestThreadPool("test");
-        transportService = mock(TransportService.class);
-        actionFilters = mock(ActionFilters.class);
+        transport = new CapturingTransport();
+        clusterService = createClusterService(threadPool);
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet(),
+            null
+        );
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        actionFilters = new ActionFilters(Collections.emptySet());
         fileCache = mock(FileCache.class);
 
-        action = new TransportPruneCacheAction(transportService, actionFilters, fileCache);
+        setupClusterWithWarmNodes();
+
+        action = new TransportPruneCacheAction(threadPool, clusterService, transportService, actionFilters, fileCache);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         threadPool.shutdown();
+        transport.close();
+        clusterService.close();
     }
 
-    /**
-     * Tests successful prune operation.
-     */
-    public void testSuccessfulPruneOperation() throws Exception {
-        final long expectedPrunedBytes = 1048576L; // 1MB
+    private void setupClusterWithWarmNodes() {
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
 
-        when(fileCache.prune()).thenReturn(expectedPrunedBytes);
-
-        PruneCacheRequest request = new PruneCacheRequest();
-
-        ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
-            @Override
-            public void onResponse(PruneCacheResponse response) {
-                assertTrue("Response should be acknowledged", response.isAcknowledged());
-                assertEquals("Pruned bytes should match", expectedPrunedBytes, response.getPrunedBytes());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("Should not fail: " + e.getMessage());
-            }
-        };
-
-        action.doExecute(null, request, listener);
-
-        verify(fileCache).prune();
-    }
-
-    /**
-     * Tests behavior when FileCache is null.
-     */
-    public void testNullFileCache() throws Exception {
-        // Create action with null FileCache
-        TransportPruneCacheAction nullCacheAction = new TransportPruneCacheAction(
-            transportService,
-            actionFilters,
-            null // null FileCache
+        DiscoveryNode warmNode1 = new DiscoveryNode(
+            "warm-node-1",
+            "warm-node-1",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.WARM_ROLE),
+            Version.CURRENT
+        );
+        DiscoveryNode warmNode2 = new DiscoveryNode(
+            "warm-node-2",
+            "warm-node-2",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.WARM_ROLE),
+            Version.CURRENT
         );
 
-        PruneCacheRequest request = new PruneCacheRequest();
+        DiscoveryNode dataNode1 = new DiscoveryNode(
+            "data-node-1",
+            "data-node-1",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
 
-        ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
-            @Override
-            public void onResponse(PruneCacheResponse response) {
-                assertTrue("Response should be acknowledged even with null cache", response.isAcknowledged());
-                assertEquals("Pruned bytes should be 0 for null cache", 0L, response.getPrunedBytes());
-            }
+        nodesBuilder.add(warmNode1).add(warmNode2).add(dataNode1);
+        nodesBuilder.localNodeId(warmNode1.getId());
+        nodesBuilder.clusterManagerNodeId(warmNode1.getId());
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("Should not fail with null cache: " + e.getMessage());
-            }
-        };
+        ClusterState clusterState = ClusterState.builder(clusterService.getClusterName()).nodes(nodesBuilder).build();
 
-        nullCacheAction.doExecute(null, request, listener);
+        setState(clusterService, clusterState);
     }
 
-    /**
-     * Tests behavior when FileCache.prune() throws an exception.
-     */
-    public void testPruneException() throws Exception {
-        final RuntimeException expectedException = new RuntimeException("Cache corruption detected");
-
-        when(fileCache.prune()).thenThrow(expectedException);
-
+    public void testRequestPreparationAndTargeting() {
         PruneCacheRequest request = new PruneCacheRequest();
 
-        ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
-            @Override
-            public void onResponse(PruneCacheResponse response) {
-                fail("Should not succeed when prune throws exception");
-            }
+        TransportPruneCacheAction.NodeRequest nodeRequest = action.newNodeRequest(request);
+        assertNotNull("Node request should not be null", nodeRequest);
+        assertEquals("Node request should wrap original request", request, nodeRequest.getRequest());
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                assertEquals("Exception should be propagated", expectedException, e);
-            }
-        };
+    public void testNodeOperation() {
+        when(fileCache.capacity()).thenReturn(10737418240L);
+        when(fileCache.prune()).thenReturn(1048576L);
 
-        action.doExecute(null, request, listener);
+        PruneCacheRequest globalRequest = new PruneCacheRequest();
+        TransportPruneCacheAction.NodeRequest nodeRequest = new TransportPruneCacheAction.NodeRequest(globalRequest);
+
+        NodePruneCacheResponse response = action.nodeOperation(nodeRequest);
+
+        assertNotNull("Response should not be null", response);
+        assertEquals("Pruned bytes should match", 1048576L, response.getPrunedBytes());
+        assertEquals("Capacity should match", 10737418240L, response.getCacheCapacity());
 
         verify(fileCache).prune();
+        verify(fileCache).capacity();
     }
 
-    /**
-     * Tests response deserialization.
-     */
-    public void testResponseDeserialization() throws Exception {
-        // This tests the basic action functionality
-        // For HandledTransportAction, we verify the action instance is created correctly
-        assertNotNull("Action should be created successfully", action);
-    }
+    public void testNullFileCache() {
 
-    /**
-     * Tests with different prune return values.
-     */
-    public void testDifferentPruneReturnValues() throws Exception {
-        long[] testValues = { 0L, 1L, 1048576L, Long.MAX_VALUE };
+        CapturingTransport nullTransport = new CapturingTransport();
+        TransportService nullTransportService = nullTransport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet(),
+            null
+        );
+        nullTransportService.start();
+        nullTransportService.acceptIncomingRequests();
 
-        for (long expectedBytes : testValues) {
-            when(fileCache.prune()).thenReturn(expectedBytes);
+        try {
+            TransportPruneCacheAction nullCacheAction = new TransportPruneCacheAction(
+                threadPool,
+                clusterService,
+                nullTransportService,
+                actionFilters,
+                null
+            );
 
-            PruneCacheRequest request = new PruneCacheRequest();
+            PruneCacheRequest globalRequest = new PruneCacheRequest();
+            TransportPruneCacheAction.NodeRequest nodeRequest = new TransportPruneCacheAction.NodeRequest(globalRequest);
 
-            ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
-                @Override
-                public void onResponse(PruneCacheResponse response) {
-                    assertTrue("Response should be acknowledged", response.isAcknowledged());
-                    assertEquals("Pruned bytes should match", expectedBytes, response.getPrunedBytes());
-                }
+            NodePruneCacheResponse response = nullCacheAction.nodeOperation(nodeRequest);
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail("Should not fail: " + e.getMessage());
-                }
-            };
-
-            action.doExecute(null, request, listener);
+            assertEquals("Pruned bytes should be 0 for null cache", 0L, response.getPrunedBytes());
+            assertEquals("Capacity should be 0 for null cache", 0L, response.getCacheCapacity());
+        } finally {
+            nullTransportService.close();
+            nullTransport.close();
         }
     }
 
-    /**
-     * Tests async behavior with ActionListener.
-     */
-    public void testAsyncBehavior() throws Exception {
-        final long expectedPrunedBytes = 2048L;
+    public void testWarmNodeResolution() {
 
-        // Mock FileCache to simulate async behavior
-        doAnswer(invocation -> {
-            // Simulate some processing time
-            return expectedPrunedBytes;
-        }).when(fileCache).prune();
+        PruneCacheRequest defaultRequest = new PruneCacheRequest();
 
+        try {
+            action.resolveRequest(defaultRequest, clusterService.state());
+
+            assertEquals("Should resolve to 2 warm nodes", 2, defaultRequest.concreteNodes().length);
+            assertTrue(
+                "Should include warm-node-1",
+                Arrays.stream(defaultRequest.concreteNodes()).anyMatch(node -> "warm-node-1".equals(node.getId()))
+            );
+            assertTrue(
+                "Should include warm-node-2",
+                Arrays.stream(defaultRequest.concreteNodes()).anyMatch(node -> "warm-node-2".equals(node.getId()))
+            );
+        } catch (IllegalArgumentException e) {
+            fail("Default request should not fail: " + e.getMessage());
+        }
+    }
+
+    public void testSpecificNodeTargeting() {
+
+        PruneCacheRequest specificRequest = new PruneCacheRequest("warm-node-1");
+
+        action.resolveRequest(specificRequest, clusterService.state());
+
+        assertEquals("Should resolve to 1 warm node", 1, specificRequest.concreteNodes().length);
+        assertEquals("Should target warm-node-1", "warm-node-1", specificRequest.concreteNodes()[0].getId());
+    }
+
+    public void testInvalidNodeTargeting() {
+
+        PruneCacheRequest invalidRequest = new PruneCacheRequest("data-node-1");
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.resolveRequest(invalidRequest, clusterService.state())
+        );
+
+        assertTrue(
+            "Error message should mention warm nodes",
+            exception.getMessage().contains("FileCache operations can only target warm nodes")
+        );
+    }
+
+    public void testFileCacheException() {
+        when(fileCache.prune()).thenThrow(new RuntimeException("Cache corruption"));
+
+        PruneCacheRequest globalRequest = new PruneCacheRequest();
+        TransportPruneCacheAction.NodeRequest nodeRequest = new TransportPruneCacheAction.NodeRequest(globalRequest);
+
+        RuntimeException exception = expectThrows(
+            RuntimeException.class,
+            () -> action.nodeOperation(nodeRequest)
+        );
+
+        assertTrue("Exception should contain node ID", exception.getMessage().contains("node"));
+        assertTrue("Exception should mention failure", exception.getMessage().contains("failed"));
+    }
+
+    public void testResponseAggregation() {
         PruneCacheRequest request = new PruneCacheRequest();
 
-        final boolean[] callbackInvoked = { false };
+        List<NodePruneCacheResponse> responses = Arrays.asList(
+            new NodePruneCacheResponse(clusterService.state().nodes().get("warm-node-1"), 1048576L, 10737418240L),
+            new NodePruneCacheResponse(clusterService.state().nodes().get("warm-node-2"), 2097152L, 10737418240L)
+        );
 
-        ActionListener<PruneCacheResponse> listener = new ActionListener<PruneCacheResponse>() {
-            @Override
-            public void onResponse(PruneCacheResponse response) {
-                callbackInvoked[0] = true;
-                assertTrue("Response should be acknowledged", response.isAcknowledged());
-                assertEquals("Pruned bytes should match", expectedPrunedBytes, response.getPrunedBytes());
-            }
+        List<FailedNodeException> failures = Collections.emptyList();
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("Should not fail: " + e.getMessage());
-            }
-        };
+        PruneCacheResponse aggregatedResponse = action.newResponse(request, responses, failures);
 
-        action.doExecute(null, request, listener);
-
-        assertTrue("Callback should have been invoked", callbackInvoked[0]);
-        verify(fileCache).prune();
+        assertNotNull("Aggregated response should not be null", aggregatedResponse);
+        assertEquals("Should have 2 successful nodes", 2, aggregatedResponse.getNodes().size());
+        assertEquals("Should have no failures", 0, aggregatedResponse.failures().size());
+        assertEquals("Total pruned bytes should be sum", 3145728L, aggregatedResponse.getTotalPrunedBytes());
+        assertTrue("Should be completely successful", aggregatedResponse.isCompletelySuccessful());
     }
 }

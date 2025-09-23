@@ -10,6 +10,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.cache.PruneCacheAction;
 import org.opensearch.action.admin.cluster.cache.PruneCacheRequest;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
@@ -17,26 +18,22 @@ import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
 
 /**
- * REST action to manually trigger FileCache prune operation.
- * This endpoint allows administrators to clear out non-referenced cache entries on demand.
+ * REST action to manually trigger FileCache prune operation across multiple nodes.
+ * Supports node targeting for efficient cache management.
  *
  * @opensearch.api
  */
 public class RestPruneCacheAction extends BaseRestHandler {
 
-    /**
-     * Default constructor
-     */
-    public RestPruneCacheAction() {}
-
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(Method.POST, "/_cache/remote/prune"));
+        return singletonList(new Route(Method.POST, "/_cache/filecache/prune"));
     }
 
     @Override
@@ -46,13 +43,26 @@ public class RestPruneCacheAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PruneCacheRequest pruneCacheRequest = new PruneCacheRequest();
+        String[] nodeIds = parseNodeTargeting(request);
 
-        // Handle timeout parameter
+        PruneCacheRequest pruneCacheRequest = new PruneCacheRequest(nodeIds);
         pruneCacheRequest.timeout(request.paramAsTime("timeout", pruneCacheRequest.timeout()));
 
-        // Delegate to Transport Action with standard response handling
         return channel -> client.execute(PruneCacheAction.INSTANCE, pruneCacheRequest, new RestToXContentListener<>(channel));
+    }
+
+    private String[] parseNodeTargeting(RestRequest request) {
+        String nodes = request.param("nodes");
+        String node = request.param("node");
+
+        if (nodes != null && !nodes.trim().isEmpty()) {
+            String[] parsed = Strings.splitStringByCommaToArray(nodes);
+            return Arrays.stream(parsed).filter(s -> s != null && !s.trim().isEmpty()).map(String::trim).toArray(String[]::new);
+        } else if (node != null && !node.trim().isEmpty()) {
+            return new String[] { node.trim() };
+        }
+
+        return null;
     }
 
     @Override

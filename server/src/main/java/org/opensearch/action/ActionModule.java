@@ -333,7 +333,6 @@ import org.opensearch.extensions.rest.RestSendToExtensionAction;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.node.Node;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
 import org.opensearch.persistent.RemovePersistentTaskAction;
 import org.opensearch.persistent.StartPersistentTaskAction;
@@ -844,7 +843,7 @@ public class ActionModule extends AbstractModule {
         );
     }
 
-    public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster, Node node) {
+    public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
         List<AbstractListAction> listActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
