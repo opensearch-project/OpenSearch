@@ -117,12 +117,16 @@ public class KinesisIngestionBaseIT extends OpenSearchIntegTestCase {
 
     protected void waitForSearchableDocs(long docCount, List<String> nodes) throws Exception {
         assertBusy(() -> {
-            for (String node : nodes) {
-                final SearchResponse response = client(node).prepareSearch(indexName).setSize(0).setPreference("_only_local").get();
-                final long hits = response.getHits().getTotalHits().value();
-                if (hits < docCount) {
-                    fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);
+            try {
+                for (String node : nodes) {
+                    final SearchResponse response = client(node).prepareSearch(indexName).setSize(0).setPreference("_only_local").get();
+                    final long hits = response.getHits().getTotalHits().value();
+                    if (hits < docCount) {
+                        fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);
+                    }
                 }
+            } catch (Exception e) {
+                fail("Exception while waiting for search results: " + e);
             }
         }, 1, TimeUnit.MINUTES);
     }
