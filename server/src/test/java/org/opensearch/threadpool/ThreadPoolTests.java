@@ -437,25 +437,4 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         // This will exercise the normal serialization logic for ForkJoinPool and current version
         info.writeTo(out);
     }
-
-    // public void testForkJoinPoolTypeNotSupportedYet() {
-    // Settings settings = Settings.builder()
-    // .put("node.name", "test-node")
-    // .build();
-    //
-    // Throwable exception = null;
-    // ThreadPool threadPool = null;
-    // try {
-    // threadPool = new ThreadPool(settings);
-    // threadPool.registerForkJoinPool("myForkJoinPool", 4);
-    // } catch (Exception e) {
-    // exception = e;
-    // } finally {
-    // // Always shutdown to avoid thread leak
-    // if (threadPool != null) {
-    // threadPool.shutdown();
-    // }
-    // }
-    // assertNotNull("ForkJoinPoolType should not be supported yet", exception);
-    // }
 }
