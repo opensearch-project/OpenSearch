@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Create and attach interclusterTest and yamlRestTest code coverage reports to gradle check task([#19165](https://github.com/opensearch-project/OpenSearch/pull/19165))
 - Optimized date histogram aggregations by preventing unnecessary object allocations in date rounding utils ([19088](https://github.com/opensearch-project/OpenSearch/pull/19088))
 - Optimize source conversion in gRPC search hits using zero-copy BytesRef ([#19280](https://github.com/opensearch-project/OpenSearch/pull/19280))
+- Allow plugins to copy folders into their config dir during installation ([#19343](https://github.com/opensearch-project/OpenSearch/pull/19343))
 - Add failureaccess as runtime dependency to transport-grpc module  ([#19339](https://github.com/opensearch-project/OpenSearch/pull/19339))
 
 ### Fixed
@@ -58,6 +59,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix Using an excessively large reindex slice can lead to a JVM OutOfMemoryError on coordinator.([#18964](https://github.com/opensearch-project/OpenSearch/pull/18964))
 - [Flaky Test] Fix flaky test in SecureReactorNetty4HttpServerTransportTests with reproducible seed ([#19327](https://github.com/opensearch-project/OpenSearch/pull/19327))
 - Remove unnecessary looping in field data cache clear ([#19116](https://github.com/opensearch-project/OpenSearch/pull/19116))
+- [Flaky Test] Fix flaky test IngestFromKinesisIT.testAllActiveIngestion ([#19380](https://github.com/opensearch-project/OpenSearch/pull/19380))
 - Remove unnecessary iteration per-shard in request cache cleanup ([#19263](https://github.com/opensearch-project/OpenSearch/pull/19263))
 
 ### Dependencies
@@ -96,8 +98,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `log4j2` from 2.21.0 to 2.25.1 ([#19184](https://github.com/opensearch-project/OpenSearch/pull/19184))
 - Bump Apache Lucene from 10.2.2 to 10.3.0 ([#19296](https://github.com/opensearch-project/OpenSearch/pull/19296))
 - Add com.google.code.gson:gson to the gradle version catalog ([#19328](https://github.com/opensearch-project/OpenSearch/pull/19328))
+- Bump `org.apache.logging.log4j:log4j-core` from 2.25.1 to 2.25.2 ([#19360](https://github.com/opensearch-project/OpenSearch/pull/19360))
 - Bump `aws-actions/configure-aws-credentials` from 4 to 5 ([#19363](https://github.com/opensearch-project/OpenSearch/pull/19363))
 - Bump `com.azure:azure-identity` from 1.14.2 to 1.18.0 ([#19361](https://github.com/opensearch-project/OpenSearch/pull/19361))
+- Bump `net.bytebuddy:byte-buddy` from 1.17.5 to 1.17.7 ([#19371](https://github.com/opensearch-project/OpenSearch/pull/19371))
 
 ### Deprecated
 
