@@ -76,7 +76,7 @@ public class ObjectMapProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithFloatValue() {
         // Create an ObjectMap with a float value
         float value = 123.456f;
-        ObjectMap objectMap = ObjectMap.newBuilder().putFields("key", ObjectMap.Value.newBuilder().setFloat(value).build()).build();
+        ObjectMap objectMap = ObjectMap.newBuilder().putFields("key", ObjectMap.Value.newBuilder().setDouble(value).build()).build();
 
         // Convert to Java Map
         Map<String, Object> map = ObjectMapProtoUtils.fromProto(objectMap);
@@ -85,7 +85,7 @@ public class ObjectMapProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("Map should not be null", map);
         assertEquals("Map should have 1 entry", 1, map.size());
         assertTrue("Map should contain the key", map.containsKey("key"));
-        assertEquals("Value should be a float", value, map.get("key"));
+        assertEquals("Value should be a float", value, (double) map.get("key"), 1e-6);
     }
 
     public void testFromProtoWithInt32Value() {
