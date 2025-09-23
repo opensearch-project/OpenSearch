@@ -30,6 +30,7 @@ public interface GrpcServiceFactory {
     String plugin();
 
     /**
+     * Provide client for executing requests on the cluster.
      * @param client for use in services.
      * @return chaining.
      */
@@ -38,6 +39,7 @@ public interface GrpcServiceFactory {
     }
 
     /**
+     * Provide visibility into node settings.
      * @param settings for use in services.
      * @return chaining.
      */
@@ -46,6 +48,7 @@ public interface GrpcServiceFactory {
     }
 
     /**
+     * Provide visibility into cluster settings.
      * @param clusterSettings for use in services.
      * @return chaining.
      */
@@ -54,6 +57,7 @@ public interface GrpcServiceFactory {
     }
 
     /**
+     * Provide access to thread pool.
      * @param threadPool for use in services.
      * @return chaining.
      */
