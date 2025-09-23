@@ -13,9 +13,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
-import io.grpc.BindableService;
-
 import java.util.List;
+
+import io.grpc.BindableService;
 
 /**
  * Extension point for plugins to add a BindableService list to the grpc-transport.
