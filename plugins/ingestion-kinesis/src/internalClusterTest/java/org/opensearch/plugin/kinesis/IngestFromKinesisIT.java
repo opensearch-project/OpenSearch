@@ -139,6 +139,7 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17678")
     public void testAllActiveIngestion() throws Exception {
         // Create pull-based index in default replication mode (docrep) and publish some messages
         internalCluster().startClusterManagerOnlyNode();
