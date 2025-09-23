@@ -11,14 +11,10 @@ package org.opensearch.action.admin.indices.stats;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -27,25 +23,14 @@ import java.util.concurrent.atomic.LongAdder;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class SearchResponseStatusStats implements Writeable, ToXContentFragment {
-    final LongAdder[] searchResponseStatusCounter;
+public class SearchResponseStatusStats extends AbstractStatusStats {
 
     public SearchResponseStatusStats() {
-        searchResponseStatusCounter = new LongAdder[5];
-        for (int i = 0; i < searchResponseStatusCounter.length; i++) {
-            searchResponseStatusCounter[i] = new LongAdder();
-        }
+        super();
     }
 
     public SearchResponseStatusStats(StreamInput in) throws IOException {
-        searchResponseStatusCounter = in.readArray(i -> {
-            LongAdder adder = new LongAdder();
-            adder.add(i.readLong());
-            return adder;
-
-        }, LongAdder[]::new);
-
-        assert searchResponseStatusCounter.length == 5 : "Length of incoming array should be 5! Got " + searchResponseStatusCounter.length;
+        super(in);
     }
 
     /**
@@ -64,7 +49,7 @@ public class SearchResponseStatusStats implements Writeable, ToXContentFragment 
      * @param delta The value to add
      */
     public void add(final RestStatus status, final long delta) {
-        searchResponseStatusCounter[status.getStatusFamilyCode() - 1].add(delta);
+        super.add(status, delta);
     }
 
     /**
@@ -77,44 +62,26 @@ public class SearchResponseStatusStats implements Writeable, ToXContentFragment 
             return;
         }
 
-        for (int i = 0; i < searchResponseStatusCounter.length; ++i) {
-            searchResponseStatusCounter[i].add(stats.searchResponseStatusCounter[i].longValue());
+        for (int i = 0; i < statusCounter.length; ++i) {
+            statusCounter[i].add(stats.statusCounter[i].longValue());
         }
     }
 
     public LongAdder[] getSearchResponseStatusCounter() {
-        return searchResponseStatusCounter;
+        return statusCounter;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SEARCH_RESPONSE_STATUS);
 
-        Map<String, Long> errorTypeCounts = new HashMap<>();
-
-        for (int i = 0; i < searchResponseStatusCounter.length; ++i) {
-            long count = searchResponseStatusCounter[i].longValue();
-
-            if (count > 0) {
-                RestStatus familyStatus = RestStatus.fromCode((i + 1) * 100);
-                String errorType = familyStatus.getErrorType();
-                errorTypeCounts.put(errorType, errorTypeCounts.getOrDefault(errorType, (long) 0) + count);
-            }
-        }
-
-        String successType = RestStatus.ACCEPTED.getErrorType();
-        String userFailureType = RestStatus.BAD_REQUEST.getErrorType();
-        String systemErrorType = RestStatus.INTERNAL_SERVER_ERROR.getErrorType();
-        builder.field(successType, errorTypeCounts.getOrDefault(successType, (long) 0));
-        builder.field(userFailureType, errorTypeCounts.getOrDefault(userFailureType, (long) 0));
-        builder.field(systemErrorType, errorTypeCounts.getOrDefault(systemErrorType, (long) 0));
-
-        return builder.endObject();
+        super.toXContent(builder, params);
+        return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeArray((o, v) -> o.writeLong(v.longValue()), searchResponseStatusCounter);
+        super.writeTo(out);
     }
 
     /**

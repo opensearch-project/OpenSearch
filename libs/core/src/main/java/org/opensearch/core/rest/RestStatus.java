@@ -536,14 +536,14 @@ public enum RestStatus {
         return status / 100;
     }
 
-    public String getErrorType() {
+    public String getStatusType() {
         int family = getStatusFamilyCode();
         if (family <= 3) {
-            return "success";
+            return StatusType.SUCCESS.toString();
         } else if (family == 4) {
-            return "user_error";
+            return StatusType.USER_ERROR.toString();
         } else {
-            return "system_failure";
+            return StatusType.SYSTEM_FAILURE.toString();
         }
     }
 

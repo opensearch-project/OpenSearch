@@ -13,6 +13,7 @@ import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.rest.StatusType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -26,7 +27,7 @@ public class RestStatusTests extends OpenSearchTestCase {
         int successfulShards = randomIntBetween(1, totalShards);
 
         assertEquals(RestStatus.OK, RestStatus.status(successfulShards, totalShards));
-        assertEquals("success", RestStatus.status(successfulShards, totalShards).getErrorType());
+        assertEquals(StatusType.SUCCESS, RestStatus.status(successfulShards, totalShards).getStatusType());
     }
 
     public void testStatusReturns503ForUnavailableShards() {
@@ -34,7 +35,7 @@ public class RestStatusTests extends OpenSearchTestCase {
         int successfulShards = 0;
 
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, RestStatus.status(successfulShards, totalShards));
-        assertEquals("system_failure", RestStatus.status(successfulShards, totalShards).getErrorType());
+        assertEquals("system_failure", RestStatus.status(successfulShards, totalShards).getStatusType());
     }
 
     public void testStatusReturnsFailureStatusWhenFailuresExist() {
@@ -62,7 +63,7 @@ public class RestStatusTests extends OpenSearchTestCase {
         final RestStatus expected = status.getStatusFamilyCode() == 1 ? RestStatus.OK : status;
 
         assertEquals(expected, RestStatus.status(successfulShards, totalShards, failures));
-        assertEquals(expected.getErrorType(), RestStatus.status(successfulShards, totalShards, failures).getErrorType());
+        assertEquals(expected.getStatusType(), RestStatus.status(successfulShards, totalShards, failures).getStatusType());
     }
 
     public void testSerialization() throws IOException {

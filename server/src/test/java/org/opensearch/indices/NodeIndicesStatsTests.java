@@ -42,6 +42,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.rest.StatusType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -126,17 +127,29 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
         long searchResponseStatusSuccesses = searchResponseStatusCounter[0].longValue() + searchResponseStatusCounter[1].longValue()
             + searchResponseStatusCounter[2].longValue();
 
-        String expected = "{\"status_counter\":{\"doc_status\":{\"success\":"
+        String expected = "{\"status_counter\":{\"doc_status\":{\""
+            + StatusType.SUCCESS
+            + "\":"
             + docStatusSuccesses
-            + ",\"user_error\":"
+            + ",\""
+            + StatusType.USER_ERROR
+            + "\":"
             + docStatusCounter[3].longValue()
-            + ",\"system_failure\":"
+            + ",\""
+            + StatusType.SYSTEM_FAILURE
+            + "\":"
             + docStatusCounter[4].longValue()
-            + "},\"search_response_status\":{\"success\":"
+            + "},\"search_response_status\":{\""
+            + StatusType.SUCCESS
+            + "\":"
             + searchResponseStatusSuccesses
-            + ",\"user_error\":"
+            + ",\""
+            + StatusType.USER_ERROR
+            + "\":"
             + searchResponseStatusCounter[3].longValue()
-            + ",\"system_failure\":"
+            + ",\""
+            + StatusType.SYSTEM_FAILURE
+            + "\":"
             + searchResponseStatusCounter[4].longValue()
             + "}}}";
 
