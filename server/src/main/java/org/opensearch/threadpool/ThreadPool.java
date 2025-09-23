@@ -1033,15 +1033,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 }
             } else if (type == ThreadPoolType.FORK_JOIN) {
                 builder.field("parallelism", max);
-            }
-            // else if (type == ThreadPoolType.FORK_JOIN) {
-            // builder.field("size", -1);
-            // builder.field("min", -1);
-            // builder.field("max", -1);
-            // builder.field("keep_alive", (Object) null);
-            // builder.field("queue_size", -1);
-            // }
-            else {
+            } else {
                 assert max != -1;
                 builder.field("size", max);
                 if (keepAlive != null) {
