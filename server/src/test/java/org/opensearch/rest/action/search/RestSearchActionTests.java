@@ -13,6 +13,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.rest.RestRequest;
@@ -23,9 +24,7 @@ import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
 
-import java.util.HashMap;
-import java.util.Map;
-
+import static org.opensearch.common.util.FeatureFlags.STREAM_SEARCH;
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,11 +50,10 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         };
     }
 
-    private void testActionExecution(Map<String, String> params, ActionType<?> expectedAction) throws Exception {
+    private void testActionExecution(ActionType<?> expectedAction) throws Exception {
         SetOnce<ActionType<?>> capturedActionType = new SetOnce<>();
         try (NodeClient nodeClient = createMockNodeClient(capturedActionType)) {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params != null ? params : new HashMap<>())
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
 
             new RestSearchAction().handleRequest(request, channel, nodeClient);
@@ -64,14 +62,16 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
-    @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testStreamSearchWithFeatureFlagEnabled() throws Exception {
-        testActionExecution(Map.of("stream", "true"), StreamSearchAction.INSTANCE);
+    public void testWithSearchStreamFlagDisabled() throws Exception {
+        // When SEARCH_STREAM flag is disabled, always use SearchAction
+        testActionExecution(SearchAction.INSTANCE);
     }
 
-    public void testStreamSearchWithFeatureFlagDisabled() throws Exception {
+    @LockFeatureFlag(STREAM_SEARCH)
+    public void testWithStreamSearchEnabledButStreamTransportDisabled() throws Exception {
+        // When SEARCH_STREAM is enabled but STREAM_TRANSPORT is disabled, should throw exception
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("stream", "true")).build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
 
             Exception e = expectThrows(
@@ -82,11 +82,13 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testRegularSearchWithoutStreamParameter() throws Exception {
-        testActionExecution(null, SearchAction.INSTANCE);
-    }
-
-    public void testRegularSearchWithStreamParameterFalse() throws Exception {
-        testActionExecution(Map.of("stream", "false"), SearchAction.INSTANCE);
+    public void testWithStreamSearchAndTransportEnabled() throws Exception {
+        // When both SEARCH_STREAM and STREAM_TRANSPORT are enabled, should use StreamSearchAction
+        try (
+            FeatureFlags.TestUtils.FlagWriteLock searchStreamLock = new FeatureFlags.TestUtils.FlagWriteLock(STREAM_SEARCH);
+            FeatureFlags.TestUtils.FlagWriteLock streamTransportLock = new FeatureFlags.TestUtils.FlagWriteLock(STREAM_TRANSPORT)
+        ) {
+            testActionExecution(StreamSearchAction.INSTANCE);
+        }
     }
 }
