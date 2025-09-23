@@ -174,7 +174,9 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                     .initClusterSettings(clusterSettings)
                     .initThreadPool(threadPool)
                     .build();
-                logger.info("{} gRPC services loaded from plugin: {}", pluginServices.size(), serviceFac.plugin());
+                for (BindableService pluginService : pluginServices) {
+                    logger.info("{} gRPC services loaded from plugin: {}", pluginService.bindService().getServiceDescriptor().getName(), serviceFac.plugin());
+                }
                 grpcServices.addAll(pluginServices);
             }
             return new Netty4GrpcServerTransport(settings, grpcServices, networkService);
@@ -224,7 +226,9 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                     .initClusterSettings(clusterSettings)
                     .initThreadPool(threadPool)
                     .build();
-                logger.info("{} gRPC services loaded from plugin: {}", pluginServices.size(), serviceFac.plugin());
+                for (BindableService pluginService : pluginServices) {
+                    logger.info("{} gRPC services loaded from plugin: {}", pluginService.bindService().getServiceDescriptor().getName(), serviceFac.plugin());
+                }
                 grpcServices.addAll(pluginServices);
             }
             return new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider);
