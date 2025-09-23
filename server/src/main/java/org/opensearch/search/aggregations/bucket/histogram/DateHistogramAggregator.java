@@ -112,7 +112,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private boolean starTreeDateRoundingRequired = true;
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
-    public final String fieldName;
+    private final String fieldName;
+    private final boolean fieldIndexSort;
 
     DateHistogramAggregator(
         String name,
@@ -180,6 +181,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
             ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.fieldIndexSort = this.fieldName == null ? false : context.getQueryShardContext().indexSortedOnField(fieldName);
         this.starTreeDateDimension = (context.getQueryShardContext().getStarTreeQueryContext() != null)
             ? fetchStarTreeCalendarUnit()
             : null;
@@ -223,16 +225,22 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
 
-        // If no subaggregations, we can use skip list based collector
-        if (skipper != null)
+        // If no subaggregations and index sorted on given field, we can use skip list based collector
+        logger.trace("Index sort field found: {}, skipper: {}", fieldIndexSort, skipper);
+        if (fieldIndexSort && skipper != null && singleton != null) {
             // TODO: add hard bounds support
             if (hardBounds != null || sub == null || sub == LeafBucketCollector.NO_OP_COLLECTOR) {
-                logger.debug("using HistogramSkiplistLeafCollector");
-                return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, this::incrementBucketDocCount);
+                return new HistogramSkiplistLeafCollector(
+                    singleton,
+                    skipper,
+                    preparedRounding,
+                    bucketOrds,
+                    this::incrementBucketDocCount
+                );
             }
+        }
 
         if (singleton != null) {
-            logger.debug("using single valued leaf collector");
             // Optimized path for single-valued fields
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
@@ -246,7 +254,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
 
         // Original path for multi-valued fields
-        logger.debug("using multi-valued leaf collector");
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {

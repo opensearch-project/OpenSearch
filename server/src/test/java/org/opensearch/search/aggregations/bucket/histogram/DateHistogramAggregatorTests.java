@@ -40,19 +40,28 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -247,12 +256,30 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     }
 
     public void testSkiplistWithSingleValueDates() throws IOException {
+        // Create index settings with an index sort.
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .putList("index.sort.field", AGGREGABLE_DATE)
+            .build();
+
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+
+        MappedFieldType fieldType = new DateFieldMapper.DateFieldType(AGGREGABLE_DATE);
+        IndexNumericFieldData fieldData = (IndexNumericFieldData) fieldType.fielddataBuilder("index", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null);
+        SortField sortField = fieldData.sortField(null, MultiValueMode.MIN, null, false);
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = newIndexWriterConfig();
+            config.setMergePolicy(NoMergePolicy.INSTANCE);
+            config.setIndexSort(new Sort(sortField));
             String filterField = "type";
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
 
-                // First commit - 7 dates with type 1
+                // First commit - 5 dates with type 1
                 for (int i = 0; i < 5; i++) {
                     Document doc = new Document();
                     long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
@@ -295,10 +322,17 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
                     .calendarInterval(DateHistogramInterval.YEAR);
 
-                MappedFieldType fieldType = new DateFieldMapper.DateFieldType(AGGREGABLE_DATE);
                 Query query = LongPoint.newExactQuery(filterField, 2);
 
-                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, 1000, fieldType);
+                InternalDateHistogram histogram = searchAndReduce(
+                    indexSettings,
+                    indexSearcher,
+                    query,
+                    aggregationBuilder,
+                    1000,
+                    false,
+                    fieldType
+                );
 
                 assertEquals(3, histogram.getBuckets().size()); // 2015, 2016, 2017 (only type 2 docs)
 
