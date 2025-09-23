@@ -446,12 +446,11 @@ public class RestSearchAction extends BaseRestHandler {
 
     /**
      * Determines if a search request can use stream search.
-     * Stream search is only supported for requests with exactly one terms aggregation and no other aggregations.
      *
      * @param searchRequest the search request to validate
      * @return true if the request can use stream search, false otherwise
      */
-    private static boolean canUseStreamSearch(SearchRequest searchRequest) {
+    static boolean canUseStreamSearch(SearchRequest searchRequest) {
         if (searchRequest.source() == null || searchRequest.source().aggregations() == null) {
             return true; // No aggregations, stream search is allowed
         }

@@ -11,12 +11,16 @@ package org.opensearch.rest.action.search;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
@@ -90,5 +94,52 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         ) {
             testActionExecution(StreamSearchAction.INSTANCE);
         }
+    }
+
+    // Tests for canUseStreamSearch method
+    public void testCanUseStreamSearchWithNullSource() {
+        SearchRequest searchRequest = new SearchRequest();
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithNoAggregations() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(QueryBuilders.matchAllQuery());
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithSingleTermsAggregation() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(AggregationBuilders.terms("test_terms").field("category"));
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithMultipleAggregations() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(AggregationBuilders.terms("test_terms").field("category"));
+        source.aggregation(AggregationBuilders.avg("test_avg").field("price"));
+        searchRequest.source(source);
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithSingleNonTermsAggregation() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(AggregationBuilders.avg("test_avg").field("price"));
+        searchRequest.source(source);
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithSingleHistogramAggregation() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(AggregationBuilders.histogram("test_histogram").field("timestamp").interval(1000));
+        searchRequest.source(source);
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }
 }
