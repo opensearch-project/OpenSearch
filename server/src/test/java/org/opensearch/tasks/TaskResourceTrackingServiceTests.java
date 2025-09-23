@@ -177,6 +177,140 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         assertEquals(2000L, result.getTaskResourceUsage().getMemoryInBytes());
     }
 
+    public void testResponseHeadersEnabledByDefault() {
+        // Test that response headers are enabled by default
+        TaskResourceTrackingService service = new TaskResourceTrackingService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
+        );
+        assertTrue(service.isTaskResourceTrackingResponseHeadersEnabled());
+    }
+
+    public void testResponseHeadersDisabledViaSettings() {
+        // Test that response headers can be disabled via settings
+        Settings settings = Settings.builder()
+            .put(TaskResourceTrackingService.TASK_RESOURCE_TRACKING_RESPONSE_HEADERS_ENABLED.getKey(), false)
+            .build();
+        TaskResourceTrackingService service = new TaskResourceTrackingService(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
+        );
+        assertFalse(service.isTaskResourceTrackingResponseHeadersEnabled());
+    }
+
+    public void testDynamicResponseHeadersSettingUpdate() {
+        // Test dynamic updates to the response headers setting
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        TaskResourceTrackingService service = new TaskResourceTrackingService(
+            Settings.EMPTY,
+            clusterSettings,
+            threadPool
+        );
+
+        // Initially enabled
+        assertTrue(service.isTaskResourceTrackingResponseHeadersEnabled());
+
+        // Update to disabled
+        Settings newSettings = Settings.builder()
+            .put(TaskResourceTrackingService.TASK_RESOURCE_TRACKING_RESPONSE_HEADERS_ENABLED.getKey(), false)
+            .build();
+        clusterSettings.applySettings(newSettings);
+        assertFalse(service.isTaskResourceTrackingResponseHeadersEnabled());
+
+        // Update back to enabled
+        Settings enabledSettings = Settings.builder()
+            .put(TaskResourceTrackingService.TASK_RESOURCE_TRACKING_RESPONSE_HEADERS_ENABLED.getKey(), true)
+            .build();
+        clusterSettings.applySettings(enabledSettings);
+        assertTrue(service.isTaskResourceTrackingResponseHeadersEnabled());
+    }
+
+    public void testWriteTaskResourceUsageWithHeadersDisabled() {
+        // Test that writeTaskResourceUsage exits early when headers are disabled
+        SearchShardTask task = new SearchShardTask(1, "test", "test", "task", TaskId.EMPTY_TASK_ID, new HashMap<>());
+        taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
+        taskResourceTrackingService.setTaskResourceTrackingResponseHeadersEnabled(false);
+
+        // Start tracking and simulate thread resource tracking
+        taskResourceTrackingService.startTracking(task);
+        task.startThreadResourceTracking(
+            Thread.currentThread().threadId(),
+            ResourceStatsType.WORKER_STATS,
+            new ResourceUsageMetric(CPU, 100),
+            new ResourceUsageMetric(MEMORY, 100)
+        );
+
+        // Call writeTaskResourceUsage - should exit early without adding headers
+        taskResourceTrackingService.writeTaskResourceUsage(task, "node_1");
+
+        // Verify no headers were added
+        Map<String, List<String>> headers = threadPool.getThreadContext().getResponseHeaders();
+        assertFalse(headers.containsKey(TASK_RESOURCE_USAGE));
+    }
+
+    public void testWriteTaskResourceUsageWithHeadersEnabled() {
+        // Test that writeTaskResourceUsage adds headers when enabled
+        SearchShardTask task = new SearchShardTask(1, "test", "test", "task", TaskId.EMPTY_TASK_ID, new HashMap<>());
+        taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
+        taskResourceTrackingService.setTaskResourceTrackingResponseHeadersEnabled(true);
+
+        // Start tracking and simulate thread resource tracking
+        taskResourceTrackingService.startTracking(task);
+        task.startThreadResourceTracking(
+            Thread.currentThread().threadId(),
+            ResourceStatsType.WORKER_STATS,
+            new ResourceUsageMetric(CPU, 100),
+            new ResourceUsageMetric(MEMORY, 100)
+        );
+
+        // Call writeTaskResourceUsage - should add headers
+        taskResourceTrackingService.writeTaskResourceUsage(task, "node_1");
+
+        // Verify headers were added
+        Map<String, List<String>> headers = threadPool.getThreadContext().getResponseHeaders();
+        assertTrue(headers.containsKey(TASK_RESOURCE_USAGE));
+        assertEquals(1, headers.get(TASK_RESOURCE_USAGE).size());
+    }
+
+    public void testResourceTrackingContinuesWithHeadersDisabled() {
+        // Test that internal resource tracking continues even when headers are disabled
+        taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
+        taskResourceTrackingService.setTaskResourceTrackingResponseHeadersEnabled(false);
+
+        Task task = new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>());
+        ThreadContext.StoredContext storedContext = taskResourceTrackingService.startTracking(task);
+        long threadId = Thread.currentThread().threadId();
+
+        // Start and stop thread execution
+        taskResourceTrackingService.taskExecutionStartedOnThread(task.getId(), threadId);
+        assertTrue(task.getResourceStats().get(threadId).get(0).isActive());
+
+        taskResourceTrackingService.taskExecutionFinishedOnThread(task.getId(), threadId);
+        assertFalse(task.getResourceStats().get(threadId).get(0).isActive());
+
+        // Verify resource stats are still tracked internally
+        assertTrue(task.getResourceStats().get(threadId).get(0).getResourceUsageInfo().getStatsInfo().get(MEMORY).getTotalValue() > 0);
+        assertTrue(task.getResourceStats().get(threadId).get(0).getResourceUsageInfo().getStatsInfo().get(CPU).getTotalValue() > 0);
+
+        storedContext.restore();
+    }
+
+    public void testWriteTaskResourceUsageWithNullThreadResourceInfo() {
+        // Test that writeTaskResourceUsage handles null thread resource info gracefully
+        SearchShardTask task = new SearchShardTask(1, "test", "test", "task", TaskId.EMPTY_TASK_ID, new HashMap<>());
+        taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
+        taskResourceTrackingService.setTaskResourceTrackingResponseHeadersEnabled(true);
+
+        // Don't start thread resource tracking - should result in null thread resource info
+        taskResourceTrackingService.writeTaskResourceUsage(task, "node_1");
+
+        // Verify no headers were added due to null thread resource info
+        Map<String, List<String>> headers = threadPool.getThreadContext().getResponseHeaders();
+        assertFalse(headers.containsKey(TASK_RESOURCE_USAGE));
+    }
+
     private void verifyThreadContextFixedHeaders(String key, String value) {
         assertEquals(threadPool.getThreadContext().getHeader(key), value);
         assertEquals(threadPool.getThreadContext().getTransient(key), value);

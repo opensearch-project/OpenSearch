@@ -683,6 +683,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
+                TaskResourceTrackingService.TASK_RESOURCE_TRACKING_RESPONSE_HEADERS_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
                 TopNSearchTasksLogger.LOG_TOP_QUERIES_SIZE_SETTING,
                 TopNSearchTasksLogger.LOG_TOP_QUERIES_FREQUENCY_SETTING,

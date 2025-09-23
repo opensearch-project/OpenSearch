@@ -62,6 +62,12 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> TASK_RESOURCE_TRACKING_RESPONSE_HEADERS_ENABLED = Setting.boolSetting(
+        "task_resource_tracking.response_headers.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final String TASK_ID = "TASK_ID";
     public static final String TASK_RESOURCE_USAGE = "TASK_RESOURCE_USAGE";
 
@@ -71,20 +77,34 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
     private final ThreadPool threadPool;
     private volatile boolean taskResourceTrackingEnabled;
+    private volatile boolean taskResourceTrackingResponseHeadersEnabled;
 
     @Inject
     public TaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.taskResourceTrackingEnabled = TASK_RESOURCE_TRACKING_ENABLED.get(settings);
+        this.taskResourceTrackingResponseHeadersEnabled = TASK_RESOURCE_TRACKING_RESPONSE_HEADERS_ENABLED.get(settings);
         this.threadPool = threadPool;
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_TRACKING_ENABLED, this::setTaskResourceTrackingEnabled);
+        clusterSettings.addSettingsUpdateConsumer(
+            TASK_RESOURCE_TRACKING_RESPONSE_HEADERS_ENABLED,
+            this::setTaskResourceTrackingResponseHeadersEnabled
+        );
     }
 
     public void setTaskResourceTrackingEnabled(boolean taskResourceTrackingEnabled) {
         this.taskResourceTrackingEnabled = taskResourceTrackingEnabled;
     }
 
+    public void setTaskResourceTrackingResponseHeadersEnabled(boolean taskResourceTrackingResponseHeadersEnabled) {
+        this.taskResourceTrackingResponseHeadersEnabled = taskResourceTrackingResponseHeadersEnabled;
+    }
+
     public boolean isTaskResourceTrackingEnabled() {
         return taskResourceTrackingEnabled;
+    }
+
+    public boolean isTaskResourceTrackingResponseHeadersEnabled() {
+        return taskResourceTrackingResponseHeadersEnabled;
     }
 
     public boolean isTaskResourceTrackingSupported() {
@@ -281,6 +301,12 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      * @param nodeId the local nodeId
      */
     public void writeTaskResourceUsage(SearchShardTask task, String nodeId) {
+        // Skip all computation if response headers are disabled
+        if (!isTaskResourceTrackingResponseHeadersEnabled()) {
+            logger.debug("Task resource tracking response headers disabled, skipping for task: {}", task.getId());
+            return;
+        }
+
         try {
             // Get resource usages from when the task started
             ThreadResourceInfo threadResourceInfo = task.getActiveThreadResourceInfo(
