@@ -34,7 +34,8 @@ public class RestThreadPoolActionTests extends OpenSearchTestCase {
             64,          // completed
             -1,          // queue (should be -1 for FJ)
             1,           // threads
-            0            // taskTimeNanos (or whatever the last arg is)
+            0,            // taskTimeNanos (or whatever the last arg is)
+            8            // parallelism (for example: 8, or whatever is appropriate for your test)
         );
 
         List<ThreadPoolStats.Stats> statsList = Collections.singletonList(fjStats);

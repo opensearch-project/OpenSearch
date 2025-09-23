@@ -542,7 +542,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             }
             if (holder.info.type == ThreadPoolType.FORK_JOIN) {
                 // Add ForkJoinPool with sentinel values
-                stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1));
+                // stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1, max));
+                stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1, holder.info.getMax()));
                 continue;
             }
             int threads = -1;
@@ -552,7 +553,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             int largest = -1;
             long completed = -1;
             long waitTimeNanos = -1;
-            if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
+            int parallelism = -1;
+            if (holder.executor() instanceof ForkJoinPool) {
+                parallelism = ((ForkJoinPool) holder.executor()).getParallelism();
+            } else if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
                 OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor();
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
@@ -560,12 +564,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 largest = threadPoolExecutor.getLargestPoolSize();
                 completed = threadPoolExecutor.getCompletedTaskCount();
                 waitTimeNanos = threadPoolExecutor.getPoolWaitTimeNanos();
+
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
                 if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
                     rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, waitTimeNanos));
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, waitTimeNanos, parallelism));
         }
         return new ThreadPoolStats(stats);
     }
@@ -687,7 +692,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
+            if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
                 result &= executor.executor().awaitTermination(timeout, unit);
             }
         }
@@ -1027,12 +1032,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     builder.field("queue_size", queueSize.singles());
                 }
             } else if (type == ThreadPoolType.FORK_JOIN) {
-                builder.field("size", -1);
-                builder.field("min", -1);
-                builder.field("max", -1);
-                builder.field("keep_alive", (Object) null);
-                builder.field("queue_size", -1);
-            } else {
+                builder.field("parallelism", max);
+            }
+            // else if (type == ThreadPoolType.FORK_JOIN) {
+            // builder.field("size", -1);
+            // builder.field("min", -1);
+            // builder.field("max", -1);
+            // builder.field("keep_alive", (Object) null);
+            // builder.field("queue_size", -1);
+            // }
+            else {
                 assert max != -1;
                 builder.field("size", max);
                 if (keepAlive != null) {

@@ -30,10 +30,23 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
 
     private final Setting<Integer> parallelismSetting;
 
+    /**
+     * Construct a ForkJoinPool executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
+     *
+     * @param name        the name of the executor
+     * @param parallelism the target parallelism level (number of worker threads)
+     */
     public ForkJoinPoolExecutorBuilder(final String name, final int parallelism) {
         this(name, parallelism, "thread_pool." + name);
     }
 
+    /**
+     * Construct a ForkJoinPool executor builder with a custom settings prefix.
+     *
+     * @param name        the name of the executor
+     * @param parallelism the target parallelism level (number of worker threads)
+     * @param prefix      the prefix for the settings keys
+     */
     public ForkJoinPoolExecutorBuilder(final String name, final int parallelism, final String prefix) {
         super(name);
         this.parallelismSetting = Setting.intSetting(settingsKey(prefix, "parallelism"), parallelism, Setting.Property.NodeScope);
