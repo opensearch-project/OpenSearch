@@ -28,7 +28,6 @@
  *   <li>Create a {@code META-INF/services} file listing their converter implementation</li>
  *   <li>Declare {@code transport-grpc} in their plugin descriptor's {@code extended.plugins} list</li>
  * </ul>
- * </p>
  *
  * @since 3.3.0
  */
