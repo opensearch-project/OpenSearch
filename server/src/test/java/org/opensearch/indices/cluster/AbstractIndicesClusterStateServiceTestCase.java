@@ -296,6 +296,17 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         public Iterator<MockIndexService> iterator() {
             return indices.values().iterator();
         }
+
+        @Override
+        public void clearIndexShardCacheForAllShards(
+            Index index,
+            boolean queryCache,
+            boolean fieldDataCache,
+            boolean requestCache,
+            String... fields
+        ) {
+            return;
+        }
     }
 
     /**

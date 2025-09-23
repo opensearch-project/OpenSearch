@@ -35,6 +35,7 @@ package org.opensearch.cluster;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.annotation.PublicApi;
@@ -199,6 +200,15 @@ public class ClusterChangedEvent {
         // no need to check on version, since disco modules will make sure to use the
         // same instance if its a version match
         return metadata1 != metadata2;
+    }
+
+    /**
+     * Returns <code>true</code> iff the {@link MappingMetadata} for a given index
+     * has changed between the previous cluster state and the new cluster state.
+     */
+    public static boolean indexMappingMetadataChanged(IndexMetadata metadata1, IndexMetadata metadata2) {
+        assert metadata1 != null && metadata2 != null;
+        return metadata1.mapping() != metadata2.mapping();
     }
 
     /**
