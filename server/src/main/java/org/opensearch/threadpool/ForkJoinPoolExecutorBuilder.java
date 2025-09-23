@@ -31,7 +31,7 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
     private final Setting<Integer> parallelismSetting;
 
     /**
-     * Construct a ForkJoinPool executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
+     * Construct a ForkJoinPool executor builder; the settings will have the key prefix "thread_pool." and followed by the executor name.
      *
      * @param name        the name of the executor
      * @param parallelism the target parallelism level (number of worker threads)
