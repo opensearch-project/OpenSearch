@@ -13,8 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
@@ -28,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,11 +42,7 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     protected static final int EIGHT_MB = 1024 * 1024 * 8;
-    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-        EIGHT_MB * 2,
-        1,
-        new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-    );
+    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(EIGHT_MB * 2, 1);
     protected MMapDirectory directory;
     protected TransferManager transferManager;
     protected ThreadPool threadPool;
@@ -313,14 +308,14 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         executor.shutdownNow();
     }
 
-    public void testRefCount() throws IOException, InterruptedException {
+    public void testRefCount() throws Exception {
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         String blobname = "test-blob";
         blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build();
         // It will trigger async load
-        transferManager.fetchBlobAsync(blobFetchRequest);
-        Thread.sleep(2000);
+        CompletableFuture<IndexInput> future = transferManager.fetchBlobAsync(blobFetchRequest);
+        future.get();
         assertEquals(Optional.of(0), Optional.of(fileCache.getRef(blobFetchRequest.getFilePath())));
         assertNotNull(fileCache.get(blobFetchRequest.getFilePath()));
         fileCache.decRef(blobFetchRequest.getFilePath());
@@ -347,8 +342,6 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build();
         // It will trigger async load
         transferManager.fetchBlobAsync(blobFetchRequest);
-        assertNotNull(fileCache.get(blobFetchRequest.getFilePath()));
-        fileCache.decRef(blobFetchRequest.getFilePath());
         // Making the read call to fetch from file cache
         return transferManager.fetchBlob(blobFetchRequest);
     }

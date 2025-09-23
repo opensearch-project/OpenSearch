@@ -41,6 +41,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
@@ -49,20 +50,28 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.BackgroundIndexer;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -70,6 +79,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
@@ -492,5 +502,467 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
             assertAllSuccessful(actionGet);
         }, 5, TimeUnit.MINUTES);
         waitForReplication();
+    }
+
+    public void testRecoveryWithDerivedSourceEnabled() throws Exception {
+        logger.info("--> creating test index with derived source enabled...");
+        int numberOfShards = numberOfShards();
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "age": {
+                  "type": "integer"
+                }
+              }
+            }""";
+
+        assertAcked(
+            prepareCreate(
+                "test",
+                1,
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+            ).setMapping(mapping)
+        );
+
+        final int totalNumDocs = scaledRandomIntBetween(200, 1000);
+        for (int i = 0; i < totalNumDocs; i++) {
+            if (i % 2 == 0) {
+                client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "age", i).get();
+            } else {
+                client().prepareIndex("test").setId(String.valueOf(i)).setSource("age", i, "name", "test" + i).get();
+            }
+
+            if (i % 100 == 0) {
+                // Occasionally flush to create new segments
+                client().admin().indices().prepareFlush("test").setForce(true).get();
+            }
+        }
+
+        logger.info("--> allow 2 nodes for index [test] with replica ...");
+        allowNodes("test", 2);
+
+        logger.info("--> waiting for GREEN health status ...");
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        // Verify documents on replica
+        assertBusy(() -> {
+            SearchResponse searchResponse = client().prepareSearch("test").setPreference("_replica").setSize(totalNumDocs).get();
+            assertHitCount(searchResponse, totalNumDocs);
+
+            // Verify derived source reconstruction
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertNotNull(hit.getSourceAsMap());
+                assertEquals(2, hit.getSourceAsMap().size());
+                assertNotNull(hit.getSourceAsMap().get("name"));
+                assertNotNull(hit.getSourceAsMap().get("age"));
+            }
+        });
+    }
+
+    public void testReplicaRecoveryWithDerivedSourceBeforeRefresh() throws Exception {
+        logger.info("--> creating test index with derived source enabled...");
+        String mapping = """
+            {
+              "properties": {
+                "timestamp": {
+                  "type": "date"
+                },
+                "ip": {
+                  "type": "ip"
+                }
+              }
+            }""";
+
+        assertAcked(
+            prepareCreate(
+                "test",
+                3,
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                    .put("index.refresh_interval", -1)
+            ).setMapping(mapping)
+        );
+
+        // Index documents without refresh
+        int docCount = randomIntBetween(100, 200);
+        for (int i = 0; i < docCount; i++) {
+            if (i % 2 == 0) {
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("timestamp", "2023-01-01T01:20:30." + String.valueOf(i % 10).repeat(3) + "Z", "ip", "192.168.1." + i)
+                    .get();
+            } else {
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("ip", "192.168.1." + i, "timestamp", "2023-01-01T01:20:30." + String.valueOf(i % 10).repeat(3) + "Z")
+                    .get();
+            }
+        }
+
+        // Add replica before refresh
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 2))
+        );
+
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        // Verify documents on replica
+        assertBusy(() -> {
+            SearchResponse searchResponse = client().prepareSearch("test").setPreference("_replica").setSize(docCount).get();
+            assertHitCount(searchResponse, docCount);
+
+            // Verify source reconstruction
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertNotNull(hit.getSourceAsMap());
+                assertEquals(2, hit.getSourceAsMap().size());
+                String id = hit.getId();
+                assertEquals(
+                    "2023-01-01T01:20:30." + String.valueOf(Integer.valueOf(id) % 10).repeat(3) + "Z",
+                    hit.getSourceAsMap().get("timestamp")
+                );
+                assertEquals("192.168.1." + id, hit.getSourceAsMap().get("ip"));
+            }
+        });
+    }
+
+    public void testReplicaRecoveryWithDerivedSourceFromTranslog() throws Exception {
+        logger.info("--> creating test index with derived source enabled...");
+        String mapping = """
+            {
+              "properties": {
+                "coordinates": {
+                  "type": "geo_point"
+                },
+                "value": {
+                  "type": "text",
+                  "store": true
+                }
+              }
+            }""";
+
+        // Create index with replica
+        assertAcked(
+            prepareCreate(
+                "test",
+                2,
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+            ).setMapping(mapping)
+        );
+
+        ensureGreen();
+
+        // Index documents with immediate visibility
+        int docCount = randomIntBetween(100, 200);
+        for (int i = 0; i < docCount; i++) {
+            if (i % 2 == 0) {
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("coordinates", Geohash.stringEncode(40.0 + i, 75.0 + i) + i, "value", "fox_" + i + " in the field")
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get();
+            } else {
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("value", "fox_" + i + " in the field", "coordinates", Geohash.stringEncode(40.0 + i, 75.0 + i) + i)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get();
+            }
+        }
+
+        // Force flush to ensure documents are in segments
+        client().admin().indices().prepareFlush("test").setForce(true).get();
+
+        // Kill replica node and index more documents
+        final String replicaNode = ensureReplicaNode("test");
+        if (replicaNode != null) {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+        }
+
+        int additionalDocs = randomIntBetween(50, 100);
+        for (int i = docCount; i < docCount + additionalDocs; i++) {
+            client().prepareIndex("test")
+                .setId(String.valueOf(i))
+                .setSource("coordinates", Geohash.stringEncode(40.0 + i, 75.0 + i) + i, "value", "fox_" + i + " in the field")
+                .get();
+        }
+
+        // Restart replica node and verify recovery
+        internalCluster().startNode();
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        // Verify all documents on replica including those recovered from translog
+        assertBusy(() -> {
+            SearchResponse searchResponse = client().prepareSearch("test")
+                .setPreference("_replica")
+                .setSize(docCount + additionalDocs)
+                .get();
+            assertHitCount(searchResponse, docCount + additionalDocs);
+
+            // Verify source reconstruction for all documents
+            for (SearchHit hit : searchResponse.getHits()) {
+                assertNotNull(hit.getSourceAsMap());
+                assertEquals(2, hit.getSourceAsMap().size());
+                String id = hit.getId();
+                assertNotNull(hit.getSourceAsMap().get("coordinates"));
+                assertEquals("fox_" + id + " in the field", hit.getSourceAsMap().get("value"));
+            }
+        });
+    }
+
+    public void testRecoverWhileUnderLoadWithDerivedSource() throws Exception {
+        logger.info("--> creating test index with derived source enabled...");
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "value": {
+                  "type": "integer"
+                },
+                "timestamp": {
+                  "type": "date"
+                }
+              }
+            }""";
+
+        int numberOfShards = numberOfShards();
+        assertAcked(
+            prepareCreate(
+                "test",
+                1,
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+            ).setMapping(mapping)
+        );
+
+        final int totalNumDocs = scaledRandomIntBetween(2000, 10000);
+        int waitFor = totalNumDocs / 10;
+        int extraDocs = waitFor;
+
+        // Custom indexer for derived source documents
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", null, client(), extraDocs) {
+            @Override
+            protected XContentBuilder generateSource(long id, Random random) throws IOException {
+                return jsonBuilder().startObject()
+                    .field("name", "name_" + id)
+                    .field("value", id)
+                    .field("timestamp", System.currentTimeMillis())
+                    .endObject();
+            }
+        }) {
+            indexer.setUseAutoGeneratedIDs(true);
+            logger.info("--> waiting for {} docs to be indexed ...", waitFor);
+            waitForDocs(waitFor, indexer);
+            indexer.assertNoFailures();
+
+            extraDocs = totalNumDocs / 10;
+            waitFor += extraDocs;
+            indexer.continueIndexing(extraDocs);
+            logger.info("--> flushing the index ....");
+            client().admin().indices().prepareFlush().execute().actionGet();
+
+            logger.info("--> waiting for {} docs to be indexed ...", waitFor);
+            waitForDocs(waitFor, indexer);
+            indexer.assertNoFailures();
+
+            extraDocs = totalNumDocs - waitFor;
+            indexer.continueIndexing(extraDocs);
+            logger.info("--> allow 2 nodes for index [test] ...");
+            allowNodes("test", 2);
+
+            logger.info("--> waiting for GREEN health status ...");
+            // make sure the cluster state is green, and all has been recovered
+            assertNoTimeout(
+                client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus()
+            );
+
+            logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
+            waitForDocs(totalNumDocs, indexer);
+            indexer.assertNoFailures();
+
+            logger.info("--> marking and waiting for indexing threads to stop ...");
+            indexer.stopAndAwaitStopped();
+
+            logger.info("--> refreshing the index");
+            client().admin().indices().prepareRefresh().get();
+
+            logger.info("--> verifying indexed content");
+
+            // Verify docs on primary
+            SearchResponse primaryResponse = client().prepareSearch("test").setPreference("_primary").setTrackTotalHits(true).get();
+            assertHitCount(primaryResponse, totalNumDocs);
+
+            // Verify docs and derived source on replica
+            assertBusy(() -> {
+                SearchResponse replicaResponse = client().prepareSearch("test")
+                    .setPreference("_replica")
+                    .setTrackTotalHits(true)
+                    .setSize(totalNumDocs)
+                    .addSort("value", SortOrder.ASC)
+                    .get();
+
+                assertHitCount(replicaResponse, totalNumDocs);
+
+                // Verify source reconstruction on replica
+                for (SearchHit hit : replicaResponse.getHits()) {
+                    assertNotNull(hit.getSourceAsMap());
+                    assertEquals(3, hit.getSourceAsMap().size());
+                    int id = (Integer) hit.getSourceAsMap().get("value");
+                    assertEquals("name_" + id, hit.getSourceAsMap().get("name"));
+                    assertNotNull(hit.getSourceAsMap().get("timestamp"));
+                }
+            }, 30, TimeUnit.SECONDS);
+
+            // Additional source verification with random sampling
+            assertRandomDocsSource(50);
+        }
+    }
+
+    public void testRecoverWithRelocationAndDerivedSource() throws Exception {
+        final int numShards = between(3, 5);
+        logger.info("--> creating test index with derived source enabled...");
+
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "value": {
+                  "type": "integer"
+                },
+                "timestamp": {
+                  "type": "date"
+                }
+              }
+            }""";
+
+        assertAcked(
+            prepareCreate(
+                "test",
+                1,
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, numShards)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            ).setMapping(mapping)
+        );
+        int numNodes = 1;
+        final int numDocs = scaledRandomIntBetween(1500, 2000);
+
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", null, client(), numDocs) {
+            @Override
+            protected XContentBuilder generateSource(long id, Random random) throws IOException {
+                return jsonBuilder().startObject()
+                    .field("name", "name_" + id)
+                    .field("value", id)
+                    .field("timestamp", System.currentTimeMillis())
+                    .endObject();
+            }
+        }) {
+
+            indexer.setUseAutoGeneratedIDs(true);
+            for (int i = 0; i < numDocs; i += scaledRandomIntBetween(500, Math.min(1000, numDocs))) {
+                indexer.assertNoFailures();
+                logger.info("--> waiting for {} docs to be indexed ...", i);
+                waitForDocs(i, indexer);
+                internalCluster().startDataOnlyNode();
+                numNodes++;
+
+                logger.info("--> waiting for GREEN health status ...");
+                ensureGreen(TimeValue.timeValueMinutes(2));
+            }
+
+            logger.info("--> marking and waiting for indexing threads to stop ...");
+            indexer.stopAndAwaitStopped();
+
+            // Add replicas after stopping indexing
+            logger.info("--> adding replicas ...");
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, numNodes - 1))
+                    .get()
+            );
+            ensureGreen(TimeValue.timeValueMinutes(2));
+
+            logger.info("--> refreshing the index");
+            client().admin().indices().prepareRefresh().get();
+
+            // Verify final doc count and derived source reconstruction
+            SearchResponse primaryResponse = client().prepareSearch("test").setPreference("_primary").setTrackTotalHits(true).get();
+            assertHitCount(primaryResponse, numDocs);
+
+            assertBusy(() -> {
+                SearchResponse replicaResponse = client().prepareSearch("test")
+                    .setPreference("_replica")
+                    .setTrackTotalHits(true)
+                    .setSize(numDocs)
+                    .addSort("value", SortOrder.ASC)
+                    .get();
+
+                assertHitCount(replicaResponse, numDocs);
+
+                // Verify source reconstruction on replica
+                for (SearchHit hit : replicaResponse.getHits()) {
+                    assertNotNull(hit.getSourceAsMap());
+                    assertEquals(3, hit.getSourceAsMap().size());
+                    int id = (Integer) hit.getSourceAsMap().get("value");
+                    assertEquals("name_" + id, hit.getSourceAsMap().get("name"));
+                    assertNotNull(hit.getSourceAsMap().get("timestamp"));
+                }
+            }, 30, TimeUnit.SECONDS);
+
+            assertRandomDocsSource(100);
+        }
+    }
+
+    private void assertRandomDocsSource(int sampleSize) {
+        // Random sampling of documents for detailed source verification
+        for (int i = 0; i < sampleSize; i++) {
+            String id = String.valueOf(randomIntBetween(0, 100));
+            GetResponse getResponse = client().prepareGet("test", id).setPreference("_replica").get();
+
+            if (getResponse.isExists()) {
+                Map<String, Object> source = getResponse.getSourceAsMap();
+                assertNotNull(source);
+                assertEquals(3, source.size());
+                assertEquals("name_" + id, source.get("name"));
+                assertEquals(Integer.parseInt(id), source.get("value"));
+                assertNotNull(source.get("timestamp"));
+            }
+        }
+    }
+
+    private String ensureReplicaNode(String index) {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index idx = state.metadata().index(index).getIndex();
+        String replicaNode = state.routingTable().index(idx).shard(0).replicaShards().get(0).currentNodeId();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
+        if (!replicaNode.equals(clusterManagerNode)) {
+            state.nodes().get(replicaNode).getName();
+        }
+        return null;
     }
 }

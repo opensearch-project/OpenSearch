@@ -72,7 +72,8 @@ public class TransportRequestOptions {
         BULK,
         REG,
         STATE,
-        PING
+        PING,
+        STREAM
     }
 
     public static Builder builder() {

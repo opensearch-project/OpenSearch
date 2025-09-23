@@ -840,9 +840,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 return results;
             }
 
-            B[][] topBucketsPreOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
+            B[][] topBucketsPerOwningOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                // processing each owning bucket
                 checkCancelled();
                 final int size;
                 if (localBucketCountThresholds.getMinDocCount() == 0) {
@@ -854,6 +855,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 PriorityQueue<TB> ordered = buildPriorityQueue(size);
                 final int finalOrdIdx = ordIdx;
                 BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
+                // for each provides the bucket ord and key value for the owning bucket
                 collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
                     TB spare = null;
 
@@ -871,18 +873,19 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 });
 
                 // Get the top buckets
-                topBucketsPreOrd[ordIdx] = buildBuckets(ordered.size());
+                // ordered contains the top buckets for the owning bucket
+                topBucketsPerOwningOrd[ordIdx] = buildBuckets(ordered.size());
                 for (int i = ordered.size() - 1; i >= 0; --i) {
-                    topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
-                    otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                    topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
+                    otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
                 }
             }
 
-            buildSubAggs(topBucketsPreOrd);
+            buildSubAggs(topBucketsPerOwningOrd);
 
             InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                results[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCount[ordIdx], topBucketsPreOrd[ordIdx]);
+                results[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCount[ordIdx], topBucketsPerOwningOrd[ordIdx]);
             }
             return results;
         }
@@ -1015,8 +1018,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        void buildSubAggs(StringTerms.Bucket[][] topBucketsPreOrd) throws IOException {
-            buildSubAggsForAllBuckets(topBucketsPreOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
+        void buildSubAggs(StringTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+            buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
 
         @Override

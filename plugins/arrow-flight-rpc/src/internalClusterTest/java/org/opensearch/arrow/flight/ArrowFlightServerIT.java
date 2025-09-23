@@ -19,7 +19,7 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
-import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
+import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamReader;
@@ -169,7 +169,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
             // where it exhausts the stream on the server side before it is actually cancelled.
             assertTrue(
                 "Timeout waiting for stream cancellation on server [" + node.getName() + "]",
-                streamProducer.waitForClose(2, TimeUnit.SECONDS)
+                streamProducer.waitForClose(5, TimeUnit.SECONDS)
             );
             previousNode = node;
         }

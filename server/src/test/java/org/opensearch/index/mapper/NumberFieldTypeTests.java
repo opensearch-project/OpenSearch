@@ -687,7 +687,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("foo", valueSupplier.get(), true, true, false));
+            w.addDocument(type.createFields("foo", valueSupplier.get(), true, true, false, false));
         }
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = newSearcher(reader);
@@ -752,7 +752,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, writerConfig);
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("field", valueSupplier.get(), true, true, false));
+            w.addDocument(type.createFields("field", valueSupplier.get(), true, true, false, false));
         }
 
         // Ensure that the optimized index sort query gives the same results as a points query.

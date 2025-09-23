@@ -36,8 +36,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.transport.stream.StreamErrorCode;
+import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -55,6 +58,30 @@ public interface TransportChannel {
     String getProfileName();
 
     String getChannelType();
+
+    /**
+     * Sends a batch of responses to the request that this channel is associated with.
+     * Call {@link #completeStream()} on a successful completion.
+     * For errors, use {@link #sendResponse(Exception)} and do not call {@link #completeStream()}
+     * Do not use {@link #sendResponse} in conjunction with this method if you are sending a batch of responses.
+     *
+     * @param response the batch of responses to send
+     * @throws StreamException with {@link StreamErrorCode#CANCELLED} if the stream has been canceled.
+     * Do not call this method again or completeStream() once canceled.
+     */
+    @ExperimentalApi
+    default void sendResponseBatch(TransportResponse response) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Call this method on a successful completion the streaming response.
+     * Note: not calling this method on success will result in a memory leak
+     */
+    @ExperimentalApi
+    default void completeStream() {
+        throw new UnsupportedOperationException();
+    }
 
     void sendResponse(TransportResponse response) throws IOException;
 

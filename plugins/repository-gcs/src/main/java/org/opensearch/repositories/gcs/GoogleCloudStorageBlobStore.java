@@ -300,7 +300,18 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     @SuppressForbidden(reason = "channel is based on a socket")
                     @Override
                     public int write(final ByteBuffer src) throws IOException {
-                        return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                        try {
+                            return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                        } catch (final IOException ioe) {
+                            final StorageException storageException = (StorageException) ExceptionsHelper.unwrap(
+                                ioe,
+                                StorageException.class
+                            );
+                            if (storageException != null) {
+                                throw storageException;
+                            }
+                            throw ioe;
+                        }
                     }
 
                     @Override

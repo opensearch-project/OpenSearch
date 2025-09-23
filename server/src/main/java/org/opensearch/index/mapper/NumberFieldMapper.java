@@ -58,6 +58,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -118,6 +119,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> skiplist = new Parameter<>(
+            "skip_list",
+            false,
+            () -> false,
+            (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
+            m -> toType(m).skiplist
+        );
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Explicit<Boolean>> coerce;
@@ -169,7 +177,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, meta);
+            return Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, meta);
         }
 
         @Override
@@ -281,6 +289,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[HalfFloatPoint.BYTES];
                 HalfFloatPoint.encodeDimension(value.floatValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Float numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = HalfFloatPoint.nextUp(numericValue);
+                } else {
+                    numericValue = HalfFloatPoint.nextDown(numericValue);
+                }
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -405,13 +424,26 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(
+                String name,
+                Number value,
+                boolean indexed,
+                boolean docValued,
+                boolean skiplist,
+                boolean stored
+            ) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new HalfFloatPoint(name, value.floatValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
+                    if (skiplist) {
+                        fields.add(
+                            SortedNumericDocValuesField.indexedField(name, HalfFloatPoint.halfFloatToSortableShort(value.floatValue()))
+                        );
+                    } else {
+                        fields.add(new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
+                    }
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.floatValue()));
@@ -457,6 +489,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[Float.BYTES];
                 FloatPoint.encodeDimension(value.floatValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Float numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = FloatPoint.nextUp(numericValue);
+                } else {
+                    numericValue = FloatPoint.nextDown(numericValue);
+                }
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -581,13 +624,24 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(
+                String name,
+                Number value,
+                boolean indexed,
+                boolean docValued,
+                boolean skiplist,
+                boolean stored
+            ) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new FloatPoint(name, value.floatValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value.floatValue())));
+                    if (skiplist) {
+                        fields.add(SortedNumericDocValuesField.indexedField(name, NumericUtils.floatToSortableInt(value.floatValue())));
+                    } else {
+                        fields.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value.floatValue())));
+                    }
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.floatValue()));
@@ -624,6 +678,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[Double.BYTES];
                 DoublePoint.encodeDimension(value.doubleValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Double numericValue = parse(value, true);
+                if (roundUp) {
+                    numericValue = DoublePoint.nextUp(numericValue);
+                } else {
+                    numericValue = DoublePoint.nextDown(numericValue);
+                }
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -733,13 +798,24 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(
+                String name,
+                Number value,
+                boolean indexed,
+                boolean docValued,
+                boolean skiplist,
+                boolean stored
+            ) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new DoublePoint(name, value.doubleValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
+                    if (skiplist) {
+                        fields.add(SortedNumericDocValuesField.indexedField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
+                    } else {
+                        fields.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
+                    }
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.doubleValue()));
@@ -790,6 +866,23 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Byte numericValue = parse(value, true);
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Byte.MAX_VALUE) {
+                        numericValue = (byte) (numericValue + 1);
+                    }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue > Byte.MIN_VALUE) {
+                        numericValue = (byte) (numericValue - 1);
+                    }
+                }
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return objectToDouble(value);
             }
@@ -828,8 +921,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                return INTEGER.createFields(name, value, indexed, docValued, stored);
+            public List<Field> createFields(
+                String name,
+                Number value,
+                boolean indexed,
+                boolean docValued,
+                boolean skiplist,
+                boolean stored
+            ) {
+                return INTEGER.createFields(name, value, indexed, docValued, skiplist, stored);
             }
 
             @Override
@@ -874,6 +974,22 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Short numericValue = parse(value, true);
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Short.MAX_VALUE) {
+                        numericValue = (short) (numericValue + 1);
+                    }
+                } else {
+                    if (numericValue > Short.MIN_VALUE) {
+                        numericValue = (short) (numericValue - 1);
+                    }
+                }
+                return encodePoint(numericValue);
+            }
+
+            @Override
             public double toDoubleValue(long value) {
                 return (double) value;
             }
@@ -908,8 +1024,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                return INTEGER.createFields(name, value, indexed, docValued, stored);
+            public List<Field> createFields(
+                String name,
+                Number value,
+                boolean indexed,
+                boolean docValued,
+                boolean skiplist,
+                boolean stored
+            ) {
+                return INTEGER.createFields(name, value, indexed, docValued, skiplist, stored);
             }
 
             @Override
@@ -951,6 +1074,23 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[Integer.BYTES];
                 IntPoint.encodeDimension(value.intValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Integer numericValue = parse(value, true);
+                // Always apply exclusivity
+                if (roundUp) {
+                    if (numericValue < Integer.MAX_VALUE) {
+                        numericValue = numericValue + 1;
+                    }
+                } else {
+                    if (numericValue > Integer.MIN_VALUE) {
+                        numericValue = numericValue - 1;
+                    }
+                }
+
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -1102,13 +1242,24 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(
+                String name,
+                Number value,
+                boolean indexed,
+                boolean docValued,
+                boolean skiplist,
+                boolean stored
+            ) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new IntPoint(name, value.intValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, value.intValue()));
+                    if (skiplist) {
+                        fields.add(SortedNumericDocValuesField.indexedField(name, value.intValue()));
+                    } else {
+                        fields.add(new SortedNumericDocValuesField(name, value.intValue()));
+                    }
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.intValue()));
@@ -1137,6 +1288,23 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[Long.BYTES];
                 LongPoint.encodeDimension(value.longValue(), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                Long numericValue = parse(value, true);
+                if (roundUp) {
+                    // ASC: exclusive lower bound
+                    if (numericValue < Long.MAX_VALUE) {
+                        numericValue = numericValue + 1;
+                    }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue > Long.MIN_VALUE) {
+                        numericValue = numericValue - 1;
+                    }
+                }
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -1244,13 +1412,24 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(
+                String name,
+                Number value,
+                boolean indexed,
+                boolean docValued,
+                boolean skiplist,
+                boolean stored
+            ) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new LongPoint(name, value.longValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, value.longValue()));
+                    if (skiplist) {
+                        fields.add(SortedNumericDocValuesField.indexedField(name, value.longValue()));
+                    } else {
+                        fields.add(new SortedNumericDocValuesField(name, value.longValue()));
+                    }
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.longValue()));
@@ -1279,6 +1458,22 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 byte[] point = new byte[BigIntegerPoint.BYTES];
                 BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false, true), point, 0);
                 return point;
+            }
+
+            @Override
+            public byte[] encodePoint(Object value, boolean roundUp) {
+                BigInteger numericValue = parse(value, true);
+                if (roundUp) {
+                    if (numericValue.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) < 0) {
+                        numericValue = numericValue.add(BigInteger.ONE);
+                    }
+                } else {
+                    // DESC: exclusive upper bound
+                    if (numericValue.compareTo(Numbers.MIN_UNSIGNED_LONG_VALUE) > 0) {
+                        numericValue = numericValue.subtract(BigInteger.ONE);
+                    }
+                }
+                return encodePoint(numericValue);
             }
 
             @Override
@@ -1375,7 +1570,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(
+                String name,
+                Number value,
+                boolean indexed,
+                boolean docValued,
+                boolean skiplist,
+                boolean stored
+            ) {
                 List<Field> fields = new ArrayList<>();
                 final BigInteger v = Numbers.toUnsignedLongExact(value);
 
@@ -1384,7 +1586,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
 
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, v.longValue()));
+                    if (skiplist) {
+                        fields.add(SortedNumericDocValuesField.indexedField(name, v.longValue()));
+                    } else {
+                        fields.add(new SortedNumericDocValuesField(name, v.longValue()));
+                    }
                 }
 
                 if (stored) {
@@ -1453,7 +1659,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public abstract Number parsePoint(byte[] value);
 
-        public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
+        public abstract List<Field> createFields(
+            String name,
+            Number value,
+            boolean indexed,
+            boolean docValued,
+            boolean skiplist,
+            boolean stored
+        );
 
         abstract Number valueForSearch(String value);
 
@@ -1852,6 +2065,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public byte[] encodePoint(Object value, boolean roundUp) {
+            return type.encodePoint(value, roundUp);
+        }
+
+        @Override
         public double toDoubleValue(long value) {
             return type.toDoubleValue(value);
         }
@@ -1866,6 +2084,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
+    private final boolean skiplist;
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
@@ -1879,6 +2098,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
+        this.skiplist = builder.skiplist.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
         this.nullValue = builder.nullValue.getValue();
@@ -1947,7 +2167,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
 
-        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored));
+        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
 
         if (hasDocValues == false && (stored || indexed)) {
             createFieldNamesField(context);

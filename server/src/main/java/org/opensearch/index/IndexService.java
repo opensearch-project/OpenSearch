@@ -206,6 +206,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Object refreshMutex = new Object();
     private volatile TimeValue refreshInterval;
     private volatile boolean shardLevelRefreshEnabled;
+    private final IndexStorePlugin.StoreFactory storeFactory;
 
     @InternalApi
     public IndexService(
@@ -228,6 +229,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.DirectoryFactory directoryFactory,
         IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.StoreFactory storeFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
@@ -253,6 +255,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) {
         super(indexSettings);
+        this.storeFactory = storeFactory;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
@@ -274,7 +277,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 idFieldDataEnabled,
                 scriptService
             );
-            this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
+            this.indexFieldData = new IndexFieldDataService(
+                indexSettings,
+                indicesFieldDataCache,
+                circuitBreakerService,
+                mapperService,
+                threadPool
+            );
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.
@@ -372,6 +381,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.StoreFactory storeFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
@@ -412,6 +422,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             directoryFactory,
             null,
             remoteDirectoryFactory,
+            storeFactory,
             eventListener,
             wrapperFactory,
             mapperRegistry,
@@ -673,7 +684,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             Store remoteStore = null;
             Directory remoteDirectory = null;
             boolean seedRemote = false;
-            if (targetNode.isRemoteStoreNode()) {
+            if (targetNode.isRemoteSegmentStoreNode()) {
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
@@ -689,7 +700,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
                         shardId,
-                        this.indexSettings.getRemoteStorePathStrategy()
+                        this.indexSettings.getRemoteStorePathStrategy(),
+                        this.indexSettings.getRemoteStoreSegmentPathPrefix()
                     );
                 }
                 // When an instance of Store is created, a shardlock is created which is released on closing the instance of store.
@@ -735,7 +747,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } else {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
-            store = new Store(
+            store = storeFactory.newStore(
                 shardId,
                 this.indexSettings,
                 directory,

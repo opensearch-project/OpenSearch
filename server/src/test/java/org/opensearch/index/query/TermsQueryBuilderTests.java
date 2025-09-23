@@ -196,6 +196,23 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         super.testUnknownField();
     }
 
+    @Override
+    public void testToQuery() throws IOException {
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("some_index", "some_id", "some_path"));
+        QueryShardContext context = createShardContext();
+
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> queryBuilder.toQuery(context));
+        assertEquals("query must be rewritten first", e.getMessage());
+    }
+
+    @Override
+    public void testCacheability() throws IOException {
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("some_index", "some_id", "some_path"));
+        QueryShardContext context = createShardContext();
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> queryBuilder.toQuery(context));
+        assertEquals("query must be rewritten first", e.getMessage());
+    }
+
     public void testEmptyFieldName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder(null, "term"));
         assertEquals("field name cannot be null.", e.getMessage());
@@ -543,7 +560,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testGetComplementValuesLookup() throws Exception {
-        // Complement should return null if the builder has termsLookup instead of values specified
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
         DirectoryReader reader = DirectoryReader.open(w);

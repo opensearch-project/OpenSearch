@@ -47,6 +47,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationTask;
@@ -520,12 +521,32 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
 
             private void finishRequest() {
+                // If no actual writes occurred (locationToSync is null), we should not trigger refresh
+                // even if the request has RefreshPolicy.IMMEDIATE
+                final Translog.Location locationToSync = context.getLocationToSync();
+                final BulkShardRequest bulkShardRequest = context.getBulkShardRequest();
+
+                // Create a modified request with NONE refresh policy if no writes occurred
+                final BulkShardRequest requestForResult;
+                if (locationToSync == null && bulkShardRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
+                    // No actual writes occurred, so we should not refresh
+                    requestForResult = new BulkShardRequest(
+                        bulkShardRequest.shardId(),
+                        WriteRequest.RefreshPolicy.NONE,
+                        bulkShardRequest.items()
+                    );
+                    requestForResult.index(bulkShardRequest.index());
+                    requestForResult.setParentTask(bulkShardRequest.getParentTask());
+                } else {
+                    requestForResult = bulkShardRequest;
+                }
+
                 ActionListener.completeWith(
                     listener,
                     () -> new WritePrimaryResult<>(
-                        context.getBulkShardRequest(),
+                        requestForResult,
                         context.buildShardResponse(),
-                        context.getLocationToSync(),
+                        locationToSync,
                         null,
                         context.getPrimary(),
                         logger

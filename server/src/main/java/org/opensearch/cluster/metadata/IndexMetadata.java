@@ -458,6 +458,57 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Dynamic
     );
 
+    /**
+     * Used to specify a custom path prefix for remote store segments. This allows injecting a unique identifier
+     * (e.g., writer node ID) into the remote store path to support clusterless configurations where multiple
+     * writers may write to the same shard.
+     */
+    public static final Setting<String> INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX = Setting.simpleString(
+        "index.remote_store.segment.path_prefix",
+        "",
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {}
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                // Only validate if the value is not null and not empty
+                if (value != null && !value.trim().isEmpty()) {
+                    // Validate that remote store is enabled when this setting is used
+                    final Boolean isRemoteSegmentStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                    if (isRemoteSegmentStoreEnabled == null || isRemoteSegmentStoreEnabled == false) {
+                        throw new IllegalArgumentException(
+                            "Setting "
+                                + INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey()
+                                + " can only be set when "
+                                + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
+                                + " is set to true"
+                        );
+                    }
+
+                    // Validate that the path prefix doesn't contain invalid characters for file paths
+                    if (value.contains("/") || value.contains("\\") || value.contains(":")) {
+                        throw new IllegalArgumentException(
+                            "Setting "
+                                + INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.getKey()
+                                + " cannot contain path separators (/ or \\) or drive specifiers (:)"
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Dynamic
+    );
+
     private static void validateRemoteStoreSettingEnabled(final Map<Setting<?>, Object> settings, Setting<?> setting) {
         final Boolean isRemoteSegmentStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
         if (isRemoteSegmentStoreEnabled == false) {
@@ -856,6 +907,44 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.Property.Final
     );
 
+    /**
+     * Defines if all-active pull-based ingestion is enabled. In this mode, replicas will directly consume from the
+     * streaming source and process the updates. This mode is currently not supported along with segment replication.
+     */
+    public static final String SETTING_INGESTION_SOURCE_ALL_ACTIVE_INGESTION = "index.ingestion_source.all_active";
+    public static final Setting<Boolean> INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING = Setting.boolSetting(
+        SETTING_INGESTION_SOURCE_ALL_ACTIVE_INGESTION,
+        false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {}
+
+            @Override
+            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                final Object replicationType = settings.get(INDEX_REPLICATION_TYPE_SETTING);
+                if (ReplicationType.SEGMENT.equals(replicationType) && value) {
+                    throw new IllegalArgumentException(
+                        "To enable "
+                            + INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey()
+                            + ", "
+                            + INDEX_REPLICATION_TYPE_SETTING.getKey()
+                            + " should not be set to "
+                            + ReplicationType.SEGMENT
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(INDEX_REPLICATION_TYPE_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Setting.Property.Final
+    );
+
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
         "index.ingestion_source.param.",
         key -> new Setting<>(key, "", (value) -> {
@@ -1100,6 +1189,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.get(settings);
             final int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.get(settings);
             final int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.get(settings);
+            final boolean allActiveIngestionEnabled = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
@@ -1108,6 +1198,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setPollTimeout(pollTimeout)
                 .setNumProcessorThreads(numProcessorThreads)
                 .setBlockingQueueSize(blockingQueueSize)
+                .setAllActiveIngestion(allActiveIngestionEnabled)
                 .build();
         }
         return null;

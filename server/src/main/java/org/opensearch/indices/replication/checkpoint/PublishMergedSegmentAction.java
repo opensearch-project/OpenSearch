@@ -21,6 +21,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher.PublishAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -31,7 +32,9 @@ import org.opensearch.transport.TransportService;
  * @opensearch.api
  */
 @ExperimentalApi
-public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest> {
+public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<PublishMergedSegmentRequest, PublishMergedSegmentRequest>
+    implements
+        PublishAction {
     private static final String TASK_ACTION_NAME = "segrep_publish_merged_segment";
     public static final String ACTION_NAME = "indices:admin/publish_merged_segment";
     protected static Logger logger = LogManager.getLogger(PublishMergedSegmentAction.class);
@@ -74,7 +77,7 @@ public class PublishMergedSegmentAction extends AbstractPublishCheckpointAction<
     /**
      * Publish merged segment request to shard
      */
-    final void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
+    final public void publish(IndexShard indexShard, MergedSegmentCheckpoint checkpoint) {
         doPublish(
             indexShard,
             checkpoint,

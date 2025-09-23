@@ -174,6 +174,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -824,7 +825,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
             new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex().resolve("lock_files")))
         );
-        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool, shardId);
+        return new RemoteSegmentStoreDirectory(
+            dataDirectory,
+            metadataDirectory,
+            remoteStoreLockManager,
+            threadPool,
+            shardId,
+            new HashMap<>()
+        );
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {

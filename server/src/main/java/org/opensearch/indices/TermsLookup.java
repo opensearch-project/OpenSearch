@@ -42,12 +42,15 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.AbstractQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Encapsulates the parameters needed to fetch terms.
@@ -57,23 +60,44 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 public class TermsLookup implements Writeable, ToXContentFragment {
 
     private final String index;
-    private final String id;
+    private String id;
     private final String path;
     private String routing;
+    private QueryBuilder query;
 
     public TermsLookup(String index, String id, String path) {
-        if (id == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the id.");
+        this(index, id, path, null);
+    }
+
+    public TermsLookup(String index, String id, String path, QueryBuilder query) {
+        if (index == null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] index cannot be null or empty for TermsLookup");
         }
         if (path == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the path.");
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] path cannot be null or empty for TermsLookup");
         }
-        if (index == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the index.");
+        if (id == null && query == null) {
+            throw new IllegalArgumentException(
+                "[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query."
+            );
         }
+        if (id != null && query != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+
+        }
+
         this.index = index;
         this.id = id;
         this.path = path;
+        this.query = query;
+    }
+
+    public String index() {
+        return index;
+    }
+
+    public String id() {
+        return id;
     }
 
     /**
@@ -90,6 +114,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             store = in.readBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
+        }
     }
 
     @Override
@@ -104,14 +131,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeBoolean(store);
         }
-    }
-
-    public String index() {
-        return index;
-    }
-
-    public String id() {
-        return id;
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            out.writeOptionalWriteable(query);
+        }
     }
 
     public String path() {
@@ -138,18 +160,60 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
+    public QueryBuilder query() {
+        return query;
+    }
+
+    public TermsLookup query(QueryBuilder query) {
+        this.query = query;
+        return this;
+    }
+
+    public void setQuery(QueryBuilder query) {
+        if (this.id != null && query != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+        }
+        this.query = query;
+    }
+
+    public TermsLookup id(String id) {
+        if (this.query != null && id != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+        }
+        this.id = id;
+        return this;
+    }
+
     private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
         String index = (String) args[0];
-        String id = (String) args[1];
+        String id = (String) args[1]; // Optional id or query but not both
         String path = (String) args[2];
-        return new TermsLookup(index, id, path);
+        QueryBuilder query = (QueryBuilder) args[3]; // Optional id or query but not both
+
+        // Validation: Either id or query must be present, but not both
+        if (id == null && query == null) {
+            throw new IllegalArgumentException(
+                "[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query."
+            );
+        }
+        if (id != null && query != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+        }
+        return new TermsLookup(index, id, path, query);
     });
     static {
-        PARSER.declareString(constructorArg(), new ParseField("index"));
-        PARSER.declareString(constructorArg(), new ParseField("id"));
-        PARSER.declareString(constructorArg(), new ParseField("path"));
-        PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
-        PARSER.declareBoolean(TermsLookup::store, new ParseField("store"));
+        PARSER.declareString(constructorArg(), new ParseField("index")); // Required
+        PARSER.declareString(optionalConstructorArg(), new ParseField("id")); // Optional
+        PARSER.declareString(constructorArg(), new ParseField("path")); // Required
+        PARSER.declareObject(optionalConstructorArg(), (parser, context) -> {
+            try {
+                return AbstractQueryBuilder.parseInnerQueryBuilder(parser); // Parse query if provided
+            } catch (IOException e) {
+                throw new RuntimeException("Error parsing inner query builder", e);
+            }
+        }, new ParseField("query")); // Optional
+        PARSER.declareString(TermsLookup::routing, new ParseField("routing")); // Optional
+        PARSER.declareBoolean(TermsLookup::store, new ParseField("store")); // Optional
     }
 
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
@@ -164,10 +228,16 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("index", index);
-        builder.field("id", id);
+        if (id != null) {
+            builder.field("id", id);
+        }
         builder.field("path", path);
         if (routing != null) {
             builder.field("routing", routing);
+        }
+        if (query != null) {
+            builder.field("query");
+            query.toXContent(builder, params);
         }
         if (store) {
             builder.field("store", true);
@@ -177,7 +247,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, id, path, routing, store);
+        return Objects.hash(index, id, path, routing, store, query);
     }
 
     @Override
@@ -193,6 +263,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             && Objects.equals(id, other.id)
             && Objects.equals(path, other.path)
             && Objects.equals(routing, other.routing)
-            && Objects.equals(store, other.store);
+            && Objects.equals(store, other.store)
+            && Objects.equals(query, other.query);
     }
 }

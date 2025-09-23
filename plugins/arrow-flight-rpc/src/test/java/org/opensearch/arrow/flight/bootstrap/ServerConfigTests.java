@@ -26,7 +26,7 @@ public class ServerConfigTests extends OpenSearchTestCase {
             .put("arrow.enable_null_check_for_get", false)
             .put("arrow.enable_unsafe_memory_access", true)
             .put("arrow.memory.debug.allocator", false)
-            .put("arrow.ssl.enable", true)
+            .put("flight.ssl.enable", true)
             .put("thread_pool.flight-server.min", 1)
             .put("thread_pool.flight-server.max", 4)
             .put("thread_pool.flight-server.keep_alive", TimeValue.timeValueMinutes(5))
@@ -45,12 +45,16 @@ public class ServerConfigTests extends OpenSearchTestCase {
         // Verify SSL settings
         assertTrue(ServerConfig.isSslEnabled());
 
-        ScalingExecutorBuilder executorBuilder = ServerConfig.getServerExecutorBuilder();
-        assertNotNull(executorBuilder);
-        assertEquals(3, executorBuilder.getRegisteredSettings().size());
-        assertEquals(1, executorBuilder.getRegisteredSettings().get(0).get(settings)); // min
-        assertEquals(4, executorBuilder.getRegisteredSettings().get(1).get(settings)); // max
-        assertEquals(TimeValue.timeValueMinutes(5), executorBuilder.getRegisteredSettings().get(2).get(settings)); // keep alive
+        ScalingExecutorBuilder serverExecutorBuilder = ServerConfig.getServerExecutorBuilder();
+        ScalingExecutorBuilder flightGrpcExecutorBuilder = ServerConfig.getGrpcExecutorBuilder();
+
+        assertNotNull(serverExecutorBuilder);
+        assertNotNull(flightGrpcExecutorBuilder);
+
+        assertEquals(3, serverExecutorBuilder.getRegisteredSettings().size());
+        assertEquals(1, serverExecutorBuilder.getRegisteredSettings().get(0).get(settings)); // min
+        assertEquals(4, serverExecutorBuilder.getRegisteredSettings().get(1).get(settings)); // max
+        assertEquals(TimeValue.timeValueMinutes(5), serverExecutorBuilder.getRegisteredSettings().get(2).get(settings)); // keep alive
     }
 
     public void testGetSettings() {

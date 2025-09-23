@@ -16,6 +16,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.BufferedOutputStream;
@@ -25,9 +26,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -78,7 +76,7 @@ public class TransferManager {
         logger.trace("fetchBlob called for {}", key.toString());
 
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<IndexInput>) () -> {
+            return AccessController.doPrivilegedChecked(() -> {
                 CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
                     if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
                         logger.trace("Transfer Manager - IndexInput closed or not in cache");
@@ -100,20 +98,19 @@ public class TransferManager {
                     fileCache.decRef(key);
                 }
             });
-        } catch (PrivilegedActionException e) {
-            final Exception cause = e.getException();
-            if (cause instanceof IOException) {
-                throw (IOException) cause;
-            } else if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
+        } catch (Exception e) {
+            if (e instanceof IOException) {
+                throw (IOException) e;
+            } else if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
             } else {
-                throw new IOException(cause);
+                throw new IOException(e);
             }
         }
     }
 
     @ExperimentalApi
-    public void fetchBlobAsync(BlobFetchRequest blobFetchRequest) throws IOException {
+    public CompletableFuture<IndexInput> fetchBlobAsync(BlobFetchRequest blobFetchRequest) throws IOException {
         final Path key = blobFetchRequest.getFilePath();
         logger.trace("Asynchronous fetchBlob called for {}", key.toString());
         try {
@@ -133,7 +130,7 @@ public class TransferManager {
             // decrement this reference _after_ creating the clone to be returned.
             // Making sure remote recovery thread-pool take care of background download
             try {
-                cacheEntry.asyncLoadIndexInput(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY));
+                return cacheEntry.asyncLoadIndexInput(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY));
             } catch (Exception exception) {
                 fileCache.decRef(key);
                 throw exception;

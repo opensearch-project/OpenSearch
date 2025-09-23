@@ -8,9 +8,11 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.DimensionFactory;
@@ -22,6 +24,7 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettin
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -603,4 +606,15 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * StarTree field is not a part of an ingested document, so omitting it from derived source validation
+     */
+    @Override
+    public void canDeriveSource() {}
+
+    /**
+     * StarTree field is not a part of an ingested document, so omitting it from derived source generation
+     */
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {}
 }

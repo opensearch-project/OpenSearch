@@ -142,6 +142,9 @@ import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+
 /**
  * Administrative actions/operations against indices.
  *
@@ -899,4 +902,306 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * @return The request builder configured with the specified scaling direction
      */
     ScaleIndexRequestBuilder prepareScaleSearchOnly(String index, boolean searchOnly);
+
+    /** Indices Exists - CompletionStage version */
+    default CompletionStage<IndicesExistsResponse> existsAsync(IndicesExistsRequest request) {
+        CompletableFuture<IndicesExistsResponse> future = new CompletableFuture<>();
+        exists(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Indices stats - CompletionStage version */
+    default CompletionStage<IndicesStatsResponse> statsAsync(IndicesStatsRequest request) {
+        CompletableFuture<IndicesStatsResponse> future = new CompletableFuture<>();
+        stats(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Recoveries - CompletionStage version */
+    default CompletionStage<RecoveryResponse> recoveriesAsync(RecoveryRequest request) {
+        CompletableFuture<RecoveryResponse> future = new CompletableFuture<>();
+        recoveries(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Segment replication stats - CompletionStage version */
+    default CompletionStage<SegmentReplicationStatsResponse> segmentReplicationStatsAsync(SegmentReplicationStatsRequest request) {
+        CompletableFuture<SegmentReplicationStatsResponse> future = new CompletableFuture<>();
+        segmentReplicationStats(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Segments - CompletionStage version */
+    default CompletionStage<IndicesSegmentResponse> segmentsAsync(IndicesSegmentsRequest request) {
+        CompletableFuture<IndicesSegmentResponse> future = new CompletableFuture<>();
+        segments(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Shard stores - CompletionStage version */
+    default CompletionStage<IndicesShardStoresResponse> shardStoresAsync(IndicesShardStoresRequest request) {
+        CompletableFuture<IndicesShardStoresResponse> future = new CompletableFuture<>();
+        shardStores(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Create index - CompletionStage version */
+    default CompletionStage<CreateIndexResponse> createAsync(CreateIndexRequest request) {
+        CompletableFuture<CreateIndexResponse> future = new CompletableFuture<>();
+        create(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete index - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteAsync(DeleteIndexRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        delete(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Close index - CompletionStage version */
+    default CompletionStage<CloseIndexResponse> closeAsync(CloseIndexRequest request) {
+        CompletableFuture<CloseIndexResponse> future = new CompletableFuture<>();
+        close(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Open index - CompletionStage version */
+    default CompletionStage<OpenIndexResponse> openAsync(OpenIndexRequest request) {
+        CompletableFuture<OpenIndexResponse> future = new CompletableFuture<>();
+        open(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Add index block - CompletionStage version */
+    default CompletionStage<AddIndexBlockResponse> addBlockAsync(AddIndexBlockRequest request) {
+        CompletableFuture<AddIndexBlockResponse> future = new CompletableFuture<>();
+        addBlock(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Refresh - CompletionStage version */
+    default CompletionStage<RefreshResponse> refreshAsync(RefreshRequest request) {
+        CompletableFuture<RefreshResponse> future = new CompletableFuture<>();
+        refresh(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Flush - CompletionStage version */
+    default CompletionStage<FlushResponse> flushAsync(FlushRequest request) {
+        CompletableFuture<FlushResponse> future = new CompletableFuture<>();
+        flush(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Force-merge - CompletionStage version */
+    default CompletionStage<ForceMergeResponse> forceMergeAsync(ForceMergeRequest request) {
+        CompletableFuture<ForceMergeResponse> future = new CompletableFuture<>();
+        forceMerge(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Upgrade - CompletionStage version */
+    default CompletionStage<UpgradeResponse> upgradeAsync(UpgradeRequest request) {
+        CompletableFuture<UpgradeResponse> future = new CompletableFuture<>();
+        upgrade(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Upgrade status - CompletionStage version */
+    default CompletionStage<UpgradeStatusResponse> upgradeStatusAsync(UpgradeStatusRequest request) {
+        CompletableFuture<UpgradeStatusResponse> future = new CompletableFuture<>();
+        upgradeStatus(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get mappings - CompletionStage version */
+    default CompletionStage<GetMappingsResponse> getMappingsAsync(GetMappingsRequest request) {
+        CompletableFuture<GetMappingsResponse> future = new CompletableFuture<>();
+        getMappings(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get field mappings - CompletionStage version */
+    default CompletionStage<GetFieldMappingsResponse> getFieldMappingsAsync(GetFieldMappingsRequest request) {
+        CompletableFuture<GetFieldMappingsResponse> future = new CompletableFuture<>();
+        getFieldMappings(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Put mapping - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> putMappingAsync(PutMappingRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        putMapping(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Aliases - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> aliasesAsync(IndicesAliasesRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        aliases(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get aliases - CompletionStage version */
+    default CompletionStage<GetAliasesResponse> getAliasesAsync(GetAliasesRequest request) {
+        CompletableFuture<GetAliasesResponse> future = new CompletableFuture<>();
+        getAliases(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get index - CompletionStage version */
+    default CompletionStage<GetIndexResponse> getIndexAsync(GetIndexRequest request) {
+        CompletableFuture<GetIndexResponse> future = new CompletableFuture<>();
+        getIndex(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Clear cache - CompletionStage version */
+    default CompletionStage<ClearIndicesCacheResponse> clearCacheAsync(ClearIndicesCacheRequest request) {
+        CompletableFuture<ClearIndicesCacheResponse> future = new CompletableFuture<>();
+        clearCache(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Update settings - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> updateSettingsAsync(UpdateSettingsRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        updateSettings(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get settings - CompletionStage version */
+    default CompletionStage<GetSettingsResponse> getSettingsAsync(GetSettingsRequest request) {
+        CompletableFuture<GetSettingsResponse> future = new CompletableFuture<>();
+        getSettings(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Analyze - CompletionStage version */
+    default CompletionStage<AnalyzeAction.Response> analyzeAsync(AnalyzeAction.Request request) {
+        CompletableFuture<AnalyzeAction.Response> future = new CompletableFuture<>();
+        analyze(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Put template - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> putTemplateAsync(PutIndexTemplateRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        putTemplate(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete template - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteTemplateAsync(DeleteIndexTemplateRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deleteTemplate(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get templates - CompletionStage version */
+    default CompletionStage<GetIndexTemplatesResponse> getTemplatesAsync(GetIndexTemplatesRequest request) {
+        CompletableFuture<GetIndexTemplatesResponse> future = new CompletableFuture<>();
+        getTemplates(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Validate query - CompletionStage version */
+    default CompletionStage<ValidateQueryResponse> validateQueryAsync(ValidateQueryRequest request) {
+        CompletableFuture<ValidateQueryResponse> future = new CompletableFuture<>();
+        validateQuery(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Resize index - CompletionStage version */
+    default CompletionStage<ResizeResponse> resizeIndexAsync(ResizeRequest request) {
+        CompletableFuture<ResizeResponse> future = new CompletableFuture<>();
+        resizeIndex(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Rollover index - CompletionStage version */
+    default CompletionStage<RolloverResponse> rolloverIndexAsync(RolloverRequest request) {
+        CompletableFuture<RolloverResponse> future = new CompletableFuture<>();
+        rolloverIndex(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Create data stream - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> createDataStreamAsync(CreateDataStreamAction.Request request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        createDataStream(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete data stream - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteDataStreamAsync(DeleteDataStreamAction.Request request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deleteDataStream(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get data streams - CompletionStage version */
+    default CompletionStage<GetDataStreamAction.Response> getDataStreamsAsync(GetDataStreamAction.Request request) {
+        CompletableFuture<GetDataStreamAction.Response> future = new CompletableFuture<>();
+        getDataStreams(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Resolve index - CompletionStage version */
+    default CompletionStage<ResolveIndexAction.Response> resolveIndexAsync(ResolveIndexAction.Request request) {
+        CompletableFuture<ResolveIndexAction.Response> future = new CompletableFuture<>();
+        resolveIndex(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Create view - CompletionStage version */
+    default CompletionStage<GetViewAction.Response> createViewAsync(CreateViewAction.Request request) {
+        CompletableFuture<GetViewAction.Response> future = new CompletableFuture<>();
+        createView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get view - CompletionStage version */
+    default CompletionStage<GetViewAction.Response> getViewAsync(GetViewAction.Request request) {
+        CompletableFuture<GetViewAction.Response> future = new CompletableFuture<>();
+        getView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete view - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteViewAsync(DeleteViewAction.Request request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deleteView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Update view - CompletionStage version */
+    default CompletionStage<GetViewAction.Response> updateViewAsync(CreateViewAction.Request request) {
+        CompletableFuture<GetViewAction.Response> future = new CompletableFuture<>();
+        updateView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Pause ingestion - CompletionStage version */
+    default CompletionStage<PauseIngestionResponse> pauseIngestionAsync(PauseIngestionRequest request) {
+        CompletableFuture<PauseIngestionResponse> future = new CompletableFuture<>();
+        pauseIngestion(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Resume ingestion - CompletionStage version */
+    default CompletionStage<ResumeIngestionResponse> resumeIngestionAsync(ResumeIngestionRequest request) {
+        CompletableFuture<ResumeIngestionResponse> future = new CompletableFuture<>();
+        resumeIngestion(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get ingestion state - CompletionStage version */
+    default CompletionStage<GetIngestionStateResponse> getIngestionStateAsync(GetIngestionStateRequest request) {
+        CompletableFuture<GetIngestionStateResponse> future = new CompletableFuture<>();
+        getIngestionState(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
 }

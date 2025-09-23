@@ -21,7 +21,6 @@ import java.util.function.LongSupplier;
  *
  * @opensearch.api
  */
-@FunctionalInterface
 @PublicApi(since = "1.0.0")
 public interface TranslogFactory {
 
@@ -33,5 +32,16 @@ public interface TranslogFactory {
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer,
         final BooleanSupplier startedPrimarySupplier
+    ) throws IOException;
+
+    Translog newTranslog(
+        final TranslogConfig config,
+        final String translogUUID,
+        final TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final BooleanSupplier startedPrimarySupplier,
+        final TranslogOperationHelper translogOperationHelper
     ) throws IOException;
 }

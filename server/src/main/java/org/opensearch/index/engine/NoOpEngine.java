@@ -51,6 +51,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -191,7 +192,8 @@ public final class NoOpEngine extends ReadOnlyEngine {
                                         engineConfig.getGlobalCheckpointSupplier(),
                                         engineConfig.getPrimaryTermSupplier(),
                                         seqNo -> {},
-                                        engineConfig.getStartedPrimarySupplier()
+                                        engineConfig.getStartedPrimarySupplier(),
+                                        TranslogOperationHelper.create(engineConfig)
                                     )
                             ) {
                                 translog.trimUnreferencedReaders();
