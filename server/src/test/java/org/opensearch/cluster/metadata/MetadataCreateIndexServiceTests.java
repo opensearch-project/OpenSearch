@@ -93,7 +93,6 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
@@ -1399,9 +1398,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreNoUserOverrideExceptReplicationTypeSegmentIndexSettings() {
         DiscoveryNode node = getRemoteNode();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(node).build())
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(node).build()).build();
 
         RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
         assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
@@ -1468,9 +1465,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreNoUserOverrideIndexSettings() {
         DiscoveryNode node = getRemoteNode();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(node).build())
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(node).build()).build();
 
         RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
         assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
@@ -1682,7 +1677,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             null
         );
 
-
     }
 
     @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
@@ -1715,10 +1709,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             // Just eatup the validation exception
         }
 
-        DiscoveryNodes finalDiscoveryNodes = DiscoveryNodes.builder()
-            .add(nonRemoteClusterManagerNode)
-            .add(missingTranslogNode)
-            .build();
+        DiscoveryNodes finalDiscoveryNodes = DiscoveryNodes.builder().add(nonRemoteClusterManagerNode).add(missingTranslogNode).build();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test-index", "test-index");
         ClusterState finalClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(finalDiscoveryNodes).build();
         Settings remoteStoreMigrationSettings = Settings.builder()
@@ -2744,16 +2735,58 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     private DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-segment-repo-1"), "s3");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-segment-repo-1") + "bucket", "test-bucket");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-segment-repo-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-segment-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
 
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-translog-repo-1"), "s3");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-translog-repo-1") + "bucket", "test-bucket");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-translog-repo-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-translog-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
 
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-cluster-rep-1"), "s3");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-cluster-rep-1") + "bucket", "test-bucket");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-cluster-rep-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-cluster-rep-1"
+            ) + "bucket",
+            "test-bucket"
+        );
 
         return new DiscoveryNode(
             UUIDs.base64UUID(),

@@ -41,19 +41,46 @@ public class IndexShardTestUtils {
         remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_STATE_REPO_NAME);
         remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_SEGMENT_REPO_NAME);
         remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_TLOG_REPO_NAME);
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, MOCK_SEGMENT_REPO_NAME), "s3");
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, MOCK_TLOG_REPO_NAME), "s3");
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, MOCK_STATE_REPO_NAME), "s3");
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, MOCK_SEGMENT_REPO_NAME),
+            "s3"
+        );
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, MOCK_TLOG_REPO_NAME),
+            "s3"
+        );
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, MOCK_STATE_REPO_NAME),
+            "s3"
+        );
 
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_SEGMENT_REPO_NAME) + "bucket", "test-bucket");
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_SEGMENT_REPO_NAME) + "path", "test-path");
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_SEGMENT_REPO_NAME)
+                + "bucket",
+            "test-bucket"
+        );
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_SEGMENT_REPO_NAME) + "path",
+            "test-path"
+        );
 
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_TLOG_REPO_NAME) + "bucket", "test-bucket");
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_TLOG_REPO_NAME) + "path", "test-path");
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_TLOG_REPO_NAME) + "bucket",
+            "test-bucket"
+        );
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_TLOG_REPO_NAME) + "path",
+            "test-path"
+        );
 
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_STATE_REPO_NAME) + "bucket", "test-bucket");
-        remoteNodeAttributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_STATE_REPO_NAME) + "path", "test-path");
-
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_STATE_REPO_NAME) + "bucket",
+            "test-bucket"
+        );
+        remoteNodeAttributes.put(
+            String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, MOCK_STATE_REPO_NAME) + "path",
+            "test-path"
+        );
 
         DiscoveryNode node = new DiscoveryNode(
             id,

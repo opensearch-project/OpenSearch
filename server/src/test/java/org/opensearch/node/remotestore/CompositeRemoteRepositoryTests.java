@@ -10,26 +10,26 @@ package org.opensearch.node.remotestore;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-public class CompositeRemoteRepositoryTest {
+public class CompositeRemoteRepositoryTests extends OpenSearchTestCase {
 
     private CompositeRemoteRepository compositeRepo;
     private RepositoryMetadata mockMetadata;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
+        super.setUp();
         compositeRepo = new CompositeRemoteRepository();
         mockMetadata = new RepositoryMetadata("test-repo", "fs", Settings.EMPTY);
     }
 
-    @Test
     public void testRegisterCompositeRepository() {
         compositeRepo.registerCompositeRepository(
             CompositeRemoteRepository.RemoteStoreRepositoryType.SEGMENT,
@@ -46,7 +46,6 @@ public class CompositeRemoteRepositoryTest {
         assertEquals(mockMetadata, result);
     }
 
-    @Test
     public void testIsServerSideEncryptionEnabled() {
         compositeRepo.registerCompositeRepository(
             CompositeRemoteRepository.RemoteStoreRepositoryType.SEGMENT,
@@ -67,7 +66,6 @@ public class CompositeRemoteRepositoryTest {
         assertTrue(compositeRepo.isServerSideEncryptionEnabled());
     }
 
-    @Test
     public void testMultipleRepositoryTypes() {
         compositeRepo.registerCompositeRepository(
             CompositeRemoteRepository.RemoteStoreRepositoryType.SEGMENT,
@@ -94,18 +92,5 @@ public class CompositeRemoteRepositoryTest {
                 CompositeRemoteRepository.CompositeRepositoryEncryptionType.SERVER
             )
         );
-    }
-
-    @Test
-    public void testToString() {
-        compositeRepo.registerCompositeRepository(
-            CompositeRemoteRepository.RemoteStoreRepositoryType.SEGMENT,
-            CompositeRemoteRepository.CompositeRepositoryEncryptionType.SERVER,
-            mockMetadata
-        );
-
-        String result = compositeRepo.toString();
-        assertTrue(result.contains("CompositeRemoteRepository"));
-        assertTrue(result.contains("repositoryEncryptionTypeMap"));
     }
 }

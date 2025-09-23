@@ -56,7 +56,10 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
 
         Supplier<RepositoriesService> repositoriesServiceSupplier = mock(Supplier.class);
         Settings settings = Settings.builder()
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "segment-test-repo")
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "segment-test-repo"
+            )
             .build();
         RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);

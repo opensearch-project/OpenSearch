@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -86,17 +87,74 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
     public void setUp() throws Exception {
         Supplier<RepositoriesService> repositoriesServiceSupplier = mock(Supplier.class);
         Settings settings = Settings.builder()
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "segment-test-repo")
-            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "segment-test-repo"), "s3")
-            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "segment-test-repo") + "bucket", "test-bucket")
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "segment-test-repo"
+            )
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + String.format(
+                    Locale.getDefault(),
+                    RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                    "segment-test-repo"
+                ),
+                "s3"
+            )
+            .put(
+                Node.NODE_ATTRIBUTES.getKey()
+                    + String.format(
+                        Locale.getDefault(),
+                        RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                        "segment-test-repo"
+                    )
+                    + "bucket",
+                "test-bucket"
+            )
 
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "tlog-test-repo")
-            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "tlog-test-repo"), "s3")
-            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "tlog-test-repo") + "bucket", "test-bucket")
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "tlog-test-repo"
+            )
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + String.format(
+                    Locale.getDefault(),
+                    RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                    "tlog-test-repo"
+                ),
+                "s3"
+            )
+            .put(
+                Node.NODE_ATTRIBUTES.getKey()
+                    + String.format(
+                        Locale.getDefault(),
+                        RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                        "tlog-test-repo"
+                    )
+                    + "bucket",
+                "test-bucket"
+            )
 
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "state-test-repo")
-            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "state-test-repo"), "s3")
-            .put(Node.NODE_ATTRIBUTES.getKey() + String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "state-test-repo") + "bucket", "test-bucket")
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "state-test-repo"
+            )
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + String.format(
+                    Locale.getDefault(),
+                    RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                    "state-test-repo"
+                ),
+                "s3"
+            )
+            .put(
+                Node.NODE_ATTRIBUTES.getKey()
+                    + String.format(
+                        Locale.getDefault(),
+                        RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                        "state-test-repo"
+                    )
+                    + "bucket",
+                "test-bucket"
+            )
 
             .build();
         RepositoriesService repositoriesService = mock(RepositoriesService.class);
@@ -115,8 +173,6 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             Settings.builder().put(CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-
-
 
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.schedule(any(), any(), any())).then(invocationOnMock -> {

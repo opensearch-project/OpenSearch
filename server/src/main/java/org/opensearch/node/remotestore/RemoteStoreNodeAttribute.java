@@ -220,8 +220,10 @@ public class RemoteStoreNodeAttribute {
 
         // Let's Iterate over repo's and build Composite Repository structure
         for (Map.Entry<String, String> repositoryTypeToNameEntry : remoteStoryTypeToRepoNameMap.entrySet()) {
-            CompositeRemoteRepository.CompositeRepositoryEncryptionType encryptionType = CompositeRemoteRepository.CompositeRepositoryEncryptionType.CLIENT;
-            CompositeRemoteRepository.RemoteStoreRepositoryType remoteStoreRepositoryType = CompositeRemoteRepository.RemoteStoreRepositoryType.SEGMENT;
+            CompositeRemoteRepository.CompositeRepositoryEncryptionType encryptionType =
+                CompositeRemoteRepository.CompositeRepositoryEncryptionType.CLIENT;
+            CompositeRemoteRepository.RemoteStoreRepositoryType remoteStoreRepositoryType =
+                CompositeRemoteRepository.RemoteStoreRepositoryType.SEGMENT;
             if (repositoryTypeToNameEntry.getKey().contains(REMOTE_STORE_TRANSLOG_REPO_PREFIX)) {
                 remoteStoreRepositoryType = CompositeRemoteRepository.RemoteStoreRepositoryType.TRANSLOG;
             }

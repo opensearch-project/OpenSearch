@@ -43,6 +43,7 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -100,8 +101,22 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         Map<String, String> attributes = new HashMap<>();
 
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-segment-repo-1"), "s3");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-segment-repo-1") + "bucket", "test-bucket");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-segment-repo-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-segment-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
 
@@ -281,11 +296,39 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         Map<String, String> attributes = new HashMap<>();
 
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-segment-repo-1"), "s3");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-segment-repo-1") + "bucket", "test-bucket");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-segment-repo-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-segment-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, "my-translog-repo-1"), "s3");
-        attributes.put(String.format(RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, "my-translog-repo-1") + "bucket", "test-bucket");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-translog-repo-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-translog-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
 
         DiscoveryNode node = new DiscoveryNode(
