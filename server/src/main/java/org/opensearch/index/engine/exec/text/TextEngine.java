@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +34,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
 
     private final AtomicLong counter = new AtomicLong();
     private final Set<TextWriter> openWriters = new HashSet<>();
-    private List<FileMetadata> openFiles = new ArrayList<>();
+    private final List<FileMetadata> openFiles = new ArrayList<>();
 
     @Override
     public List<String> supportedFieldTypes() {
@@ -61,6 +60,7 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
     }
 
     public static class TextInput implements DocumentInput<String> {
+
         private final StringBuilder sb = new StringBuilder();
         private final TextWriter writer;
 
@@ -89,17 +89,15 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         }
     }
 
-
-
     public static class TextWriter implements Writer<TextInput> {
 
         private final StringBuilder sb = new StringBuilder();
         private final File currentFile;
-        private AtomicBoolean flushed = new AtomicBoolean(false);
+        private final AtomicBoolean flushed = new AtomicBoolean(false);
         private final Runnable onClose;
 
-        public TextWriter(String currentFile, TextEngine engine) throws IOException{
-            this.currentFile = new File("/Users/mgodwan/" + currentFile);
+        public TextWriter(String currentFile, TextEngine engine) throws IOException {
+            this.currentFile = new File("/Users/shnkgo/mustang" + currentFile);
             this.currentFile.createNewFile();
             boolean canWrite = this.currentFile.setWritable(true);
             if (!canWrite) {
@@ -145,5 +143,6 @@ public class TextEngine implements IndexingExecutionEngine<TextDF> {
         public TextInput newDocumentInput() {
             return new TextInput(this);
         }
+
     }
 }

@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.exec.coord;
 
-
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
@@ -27,7 +26,7 @@ import java.util.List;
 public class IndexingManager {  //Internal Engine
 
     private final CompositeIndexingExecutionEngine engine;
-    private List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
+    private final List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
     private CatalogSnapshot catalogSnapshot;
 
     public IndexingManager(MapperService mapperService/*, EngineConfig engineConfig*/) {
@@ -44,7 +43,6 @@ public class IndexingManager {  //Internal Engine
         return new Engine.IndexResult(writeResult.version(), writeResult.seqNo(), writeResult.term(), writeResult.success());
     }
 
-
     public synchronized void refresh(String source) throws EngineException, IOException {
         refreshListeners.forEach(ref -> {
             try {
@@ -53,7 +51,6 @@ public class IndexingManager {  //Internal Engine
                 throw new RuntimeException(e);
             }
         });
-
 
         long id = 0L;
         if (catalogSnapshot != null) {
@@ -88,10 +85,8 @@ public class IndexingManager {  //Internal Engine
         };
     }
 
-
-
     public static abstract class ReleasableRef<T> implements AutoCloseable {
-        private T t;
+        private final T t;
 
         public ReleasableRef(T t) {
             this.t = t;

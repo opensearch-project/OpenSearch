@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 public interface Writer<P extends DocumentInput<?>> {
+
     WriteResult addDoc(P d) throws IOException;
 
     FileMetadata flush(FlushIn flushIn) throws IOException;
