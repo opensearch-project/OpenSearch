@@ -116,11 +116,6 @@ public class LoadExtendingPluginServicesIT extends GrpcTransportBaseIT {
         try (NettyGrpcClient client = createGrpcClient()) {
             List<ServiceResponse> servicesResp = client.listServices().get();
             boolean foundMockService = servicesResp.stream().anyMatch(service -> service.getName().contains("grpc.channelz.v1.Channelz"));
-            
-            for (ServiceResponse resp : servicesResp) {
-                System.out.println("SERVICE: " + resp.getName());
-            }
-
             assertTrue("Failed to discover plugin provided service: grpc.channelz.v1.Channelz", foundMockService);
         }
     }
