@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc.proto.request.search.suggest;
 
-import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 
 /**
@@ -29,7 +28,7 @@ public class TermSuggestionBuilderProtoUtils {
      * @return the corresponding TermSuggestionBuilder.SuggestMode
      * @throws IllegalArgumentException if the suggest_mode is invalid
      */
-    public static TermSuggestionBuilder.SuggestMode resolve(final SearchRequest.SuggestMode suggest_mode) {
+    public static TermSuggestionBuilder.SuggestMode resolve(final org.opensearch.protobufs.SuggestMode suggest_mode) {
         switch (suggest_mode) {
             case SUGGEST_MODE_ALWAYS:
                 return TermSuggestionBuilder.SuggestMode.ALWAYS;
