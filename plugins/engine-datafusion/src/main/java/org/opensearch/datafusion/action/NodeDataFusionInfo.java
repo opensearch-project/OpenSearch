@@ -29,10 +29,7 @@ public class NodeDataFusionInfo extends BaseNodeResponse implements ToXContentFr
      * @param node The discovery node.
      * @param dataFusionVersion The DataFusion version.
      */
-    public NodeDataFusionInfo(
-        DiscoveryNode node,
-        String dataFusionVersion
-    ) {
+    public NodeDataFusionInfo(DiscoveryNode node, String dataFusionVersion) {
         super(node);
         this.dataFusionVersion = dataFusionVersion;
     }

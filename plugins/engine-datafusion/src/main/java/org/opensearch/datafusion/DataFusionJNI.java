@@ -8,11 +8,14 @@
 
 package org.opensearch.datafusion;
 
+import org.opensearch.common.SuppressForbidden;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 
 /**
  * JNI wrapper for DataFusion operations
@@ -35,13 +38,14 @@ public class DataFusionJNI {
     /**
      * Load the native library from resources
      */
+    @SuppressForbidden(reason = "Native library loading requires temporary file creation and system path access")
     private static synchronized void loadNativeLibrary() {
         if (libraryLoaded) {
             return;
         }
 
         try {
-            String osName = System.getProperty("os.name").toLowerCase();
+            String osName = System.getProperty("os.name").toLowerCase(Locale.ROOT);
             String libExtension;
             String libName;
 
@@ -62,7 +66,6 @@ public class DataFusionJNI {
                 // Extract to temporary file and load
                 Path tempLib = Files.createTempFile("libopensearch_datafusion_jni", libExtension);
                 Files.copy(libStream, tempLib, StandardCopyOption.REPLACE_EXISTING);
-                tempLib.toFile().deleteOnExit();
                 System.load(tempLib.toAbsolutePath().toString());
                 libStream.close();
             } else {
