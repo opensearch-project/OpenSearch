@@ -1383,16 +1383,21 @@ public class SettingTests extends OpenSearchTestCase {
     // MemorySizeValue
     public void testMemorySizeValueParser() throws Exception {
         String expectedKey = "test key";
-        MemorySizeValueParser memorySizeValueParser = new MemorySizeValueParser(expectedKey);
+        MemorySizeValueParser memorySizeValueParserWithoutBounds = new MemorySizeValueParser(expectedKey);
+        MemorySizeValueParser memorySizeValueParserWithBounds = new MemorySizeValueParser(expectedKey, "0%", "10%");
+        for (MemorySizeValueParser memorySizeValueParser : List.of(memorySizeValueParserWithBounds, memorySizeValueParserWithoutBounds)) {
 
-        assertEquals(expectedKey, memorySizeValueParser.getKey());
+            assertEquals(expectedKey, memorySizeValueParser.getKey());
 
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            memorySizeValueParser.writeTo(out);
-            out.flush();
-            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                memorySizeValueParser = new MemorySizeValueParser(in);
-                assertEquals(expectedKey, memorySizeValueParser.getKey());
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                memorySizeValueParser.writeTo(out);
+                out.flush();
+                try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                    MemorySizeValueParser deserialized = new MemorySizeValueParser(in);
+                    assertEquals(expectedKey, deserialized.getKey());
+                    assertEquals(memorySizeValueParser.getMax(), deserialized.getMax());
+                    assertEquals(memorySizeValueParser.getMin(), deserialized.getMin());
+                }
             }
         }
     }
