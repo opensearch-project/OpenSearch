@@ -27,6 +27,9 @@ public class SessionContext implements AutoCloseable {
      */
     public static native void closeContext(long contextId);
 
+    /**
+     * Creates a new SessionContext with a native DataFusion context.
+     */
     public SessionContext() {
         this.ptr = createContext();
     }

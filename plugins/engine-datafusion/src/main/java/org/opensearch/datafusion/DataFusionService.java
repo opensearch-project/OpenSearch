@@ -22,6 +22,13 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class DataFusionService extends AbstractLifecycleComponent {
 
+    /**
+     * Creates a new DataFusionService instance.
+     */
+    public DataFusionService() {
+        super();
+    }
+
     private static final Logger logger = LogManager.getLogger(DataFusionService.class);
 
     // in memory contexts, similar to ReaderContext in SearchService, just a ptr to SessionContext for now.
