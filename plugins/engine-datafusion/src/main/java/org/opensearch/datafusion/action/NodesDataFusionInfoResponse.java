@@ -56,6 +56,7 @@ public class NodesDataFusionInfoResponse extends BaseNodesResponse<NodeDataFusio
     /**
      * Writes the node response to stream output.
      * @param out The stream output.
+     * @param nodes The list of nodes to write.
      * @throws IOException If an I/O error occurs.
      */
     @Override

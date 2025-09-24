@@ -95,6 +95,9 @@ compileJava.dependsOn copyNativeLibrary
 // Ensure processResources depends on copyNativeLibrary
 processResources.dependsOn copyNativeLibrary
 
+// Ensure sourcesJar depends on copyNativeLibrary since it includes resources
+sourcesJar.dependsOn copyNativeLibrary
+
 // Clean task should also clean Rust artifacts
 clean {
     delete file('jni/target')
@@ -108,4 +111,13 @@ test {
 
 yamlRestTest {
     systemProperty 'tests.security.manager', 'false'
+}
+
+// Configure Javadoc to skip package documentation requirements ie package-info.java
+missingJavadoc {
+    javadocMissingIgnore = [
+        'org.opensearch.datafusion',
+        'org.opensearch.datafusion.action',
+        'org.opensearch.datafusion.core'
+    ]
 }
