@@ -276,9 +276,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         keepAlive = in.readOptionalTimeValue();
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-        // Read streaming fields
-        streamingSearch = in.readBoolean();
-        streamingSearchMode = in.readOptionalString();
+        // Read streaming fields - gated on version for BWC
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            streamingSearch = in.readBoolean();
+            streamingSearchMode = in.readOptionalString();
+        } else {
+            streamingSearch = false;
+            streamingSearchMode = null;
+        }
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
@@ -311,9 +316,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         super.writeTo(out);
         innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        // Write streaming fields after OriginalIndices
-        out.writeBoolean(streamingSearch);
-        out.writeOptionalString(streamingSearchMode);
+        // Write streaming fields after OriginalIndices - gated on version for BWC
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeBoolean(streamingSearch);
+            out.writeOptionalString(streamingSearchMode);
+        }
     }
 
     protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
