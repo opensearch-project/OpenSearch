@@ -451,7 +451,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Map<String, Settings> tpGroups = tpSettings.getAsGroups();
         for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
             String tpName = entry.getKey();
-            if (THREAD_POOL_TYPES.containsKey(tpName) == false) {
+            if (executors.containsKey(tpName) == false) {
                 throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
             }
             Settings tpGroup = entry.getValue();
@@ -538,8 +538,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 continue;
             }
             if (holder.info.type == ThreadPoolType.FORK_JOIN) {
-                // Add ForkJoinPool with sentinel values
-                // stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1, max));
                 stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1, holder.info.getMax()));
                 continue;
             }
@@ -944,7 +942,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     resolvedType = ThreadPoolType.fromType(typeStr);
                 } catch (IllegalArgumentException e) {
                     // Only fallback for older versions
-                    if (in.getVersion().onOrBefore(Version.V_3_1_0)) { // replace with correct version where ForkJoin was introduced
+                    if (in.getVersion().onOrBefore(Version.V_3_2_0)) { // replace with correct version where ForkJoin was introduced
                         resolvedType = ThreadPoolType.FIXED;
                     } else {
                         throw new IllegalArgumentException(

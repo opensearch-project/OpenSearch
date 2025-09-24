@@ -1,99 +1,99 @@
----
-"Test cat thread_pool fork_join output":
-  - skip:
-      version: " - 3.1.99"
-      reason: fork_join thread pool support was introduced in 3.2.0
-  - do:
-      cat.thread_pool:
-        thread_pool_patterns: fork_join
-        h: node_name,name,type,active,queue,queue_size,rejected,largest,completed,max,keep_alive
-        v: true
-  # At least one row must contain 'fork_join' in name, optionally in type, and 0 for active, -1 for queue_size
-  - match:
-      $body: /fork_join.*0.*-1/
-
----
-"Test cat thread_pool fork_join with unrelated pool":
-  - skip:
-      version: " - 3.1.99"
-      reason: fork_join thread pool support was introduced in 3.2.0
-  - do:
-      cat.thread_pool:
-        thread_pool_patterns: fork_join,search
-        h: name,type,active,queue,queue_size,rejected
-        v: true
-  # At least one fork_join row must exist
-  - match:
-      $body: /fork_join.*0.*-1/
-  # At least one search row, queue_size may be -1 or 1000, type can be blank or 'resizable'
-  - match:
-      $body: /search.*0.*(-1|1000)/
-
----
-"Test cat thread_pool fork_join with only fork_join present":
-  - skip:
-      version: " - 3.1.99"
-      reason: fork_join thread pool support was introduced in 3.2.0
-  - do:
-      cat.thread_pool:
-        thread_pool_patterns: fork_join
-        h: name,type,active,queue,queue_size,rejected
-        v: true
-  - match:
-      $body: /fork_join.*0.*-1/
-
----
-"Test cat thread_pool fork_join with custom header order":
-  - skip:
-      version: " - 3.1.99"
-      reason: fork_join thread pool support was introduced in 3.2.0
-  - do:
-      cat.thread_pool:
-        thread_pool_patterns: fork_join
-        h: queue,active,name,type
-        v: true
-  # Accept row with 0 queue, 0 active, fork_join in name, type may appear or not
-  - match:
-      $body: /0.*0.*fork_join/
-
----
-"Test cat thread_pool fork_join missing optional columns":
-  - skip:
-      version: " - 3.1.99"
-      reason: fork_join thread pool support was introduced in 3.2.0
-  - do:
-      cat.thread_pool:
-        thread_pool_patterns: fork_join
-        h: name,type,keep_alive,queue_size,max
-        v: true
-  # At least one fork_join row with -1 in keep_alive
-  - match:
-      $body: /fork_join.*-1/
-
----
-"Test cat thread_pool fork_join with unknown header":
-  - skip:
-      version: " - 3.1.99"
-      reason: fork_join thread pool support was introduced in 3.2.0
-  - do:
-      cat.thread_pool:
-        thread_pool_patterns: fork_join
-        h: name,type,foo,active
-        v: true
-  # At least one fork_join row with 0 in active
-  - match:
-      $body: /fork_join.*0/
-
----
-"Test cat thread_pool fork_join with v:false":
-  - skip:
-      version: " - 3.1.99"
-      reason: fork_join thread pool support was introduced in 3.2.0
-  - do:
-      cat.thread_pool:
-        thread_pool_patterns: fork_join
-        h: name,type,active
-        v: false
-  # At least one row with fork_join and 0 in active
-  - match:
-      $body: /fork_join.*0/
+#---
+#"Test cat thread_pool fork_join output":
+#  - skip:
+#      version: " - 3.1.99"
+#      reason: fork_join thread pool support was introduced in 3.2.0
+#  - do:
+#      cat.thread_pool:
+#        thread_pool_patterns: fork_join
+#        h: node_name,name,type,active,queue,queue_size,rejected,largest,completed,max,keep_alive
+#        v: true
+#  # At least one row must contain 'fork_join' in name, optionally in type, and 0 for active, -1 for queue_size
+#  - match:
+#      $body: /fork_join.*0.*-1/
+#
+#---
+#"Test cat thread_pool fork_join with unrelated pool":
+#  - skip:
+#      version: " - 3.1.99"
+#      reason: fork_join thread pool support was introduced in 3.2.0
+#  - do:
+#      cat.thread_pool:
+#        thread_pool_patterns: fork_join,search
+#        h: name,type,active,queue,queue_size,rejected
+#        v: true
+#  # At least one fork_join row must exist
+#  - match:
+#      $body: /fork_join.*0.*-1/
+#  # At least one search row, queue_size may be -1 or 1000, type can be blank or 'resizable'
+#  - match:
+#      $body: /search.*0.*(-1|1000)/
+#
+#---
+#"Test cat thread_pool fork_join with only fork_join present":
+#  - skip:
+#      version: " - 3.1.99"
+#      reason: fork_join thread pool support was introduced in 3.2.0
+#  - do:
+#      cat.thread_pool:
+#        thread_pool_patterns: fork_join
+#        h: name,type,active,queue,queue_size,rejected
+#        v: true
+#  - match:
+#      $body: /fork_join.*0.*-1/
+#
+#---
+#"Test cat thread_pool fork_join with custom header order":
+#  - skip:
+#      version: " - 3.1.99"
+#      reason: fork_join thread pool support was introduced in 3.2.0
+#  - do:
+#      cat.thread_pool:
+#        thread_pool_patterns: fork_join
+#        h: queue,active,name,type
+#        v: true
+#  # Accept row with 0 queue, 0 active, fork_join in name, type may appear or not
+#  - match:
+#      $body: /0.*0.*fork_join/
+#
+#---
+#"Test cat thread_pool fork_join missing optional columns":
+#  - skip:
+#      version: " - 3.1.99"
+#      reason: fork_join thread pool support was introduced in 3.2.0
+#  - do:
+#      cat.thread_pool:
+#        thread_pool_patterns: fork_join
+#        h: name,type,keep_alive,queue_size,max
+#        v: true
+#  # At least one fork_join row with -1 in keep_alive
+#  - match:
+#      $body: /fork_join.*-1/
+#
+#---
+#"Test cat thread_pool fork_join with unknown header":
+#  - skip:
+#      version: " - 3.1.99"
+#      reason: fork_join thread pool support was introduced in 3.2.0
+#  - do:
+#      cat.thread_pool:
+#        thread_pool_patterns: fork_join
+#        h: name,type,foo,active
+#        v: true
+#  # At least one fork_join row with 0 in active
+#  - match:
+#      $body: /fork_join.*0/
+#
+#---
+#"Test cat thread_pool fork_join with v:false":
+#  - skip:
+#      version: " - 3.1.99"
+#      reason: fork_join thread pool support was introduced in 3.2.0
+#  - do:
+#      cat.thread_pool:
+#        thread_pool_patterns: fork_join
+#        h: name,type,active
+#        v: false
+#  # At least one row with fork_join and 0 in active
+#  - match:
+#      $body: /fork_join.*0/

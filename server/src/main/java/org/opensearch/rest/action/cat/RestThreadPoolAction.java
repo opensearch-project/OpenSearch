@@ -175,8 +175,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
         return table;
     }
 
-    // ... [imports and class definition unchanged] ...
-
     private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
         final String[] threadPools = req.paramAsStringArray("thread_pool_patterns", new String[] { "*" });
         final DiscoveryNodes nodes = state.getState().nodes();
