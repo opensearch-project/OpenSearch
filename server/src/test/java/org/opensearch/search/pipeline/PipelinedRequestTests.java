@@ -89,7 +89,6 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
     public void testTransformRequestWithSystemGeneratedPipeline() throws Exception {
         SearchPipelineService service = createWithSystemGeneratedProcessors();
         setUpForResolvePipeline(service);
-        enabledAllSystemGeneratedFactories(service);
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
         PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
@@ -155,7 +154,6 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
     public void testTransformResponseWithSystemGeneratedPipeline() throws Exception {
         SearchPipelineService service = createWithSystemGeneratedProcessors();
         setUpForResolvePipeline(service);
-        enabledAllSystemGeneratedFactories(service);
         int size = 10;
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(size));
         PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
@@ -271,7 +269,6 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
     public void testTransformSearchPhaseWithSystemGeneratedPipeline() throws Exception {
         SearchPipelineService service = createWithSystemGeneratedProcessors();
         setUpForResolvePipeline(service);
-        enabledAllSystemGeneratedFactories(service);
 
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),

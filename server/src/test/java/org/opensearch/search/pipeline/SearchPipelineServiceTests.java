@@ -185,7 +185,6 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
     public void testResolveSystemGeneratedSearchPipeline_whenHappyCase_thenSuccess() throws Exception {
         SearchPipelineService service = createWithSystemGeneratedProcessors();
         setUpForResolvePipeline(service);
-        enabledAllSystemGeneratedFactories(service);
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
         PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
@@ -243,7 +242,6 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
             Collections.emptyMap()
         );
         setUpForResolvePipeline(service);
-        enabledAllSystemGeneratedFactories(service);
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
         IllegalArgumentException exception = assertThrows(
@@ -259,7 +257,6 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
     public void testResolveSystemGeneratedSearchPipeline_whenNotMeetCondition_thenNoGeneration() throws Exception {
         SearchPipelineService service = createWithSystemGeneratedProcessors();
         setUpForResolvePipeline(service);
-        enabledAllSystemGeneratedFactories(service);
 
         // set a large size to not meet the condition to generate the system generated request processor
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(20));
@@ -275,6 +272,7 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
     public void testResolveSystemGeneratedSearchPipeline_whenDisableSystemGeneratedFactories_thenNoGeneration() throws Exception {
         SearchPipelineService service = createWithSystemGeneratedProcessors();
         setUpForResolvePipeline(service);
+        disableAllSystemGeneratedFactories(service);
 
         // set a large size to not meet the condition to generate the system generated request processor
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));

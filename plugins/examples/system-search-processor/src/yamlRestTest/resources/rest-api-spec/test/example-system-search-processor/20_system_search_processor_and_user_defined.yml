@@ -1,14 +1,6 @@
 ---
 "Use system generated search request processors and user defined search pipeline":
   - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            cluster.search.enabled_system_generated_factories:
-              - "example-search-request-pre-processor-factory"
-              - "example-search-request-post-processor-factory"
-
-  - do:
       search_pipeline.put:
         id: "test-user-defined-pipeline"
         body:
@@ -97,3 +89,9 @@
   - do:
       ingest.delete_pipeline:
         id: "test-user-defined-pipeline"
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.search.enabled_system_generated_factories: ["*"]

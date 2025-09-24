@@ -113,7 +113,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
      */
     public static final Setting<List<String>> ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING = Setting.listSetting(
         "cluster.search.enabled_system_generated_factories",
-        List.of(),
+        List.of("*"),
         s -> s,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
