@@ -281,9 +281,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
-        // Read streaming fields
-        streamingScoring = in.readBoolean();
-        streamingSearchMode = in.readOptionalString();
+        // Read streaming fields - gated on version for BWC
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            streamingScoring = in.readBoolean();
+            streamingSearchMode = in.readOptionalString();
+        } else {
+            streamingScoring = false;
+            streamingSearchMode = null;
+        }
     }
 
     @Override
@@ -318,9 +323,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
         }
-        // Write streaming fields
-        out.writeBoolean(streamingScoring);
-        out.writeOptionalString(streamingSearchMode);
+        // Write streaming fields - gated on version for BWC
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeBoolean(streamingScoring);
+            out.writeOptionalString(streamingSearchMode);
+        }
     }
 
     @Override

@@ -77,7 +77,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final Executor executor;
     private final CircuitBreaker circuitBreaker;
     private final SearchPhaseController controller;
-    protected final SearchProgressListener progressListener;
+    private final SearchProgressListener progressListener;
     private final ReduceContextBuilder aggReduceContextBuilder;
     private final NamedWriteableRegistry namedWriteableRegistry;
 
@@ -149,6 +149,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
         return (hasAggs || hasTopDocs) ? Math.min(requestBatchedReduceSize, minBatchReduceSize) : minBatchReduceSize;
+    }
+
+    /**
+     * Protected accessor for progressListener to allow subclasses to access it.
+     * @return the search progress listener
+     */
+    protected SearchProgressListener progressListener() {
+        return this.progressListener;
     }
 
     @Override
