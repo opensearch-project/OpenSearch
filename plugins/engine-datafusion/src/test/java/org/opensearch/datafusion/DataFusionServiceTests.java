@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
  * They are disabled by default and can be enabled by setting the system property:
  * -Dtest.native.enabled=true
  */
-public class DataFusionServiceTest extends OpenSearchTestCase {
+public class DataFusionServiceTests extends OpenSearchTestCase {
 
     private DataFusionService service;
 
