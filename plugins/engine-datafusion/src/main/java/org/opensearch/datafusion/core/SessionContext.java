@@ -7,35 +7,81 @@
  */
 
 package org.opensearch.datafusion.core;
+
 /**
  * Session context for datafusion
  */
 public class SessionContext implements AutoCloseable {
 
-    // ptr to context in df
-    private final long ptr;
+    private final long context;
+    private final long runtime;
 
     /**
-     * Create a new DataFusion session context
-     * @return context ID for subsequent operations
+     * Constructor for SessionContext with custom parquet file.
+     * @param tableName table name
+     * @param parquetFilePath Path to the parquet file to register
      */
-    static native long createContext();
+    public SessionContext(String parquetFilePath, String tableName) {
+        this.context = createContext();
+        this.runtime = createRuntime(parquetFilePath);
+        registerParquetTable(this.context, this.runtime, parquetFilePath, tableName);
+    }
 
     /**
-     * Close and cleanup a DataFusion context
-     * @param contextId the context ID to close
+     * Creates a new DataFusion session context
+     * @return pointer to the native context
      */
-    public static native void closeContext(long contextId);
+    public static native long createContext();
 
     /**
-     * Creates a new SessionContext with a native DataFusion context.
+     * Closes and cleans up a DataFusion session context
+     * @param contextPointer pointer to the context to close
+     * @return status code
      */
-    public SessionContext() {
-        this.ptr = createContext();
+    public static native long closeContext(long contextPointer);
+
+    /**
+     * Creates a new DataFusion runtime
+     * @param parquetFilePath path to parquet file
+     * @return pointer to the native runtime
+     */
+    private static native long createRuntime(String parquetFilePath);
+
+    /**
+     * Closes and cleans up a DataFusion runtime
+     * @param runtimePointer pointer to the runtime to close
+     * @return status code
+     */
+    public static native long closeRuntime(long runtimePointer);
+
+    /**
+     * Registers a parquet table with the given context and runtime
+     * @param contextPointer pointer to the DataFusion context
+     * @param runTime pointer to the runtime
+     * @param filePath path to the parquet file
+     * @param tableName name to register the table as
+     */
+    public static native void registerParquetTable(long contextPointer, long runTime, String filePath, String tableName);
+
+    /**
+     * Get the native context pointer
+     * @return the context pointer
+     */
+    public long getContext() {
+        return context;
+    }
+
+    /**
+     * Get the runtime
+     * @return the runtime pointer
+     */
+    public long getRuntime() {
+        return runtime;
     }
 
     @Override
     public void close() throws Exception {
-        closeContext(this.ptr);
+        closeContext(this.context);
+        closeRuntime(this.runtime);
     }
 }
