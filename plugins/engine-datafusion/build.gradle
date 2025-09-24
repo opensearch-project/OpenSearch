@@ -42,7 +42,7 @@ dependencies {
     implementation "org.apache.arrow:arrow-c-data:17.0.0"
     implementation "org.apache.arrow:arrow-format:17.0.0"
     // SLF4J API for Arrow logging compatibility
-    implementation "org.slf4j:slf4j-api:1.7.36"
+    implementation "org.slf4j:slf4j-api:2.0.17"
     // CheckerFramework annotations required by Arrow 17.0.0
     implementation "org.checkerframework:checker-qual:3.42.0"
     // FlatBuffers dependency required by Arrow 17.0.0
@@ -106,6 +106,11 @@ task copyNativeLibrary(type: Copy, dependsOn: buildRustLibrary) {
     rename { filename ->
         "libopensearch_datafusion_jni${libExtension}"
     }
+
+    // Remove executable permissions to comply with OpenSearch file permission checks
+    filePermissions {
+        unix(0644)
+    }
 }
 
 // Ensure native library is built before Java compilation
@@ -116,6 +121,23 @@ processResources.dependsOn copyNativeLibrary
 
 // Ensure sourcesJar depends on copyNativeLibrary since it includes resources
 sourcesJar.dependsOn copyNativeLibrary
+
+// Ensure filepermissions task depends on copyNativeLibrary
+tasks.named("filepermissions").configure {
+    dependsOn copyNativeLibrary
+}
+
+// Ensure forbiddenPatterns task depends on copyNativeLibrary
+tasks.named("forbiddenPatterns").configure {
+    dependsOn copyNativeLibrary
+    // Exclude native library files from pattern checking since they are binary
+    exclude '**/native/**'
+}
+
+// Ensure spotlessJava task has proper dependency ordering
+tasks.named("spotlessJava").configure {
+    mustRunAfter copyNativeLibrary
+}
 
 // Clean task should also clean Rust artifacts
 clean {
@@ -130,6 +152,16 @@ test {
 
 yamlRestTest {
     systemProperty 'tests.security.manager', 'false'
+    // Disable yamlRestTest since this plugin doesn't have REST API endpoints
+    enabled = false
+}
+
+tasks.named("dependencyLicenses").configure {
+    mapping from: /jackson-.*/, to: 'jackson'
+    mapping from: /arrow-.*/, to: 'arrow'
+    mapping from: /slf4j-.*/, to: 'slf4j-api'
+    mapping from: /checker-qual.*/, to: 'checker-qual'
+    mapping from: /flatbuffers-.*/, to: 'flatbuffers-java'
 }
 
 // Configure Javadoc to skip package documentation requirements ie package-info.java

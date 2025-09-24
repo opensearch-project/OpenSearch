@@ -8,12 +8,16 @@
 
 package org.opensearch.datafusion;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.Assume;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.datafusion.core.SessionContext;
+import org.opensearch.env.Environment;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
-import static org.junit.Assert.*;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for DataFusionService
@@ -22,39 +26,46 @@ import static org.junit.Assert.*;
  * They are disabled by default and can be enabled by setting the system property:
  * -Dtest.native.enabled=true
  */
-public class DataFusionServiceTest {
+public class DataFusionServiceTest extends OpenSearchTestCase {
 
     private DataFusionService service;
 
+    @Mock
+    private Environment mockEnvironment;
+
     @Before
-    public void setUp() {
-        service = new DataFusionService();
+    public void setup() {
+        MockitoAnnotations.openMocks(this);
+        Settings mockSettings = Settings.builder().put("path.data", "/tmp/test-data").build();
+
+        when(mockEnvironment.settings()).thenReturn(mockSettings);
+        service = new DataFusionService(mockEnvironment);
         service.doStart();
     }
 
-    @Test
     public void testGetVersion() {
         String version = service.getVersion();
         assertNotNull(version);
         assertTrue(version.contains("datafusion_version"));
-        assertTrue(version.contains("arrow_version"));
+        assertTrue(version.contains("substrait_version"));
     }
 
-    @Test
     public void testCreateAndCloseContext() {
         // Create context
-        long contextId = service.createContext();
-        assertTrue(contextId > 0);
+        SessionContext defaultContext = service.getDefaultContext();
+        assertNotNull(defaultContext);
+        assertTrue(defaultContext.getContext() > 0);
 
         // Verify context exists
-        SessionContext context = service.getContext(contextId);
+        SessionContext context = service.getContext(defaultContext.getContext());
         assertNotNull(context);
+        assertEquals(defaultContext.getContext(), context.getContext());
 
         // Close context
-        boolean closed = service.closeContext(contextId);
+        boolean closed = service.closeContext(defaultContext.getContext());
         assertTrue(closed);
 
         // Verify context is gone
-        assertNull(service.getContext(contextId));
+        assertNull(service.getContext(defaultContext.getContext()));
     }
 }

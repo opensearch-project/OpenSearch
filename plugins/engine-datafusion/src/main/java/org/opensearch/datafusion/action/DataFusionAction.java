@@ -43,10 +43,7 @@ public class DataFusionAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_plugins/datafusion/info"),
-            new Route(GET, "/_plugins/datafusion/info/{nodeId}")
-        );
+        return List.of(new Route(GET, "/_plugins/datafusion/info"), new Route(GET, "/_plugins/datafusion/info/{nodeId}"));
     }
 
     /**

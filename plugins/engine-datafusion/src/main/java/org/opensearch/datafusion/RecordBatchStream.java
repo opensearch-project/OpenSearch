@@ -61,27 +61,24 @@ public class RecordBatchStream {
     private Schema getSchema() {
         // Native method is not async, but use a future to store the result for convenience
         CompletableFuture<Schema> result = new CompletableFuture<>();
-        getSchema(
-            streamPointer,
-            (errString, arrowSchemaAddress) -> {
-                if (ErrorUtil.containsError(errString)) {
-                    result.completeExceptionally(new RuntimeException(errString));
-                } else {
-                    try {
-                        ArrowSchema arrowSchema = ArrowSchema.wrap(arrowSchemaAddress);
-                        Schema schema = importSchema(allocator, arrowSchema, dictionaryProvider);
-                        result.complete(schema);
-                    } catch (Exception e) {
-                        result.completeExceptionally(e);
-                    }
+        getSchema(streamPointer, (errString, arrowSchemaAddress) -> {
+            if (ErrorUtil.containsError(errString)) {
+                result.completeExceptionally(new RuntimeException(errString));
+            } else {
+                try {
+                    ArrowSchema arrowSchema = ArrowSchema.wrap(arrowSchemaAddress);
+                    Schema schema = importSchema(allocator, arrowSchema, dictionaryProvider);
+                    result.complete(schema);
+                } catch (Exception e) {
+                    result.completeExceptionally(e);
                 }
-            });
+            }
+        });
         return result.join();
     }
 
     private Schema importSchema(BufferAllocator allocator, ArrowSchema schema, CDataDictionaryProvider provider) {
         Field structField = importField(allocator, schema, provider);
-        System.out.println(structField);
         if (structField.getType().getTypeID() != ArrowType.ArrowTypeID.Struct) {
             throw new IllegalArgumentException("Cannot import schema: ArrowSchema describes non-struct type");
         }
@@ -104,26 +101,22 @@ public class RecordBatchStream {
         ensureInitialized();
         long runtimePointer = context.getRuntime();
         CompletableFuture<Boolean> result = new CompletableFuture<>();
-        next(
-            runtimePointer,
-            streamPointer,
-            (errString, arrowArrayAddress) -> {
-                if (ErrorUtil.containsError(errString)) {
-                    result.completeExceptionally(new RuntimeException(errString));
-                } else if (arrowArrayAddress == 0) {
-                    // Reached end of stream
-                    result.complete(false);
-                } else {
-                    try {
-                        ArrowArray arrowArray = ArrowArray.wrap(arrowArrayAddress);
-                        Data.importIntoVectorSchemaRoot(
-                            allocator, arrowArray, vectorSchemaRoot, dictionaryProvider);
-                        result.complete(true);
-                    } catch (Exception e) {
-                        result.completeExceptionally(e);
-                    }
+        next(runtimePointer, streamPointer, (errString, arrowArrayAddress) -> {
+            if (ErrorUtil.containsError(errString)) {
+                result.completeExceptionally(new RuntimeException(errString));
+            } else if (arrowArrayAddress == 0) {
+                // Reached end of stream
+                result.complete(false);
+            } else {
+                try {
+                    ArrowArray arrowArray = ArrowArray.wrap(arrowArrayAddress);
+                    Data.importIntoVectorSchemaRoot(allocator, arrowArray, vectorSchemaRoot, dictionaryProvider);
+                    result.complete(true);
+                } catch (Exception e) {
+                    result.completeExceptionally(e);
                 }
-            });
+            }
+        });
         return result;
     }
 
@@ -139,8 +132,9 @@ public class RecordBatchStream {
         }
     }
 
-
     private static native void next(long runtime, long pointer, ObjectResultCallback callback);
+
     private static native void getSchema(long pointer, ObjectResultCallback callback);
+
     private static native void closeStream(long pointer);
 }
