@@ -15,6 +15,8 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.client.config.ClientAsyncConfiguration;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
@@ -27,6 +29,7 @@ import software.amazon.awssdk.http.crt.ProxyConfiguration;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -304,6 +307,11 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
+        builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
+            .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
+        if (clientSettings.legacyMd5ChecksumCalculation) {
+            builder.addPlugin(LegacyMd5Plugin.create());
+        }
         final S3AsyncClient client = SocketAccess.doPrivileged(builder::build);
         return AmazonAsyncS3WithCredentials.create(client, priorityClient, urgentClient, credentials);
     }
