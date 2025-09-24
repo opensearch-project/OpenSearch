@@ -17,5 +17,5 @@ opensearchplugin {
 }
 
 dependencies {
-  implementation group: 'com.googlecode.libphonenumber', name: 'libphonenumber', version: '8.13.45'
+  implementation "com.googlecode.libphonenumber:libphonenumber:8.13.45"
 }

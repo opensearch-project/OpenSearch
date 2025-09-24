@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 
 /**
@@ -77,6 +78,13 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).enablePositionIncrements,
             true
         );
+        private final Parameter<Boolean> skiplist = new Parameter<>(
+            "skip_list",
+            false,
+            () -> false,
+            (n, c, o) -> nodeBooleanValue(o),
+            m -> toType(m).skiplist
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -86,7 +94,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, hasDocValues, store, analyzer, nullValue, enablePositionIncrements, meta);
+            return Arrays.asList(index, hasDocValues, store, analyzer, nullValue, enablePositionIncrements, meta, skiplist);
         }
 
         @Override
@@ -99,6 +107,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
+                skiplist.getValue(),
                 nullValue.getValue(),
                 meta.getValue()
             );
@@ -113,10 +122,11 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             boolean isSearchable,
             boolean isStored,
             boolean hasDocValues,
+            boolean skiplist,
             Number nullValue,
             Map<String, String> meta
         ) {
-            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta);
+            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, skiplist, false, nullValue, meta);
         }
 
         @Override
@@ -132,6 +142,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
 
     private final boolean index;
     private final boolean hasDocValues;
+    private final boolean skiplist;
     private final boolean store;
     private final NamedAnalyzer analyzer;
     private final boolean enablePositionIncrements;
@@ -150,6 +161,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.index = builder.index.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
+        this.skiplist = builder.skiplist.getValue();
         this.store = builder.store.getValue();
     }
 
@@ -174,7 +186,9 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
         }
 
         context.doc()
-            .addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, false, store));
+            .addAll(
+                NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, skiplist, store)
+            );
     }
 
     /**
