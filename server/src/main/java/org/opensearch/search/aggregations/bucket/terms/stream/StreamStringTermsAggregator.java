@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.aggregations.bucket.terms;
+package org.opensearch.search.aggregations.bucket.terms.stream;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -24,6 +24,8 @@ import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.bucket.terms.AbstractStringTermsAggregator;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
@@ -46,12 +48,12 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     private final ValuesSource.Bytes.WithOrdinals valuesSource;
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
-    protected final ResultStrategy<?, ?, ?> resultStrategy;
+    protected final ResultStrategy<?, ?> resultStrategy;
 
     public StreamStringTermsAggregator(
         String name,
         AggregatorFactories factories,
-        Function<StreamStringTermsAggregator, ResultStrategy<?, ?, ?>> resultStrategy,
+        Function<StreamStringTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
         ValuesSource.Bytes.WithOrdinals valuesSource,
         BucketOrder order,
         DocValueFormat format,
@@ -72,11 +74,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         super.doReset();
         valueCount = 0;
         sortedDocValuesPerBatch = null;
-    }
-
-    @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        return false;
     }
 
     @Override
@@ -143,10 +140,9 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     /**
      * Strategy for building results.
      */
-    abstract class ResultStrategy<
-        R extends InternalAggregation,
-        B extends InternalMultiBucketAggregation.InternalBucket,
-        TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
+    public abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
+        implements
+            Releasable {
 
         // build aggregation batch for stream search
         InternalAggregation[] buildAggregationsBatch(long[] owningBucketOrds) throws IOException {
@@ -247,7 +243,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         abstract B buildFinalBucket(long ordinal, long docCount) throws IOException;
     }
 
-    class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket, GlobalOrdinalsStringTermsAggregator.OrdBucket> {
+    public class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket> {
         @Override
         String describe() {
             return "streaming_terms";
@@ -314,7 +310,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
             StringTerms.Bucket result = new StringTerms.Bucket(term, docCount, null, showTermDocCountError, 0, format);
             result.bucketOrd = ordinal;
-            result.docCountError = 0;
+            result.setDocCountError(0);
             return result;
         }
 
