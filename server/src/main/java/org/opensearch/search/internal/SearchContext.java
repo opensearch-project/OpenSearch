@@ -78,10 +78,10 @@ import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
-import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
+import org.opensearch.search.query.StreamingSearchMode;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -563,47 +563,20 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    /**
-     * Returns the streaming search mode for this context
-     * @return the streaming mode or null if not streaming
-     */
-    public abstract StreamingSearchMode getStreamingMode();
+    // Streaming search support - default no-op implementations for compatibility
 
-    /**
-     * Sets the streaming search mode for this context
-     * @param mode the streaming mode to set
-     */
-    public abstract void setStreamingMode(StreamingSearchMode mode);
+    public StreamingSearchMode getStreamingMode() {
+        return null;
+    }
 
-    /**
-     * Returns true if this is a streaming search
-     * @return true if streaming mode is set
-     */
+    public void setStreamingMode(StreamingSearchMode mode) {
+        // no-op
+    }
+
     public boolean isStreamingSearch() {
         return getStreamingMode() != null;
     }
 
-    /**
-     * Returns the configured batch size for streaming document collection.
-     *
-     * This value controls how many documents are collected in memory before emission
-     * during streaming search operations. It reads the dynamic cluster setting
-     * 'search.streaming.batch_size' (via StreamingSearchSettings.STREAMING_BATCH_SIZE)
-     * when ClusterSettings is available, with a default of 10 and max of 100.
-     *
-     * Default implementation returns 10. Concrete implementations (DefaultSearchContext)
-     * override this to read from ClusterSettings when available, falling back to 10
-     * if ClusterSettings is not injected or the setting is not configured.
-     *
-     * The batch size affects streaming performance:
-     * - Smaller values (1-10): Lower latency, more frequent emissions
-     * - Larger values (50-100): Higher throughput, less network overhead
-     *
-     * Note: This value is read once per search context creation and does not update
-     * dynamically during a search operation.
-     *
-     * @return the batch size for streaming collection (default: 10, range: 1-100)
-     */
     public int getStreamingBatchSize() {
         return 10;
     }
