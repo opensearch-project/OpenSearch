@@ -331,19 +331,31 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 e -> {}
             );
             searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
-                cancellationListener.onResponse(searchResponse);
-                indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
+                try {
+                    indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
+                } finally {
+                    cancellationListener.onResponse(searchResponse);
+                }
             }, (e) -> {
-                cancellationListener.onFailure(e);
-                indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
+                try {
+                    indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
+                } finally {
+                    cancellationListener.onFailure(e);
+                }
             });
         } else {
             searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
-                listener.onResponse(searchResponse);
-                indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
+                try {
+                    indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
+                } finally {
+                    listener.onResponse(searchResponse);
+                }
             }, (e) -> {
-                listener.onFailure(e);
-                indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
+                try {
+                    indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
+                } finally {
+                    listener.onFailure(e);
+                }
             });
         }
         executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);

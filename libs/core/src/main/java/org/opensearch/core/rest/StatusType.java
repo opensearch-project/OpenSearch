@@ -8,6 +8,8 @@
 
 package org.opensearch.core.rest;
 
+import java.util.Locale;
+
 /**
  * Enum for status type which keeps track of potential response families in {@link RestStatus}
  *
@@ -17,4 +19,9 @@ public enum StatusType {
     SUCCESS,
     USER_ERROR,
     SYSTEM_FAILURE;
+
+    @Override
+    public String toString() {
+        return name().toLowerCase(Locale.ROOT);
+    }
 }

@@ -27,7 +27,7 @@ public class RestStatusTests extends OpenSearchTestCase {
         int successfulShards = randomIntBetween(1, totalShards);
 
         assertEquals(RestStatus.OK, RestStatus.status(successfulShards, totalShards));
-        assertEquals(StatusType.SUCCESS, RestStatus.status(successfulShards, totalShards).getStatusType());
+        assertEquals(StatusType.SUCCESS.toString(), RestStatus.status(successfulShards, totalShards).getStatusType());
     }
 
     public void testStatusReturns503ForUnavailableShards() {
@@ -35,7 +35,7 @@ public class RestStatusTests extends OpenSearchTestCase {
         int successfulShards = 0;
 
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, RestStatus.status(successfulShards, totalShards));
-        assertEquals("system_failure", RestStatus.status(successfulShards, totalShards).getStatusType());
+        assertEquals(StatusType.SYSTEM_FAILURE.toString(), RestStatus.status(successfulShards, totalShards).getStatusType());
     }
 
     public void testStatusReturnsFailureStatusWhenFailuresExist() {

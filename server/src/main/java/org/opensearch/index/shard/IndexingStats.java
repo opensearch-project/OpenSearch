@@ -245,7 +245,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.noopUpdateCount = noopUpdateCount;
             this.isThrottled = isThrottled;
             this.throttleTimeInMillis = throttleTimeInMillis;
-            this.docStatusStats = null;
+            this.docStatusStats = docStatusStats;
             this.maxLastIndexRequestTimestamp = maxLastIndexRequestTimestamp;
         }
 
