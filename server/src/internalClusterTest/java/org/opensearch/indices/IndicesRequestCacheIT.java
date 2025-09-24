@@ -893,10 +893,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         forceMerge(client, index);
 
-        SearchResponse resp = client.prepareSearch(index)
-            .setRequestCache(true)
-            .setQuery(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery(field, "foo")).add(QueryBuilders.termQuery(field, "bar")))
-            .get();
+        SearchResponse resp = client.prepareSearch(index).setRequestCache(true).setQuery(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery(field, "foo")).add(QueryBuilders.termQuery(field, "bar"))).get();
         assertSearchResponse(resp);
         // When use_similarity=false all 6 docs should have equal scores
         double delta = 0.0001;
@@ -913,13 +910,12 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         client.admin().indices().putMapping(mappingRequest).actionGet();
 
         // The request cache should be wiped
-        assertBusy(() -> { assertEquals(getNodeCacheStats(client).getMemorySizeInBytes(), 0); });
+        assertBusy(() -> {
+            assertEquals(getNodeCacheStats(client).getMemorySizeInBytes(), 0);
+        });
 
         // Run same search again and ensure docs do NOT all have same scores anymore, and that RC is not used (no hits)
-        resp = client.prepareSearch(index)
-            .setRequestCache(true)
-            .setQuery(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery(field, "foo")).add(QueryBuilders.termQuery(field, "bar")))
-            .get();
+        resp = client.prepareSearch(index).setRequestCache(true).setQuery(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery(field, "foo")).add(QueryBuilders.termQuery(field, "bar"))).get();
         assertSearchResponse(resp);
         // the doc with the rarer term should now have a higher score than the others, which should all have equal scores
         assertEquals(resp.getHits().getHits().length, 6);

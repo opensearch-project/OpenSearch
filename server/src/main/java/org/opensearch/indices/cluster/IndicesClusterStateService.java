@@ -645,10 +645,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         }
                     }
                 }
-                if (ClusterChangedEvent.indexMappingMetadataChanged(newIndexMetadata, currentIndexMetadata)) {
-                    // Note this wipe is asynchronous and only marks keys for cleanup
-                    indicesService.clearIndexShardCacheForAllShards(index, false, false, true);
-                }
             }
         }
     }
@@ -1110,14 +1106,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException, InterruptedException,
             ShardLockObtainFailedException;
-
-        void clearIndexShardCacheForAllShards(
-            Index index,
-            boolean queryCache,
-            boolean fieldDataCache,
-            boolean requestCache,
-            String... fields
-        );
 
         /**
          * Why the index was removed
