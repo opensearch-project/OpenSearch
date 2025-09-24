@@ -53,7 +53,6 @@ public class NodesDataFusionInfoRequest extends BaseNodesRequest<NodesDataFusion
         super.writeTo(out);
     }
 
-
     /**
      * Node-level request for DataFusion information
      */

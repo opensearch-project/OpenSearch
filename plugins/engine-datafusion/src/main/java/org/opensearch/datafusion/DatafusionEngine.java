@@ -54,7 +54,7 @@ public class DatafusionEngine implements SearchExecutionEngine {
                 @Override
                 public void collect(RecordBatchStream value) {
                     VectorSchemaRoot root = value.getVectorSchemaRoot();
-                    for(Field field : root.getSchema().getFields()) {
+                    for (Field field : root.getSchema().getFields()) {
                         String filedName = field.getName();
                         FieldVector fieldVector = root.getVector(filedName);
                         Object[] fieldValues = new Object[fieldVector.getValueCount()];
@@ -68,13 +68,12 @@ public class DatafusionEngine implements SearchExecutionEngine {
 
             while (stream.loadNextBatch().join()) {
                 collector.collect(stream);
-             }
+            }
 
-             System.out.println("Final Results:");
-             for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
-                 System.out.println(entry.getKey() + ": " + java.util.Arrays.toString(entry.getValue()));
-             }
-
+            logger.info("Final Results:");
+            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+            }
 
         } catch (Exception exception) {
             logger.error("Failed to execute Substrait query plan", exception);

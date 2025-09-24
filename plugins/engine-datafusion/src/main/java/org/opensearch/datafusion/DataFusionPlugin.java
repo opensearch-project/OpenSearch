@@ -142,9 +142,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        return List.of(
-            new ActionHandler<>(NodesDataFusionInfoAction.INSTANCE, TransportNodesDataFusionInfoAction.class)
-        );
+        return List.of(new ActionHandler<>(NodesDataFusionInfoAction.INSTANCE, TransportNodesDataFusionInfoAction.class));
     }
 
     @Override

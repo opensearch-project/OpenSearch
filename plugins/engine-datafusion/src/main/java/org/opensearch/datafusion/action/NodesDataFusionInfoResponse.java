@@ -13,7 +13,6 @@ import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -31,11 +30,7 @@ public class NodesDataFusionInfoResponse extends BaseNodesResponse<NodeDataFusio
      * @param nodes The list of node DataFusion info.
      * @param failures The list of failed node exceptions.
      */
-    public NodesDataFusionInfoResponse(
-        ClusterName clusterName,
-        List<NodeDataFusionInfo> nodes,
-        List<FailedNodeException> failures
-    ) {
+    public NodesDataFusionInfoResponse(ClusterName clusterName, List<NodeDataFusionInfo> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
@@ -77,8 +72,8 @@ public class NodesDataFusionInfoResponse extends BaseNodesResponse<NodeDataFusio
         builder.startObject("nodes");
         for (NodeDataFusionInfo nodeInfo : getNodes()) {
             builder.field(nodeInfo.getNode().getId());
-//            builder.field("name", nodeInfo.getNode().getName());
-//            builder.field("transport_address", nodeInfo.getNode().getAddress().toString());
+            // builder.field("name", nodeInfo.getNode().getName());
+            // builder.field("transport_address", nodeInfo.getNode().getAddress().toString());
             nodeInfo.toXContent(builder, params);
         }
         builder.endObject();
