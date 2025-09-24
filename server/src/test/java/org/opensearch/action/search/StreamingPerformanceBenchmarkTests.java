@@ -177,8 +177,6 @@ public class StreamingPerformanceBenchmarkTests extends OpenSearchIntegTestCase 
         }
     }
 
-    
-
     private long measureStreamingTTFB(int size) {
         // Streaming: measure actual time when first batch is ready for fetch
         SearchRequest request = new SearchRequest(INDEX);
@@ -277,7 +275,5 @@ public class StreamingPerformanceBenchmarkTests extends OpenSearchIntegTestCase 
             bulkRequest.execute().actionGet();
         }
     }
-
-    
 
 }
