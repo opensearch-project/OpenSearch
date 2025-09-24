@@ -148,14 +148,12 @@ public class SubSearchContext extends FilteredSearchContext {
         return fetchSourceContext != null;
     }
 
-    @Override
     public StreamingSearchMode getStreamingMode() {
-        return null; // SubSearchContext doesn't support streaming
+        return null;
     }
 
-    @Override
     public void setStreamingMode(StreamingSearchMode mode) {
-        // SubSearchContext doesn't support streaming - no-op
+        // no-op
     }
 
     @Override

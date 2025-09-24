@@ -104,43 +104,11 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
     }
 
     private void collectPartialResponse(SearchResponse partialResponse) {
-        ActionListener<SearchResponse> target = unwrapListener(responseListener, 3);
-        if (target instanceof StreamingSearchResponseListener) {
-            ((StreamingSearchResponseListener) target).onPartialResponse(partialResponse);
-            return;
+        if (responseListener instanceof StreamingSearchResponseListener) {
+            ((StreamingSearchResponseListener) responseListener).onPartialResponse(partialResponse);
+        } else {
+            logger.debug("Partial result computed, listener type: {}", responseListener.getClass().getSimpleName());
         }
-        logger.debug("Partial result computed, listener type: {}", responseListener.getClass().getSimpleName());
-    }
-
-    /**
-     * Attempt to unwrap tracing/decorated listeners to reach the original delegate.
-     * This enables partial emissions to reach StreamingSearchResponseListener even when wrapped.
-     */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private ActionListener<SearchResponse> unwrapListener(ActionListener<SearchResponse> listener, int depth) {
-        if (listener == null || depth <= 0) {
-            return listener;
-        }
-        try {
-            // Best-effort unwrap for TraceableActionListener without direct dependency
-            Class<?> cls = listener.getClass();
-            while (cls != null) {
-                try {
-                    java.lang.reflect.Field delegateField = cls.getDeclaredField("delegate");
-                    delegateField.setAccessible(true);
-                    Object delegate = delegateField.get(listener);
-                    if (delegate instanceof ActionListener) {
-                        return unwrapListener((ActionListener) delegate, depth - 1);
-                    }
-                    break;
-                } catch (NoSuchFieldException e) {
-                    cls = cls.getSuperclass();
-                }
-            }
-        } catch (Throwable t) {
-            logger.debug("Failed to unwrap listener: {}", t.toString());
-        }
-        return listener;
     }
 
     @Override
