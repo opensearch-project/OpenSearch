@@ -19,6 +19,13 @@ import java.nio.file.StandardCopyOption;
  */
 public class DataFusionJNI {
 
+    /**
+     * Private constructor to prevent instantiation.
+     */
+    private DataFusionJNI() {
+        // Utility class
+    }
+
     private static boolean libraryLoaded = false;
 
     static {
