@@ -14,27 +14,32 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.datafusion.core.SessionContext;
+import org.opensearch.env.Environment;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Service for managing DataFusion contexts and operations - essentially like SearchService
  */
 public class DataFusionService extends AbstractLifecycleComponent {
 
+    private final Environment environment;
+    private SessionContext defaultSessionContext;
+
     /**
-     * Creates a new DataFusionService instance.
+     * Constructor for DataFusionService.
+     * @param environment The OpenSearch environment containing path configurations and settings
      */
-    public DataFusionService() {
+    public DataFusionService(Environment environment) {
         super();
+        this.environment = environment;
     }
 
     private static final Logger logger = LogManager.getLogger(DataFusionService.class);
 
     // in memory contexts, similar to ReaderContext in SearchService, just a ptr to SessionContext for now.
     private final ConcurrentMapLong<SessionContext> contexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
-
-    private final AtomicLong idGenerator = new AtomicLong();
 
     @Override
     protected void doStart() {
@@ -43,6 +48,29 @@ public class DataFusionService extends AbstractLifecycleComponent {
             // Test that the native library loads correctly
             String version = DataFusionJNI.getVersion();
             logger.info("DataFusion service started successfully. Version info: {}", version);
+
+            // Create a default context with parquet file path from path.repo setting
+            String repoPath = environment.settings().get("path.data")
+                .trim().replaceAll("^\\[|]$", "");
+            if (repoPath.isEmpty()) {
+                throw new RuntimeException("path.repo setting is required for DataFusion service. " +
+                    "Please configure it using -PrepoPath when starting OpenSearch.");
+            }
+
+            logger.info("DataFusion service started successfully. Repo path: {}", repoPath);
+
+            Path dataPath = Path.of(repoPath);
+            Path parquetFile = dataPath.resolve("hits_data.parquet");
+
+            // Check if the parquet file exists
+            if (!Files.exists(parquetFile)) {
+                throw new RuntimeException("Parquet file not found at: " + parquetFile +
+                    ". Please place your parquet file in the OpenSearch data directory.");
+            }
+
+            defaultSessionContext = new SessionContext(parquetFile.toString(), "hits");
+            contexts.put(defaultSessionContext.getContext(), defaultSessionContext);
+            logger.info("Created default DataFusion context with ID: {}", defaultSessionContext.getContext());
         } catch (Exception e) {
             logger.error("Failed to start DataFusion service", e);
             throw new RuntimeException("Failed to initialize DataFusion JNI", e);
@@ -70,18 +98,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
         doStop();
     }
 
-    /**
-     * Create a new named DataFusion context
-     * @return the context ID
-     */
-    long createContext() {
-        SessionContext ctx = new SessionContext();
-        // just stores the context for now
-        long id = idGenerator.incrementAndGet();
-        SessionContext existing = contexts.put(id, ctx);
-        assert existing == null;
-        return id;
-    }
 
     /**
      * Get a context by id
@@ -90,6 +106,14 @@ public class DataFusionService extends AbstractLifecycleComponent {
      */
     SessionContext getContext(long id) {
         return contexts.get(id);
+    }
+
+    /**
+     * Get default context
+     * @return default context
+     */
+    SessionContext getDefaultContext() {
+        return defaultSessionContext;
     }
 
     /**
@@ -113,4 +137,24 @@ public class DataFusionService extends AbstractLifecycleComponent {
     public String getVersion() {
         return DataFusionJNI.getVersion();
     }
+
+    /**
+     * Execute a Substrait query plan and return a stream pointer for streaming results.
+     * Use this for large result sets to avoid memory issues.
+     *
+     * @param queryPlanIR the Substrait query plan as bytes
+     * @return stream pointer (0 if error occurred)
+     */
+    public long executeSubstraitQueryStream(byte[] queryPlanIR) {
+        return nativeExecuteSubstraitQueryStream(defaultSessionContext.getRuntime(), defaultSessionContext.getContext(), queryPlanIR);
+    }
+
+    /**
+     * Executes a Substrait query plan and returns a stream pointer
+     * @param runTime the DataFusion runtime ID
+     * @param contextId the DataFusion context ID
+     * @param queryPlanIR the Substrait query plan bytes
+     * @return pointer to the result stream
+     */
+    public static native long nativeExecuteSubstraitQueryStream(long runTime, long contextId, byte[] queryPlanIR);
 }
