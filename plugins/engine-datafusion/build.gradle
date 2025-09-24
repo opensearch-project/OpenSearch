@@ -29,6 +29,25 @@ opensearchplugin {
 dependencies {
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+    // Bundle Jackson in the plugin JAR using 'api' like other OpenSearch plugins
+    api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
+    // Apache Arrow dependencies for memory management
+    implementation "org.apache.arrow:arrow-memory-core:17.0.0"
+    implementation "org.apache.arrow:arrow-memory-unsafe:17.0.0"
+    implementation "org.apache.arrow:arrow-vector:17.0.0"
+    implementation "org.apache.arrow:arrow-c-data:17.0.0"
+    implementation "org.apache.arrow:arrow-format:17.0.0"
+    // SLF4J API for Arrow logging compatibility
+    implementation "org.slf4j:slf4j-api:1.7.36"
+    // CheckerFramework annotations required by Arrow 17.0.0
+    implementation "org.checkerframework:checker-qual:3.42.0"
+    // FlatBuffers dependency required by Arrow 17.0.0
+    implementation "com.google.flatbuffers:flatbuffers-java:23.5.26"
+
     testImplementation "junit:junit:${versions.junit}"
     testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
     testImplementation "org.mockito:mockito-core:${versions.mockito}"
