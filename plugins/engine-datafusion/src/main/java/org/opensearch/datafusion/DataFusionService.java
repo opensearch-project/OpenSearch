@@ -50,11 +50,12 @@ public class DataFusionService extends AbstractLifecycleComponent {
             logger.info("DataFusion service started successfully. Version info: {}", version);
 
             // Create a default context with parquet file path from path.repo setting
-            String repoPath = environment.settings().get("path.data")
-                .trim().replaceAll("^\\[|]$", "");
+            String repoPath = environment.settings().get("path.data").trim().replaceAll("^\\[|]$", "");
             if (repoPath.isEmpty()) {
-                throw new RuntimeException("path.repo setting is required for DataFusion service. " +
-                    "Please configure it using -PrepoPath when starting OpenSearch.");
+                throw new RuntimeException(
+                    "path.repo setting is required for DataFusion service. "
+                        + "Please configure it using -PrepoPath when starting OpenSearch."
+                );
             }
 
             logger.info("DataFusion service started successfully. Repo path: {}", repoPath);
@@ -64,8 +65,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
             // Check if the parquet file exists
             if (!Files.exists(parquetFile)) {
-                throw new RuntimeException("Parquet file not found at: " + parquetFile +
-                    ". Please place your parquet file in the OpenSearch data directory.");
+                throw new RuntimeException(
+                    "Parquet file not found at: " + parquetFile + ". Please place your parquet file in the OpenSearch data directory."
+                );
             }
 
             defaultSessionContext = new SessionContext(parquetFile.toString(), "hits");
@@ -98,7 +100,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
         doStop();
     }
 
-
     /**
      * Get a context by id
      * @param id the context id
@@ -122,10 +123,14 @@ public class DataFusionService extends AbstractLifecycleComponent {
      * @return true if the context was found and closed, false otherwise
      */
     public boolean closeContext(long contextId) {
-        try (SessionContext ignored = contexts.remove(contextId)) {
-            // do nothing
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        SessionContext context = contexts.remove(contextId);
+        if (context != null) {
+            try {
+                context.close();
+                return true;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
         return false;
     }
