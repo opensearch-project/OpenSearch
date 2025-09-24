@@ -34,7 +34,6 @@ package org.opensearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -45,7 +44,6 @@ import org.opensearch.core.index.Index;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -146,8 +144,6 @@ public class SystemIndices {
         List<Automaton> automations = descriptors.stream()
             .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
             .collect(Collectors.toList());
-        return new CharacterRunAutomaton(
-            Operations.determinize(Operations.union(automations), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
-        );
+        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automations), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 }
