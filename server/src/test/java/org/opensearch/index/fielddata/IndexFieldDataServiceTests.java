@@ -43,6 +43,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -464,7 +465,12 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
     private void doTestRequireDocValues(MappedFieldType ft) {
         ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
         try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(
+                Settings.EMPTY,
+                null,
+                getInstanceFromNode(ClusterService.class),
+                threadPool
+            );
             IndexFieldDataService ifds = new IndexFieldDataService(
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 cache,
