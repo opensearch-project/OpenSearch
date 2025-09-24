@@ -143,11 +143,11 @@ public class SystemIndices {
     }
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
-        Optional<Automaton> automaton = descriptors.stream()
+        List<Automaton> automations = descriptors.stream()
             .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
-            .reduce(Operations::union);
+            .collect(Collectors.toList());
         return new CharacterRunAutomaton(
-            Operations.determinize(automaton.orElse(Automata.makeEmpty()), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+            Operations.determinize(Operations.union(automations), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
     }
 }
