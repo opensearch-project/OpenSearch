@@ -164,6 +164,30 @@ tasks.named("dependencyLicenses").configure {
     mapping from: /flatbuffers-.*/, to: 'flatbuffers-java'
 }
 
+// Configure third party audit to handle Apache Arrow dependencies
+tasks.named('thirdPartyAudit').configure {
+    ignoreMissingClasses(
+        // Apache Commons Codec (missing dependency)
+        'org.apache.commons.codec.binary.Hex'
+    )
+    ignoreViolations(
+        // Apache Arrow internal classes that use Unsafe operations
+        'org.apache.arrow.memory.ArrowBuf',
+        'org.apache.arrow.memory.unsafe.UnsafeAllocationManager',
+        'org.apache.arrow.memory.util.ByteFunctionHelpers',
+        'org.apache.arrow.memory.util.MemoryUtil',
+        'org.apache.arrow.memory.util.MemoryUtil$1',
+        'org.apache.arrow.memory.util.hash.MurmurHasher',
+        'org.apache.arrow.memory.util.hash.SimpleHasher',
+        'org.apache.arrow.vector.BaseFixedWidthVector',
+        'org.apache.arrow.vector.BitVectorHelper',
+        'org.apache.arrow.vector.Decimal256Vector',
+        'org.apache.arrow.vector.DecimalVector',
+        'org.apache.arrow.vector.util.DecimalUtility',
+        'org.apache.arrow.vector.util.VectorAppender'
+    )
+}
+
 // Configure Javadoc to skip package documentation requirements ie package-info.java
 missingJavadoc {
     javadocMissingIgnore = [
