@@ -32,6 +32,8 @@
 
 package org.opensearch.action.admin.indices.cache.clear;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -69,6 +71,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     private final IndicesService indicesService;
 
     private final Node node;
+    private final Logger clearActionLogger = LogManager.getLogger(getClass());
 
     @Inject
     public TransportClearIndicesCacheAction(
@@ -138,7 +141,11 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     @Override
     protected void nodeOperation(List<EmptyResult> results, List<BroadcastShardOperationFailedException> accumulatedExceptions) {
-        indicesService.forceClearNodewideCaches();
+        try {
+            indicesService.forceClearNodewideCaches();
+        } catch (Exception e) {
+            clearActionLogger.warn("Node-wide force cache clear failed; marked keys will be cleaned at next scheduled cache cleanup", e);
+        }
     }
 
     /**
