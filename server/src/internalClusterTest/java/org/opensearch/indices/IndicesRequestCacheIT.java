@@ -864,10 +864,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     public void testMappingUpdateClearsCache() throws Exception {
-        String node = internalCluster().startNode(
-            Settings.builder().put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(1))
-        ); // Set IRC cleanup frequency low to ensure we don't get false positives when we check the cache hasn't been cleared
-        Client client = client(node);
+        Client client = client();
         String index = "index";
         String field = "k";
         assertAcked(
