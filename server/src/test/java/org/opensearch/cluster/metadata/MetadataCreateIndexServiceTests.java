@@ -341,7 +341,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(
             "index source must block write operations to resize index. use \"index.blocks.write=true\"",
             expectThrows(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> MetadataCreateIndexService.validateShrinkIndex(
                     createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
                     "source",
@@ -443,7 +443,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(
             "index source must block write operations to resize index. use \"index.blocks.write=true\"",
             expectThrows(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> MetadataCreateIndexService.validateSplitIndex(
                     createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
                     "source",
@@ -529,7 +529,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(
             "index source must block write operations to resize index. use \"index.blocks.write=true\"",
             expectThrows(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> MetadataCreateIndexService.validateCloneIndex(
                     createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
                     "source",
