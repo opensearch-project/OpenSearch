@@ -367,6 +367,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
          * provided {@link QuerySearchResult}.
          */
         private long ramBytesUsedQueryResult(QuerySearchResult result) {
+            if (result.aggregations() == null) {
+                return 0;
+            }
             if (hasAggs == false) {
                 return 0;
             }
@@ -387,17 +390,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         void consume(QuerySearchResult result, Runnable next) throws CircuitBreakingException {
             checkCancellation();
-            boolean executeNextImmediately = true;
-            boolean circuitBreaked = false;
+            boolean callbackWaitsForMerge = false;
+            boolean hasFailure = false;
+            boolean isResultEmpty = false;
             synchronized (this) {
-                if (hasFailure() || result.isNull()) {
+                if (hasFailure()) {
                     result.consumeAll();
-                    if (result.isNull()) {
-                        SearchShardTarget target = result.getSearchShardTarget();
-                        emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
-                    }
+                    hasFailure = true;
                 }
-                if (hasAggs) {
+                if (!hasFailure && result.isNull()) {
+                    SearchShardTarget target = result.getSearchShardTarget();
+                    emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
+                    isResultEmpty = true;
+                }
+                if (!hasFailure && hasAggs) {
                     long aggsSize = ramBytesUsedQueryResult(result);
                     try {
                         // before consuming this result, check if it will break
@@ -405,18 +411,19 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         aggsCurrentBufferSize += aggsSize;
                     } catch (CircuitBreakingException e) {
                         onMergeFailure(e);
-                        circuitBreaked = true;
+                        hasFailure = true;
                     }
                 }
-                if (!circuitBreaked) {
+                if (!hasFailure && !isResultEmpty) {
                     // add one if a partial merge is pending
                     int size = buffer.size() + (hasPartialReduce ? 1 : 0);
                     if (size >= batchReduceSize) {
                         hasPartialReduce = true;
-                        executeNextImmediately = false;
+                        // new result's callback must wait for this merge task to complete to maintain proper result processing order
+                        callbackWaitsForMerge = true;
                         QuerySearchResult[] clone = buffer.stream().toArray(QuerySearchResult[]::new);
                         MergeTask task = new MergeTask(clone, aggsCurrentBufferSize, new ArrayList<>(emptyResults), next);
-                        aggsCurrentBufferSize = 0;
+                        aggsCurrentBufferSize = 0; // reset state for next batch
                         buffer.clear();
                         emptyResults.clear();
                         queue.add(task);
@@ -425,7 +432,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     buffer.add(result);
                 }
             }
-            if (executeNextImmediately) {
+            // Execute callback immediately if no merge is pending,
+            // otherwise it will be executed when the merge completes
+            if (!callbackWaitsForMerge) {
                 next.run();
             }
         }
