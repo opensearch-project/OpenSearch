@@ -302,7 +302,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         private volatile long maxAggsCurrentBufferSize = 0;
 
         private final ArrayDeque<MergeTask> queue = new ArrayDeque<>();
-        private final AtomicReference<MergeTask> runningTask = new AtomicReference<>();
+        private final AtomicReference<MergeTask> runningTask = new AtomicReference<>(); // ensure only one task is running
         private final AtomicReference<Exception> failure = new AtomicReference<>();
 
         private final SearchPhaseController.TopDocsStats topDocsStats;
@@ -355,7 +355,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return circuitBreakerBytes;
         }
 
-        private void resetCircuitBreaker() {
+        private synchronized void resetCircuitBreaker() {
             if (circuitBreakerBytes > 0) {
                 circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
                 circuitBreakerBytes = 0;
@@ -388,12 +388,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         void consume(QuerySearchResult result, Runnable callback) {
             checkCancellation();
 
-            if (processResult(result, callback)) {
+            if (consumeResult(result, callback)) {
                 callback.run();
             }
         }
 
-        private synchronized boolean processResult(QuerySearchResult result, Runnable callback) {
+        private synchronized boolean consumeResult(QuerySearchResult result, Runnable callback) {
             if (hasFailure()) {
                 result.consumeAll(); // release memory
                 return true;
@@ -455,8 +455,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     try {
                         final QuerySearchResult[] toConsume = task.consumeBuffer();
                         if (toConsume == null) {
-                            onAfterMerge(task, thisMergeResult, estimatedTotalSize);
-                            executor.execute(() -> tryExecuteNext());
+                            onAfterMerge(task, null, 0);
                             return;
                         }
                         long estimateRamBytesUsedForReduce = estimateRamBytesUsedForReduce(estimatedTotalSize);
@@ -469,7 +468,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         return;
                     }
                     onAfterMerge(task, newMerge, estimatedTotalSize);
-                    executor.execute(() -> tryExecuteNext());
                 }
 
                 @Override
@@ -480,29 +478,32 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
 
         private void onAfterMerge(MergeTask task, MergeResult newResult, long estimatedSize) {
-            synchronized (this) {
-                runningTask.compareAndSet(task, null);
-                if (hasFailure()) {
-                    return;
+            if (newResult != null) {
+                synchronized (this) {
+                    if (hasFailure()) {
+                        return;
+                    }
+                    runningTask.compareAndSet(task, null);
+                    mergeResult = newResult;
+                    if (hasAggs) {
+                        // Update the circuit breaker to remove the size of the source aggregations
+                        // and replace the estimation with the serialized size of the newly reduced result.
+                        long newSize = mergeResult.estimatedSize - estimatedSize;
+                        addWithoutBreaking(newSize);
+                        logger.trace(
+                            "aggs partial reduction [{}->{}] max [{}]",
+                            estimatedSize,
+                            mergeResult.estimatedSize,
+                            maxAggsCurrentBufferSize
+                        );
+                    }
                 }
-                mergeResult = newResult;
-                if (hasAggs) {
-                    // Update the circuit breaker to remove the size of the source aggregations
-                    // and replace the estimation with the serialized size of the newly reduced result.
-                    long newSize = mergeResult.estimatedSize - estimatedSize;
-                    addWithoutBreaking(newSize);
-                    logger.trace(
-                        "aggs partial reduction [{}->{}] max [{}]",
-                        estimatedSize,
-                        mergeResult.estimatedSize,
-                        maxAggsCurrentBufferSize
-                    );
-                }
-                task.consumeListener();
             }
+            task.consumeListener();
+            executor.execute(this::tryExecuteNext);
         }
 
-        // Idempotent failure handling logic
+        // Idempotent and thread-safe failure handling
         private synchronized void onMergeFailure(Exception exc) {
             if (hasFailure()) {
                 assert circuitBreakerBytes == 0;
@@ -515,7 +516,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             cancelTaskOnFailure.accept(exc);
         }
 
-        private void clearMergeTaskQueue() {
+        private synchronized void clearMergeTaskQueue() {
             MergeTask task = runningTask.get();
             runningTask.compareAndSet(task, null);
             List<MergeTask> toCancels = new ArrayList<>();
