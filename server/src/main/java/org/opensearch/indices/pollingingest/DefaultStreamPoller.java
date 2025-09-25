@@ -244,7 +244,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 // Currently we do not have a good way to skip past the failing messages.
                 // The user will have the option to manually update the offset and resume ingestion.
                 // todo: support retry?
-                logger.error("Pausing ingestion. Fatal error occurred in polling the shard {}: {}", shardId, e);
+                logger.error("Pausing ingestion. Fatal error occurred in polling the shard {} for index {}: {}", shardId, indexName, e);
                 totalConsumerErrorCount.inc();
                 pause();
             }
@@ -276,7 +276,13 @@ public class DefaultStreamPoller implements StreamPoller {
                     result.getPointer().asString()
                 );
             } catch (Exception e) {
-                logger.error("Error in processing a record. Shard {}, pointer {}: {}", shardId, result.getPointer().asString(), e);
+                logger.error(
+                    "[Default Poller] Error processing record. Index={}, Shard={}, pointer={}: error={}",
+                    indexName,
+                    shardId,
+                    result.getPointer().asString(),
+                    e
+                );
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
                 totalPollerMessageFailureCount.inc();
 

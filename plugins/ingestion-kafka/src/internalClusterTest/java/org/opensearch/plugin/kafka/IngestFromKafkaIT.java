@@ -16,6 +16,7 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRespon
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.search.SearchResponse;
@@ -107,6 +108,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "latest")
+                .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );
@@ -134,6 +136,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "latest")
+                .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );
@@ -252,8 +255,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
     }
 
     public void testAllActiveIngestion() throws Exception {
-        // Create pull-based index in default replication mode (docrep) and publish some messages
-
+        // Create all-active pull-based index
         internalCluster().startClusterManagerOnlyNode();
         final String nodeA = internalCluster().startDataOnlyNode();
         for (int i = 0; i < 10; i++) {
@@ -372,7 +374,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
     }
 
     public void testReplicaPromotionOnAllActiveIngestion() throws Exception {
-        // Create pull-based index in default replication mode (docrep) and publish some messages
+        // Create all-active pull-based index
         internalCluster().startClusterManagerOnlyNode();
         final String nodeA = internalCluster().startDataOnlyNode();
         for (int i = 0; i < 10; i++) {
@@ -423,7 +425,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
     }
 
     public void testSnapshotRestoreOnAllActiveIngestion() throws Exception {
-        // Create pull-based index in default replication mode (docrep) and publish some messages
+        // Create all-active pull-based index
         internalCluster().startClusterManagerOnlyNode();
         final String nodeA = internalCluster().startDataOnlyNode();
         final String nodeB = internalCluster().startDataOnlyNode();
@@ -501,6 +503,68 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPolledCount(), is(20L));
         assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPollerMessageDroppedCount(), is(0L));
         assertThat(shardTypeToStats.get("replica").getConsumerStats().totalPollerMessageFailureCount(), is(0L));
+    }
+
+    public void testResetPollerInAllActiveIngestion() throws Exception {
+        // Create all-active pull-based index
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        waitForSearchableDocs(10, List.of(nodeA, nodeB));
+
+        // pause ingestion
+        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
+        assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 2
+                && ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
+        });
+
+        // reset to offset=2 and resume ingestion
+        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2");
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 2
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(
+                        state -> state.isPollerPaused() == false
+                            && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
+                    );
+        });
+
+        // validate there are 8 duplicate messages encountered after reset
+        waitForState(() -> {
+            Map<String, PollingIngestStats> shardTypeToStats = getPollingIngestStatsForPrimaryAndReplica(indexName);
+            assertNotNull(shardTypeToStats.get("primary"));
+            assertNotNull(shardTypeToStats.get("replica"));
+            return shardTypeToStats.get("primary").getConsumerStats().totalDuplicateMessageSkippedCount() == 8
+                && shardTypeToStats.get("replica").getConsumerStats().totalDuplicateMessageSkippedCount() == 8;
+        });
     }
 
     // returns PollingIngestStats for single primary and single replica
