@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -80,6 +81,79 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         double value2 = (randomDouble() * 2 - 1) * 10000;
         long scaledValue2 = Math.round(value2 * ft.getScalingFactor());
         assertEquals(LongField.newSetQuery("scaled_float", scaledValue1, scaledValue2), ft.termsQuery(Arrays.asList(value1, value2), null));
+    }
+
+    public void testRangeQuery() throws IOException {
+        // make sure the accuracy loss of scaled floats only occurs at index time
+        // this test checks that searching scaled floats yields the same results as
+        // searching doubles that are rounded to the closest half float
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+            "scaled_float",
+            true,
+            false,
+            false,
+            false,
+            Collections.emptyMap(),
+            0.1 + randomDouble() * 100,
+            null
+        );
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        long[] scaled_floats = new long[1000];
+        double[] doubles = new double[1000];
+        final int numDocs = 1000;
+        for (int i = 0; i < numDocs; ++i) {
+            Document doc = new Document();
+            double value = (randomDouble() * 2 - 1) * 10000;
+            long scaledValue = Math.round(value * ft.getScalingFactor());
+            double rounded = scaledValue / ft.getScalingFactor();
+            scaled_floats[i] = scaledValue;
+            doubles[i] = rounded;
+            doc.add(new LongPoint("scaled_float", scaledValue));
+            doc.add(new DoublePoint("double", rounded));
+            w.addDocument(doc);
+        }
+        final DirectoryReader reader = DirectoryReader.open(w);
+        w.close();
+        IndexSearcher searcher = newSearcher(reader);
+        final int numQueries = 1000;
+        for (int i = 0; i < numQueries; ++i) {
+            Double l = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
+            Double u = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
+            boolean includeLower = randomBoolean();
+            boolean includeUpper = randomBoolean();
+
+            // Use the same rounding logic for query bounds as used in indexing
+            Double queryL = l;
+            Double queryU = u;
+            if (l != null) {
+                long scaledL = Math.round(l * ft.getScalingFactor());
+                queryL = scaledL / ft.getScalingFactor();
+            }
+            if (u != null) {
+                long scaledU = Math.round(u * ft.getScalingFactor());
+                queryU = scaledU / ft.getScalingFactor();
+            }
+
+            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery(
+                "double",
+                queryL,
+                queryU,
+                includeLower,
+                includeUpper,
+                false,
+                true,
+                MOCK_QSC
+            );
+            Query scaledFloatQ = ft.rangeQuery(queryL, queryU, includeLower, includeUpper, MOCK_QSC);
+            int expectedCount = searcher.count(doubleQ);
+            int scaledCount = searcher.count(scaledFloatQ);
+
+            // System.out.println("l=" + l + " queryL=" + queryL + " u=" + u + " queryU=" + queryU + " scalingFactor=" +
+            // ft.getScalingFactor() + " expected= "+ expectedCount + " count= " + scaledCount);
+            assertEquals(expectedCount, scaledCount);
+        }
+        IOUtils.close(reader, dir);
     }
 
     public void testRoundsUpperBoundCorrectly() {
@@ -228,6 +302,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             "scaled_float",
             true,
             false,
+            true,
             true,
             Collections.emptyMap(),
             scalingFactor,
