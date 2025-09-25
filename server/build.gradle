@@ -388,6 +388,7 @@ tasks.named("licenseHeaders").configure {
 tasks.test {
     environment "node.roles.test", "[]"
     jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED", "-Djdk.attach.allowAttachSelf=true", "-XX:+EnableDynamicAgentLoading" ]
+    systemProperty 'log4j2.configurationFile', file('src/test/resources/log4j2-test.xml').toURI().toString()
 }
 
 tasks.named("sourcesJar").configure {
