@@ -232,6 +232,8 @@ public class DefaultStreamPoller implements StreamPoller {
 
                 if (results.isEmpty()) {
                     // no new records
+                    setLastPolledMessageTimestamp(0);
+                    Thread.sleep(DEFAULT_POLLER_SLEEP_PERIOD_MS);
                     continue;
                 }
 
@@ -267,7 +269,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
                 totalPolledCount.inc();
                 blockingQueueContainer.add(result);
-                lastPolledMessageTimestamp = result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp();
+                setLastPolledMessageTimestamp(result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp());
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
                     String.valueOf(result.getMessage().getPayload()),
@@ -403,7 +405,17 @@ public class DefaultStreamPoller implements StreamPoller {
      * Returns the lag in milliseconds since the last polled message
      */
     private long computeLag() {
+        if (lastPolledMessageTimestamp == 0 || paused) {
+            return 0;
+        }
+
         return System.currentTimeMillis() - lastPolledMessageTimestamp;
+    }
+
+    private void setLastPolledMessageTimestamp(long timestamp) {
+        if (lastPolledMessageTimestamp != timestamp) {
+            lastPolledMessageTimestamp = timestamp;
+        }
     }
 
     public State getState() {
