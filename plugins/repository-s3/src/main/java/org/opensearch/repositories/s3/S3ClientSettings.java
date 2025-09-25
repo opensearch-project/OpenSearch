@@ -263,6 +263,13 @@ public final class S3ClientSettings {
         key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
     );
 
+    /** An override for the s3 region to use for signing requests. */
+    static final Setting.AffixSetting<Boolean> LEGACY_MD5_CHECKSUM_CALCULATION = Setting.affixKeySetting(
+        PREFIX,
+        "legacy_md5_checksum_calculation",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
 
@@ -274,6 +281,9 @@ public final class S3ClientSettings {
 
     /** The protocol to use to talk to s3. Defaults to https. */
     final Protocol protocol;
+
+    /** Whether to use the legacy MD5 checksum calculation when uploading files to S3. */
+    final boolean legacyMd5ChecksumCalculation;
 
     /** An optional proxy settings that requests to s3 should be made through. */
     final ProxySettings proxySettings;
@@ -335,7 +345,8 @@ public final class S3ClientSettings {
         boolean disableChunkedEncoding,
         String region,
         String signerOverride,
-        ProxySettings proxySettings
+        ProxySettings proxySettings,
+        boolean legacyMd5ChecksumCalculation
     ) {
         this.credentials = credentials;
         this.irsaCredentials = irsaCredentials;
@@ -355,6 +366,7 @@ public final class S3ClientSettings {
         this.region = region;
         this.signerOverride = signerOverride;
         this.proxySettings = proxySettings;
+        this.legacyMd5ChecksumCalculation = legacyMd5ChecksumCalculation;
     }
 
     /**
@@ -416,6 +428,11 @@ public final class S3ClientSettings {
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
         final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
+        final boolean md5ChecksumCalculation = getRepoSettingOrDefault(
+            LEGACY_MD5_CHECKSUM_CALCULATION,
+            normalizedSettings,
+            legacyMd5ChecksumCalculation
+        );
         if (Objects.equals(endpoint, newEndpoint)
             && protocol == newProtocol
             && Objects.equals(proxySettings.getHostName(), newProxyHost)
@@ -432,7 +449,8 @@ public final class S3ClientSettings {
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && Objects.equals(region, newRegion)
-            && Objects.equals(signerOverride, newSignerOverride)) {
+            && Objects.equals(signerOverride, newSignerOverride)
+            && Objects.equals(md5ChecksumCalculation, this.legacyMd5ChecksumCalculation)) {
             return this;
         }
 
@@ -455,7 +473,8 @@ public final class S3ClientSettings {
             newDisableChunkedEncoding,
             newRegion,
             newSignerOverride,
-            proxySettings.recreateWithNewHostAndPort(newProxyHost, newProxyPort)
+            proxySettings.recreateWithNewHostAndPort(newProxyHost, newProxyPort),
+            md5ChecksumCalculation
         );
     }
 
@@ -586,7 +605,8 @@ public final class S3ClientSettings {
             getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
             getConfigValue(settings, clientName, REGION),
             getConfigValue(settings, clientName, SIGNER_OVERRIDE),
-            validateAndCreateProxySettings(settings, clientName, awsProtocol)
+            validateAndCreateProxySettings(settings, clientName, awsProtocol),
+            getConfigValue(settings, clientName, LEGACY_MD5_CHECKSUM_CALCULATION)
         );
     }
 

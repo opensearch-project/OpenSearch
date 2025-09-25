@@ -66,7 +66,7 @@ public class InMemoryRuleProcessingService {
     private void removeOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.remove(value.replace(WILDCARD, ""));
+            valueStore.remove(value.replace(WILDCARD, ""), rule.getFeatureValue());
         }
     }
 
@@ -92,12 +92,13 @@ public class InMemoryRuleProcessingService {
                 attributeExtractor.getAttribute()
             );
             for (String value : attributeExtractor.extract()) {
-                Optional<String> possibleMatch = valueStore.get(value);
+                List<Set<String>> candidateMatches = valueStore.getAll(value);
 
-                if (possibleMatch.isEmpty()) {
+                if (candidateMatches == null || candidateMatches.isEmpty()) {
                     return Optional.empty();
                 }
 
+                Optional<String> possibleMatch = candidateMatches.get(0).stream().findAny();
                 if (result.isEmpty()) {
                     result = possibleMatch;
                 } else {

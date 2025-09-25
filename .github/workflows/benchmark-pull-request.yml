@@ -149,7 +149,7 @@ jobs:
         run: |
           ./gradlew :distribution:archives:linux-tar:assemble -Dbuild.snapshot=false
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.UPLOAD_ARCHIVE_ARTIFACT_ROLE }}
           role-session-name: publish-to-s3

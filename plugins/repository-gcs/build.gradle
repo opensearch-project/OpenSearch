@@ -72,7 +72,7 @@ dependencies {
   implementation "org.threeten:threetenbp:1.7.0"
   runtimeOnly "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
   runtimeOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  runtimeOnly "com.google.code.gson:gson:2.12.1"
+  runtimeOnly "com.google.code.gson:gson:${versions.gson}"
   runtimeOnly "com.google.api.grpc:proto-google-common-protos:2.60.0"
   runtimeOnly "com.google.api.grpc:proto-google-iam-v1:1.55.0"
   implementation "com.google.auth:google-auth-library-credentials:1.38.0"

@@ -54,7 +54,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
-    private String esEnforceBootstrapChecks = System.getProperty(OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS);
+    private final String enforceBootstrapChecks = System.getProperty(OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS);
 
     @Override
     @Before
@@ -65,12 +65,12 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
     @Override
     @After
     public void tearDown() throws Exception {
-        setEsEnforceBootstrapChecks(esEnforceBootstrapChecks);
+        setEnforceBootstrapChecks(enforceBootstrapChecks);
         super.tearDown();
     }
 
     public void testEnforceBootstrapChecks() throws NodeValidationException {
-        setEsEnforceBootstrapChecks("true");
+        setEnforceBootstrapChecks("true");
         final List<BootstrapCheck> checks = Collections.singletonList(context -> BootstrapCheck.BootstrapCheckResult.failure("error"));
 
         final Logger logger = mock(Logger.class);
@@ -86,7 +86,7 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
     }
 
     public void testNonEnforcedBootstrapChecks() throws NodeValidationException {
-        setEsEnforceBootstrapChecks(null);
+        setEnforceBootstrapChecks(null);
         final Logger logger = mock(Logger.class);
         // nothing should happen
         BootstrapChecks.check(emptyContext, false, emptyList(), logger);
@@ -95,7 +95,7 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testInvalidValue() {
         final String value = randomAlphaOfLength(8);
-        setEsEnforceBootstrapChecks(value);
+        setEnforceBootstrapChecks(value);
         final boolean enforceLimits = randomBoolean();
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -106,7 +106,7 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
     }
 
     @SuppressForbidden(reason = "set or clear system property opensearch.enforce.bootstrap.checks")
-    public void setEsEnforceBootstrapChecks(final String value) {
+    public void setEnforceBootstrapChecks(final String value) {
         if (value == null) {
             System.clearProperty(OPENSEARCH_ENFORCE_BOOTSTRAP_CHECKS);
         } else {

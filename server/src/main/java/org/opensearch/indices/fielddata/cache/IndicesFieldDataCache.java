@@ -39,6 +39,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.Cache;
@@ -51,6 +52,7 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.RatioValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
@@ -59,6 +61,7 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.shard.ShardUtils;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,18 +84,37 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
 
+    public static final RatioValue MAX_SIZE_PERCENTAGE = new RatioValue(35);
+    /**
+     * The size after which the cache will begin to evict entries.
+     */
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.memorySizeSetting(
         "indices.fielddata.cache.size",
-        new ByteSizeValue(-1),
-        Property.NodeScope
+        MAX_SIZE_PERCENTAGE.toString(),
+        Property.NodeScope,
+        Property.Dynamic
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
+    private final ThreadPool threadPool;
     private Set<Index> indicesToClear;
     private Map<Index, Set<String>> fieldsToClear;
     private Set<CacheKey> cacheKeysToClear;
 
+    /**
+     * Deprecated ctor. Use the ctor with the clusterService argument.
+     */
+    @Deprecated
     public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
+        this(settings, indicesFieldDataCacheListener, null, null);
+    }
+
+    public IndicesFieldDataCache(
+        Settings settings,
+        IndexFieldDataCache.Listener indicesFieldDataCacheListener,
+        ClusterService clusterService,
+        ThreadPool threadPool
+    ) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder().removalListener(this);
@@ -100,6 +122,17 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
         cache = cacheBuilder.build();
+        if (clusterService != null) {
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_FIELDDATA_CACHE_SIZE_KEY, this::updateMaximumWeight);
+        } else {
+            logger.warn(
+                "IndicesFieldDataCache ctor got null clusterService argument! Cluster setting updates for cache size will not work!"
+            );
+        }
+        this.threadPool = threadPool;
+        if (threadPool == null) {
+            logger.warn("IndicesFieldDataCache ctor got null threadPool! Evictions on cache resize will happen on cluster applier thread!");
+        }
         this.indicesToClear = ConcurrentCollections.newConcurrentSet();
         this.fieldsToClear = new ConcurrentHashMap<>();
         this.cacheKeysToClear = ConcurrentCollections.newConcurrentSet();
@@ -313,6 +346,20 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         public void clear(String fieldName) {
             // This method must work to support the interface, but we don't use it directly in the actual cache clear path
             nodeLevelCache.clear(index, fieldName);
+        }
+    }
+
+    private void updateMaximumWeight(ByteSizeValue newMaximumWeight) {
+        long oldMaximumWeight = cache.getMaximumWeight();
+        cache.setMaximumWeight(newMaximumWeight.getBytes());
+        if (newMaximumWeight.getBytes() < oldMaximumWeight) {
+            // Evict entries if needed, if the new size is smaller than the old.
+            // Do it asynchronously to avoid blocking cluster applier thread
+            if (threadPool != null) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(cache::refresh);
+            } else {
+                cache.refresh();
+            }
         }
     }
 
