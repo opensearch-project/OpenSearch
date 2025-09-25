@@ -43,7 +43,7 @@ dependencies {
   testImplementation(project(':distribution:tools:plugin-cli')) {
     exclude group: 'org.bouncycastle'
   }
-  testCompileOnly "com.github.spotbugs:spotbugs-annotations:4.9.4"
+  testCompileOnly "com.github.spotbugs:spotbugs-annotations:4.9.6"
 }
 
 test {
