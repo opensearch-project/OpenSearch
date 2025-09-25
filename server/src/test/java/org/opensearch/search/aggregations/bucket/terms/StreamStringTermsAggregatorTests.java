@@ -558,12 +558,12 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithAvg() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("product", new BytesRef("laptop")));
                 document.add(new NumericDocValuesField("rating", 4));
                 indexWriter.addDocument(document);
-                indexWriter.commit();
+
                 document = new Document();
                 document.add(new SortedSetDocValuesField("product", new BytesRef("laptop")));
                 document.add(new NumericDocValuesField("rating", 5));
@@ -574,7 +574,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("rating", 3));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType productFieldType = new KeywordFieldMapper.KeywordFieldType("product");
                     MappedFieldType ratingFieldType = new NumberFieldMapper.NumberFieldType("rating", NumberFieldMapper.NumberType.LONG);
@@ -628,12 +628,12 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithMinAndCount() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("store", new BytesRef("store_a")));
                 document.add(new NumericDocValuesField("inventory", 100));
                 indexWriter.addDocument(document);
-                indexWriter.commit();
+
                 document = new Document();
                 document.add(new SortedSetDocValuesField("store", new BytesRef("store_a")));
                 document.add(new NumericDocValuesField("inventory", 50));
@@ -644,7 +644,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("inventory", 200));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType storeFieldType = new KeywordFieldMapper.KeywordFieldType("store");
                     MappedFieldType inventoryFieldType = new NumberFieldMapper.NumberFieldType(
@@ -712,13 +712,13 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMultipleSubAggregations() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("region", new BytesRef("north")));
                 document.add(new NumericDocValuesField("temperature", 25));
                 document.add(new NumericDocValuesField("humidity", 60));
                 indexWriter.addDocument(document);
-                indexWriter.commit();
+
                 document = new Document();
                 document.add(new SortedSetDocValuesField("region", new BytesRef("north")));
                 document.add(new NumericDocValuesField("temperature", 30));
@@ -731,7 +731,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("humidity", 80));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType regionFieldType = new KeywordFieldMapper.KeywordFieldType("region");
                     MappedFieldType tempFieldType = new NumberFieldMapper.NumberFieldType("temperature", NumberFieldMapper.NumberType.LONG);
