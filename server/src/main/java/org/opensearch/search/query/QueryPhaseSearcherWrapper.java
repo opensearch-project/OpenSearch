@@ -54,11 +54,13 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        if (searchContext.shouldUseConcurrentSearch()) {
-            return concurrentQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-        } else {
-            return defaultQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
-        }
+        // if (searchContext.shouldUseConcurrentSearch()) {
+        // return concurrentQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        // } else {
+        // return defaultQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        // }
+        //
+        return defaultQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
     }
 
     /**
@@ -68,10 +70,11 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
      */
     @Override
     public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
-        if (searchContext.shouldUseConcurrentSearch()) {
-            return concurrentQueryPhaseSearcher.aggregationProcessor(searchContext);
-        } else {
-            return defaultQueryPhaseSearcher.aggregationProcessor(searchContext);
-        }
+        // if (searchContext.shouldUseConcurrentSearch()) {
+        // return concurrentQueryPhaseSearcher.aggregationProcessor(searchContext);
+        // } else {
+        // return defaultQueryPhaseSearcher.aggregationProcessor(searchContext);
+        // }
+        return defaultQueryPhaseSearcher.aggregationProcessor(searchContext);
     }
 }

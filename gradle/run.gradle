@@ -52,6 +52,30 @@ testClusters {
         }
       }
     }
+
+    if (findProperty("remotePlugins")) {
+      remotePlugins = Eval.me(remotePlugins)
+      for (String coords : remotePlugins) {
+        if (coords.startsWith('/') || coords.startsWith('file:')) {
+          // Direct file path
+          plugin(project.layout.file(project.provider { new File(coords) }))
+        } else {
+          // Maven coordinates
+          def config = project.configurations.detachedConfiguration(
+            project.dependencies.create(coords + '@zip')
+          )
+          config.resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+          project.repositories.mavenLocal()
+          project.repositories {
+            maven {
+              name = 'OpenSearch Snapshots'
+              url = 'https://central.sonatype.com/repository/maven-snapshots/'
+            }
+          }
+          plugin(project.layout.file(project.provider { config.singleFile }))
+        }
+      }
+    }
   }
 
 }

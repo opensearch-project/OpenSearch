@@ -164,6 +164,7 @@ import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -1101,12 +1102,17 @@ public class IndicesService extends AbstractLifecycleComponent
             this.remoteStoreSettings,
             replicator,
             segmentReplicationStatsProvider,
-            this::getClusterDefaultMaxMergeAtOnce
+            this::getClusterDefaultMaxMergeAtOnce,
+            getSearchEnginePlugin()
         );
     }
 
     private EngineConfigFactory getEngineConfigFactory(final IndexSettings idxSettings) {
         return new EngineConfigFactory(this.pluginsService, idxSettings);
+    }
+
+    private SearchEnginePlugin getSearchEnginePlugin() throws IOException {
+        return pluginsService.filterPlugins(SearchEnginePlugin.class).get(0);
     }
 
     private IngestionConsumerFactory getIngestionConsumerFactory(final IndexSettings idxSettings) {
