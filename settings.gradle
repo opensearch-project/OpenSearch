@@ -87,7 +87,8 @@ List projects = [
   'test:fixtures:minio-fixture',
   'test:fixtures:s3-fixture',
   'test:logger-usage',
-  'test:telemetry'
+  'test:telemetry',
+  'plugins:test-forkjoinpool'
 ]
 
 /**
