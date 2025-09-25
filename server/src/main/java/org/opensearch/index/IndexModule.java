@@ -89,6 +89,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -652,7 +653,8 @@ public final class IndexModule {
         Supplier<Boolean> shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        SearchEnginePlugin searchEnginePlugin
     ) throws IOException {
         return newIndexService(
             indexCreationContext,
@@ -680,7 +682,8 @@ public final class IndexModule {
             remoteStoreSettings,
             (s) -> {},
             shardId -> ReplicationStats.empty(),
-            clusterDefaultMaxMergeAtOnceSupplier
+            clusterDefaultMaxMergeAtOnceSupplier,
+            searchEnginePlugin
         );
     }
 
@@ -710,7 +713,8 @@ public final class IndexModule {
         RemoteStoreSettings remoteStoreSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
-        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        SearchEnginePlugin searchEnginePlugin
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -781,7 +785,8 @@ public final class IndexModule {
                 compositeIndexSettings,
                 replicator,
                 segmentReplicationStatsProvider,
-                clusterDefaultMaxMergeAtOnceSupplier
+                clusterDefaultMaxMergeAtOnceSupplier,
+                searchEnginePlugin
             );
             success = true;
             return indexService;

@@ -82,6 +82,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.SearchExecutionEngine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.query.InnerHitContextBuilder;
@@ -781,13 +782,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
         ) {
+
+            // TODO Execute plan here
+            byte[] substraitQuery = request.source().queryPlanIR();
+            if (substraitQuery != null) {
+                SearchExecutionEngine searchExecutionEngine = readerContext.indexShard().getSearchExecutionEngine();
+                Map<String, Object[]> result = searchExecutionEngine.execute(substraitQuery);
+                context.setDFResults(result);
+            }
+
             if (isStreamSearch) {
                 assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
                 context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
             }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
-                loadOrExecuteQueryPhase(request, context);
+                queryPhase.execute(context);
+                // loadOrExecuteQueryPhase(request, context);
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     freeReaderContext(readerContext.id());
                 }

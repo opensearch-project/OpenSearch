@@ -713,6 +713,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return pipeline;
     }
 
+    public SearchRequest queryPlanIR(byte[] queryPlanIR) {
+        if (this.source == null) {
+            this.source = new SearchSourceBuilder();
+        }
+        this.source.queryPlanIR(queryPlanIR);
+        return this;
+    }
+
+    public byte[] queryPlanIR() {
+        return this.source != null ? this.source.queryPlanIR() : null;
+    }
+
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
