@@ -827,7 +827,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // Till here things are generic but for datafusion , we need to abstract out and get the read engine specific implementation
         // it could be reusing existing
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
-        SearchExecEngine<?, ?, ?, ?> searchExecEngine = readerContext.indexShard()
+        @SuppressWarnings("unchecked")
+        SearchExecEngine searchExecEngine = readerContext.indexShard()
             .getIndexingExecutionCoordinator()
             .getPrimaryReadEngine();
 
@@ -842,10 +843,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ) {
 
             // TODO Execute plan here
+            // TODO : figure out how to tie this
             byte[] substraitQuery = request.source().queryPlanIR();
             if (substraitQuery != null) {
-                SearchExecutionEngine searchExecutionEngine = readerContext.indexShard().getSearchExecutionEngine();
-                Map<String, Object[]> result = searchExecutionEngine.execute(substraitQuery);
+                Map<String, Object[]> result = searchExecEngine.execute(context);
                 context.setDFResults(result);
             }
 
@@ -855,9 +856,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                // TODO check for this
+//                @SuppressWarnings("unchecked")
+//                QueryPhaseExecutor<SearchContext> queryPhaseExecutor =
+//                    (QueryPhaseExecutor<SearchContext>) searchExecEngine.getQueryPhaseExecutor();
+
                 //QueryPhaseExecutor<?> queryPhaseExecutor = readEngine.getQueryPhaseExecutor();
-                //boolean success = queryPhaseExecutor.execute(context);
-                //loadOrExecuteQueryPhase(request, context);
+//                boolean success = queryPhaseExecutor.execute(context);
+                loadOrExecuteQueryPhase(request, context);
                 queryPhase.execute(context);
                 // loadOrExecuteQueryPhase(request, context);
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {

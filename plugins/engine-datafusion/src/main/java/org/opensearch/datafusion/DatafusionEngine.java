@@ -8,8 +8,15 @@
 
 package org.opensearch.datafusion;
 
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
 import org.opensearch.datafusion.search.DatafusionQueryPhaseExecutor;
@@ -23,6 +30,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.search.aggregations.SearchResultsCollector;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhaseExecutor;
@@ -33,17 +41,23 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 
 public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
     DatafusionReaderManager, DatafusionQuery> {
 
+    private static final Logger logger = LogManager.getLogger(DatafusionEngine.class);
+
     private DataFormat dataFormat;
     private DatafusionReaderManager datafusionReaderManager;
+    private DataFusionService datafusionService;
 
-    public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot) throws IOException {
+    public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService) throws IOException {
         this.dataFormat = dataFormat;
         this.datafusionReaderManager = new DatafusionReaderManager("TODO://FigureOutPath", formatCatalogSnapshot);
+        this.datafusionService = dataFusionService;
     }
 
     @Override
@@ -60,7 +74,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTask task) throws IOException {
         DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, task, this);
         // Parse source
-        datafusionContext.datafusionQuery(new DatafusionQuery(request.source().getSubstraitBytes(), new ArrayList<>()));
+        datafusionContext.datafusionQuery(new DatafusionQuery(request.source().queryPlanIR(), new ArrayList<>()));
         return datafusionContext;
     }
 
@@ -137,5 +151,49 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     @Override
     public boolean assertSearcherIsWarmedUp(String source, Engine.SearcherScope scope) {
         return false;
+    }
+
+    @Override
+    public Map<String, Object[]> execute(DatafusionContext context) {
+
+        Map<String, Object[]> finalRes = new HashMap<>();
+        try {
+            DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
+            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery());
+            RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+            RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
+
+            // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
+            // Is the possible? need to check
+
+            SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
+                @Override
+                public void collect(RecordBatchStream value) {
+                    VectorSchemaRoot root = value.getVectorSchemaRoot();
+                    for (Field field : root.getSchema().getFields()) {
+                        String filedName = field.getName();
+                        FieldVector fieldVector = root.getVector(filedName);
+                        Object[] fieldValues = new Object[fieldVector.getValueCount()];
+                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
+                            fieldValues[i] = fieldVector.getObject(i);
+                        }
+                        finalRes.put(filedName, fieldValues);
+                    }
+                }
+            };
+
+            while (stream.loadNextBatch().join()) {
+                collector.collect(stream);
+            }
+
+            logger.info("Final Results:");
+            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+            }
+
+        } catch (Exception exception) {
+            logger.error("Failed to execute Substrait query plan", exception);
+        }
+        return finalRes;
     }
 }

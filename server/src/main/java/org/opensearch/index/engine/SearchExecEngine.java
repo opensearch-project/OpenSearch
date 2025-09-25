@@ -17,6 +17,7 @@ import org.opensearch.search.query.GenericQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhaseExecutor;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Generic read engine interface that provides searcher operations and query phase execution
@@ -43,4 +44,10 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
      * Create a search context for this engine
      */
     public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTask task) throws IOException;
+
+    /**
+     * execute
+     * @return
+     */
+    public abstract Map<String, Object[]> execute(C context) throws IOException;
 }
