@@ -156,7 +156,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         );
 
         // Simulate async completion by manually creating and closing a BatchTask
-        BatchTask completeTask = new BatchTask(
+        FlightOutboundHandler.BatchTask completeTask = new FlightOutboundHandler.BatchTask(
             Version.CURRENT,
             Collections.emptySet(),
             mockTcpChannel,
@@ -167,6 +167,8 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
             false,
             false,
             true,
+            false,
+            null,
             null
         );
         completeTask.close();

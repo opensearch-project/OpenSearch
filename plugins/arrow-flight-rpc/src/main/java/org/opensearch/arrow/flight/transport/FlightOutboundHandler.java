@@ -127,6 +127,8 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             compress,
             isHandshake,
             false,
+            false,
+            null,
             storedContext
         );
 
@@ -145,23 +147,23 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
     }
 
     private void processBatchTask(BatchTask task) {
-        task.storedContext.restore();
-        if (!(task.channel instanceof FlightServerChannel flightChannel)) {
-            Exception error = new IllegalStateException("Expected FlightServerChannel, got " + task.channel.getClass().getName());
-            messageListener.onResponseSent(task.requestId, task.action, error);
+        task.storedContext().restore();
+        if (!(task.channel() instanceof FlightServerChannel flightChannel)) {
+            Exception error = new IllegalStateException("Expected FlightServerChannel, got " + task.channel().getClass().getName());
+            messageListener.onResponseSent(task.requestId(), task.action(), error);
             return;
         }
 
         try {
             try (VectorStreamOutput out = new VectorStreamOutput(flightChannel.getAllocator(), flightChannel.getRoot())) {
-                task.response.writeTo(out);
-                flightChannel.sendBatch(getHeaderBuffer(task.requestId, task.nodeVersion, task.features), out);
-                messageListener.onResponseSent(task.requestId, task.action, task.response);
+                task.response().writeTo(out);
+                flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out);
+                messageListener.onResponseSent(task.requestId(), task.action(), task.response());
             }
         } catch (FlightRuntimeException e) {
-            messageListener.onResponseSent(task.requestId, task.action, FlightErrorMapper.fromFlightException(e));
+            messageListener.onResponseSent(task.requestId(), task.action(), FlightErrorMapper.fromFlightException(e));
         } catch (Exception e) {
-            messageListener.onResponseSent(task.requestId, task.action, e);
+            messageListener.onResponseSent(task.requestId(), task.action(), e);
         }
     }
 
@@ -185,6 +187,8 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             false,
             false,
             true,
+            false,
+            null,
             storedContext
         );
 
@@ -203,18 +207,18 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
     }
 
     private void processCompleteTask(BatchTask task) {
-        task.storedContext.restore();
-        if (!(task.channel instanceof FlightServerChannel flightChannel)) {
-            Exception error = new IllegalStateException("Expected FlightServerChannel, got " + task.channel.getClass().getName());
-            messageListener.onResponseSent(task.requestId, task.action, error);
+        task.storedContext().restore();
+        if (!(task.channel() instanceof FlightServerChannel flightChannel)) {
+            Exception error = new IllegalStateException("Expected FlightServerChannel, got " + task.channel().getClass().getName());
+            messageListener.onResponseSent(task.requestId(), task.action(), error);
             return;
         }
 
         try {
             flightChannel.completeStream();
-            messageListener.onResponseSent(task.requestId, task.action, TransportResponse.Empty.INSTANCE);
+            messageListener.onResponseSent(task.requestId(), task.action(), TransportResponse.Empty.INSTANCE);
         } catch (Exception e) {
-            messageListener.onResponseSent(task.requestId, task.action, e);
+            messageListener.onResponseSent(task.requestId(), task.action(), e);
         }
     }
 
@@ -235,8 +239,11 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             transportChannel,
             requestId,
             action,
+            null,
             false,
             false,
+            false,
+            true,
             error,
             storedContext
         );
@@ -256,22 +263,22 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
     }
 
     private void processErrorTask(BatchTask task) {
-        task.storedContext.restore();
-        if (!(task.channel instanceof FlightServerChannel flightServerChannel)) {
-            Exception error = new IllegalStateException("Expected FlightServerChannel, got " + task.channel.getClass().getName());
-            messageListener.onResponseSent(task.requestId, task.action, error);
+        task.storedContext().restore();
+        if (!(task.channel() instanceof FlightServerChannel flightServerChannel)) {
+            Exception error = new IllegalStateException("Expected FlightServerChannel, got " + task.channel().getClass().getName());
+            messageListener.onResponseSent(task.requestId(), task.action(), error);
             return;
         }
 
         try {
-            Exception flightError = task.error;
-            if (task.error instanceof StreamException) {
-                flightError = FlightErrorMapper.toFlightException((StreamException) task.error);
+            Exception flightError = task.error();
+            if (task.error() instanceof StreamException) {
+                flightError = FlightErrorMapper.toFlightException((StreamException) task.error());
             }
-            flightServerChannel.sendError(getHeaderBuffer(task.requestId, task.nodeVersion, task.features), flightError);
-            messageListener.onResponseSent(task.requestId, task.action, task.error);
+            flightServerChannel.sendError(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), flightError);
+            messageListener.onResponseSent(task.requestId(), task.action(), task.error());
         } catch (Exception e) {
-            messageListener.onResponseSent(task.requestId, task.action, e);
+            messageListener.onResponseSent(task.requestId(), task.action(), e);
         }
     }
 
@@ -299,6 +306,21 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         try (BytesStreamOutput bytesStream = new BytesStreamOutput()) {
             BytesReference headerBytes = headerMessage.serialize(bytesStream);
             return ByteBuffer.wrap(headerBytes.toBytesRef().bytes);
+        }
+    }
+
+    record BatchTask(Version nodeVersion, Set<String> features, TcpChannel channel, FlightTransportChannel transportChannel, long requestId,
+        String action, TransportResponse response, boolean compress, boolean isHandshake, boolean isComplete, boolean isError,
+        Exception error, ThreadContext.StoredContext storedContext) implements AutoCloseable {
+
+        @Override
+        public void close() {
+            if (storedContext != null) {
+                storedContext.close();
+            }
+            if ((isComplete || isError) && transportChannel != null) {
+                transportChannel.releaseChannel(isError);
+            }
         }
     }
 }
