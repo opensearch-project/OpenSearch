@@ -16,6 +16,9 @@ import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     RuleQueryMapper<QueryBuilder> sut;
@@ -37,9 +40,11 @@ public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildGetRuleQuery_WithAttributes() {
-        QueryBuilder queryBuilder = sut.from(
-            new GetRuleRequest(null, RuleTestUtils.ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE)
-        );
+        Map<String, Set<String>> attributeFilters = RuleTestUtils.ATTRIBUTE_MAP.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> e.getKey().getName(), Map.Entry::getValue));
+
+        QueryBuilder queryBuilder = sut.from(new GetRuleRequest(null, attributeFilters, null, RuleTestUtils.MockRuleFeatureType.INSTANCE));
         assertNotNull(queryBuilder);
         BoolQueryBuilder query = (BoolQueryBuilder) queryBuilder;
         assertEquals(1, query.must().size());
