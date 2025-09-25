@@ -127,6 +127,7 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
                     "ingestion_source.param.endpoint_override",
                     localstack.getEndpointOverride(LocalStackContainer.Service.KINESIS).toString()
                 )
+                .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );
