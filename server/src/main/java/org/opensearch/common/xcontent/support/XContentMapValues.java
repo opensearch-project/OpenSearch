@@ -301,11 +301,11 @@ public class XContentMapValues {
      *  For instance, if the original simple regex is `foo`, this will translate
      *  it into `foo` OR `foo.*`. */
     private static Automaton makeMatchDotsInFieldNames(Automaton automaton) {
-        Automaton automationMatchingFields = Operations.concatenate(
+        Automaton automatonMatchingFields = Operations.concatenate(
             Arrays.asList(automaton, Automata.makeChar('.'), Automata.makeAnyString())
         );
         return Operations.determinize(
-            Operations.union(Arrays.asList(automaton, automationMatchingFields)),
+            Operations.union(Arrays.asList(automaton, automatonMatchingFields)),
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
     }
