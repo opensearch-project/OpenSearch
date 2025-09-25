@@ -57,6 +57,7 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -269,6 +270,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+        private final Parameter<Boolean> skiplist = new Parameter<>(
+            "skip_list",
+            false,
+            () -> false,
+            (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
+            m -> toType(m).skiplist
+        );
 
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -337,7 +345,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
+            return Arrays.asList(index, docValues, store, skiplist, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -744,6 +752,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final boolean store;
     private final boolean indexed;
     private final boolean hasDocValues;
+    private final boolean skiplist;
     private final Locale locale;
     private final String format;
     private final String printFormat;
@@ -768,6 +777,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
+        this.skiplist = builder.skiplist.getValue();
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
         this.printFormat = builder.printFormat.getValue();
@@ -836,7 +846,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (hasDocValues) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            if (skiplist) {
+                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
+            } else {
+                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            }
         } else if (store || indexed) {
             createFieldNamesField(context);
         }
@@ -847,6 +861,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public Long getNullValue() {
         return nullValue;
+    }
+
+    public boolean skiplist() {
+        return skiplist;
     }
 
     @Override

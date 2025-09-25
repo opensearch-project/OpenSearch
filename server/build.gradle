@@ -29,6 +29,7 @@
  */
 
 import org.opensearch.gradle.info.BuildParams
+import groovy.xml.XmlParser
 
 plugins {
   id('com.google.protobuf') version 'latest.release'
