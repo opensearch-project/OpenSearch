@@ -14,12 +14,16 @@ import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
 public class WorkloadGroupFeatureTypeTests extends OpenSearchTestCase {
-    WorkloadGroupFeatureType featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(mock(ClusterService.class)));
+    WorkloadGroupFeatureType featureType = new WorkloadGroupFeatureType(
+        new WorkloadGroupFeatureValueValidator(mock(ClusterService.class)),
+        new HashMap<>()
+    );
 
     public void testGetName_returnsCorrectName() {
         assertEquals("workload_group", featureType.getName());
@@ -37,6 +41,12 @@ public class WorkloadGroupFeatureTypeTests extends OpenSearchTestCase {
         Map<String, Attribute> allowedAttributes = featureType.getAllowedAttributesRegistry();
         assertTrue(allowedAttributes.containsKey("index_pattern"));
         assertEquals(RuleAttribute.INDEX_PATTERN, allowedAttributes.get("index_pattern"));
+    }
+
+    public void testGetOrderedAttributes_containsIndexPattern() {
+        Map<Attribute, Integer> orderedAttributes = featureType.getOrderedAttributes();
+        assertTrue(orderedAttributes.containsKey(RuleAttribute.INDEX_PATTERN));
+        assertEquals(2, orderedAttributes.get(RuleAttribute.INDEX_PATTERN).intValue());
     }
 
     public void testRegisterFeatureType() {
