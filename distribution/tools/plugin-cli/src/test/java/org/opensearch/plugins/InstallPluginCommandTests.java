@@ -423,8 +423,6 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(configDir)) {
                 for (Path file : stream) {
-                    assertFalse("not a dir", Files.isDirectory(file));
-
                     if (isPosix) {
                         PosixFileAttributes attributes = Files.readAttributes(file, PosixFileAttributes.class);
                         if (user != null) {
@@ -793,9 +791,14 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.createDirectories(dirInConfigDir);
         Files.createFile(dirInConfigDir.resolve("myconfig.yml"));
         String pluginZip = createPluginUrl("fake", pluginDir);
-        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in config dir for plugin"));
-        assertInstallCleaned(env.v2());
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake", pluginDir, env.v2());
+
+        // Verify the directory and file were installed
+        Path installedConfigDir = env.v2().configFile().resolve("fake").resolve("foo");
+        assertTrue(Files.exists(installedConfigDir));
+        assertTrue(Files.isDirectory(installedConfigDir));
+        assertTrue(Files.exists(installedConfigDir.resolve("myconfig.yml")));
     }
 
     public void testMissingDescriptor() throws Exception {
