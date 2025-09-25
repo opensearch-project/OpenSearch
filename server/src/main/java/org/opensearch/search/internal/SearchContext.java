@@ -84,6 +84,7 @@ import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -594,4 +595,10 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
+
+    public void setDFResults(Map<String, Object[]> dfResults) {}
+
+    public Map<String, Object[]> getDFResults() {
+        return Collections.emptyMap();
+    }
 }
