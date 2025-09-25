@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
     public void testBuildAggregationsBatchDirectBucketCreation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (IndexWriter indexWriter = new IndexWriter(directory, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("field", new BytesRef("apple")));
                 document.add(new SortedSetDocValuesField("field", new BytesRef("banana")));
@@ -154,7 +154,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithSingleValuedOrds() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (IndexWriter indexWriter = new IndexWriter(directory, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 for (int i = 0; i < 10; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("term_" + (i % 3))));
@@ -225,7 +225,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithSize() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (IndexWriter indexWriter = new IndexWriter(directory, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Create fewer unique terms to test size parameter more meaningfully
                 for (int i = 0; i < 20; i++) {
                     Document document = new Document();
@@ -274,7 +274,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithCountOrder() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (IndexWriter indexWriter = new IndexWriter(directory, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 for (int i = 0; i < 3; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("common")));
@@ -488,7 +488,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithSum() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (IndexWriter indexWriter = new IndexWriter(directory, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 document.add(new NumericDocValuesField("sales", 1000));
@@ -818,7 +818,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             // Create first aggregation with some data
             List<InternalAggregation> aggs = new ArrayList<>();
 
-            try (IndexWriter indexWriter1 = new IndexWriter(directory1, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter1 = new IndexWriter(directory1, new IndexWriterConfig())) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 indexWriter1.addDocument(doc);
@@ -837,7 +837,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Create second aggregation with overlapping data
-            try (IndexWriter indexWriter2 = new IndexWriter(directory2, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter2 = new IndexWriter(directory2, new IndexWriterConfig())) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 indexWriter2.addDocument(doc);
@@ -991,7 +991,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Second aggregation with different terms
-            try (IndexWriter indexWriter2 = new IndexWriter(directory2, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter2 = new IndexWriter(directory2, new IndexWriterConfig())) {
                 for (int i = 3; i < 8; i++) {
                     Document doc = new Document();
                     doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
@@ -1037,7 +1037,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testReduceSingleAggregation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (IndexWriter indexWriter = new IndexWriter(directory, newIndexWriterConfig())) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Add multiple documents with different categories to test reduce logic properly
                 Document doc1 = new Document();
                 doc1.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
