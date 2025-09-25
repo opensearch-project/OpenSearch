@@ -388,54 +388,52 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return Math.round(0.5d * size);
         }
 
-        void consume(QuerySearchResult result, Runnable next) throws CircuitBreakingException {
+        void consume(QuerySearchResult result, Runnable callback) throws CircuitBreakingException {
             checkCancellation();
             boolean callbackWaitsForMerge = false;
-            boolean hasFailure = false;
-            boolean isResultEmpty = false;
+
             synchronized (this) {
                 if (hasFailure()) {
                     result.consumeAll();
-                    hasFailure = true;
+                    callback.run();
+                    return;
                 }
-                if (!hasFailure && result.isNull()) {
+                if (result.isNull()) {
                     SearchShardTarget target = result.getSearchShardTarget();
                     emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
-                    isResultEmpty = true;
+                    callback.run();
+                    return;
                 }
-                if (!hasFailure && hasAggs) {
+                // Check circuit breaker before consuming
+                if (hasAggs) {
                     long aggsSize = ramBytesUsedQueryResult(result);
                     try {
-                        // before consuming this result, check if it will break
                         addEstimateAndMaybeBreak(aggsSize);
                         aggsCurrentBufferSize += aggsSize;
                     } catch (CircuitBreakingException e) {
                         onMergeFailure(e);
-                        hasFailure = true;
+                        callback.run();
+                        return;
                     }
                 }
-                if (!hasFailure && !isResultEmpty) {
-                    // add one if a partial merge is pending
-                    int size = buffer.size() + (hasPartialReduce ? 1 : 0);
-                    if (size >= batchReduceSize) {
-                        hasPartialReduce = true;
-                        // new result's callback must wait for this merge task to complete to maintain proper result processing order
-                        callbackWaitsForMerge = true;
-                        QuerySearchResult[] clone = buffer.stream().toArray(QuerySearchResult[]::new);
-                        MergeTask task = new MergeTask(clone, aggsCurrentBufferSize, new ArrayList<>(emptyResults), next);
-                        aggsCurrentBufferSize = 0; // reset state for next batch
-                        buffer.clear();
-                        emptyResults.clear();
-                        queue.add(task);
-                        tryExecuteNext();
-                    }
-                    buffer.add(result);
+                // Process non-empty, valid results
+                int size = buffer.size() + (hasPartialReduce ? 1 : 0);
+                if (size >= batchReduceSize) {
+                    hasPartialReduce = true;
+                    // new result's callback must wait for this merge task to complete to maintain proper result processing order
+                    callbackWaitsForMerge = true;
+                    QuerySearchResult[] clone = buffer.toArray(QuerySearchResult[]::new);
+                    MergeTask task = new MergeTask(clone, aggsCurrentBufferSize, new ArrayList<>(emptyResults), callback);
+                    aggsCurrentBufferSize = 0;
+                    buffer.clear();
+                    emptyResults.clear();
+                    queue.add(task);
+                    tryExecuteNext();
                 }
+                buffer.add(result);
             }
-            // Execute callback immediately if no merge is pending,
-            // otherwise it will be executed when the merge completes
             if (!callbackWaitsForMerge) {
-                next.run();
+                callback.run();
             }
         }
 
