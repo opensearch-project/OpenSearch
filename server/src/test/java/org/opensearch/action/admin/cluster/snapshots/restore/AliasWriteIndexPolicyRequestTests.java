@@ -25,37 +25,26 @@ public class AliasWriteIndexPolicyRequestTests extends OpenSearchTestCase {
 
     public void testEqualsAndHashCode() {
         RestoreSnapshotRequest request1 = new RestoreSnapshotRequest("repo", "snapshot").indices("index1", "index2")
-            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX)
-            .aliasSuffix("_backup");
+            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX);
 
         RestoreSnapshotRequest request2 = new RestoreSnapshotRequest("repo", "snapshot").indices("index1", "index2")
-            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX)
-            .aliasSuffix("_backup");
+            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX);
 
         assertEquals(request1, request2);
         assertEquals(request1.hashCode(), request2.hashCode());
 
         // Test with different policy
         RestoreSnapshotRequest request3 = new RestoreSnapshotRequest("repo", "snapshot").indices("index1", "index2")
-            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.CUSTOM_SUFFIX)
-            .aliasSuffix("_backup");
+            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.PRESERVE);
 
         assertNotEquals(request1, request3);
-
-        // Test with different suffix
-        RestoreSnapshotRequest request4 = new RestoreSnapshotRequest("repo", "snapshot").indices("index1", "index2")
-            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX)
-            .aliasSuffix("_different");
-
-        assertNotEquals(request1, request4);
     }
 
     public void testSerialization() throws IOException {
         RestoreSnapshotRequest request = new RestoreSnapshotRequest("test-repo", "test-snapshot").indices("index1", "index2")
             .renamePattern("(.+)")
             .renameReplacement("restored-$1")
-            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.CUSTOM_SUFFIX)
-            .aliasSuffix("_restored")
+            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX)
             .includeAliases(true)
             .partial(true)
             .waitForCompletion(false);
@@ -70,14 +59,12 @@ public class AliasWriteIndexPolicyRequestTests extends OpenSearchTestCase {
         assertEquals(request.snapshot(), deserialized.snapshot());
         assertArrayEquals(request.indices(), deserialized.indices());
         assertEquals(request.aliasWriteIndexPolicy(), deserialized.aliasWriteIndexPolicy());
-        assertEquals(request.aliasSuffix(), deserialized.aliasSuffix());
         assertEquals(request.includeAliases(), deserialized.includeAliases());
     }
 
     public void testXContentRoundTrip() throws IOException {
         RestoreSnapshotRequest request = new RestoreSnapshotRequest("test-repo", "test-snapshot").indices("index1", "index2")
             .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX)
-            .aliasSuffix("_test")
             .includeAliases(true)
             .includeGlobalState(false)
             .partial(true);
@@ -94,7 +81,6 @@ public class AliasWriteIndexPolicyRequestTests extends OpenSearchTestCase {
         // Verify key fields
         assertArrayEquals(request.indices(), parsed.indices());
         assertEquals(request.aliasWriteIndexPolicy(), parsed.aliasWriteIndexPolicy());
-        assertEquals(request.aliasSuffix(), parsed.aliasSuffix());
         assertEquals(request.includeAliases(), parsed.includeAliases());
         assertEquals(request.includeGlobalState(), parsed.includeGlobalState());
         assertEquals(request.partial(), parsed.partial());
@@ -109,10 +95,6 @@ public class AliasWriteIndexPolicyRequestTests extends OpenSearchTestCase {
             RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX,
             RestoreSnapshotRequest.AliasWriteIndexPolicy.fromString("strip_write_index")
         );
-        assertEquals(
-            RestoreSnapshotRequest.AliasWriteIndexPolicy.CUSTOM_SUFFIX,
-            RestoreSnapshotRequest.AliasWriteIndexPolicy.fromString("CUSTOM_SUFFIX")
-        );
 
         expectThrows(IllegalArgumentException.class, () -> RestoreSnapshotRequest.AliasWriteIndexPolicy.fromString("invalid"));
     }
@@ -120,6 +102,5 @@ public class AliasWriteIndexPolicyRequestTests extends OpenSearchTestCase {
     public void testDefaultValues() {
         RestoreSnapshotRequest request = new RestoreSnapshotRequest();
         assertThat(request.aliasWriteIndexPolicy(), equalTo(RestoreSnapshotRequest.AliasWriteIndexPolicy.PRESERVE));
-        assertNull(request.aliasSuffix());
     }
 }

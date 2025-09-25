@@ -20,7 +20,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
 
@@ -53,11 +52,7 @@ public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
 
         // Simulate the alias transformation
         for (AliasMetadata alias : snapshotIndex.getAliases().values()) {
-            AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(
-                alias,
-                request.aliasWriteIndexPolicy(),
-                request.aliasSuffix()
-            );
+            AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(alias, request.aliasWriteIndexPolicy());
             restoredIndexBuilder.putAlias(transformed);
             aliases.add(transformed.alias());
         }
@@ -70,7 +65,7 @@ public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
         assertTrue(aliases.contains("my-alias"));
     }
 
-    public void testApplyAliasPolicyCustomSuffix() {
+    public void testApplyAliasPolicyWithRenameAndStrip() {
         IndexMetadata.Builder indexBuilder = IndexMetadata.builder("test-index")
             .settings(
                 Settings.builder()
@@ -78,54 +73,23 @@ public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
-            .putAlias(
-                AliasMetadata.builder("prod-alias")
-                    .writeIndex(true)
-                    .filter("{\"term\": {\"env\": \"prod\"}}")
-                    .indexRouting("shard1")
-                    .searchRouting("shard1,shard2")
-                    .isHidden(true)
-                    .build()
-            );
+            .putAlias(AliasMetadata.builder("old-alias").writeIndex(true).build());
 
         IndexMetadata snapshotIndex = indexBuilder.build();
 
         RestoreSnapshotRequest request = new RestoreSnapshotRequest().indices("test-index")
             .includeAliases(true)
-            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.CUSTOM_SUFFIX)
-            .aliasSuffix("_dc2");
+            .renameAliasPattern("old-(.+)")
+            .renameAliasReplacement("new-$1")
+            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX);
 
-        // Apply policy
-        IndexMetadata.Builder restoredIndexBuilder = IndexMetadata.builder("test-index")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            );
-        Set<String> aliases = new HashSet<>();
+        // Apply rename then policy
+        AliasMetadata originalAlias = snapshotIndex.getAliases().values().iterator().next();
+        AliasMetadata renamedAlias = AliasMetadata.newAliasMetadata(originalAlias, "new-alias");
+        AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(renamedAlias, request.aliasWriteIndexPolicy());
 
-        for (AliasMetadata alias : snapshotIndex.getAliases().values()) {
-            AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(
-                alias,
-                request.aliasWriteIndexPolicy(),
-                request.aliasSuffix()
-            );
-            restoredIndexBuilder.putAlias(transformed);
-            aliases.add(transformed.alias());
-        }
-
-        IndexMetadata restoredIndex = restoredIndexBuilder.build();
-
-        assertThat(restoredIndex.getAliases().get("prod-alias"), nullValue());
-        AliasMetadata suffixedAlias = restoredIndex.getAliases().get("prod-alias_dc2");
-        assertThat(suffixedAlias, notNullValue());
-        assertThat(suffixedAlias.writeIndex(), equalTo(false));
-        assertThat(suffixedAlias.filter(), notNullValue());
-        assertThat(suffixedAlias.indexRouting(), equalTo("shard1"));
-        assertThat(suffixedAlias.searchRouting(), equalTo("shard1,shard2"));
-        assertThat(suffixedAlias.isHidden(), equalTo(true));
-        assertTrue(aliases.contains("prod-alias_dc2"));
+        assertThat(transformed.alias(), equalTo("new-alias"));
+        assertThat(transformed.writeIndex(), equalTo(false));
     }
 
     public void testApplyAliasPolicyPreserve() {
@@ -154,11 +118,7 @@ public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
             );
 
         for (AliasMetadata alias : snapshotIndex.getAliases().values()) {
-            AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(
-                alias,
-                request.aliasWriteIndexPolicy(),
-                request.aliasSuffix()
-            );
+            AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(alias, request.aliasWriteIndexPolicy());
             restoredIndexBuilder.putAlias(transformed);
         }
 
@@ -190,11 +150,7 @@ public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
         // Apply policy
         int processedCount = 0;
         for (AliasMetadata alias : snapshotIndex.getAliases().values()) {
-            AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(
-                alias,
-                request.aliasWriteIndexPolicy(),
-                request.aliasSuffix()
-            );
+            AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(alias, request.aliasWriteIndexPolicy());
 
             // All aliases should have writeIndex false or null after transformation
             if (alias.alias().equals("alias1")) {
@@ -208,34 +164,4 @@ public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
         assertThat(processedCount, equalTo(3));
     }
 
-    public void testApplyAliasPolicyWithRenameAndStrip() {
-        IndexMetadata.Builder indexBuilder = IndexMetadata.builder("test-index")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .putAlias(AliasMetadata.builder("old-alias").writeIndex(true).build());
-
-        IndexMetadata snapshotIndex = indexBuilder.build();
-
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().indices("test-index")
-            .includeAliases(true)
-            .renameAliasPattern("old-(.+)")
-            .renameAliasReplacement("new-$1")
-            .aliasWriteIndexPolicy(RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX);
-
-        // Apply rename then policy
-        AliasMetadata originalAlias = snapshotIndex.getAliases().values().iterator().next();
-        AliasMetadata renamedAlias = AliasMetadata.newAliasMetadata(originalAlias, "new-alias");
-        AliasMetadata transformed = RestoreService.applyAliasWriteIndexPolicy(
-            renamedAlias,
-            request.aliasWriteIndexPolicy(),
-            request.aliasSuffix()
-        );
-
-        assertThat(transformed.alias(), equalTo("new-alias"));
-        assertThat(transformed.writeIndex(), equalTo(false));
-    }
 }

@@ -71,7 +71,6 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
@@ -665,8 +664,7 @@ public class RestoreService implements ClusterStateApplier {
                             for (final Map.Entry<String, AliasMetadata> alias : snapshotAliases.entrySet()) {
                                 AliasMetadata transformedAlias = applyAliasWriteIndexPolicy(
                                     alias.getValue(),
-                                    request.aliasWriteIndexPolicy(),
-                                    request.aliasSuffix()
+                                    request.aliasWriteIndexPolicy()
                                 );
                                 indexMdBuilder.removeAlias(alias.getKey());
                                 indexMdBuilder.putAlias(transformedAlias);
@@ -680,11 +678,7 @@ public class RestoreService implements ClusterStateApplier {
                                 String newAliasName = renameAliasPattern.matcher(currentAliasName)
                                     .replaceAll(request.renameAliasReplacement());
                                 AliasMetadata renamedAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
-                                AliasMetadata transformedAlias = applyAliasWriteIndexPolicy(
-                                    renamedAlias,
-                                    request.aliasWriteIndexPolicy(),
-                                    request.aliasSuffix()
-                                );
+                                AliasMetadata transformedAlias = applyAliasWriteIndexPolicy(renamedAlias, request.aliasWriteIndexPolicy());
                                 indexMdBuilder.putAlias(transformedAlias);
                                 aliases.add(transformedAlias.alias());
                             }
@@ -1389,40 +1383,17 @@ public class RestoreService implements ClusterStateApplier {
      * Apply alias write index policy to transform alias metadata during restore.
      * Package-private for testing.
      */
-    static AliasMetadata applyAliasWriteIndexPolicy(
-        AliasMetadata aliasMd,
-        RestoreSnapshotRequest.AliasWriteIndexPolicy policy,
-        @Nullable String suffix
-    ) {
-        switch (policy) {
-            case STRIP_WRITE_INDEX:
-                if (Boolean.TRUE.equals(aliasMd.writeIndex())) {
-                    return AliasMetadata.builder(aliasMd.alias())
-                        .filter(aliasMd.filter())
-                        .indexRouting(aliasMd.indexRouting())
-                        .searchRouting(aliasMd.searchRouting())
-                        .isHidden(aliasMd.isHidden())
-                        .writeIndex(false)
-                        .build();
-                }
-                return aliasMd;
-
-            case CUSTOM_SUFFIX:
-                if (suffix == null || suffix.isEmpty()) {
-                    suffix = "_follower";
-                }
-                return AliasMetadata.builder(aliasMd.alias() + suffix)
-                    .filter(aliasMd.filter())
-                    .indexRouting(aliasMd.indexRouting())
-                    .searchRouting(aliasMd.searchRouting())
-                    .isHidden(aliasMd.isHidden())
-                    .writeIndex(false)
-                    .build();
-
-            case PRESERVE:
-            default:
-                return aliasMd;
+    static AliasMetadata applyAliasWriteIndexPolicy(AliasMetadata aliasMd, RestoreSnapshotRequest.AliasWriteIndexPolicy policy) {
+        if (policy == RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX && Boolean.TRUE.equals(aliasMd.writeIndex())) {
+            return AliasMetadata.builder(aliasMd.alias())
+                .filter(aliasMd.filter())
+                .indexRouting(aliasMd.indexRouting())
+                .searchRouting(aliasMd.searchRouting())
+                .isHidden(aliasMd.isHidden())
+                .writeIndex(false)
+                .build();
         }
+        return aliasMd;
     }
 
     private static IndexMetadata addSnapshotToIndexSettings(IndexMetadata metadata, Snapshot snapshot, IndexId indexId) {
