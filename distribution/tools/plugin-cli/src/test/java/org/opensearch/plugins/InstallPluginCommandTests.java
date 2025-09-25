@@ -795,7 +795,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertPlugin("fake", pluginDir, env.v2());
 
         // Verify the directory and file were installed
-        Path installedConfigDir = env.v2().configDir().resolve("fake").resolve("foo");
+        Path installedConfigDir = env.v2().configFile().resolve("fake").resolve("foo");
         assertTrue(Files.exists(installedConfigDir));
         assertTrue(Files.isDirectory(installedConfigDir));
         assertTrue(Files.exists(installedConfigDir.resolve("myconfig.yml")));
