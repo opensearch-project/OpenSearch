@@ -344,6 +344,9 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("field", new BytesRef("test")));
                 indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("best")));
+                indexWriter.addDocument(document);
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -369,7 +372,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     aggregator.postCollection();
 
                     StringTerms firstResult = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
-                    assertThat(firstResult.getBuckets().size(), equalTo(1));
+                    assertThat(firstResult.getBuckets().size(), equalTo(2));
 
                     aggregator.doReset();
 
@@ -379,7 +382,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     aggregator.postCollection();
 
                     StringTerms secondResult = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
-                    assertThat(secondResult.getBuckets().size(), equalTo(1));
+                    assertThat(secondResult.getBuckets().size(), equalTo(2));
                     assertThat(secondResult.getBuckets().get(0).getDocCount(), equalTo(1L));
                 }
             }
