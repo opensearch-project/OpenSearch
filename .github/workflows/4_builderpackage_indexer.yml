@@ -295,24 +295,14 @@ jobs:
         run: |
           sudo bash packaging_scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo systemctl stop wazuh-indexer
-          # Only use non-interactive and --force-confnew options for 4.14.1 (Related issue: https://github.com/wazuh/wazuh-indexer/issues/1083)
-          if [[ "${{ needs.setup.outputs.current_version }}" == "4.14.1" ]]; then
-            sudo DEBIAN_FRONTEND=noninteractive dpkg --force-confnew -i "artifacts/dist/${{ steps.package.outputs.name }}"
-          else
-            sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
-          fi
+          sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
           sudo apt-get remove --purge wazuh-indexer -y
 
       - name: Test DEB package update without stopping the indexer
         if: ${{ matrix.distribution == 'deb' && (matrix.architecture == 'x64' || (needs.setup.outputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
         run: |
           sudo bash packaging_scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
-          # Only use non-interactive and --force-confnew options for 4.14.1 (Related issue: https://github.com/wazuh/wazuh-indexer/issues/1083)
-          if [[ "${{ needs.setup.outputs.current_version }}" == "4.14.1" ]]; then
-            sudo DEBIAN_FRONTEND=noninteractive dpkg --force-confnew -i "artifacts/dist/${{ steps.package.outputs.name }}"
-          else
-            sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
-          fi
+          sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

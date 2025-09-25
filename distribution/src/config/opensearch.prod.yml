@@ -36,14 +36,4 @@ plugins.security.restapi.roles_enabled:
 - "security_rest_api_access"
 
 plugins.security.system_indices.enabled: true
-plugins.security.system_indices.permission.enabled: true
-plugins.security.system_indices.indices: [.plugins-ml-agent, .plugins-ml-config, .plugins-ml-connector,
-  .plugins-ml-controller, .plugins-ml-model-group, .plugins-ml-model, .plugins-ml-task,
-  .plugins-ml-conversation-meta, .plugins-ml-conversation-interactions, .plugins-ml-memory-meta,
-  .plugins-ml-memory-message, .plugins-ml-stop-words, .opendistro-alerting-config,
-  .opendistro-alerting-alert*, .opendistro-anomaly-results*, .opendistro-anomaly-detector*,
-  .opendistro-anomaly-checkpoints, .opendistro-anomaly-detection-state, .opendistro-reports-*,
-  .opensearch-notifications-*, .opensearch-notebooks, .opensearch-observability, .ql-datasources,
-  .opendistro-asynchronous-search-response*, .replication-metadata-store, .opensearch-knn-models,
-  .geospatial-ip2geo-data*, .plugins-flow-framework-config, .plugins-flow-framework-templates,
-  .plugins-flow-framework-state, .plugins-search-relevance-experiment, .plugins-search-relevance-judgment-cache]
+plugins.security.system_indices.indices: [".plugins-ml-model", ".plugins-ml-task", ".opendistro-alerting-config", ".opendistro-alerting-alert*", ".opendistro-anomaly-results*", ".opendistro-anomaly-detector*", ".opendistro-anomaly-checkpoints", ".opendistro-anomaly-detection-state", ".opendistro-reports-*", ".opensearch-notifications-*", ".opensearch-notebooks", ".opensearch-observability", ".opendistro-asynchronous-search-response*", ".replication-metadata-store"]
