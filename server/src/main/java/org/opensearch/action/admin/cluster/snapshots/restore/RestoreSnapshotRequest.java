@@ -135,7 +135,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      *
      * @opensearch.api
      */
-    @PublicApi(since = "3.0.0")
+    @PublicApi(since = "3.3.0")
     public enum AliasWriteIndexPolicy {
         PRESERVE,
         STRIP_WRITE_INDEX;
