@@ -66,7 +66,7 @@ import java.util.function.Consumer;
  * as shard results are consumed.
  * This implementation adds the memory that it used to save and reduce the results of shard aggregations
  * in the {@link CircuitBreaker#REQUEST} circuit breaker. Before any partial or final reduce, the memory
- * needed to reduce the aggregations is estimated and a {@link CircuitBreakingException} is thrown if it
+ * needed to reduce the aggregations is estimated and a {@link CircuitBreakingException} is handled if it
  * exceeds the maximum memory allowed in this breaker.
  *
  * @opensearch.internal
@@ -367,9 +367,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
          * provided {@link QuerySearchResult}.
          */
         private long ramBytesUsedQueryResult(QuerySearchResult result) {
-            if (result.aggregations() == null) {
-                return 0;
-            }
             if (hasAggs == false) {
                 return 0;
             }
@@ -388,53 +385,52 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return Math.round(0.5d * size);
         }
 
-        void consume(QuerySearchResult result, Runnable callback) throws CircuitBreakingException {
+        void consume(QuerySearchResult result, Runnable callback) {
             checkCancellation();
-            boolean callbackWaitsForMerge = false;
 
-            synchronized (this) {
-                if (hasFailure()) {
-                    result.consumeAll();
-                    callback.run();
-                    return;
-                }
-                if (result.isNull()) {
-                    SearchShardTarget target = result.getSearchShardTarget();
-                    emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
-                    callback.run();
-                    return;
-                }
-                // Check circuit breaker before consuming
-                if (hasAggs) {
-                    long aggsSize = ramBytesUsedQueryResult(result);
-                    try {
-                        addEstimateAndMaybeBreak(aggsSize);
-                        aggsCurrentBufferSize += aggsSize;
-                    } catch (CircuitBreakingException e) {
-                        onMergeFailure(e);
-                        callback.run();
-                        return;
-                    }
-                }
-                // Process non-empty, valid results
-                int size = buffer.size() + (hasPartialReduce ? 1 : 0);
-                if (size >= batchReduceSize) {
-                    hasPartialReduce = true;
-                    // new result's callback must wait for this merge task to complete to maintain proper result processing order
-                    callbackWaitsForMerge = true;
-                    QuerySearchResult[] clone = buffer.toArray(QuerySearchResult[]::new);
-                    MergeTask task = new MergeTask(clone, aggsCurrentBufferSize, new ArrayList<>(emptyResults), callback);
-                    aggsCurrentBufferSize = 0;
-                    buffer.clear();
-                    emptyResults.clear();
-                    queue.add(task);
-                    tryExecuteNext();
-                }
-                buffer.add(result);
-            }
-            if (!callbackWaitsForMerge) {
+            if (processResult(result, callback)) {
                 callback.run();
             }
+        }
+
+        private synchronized boolean processResult(QuerySearchResult result, Runnable callback) {
+            if (hasFailure()) {
+                result.consumeAll(); // release memory
+                return true;
+            }
+            if (result.isNull()) {
+                SearchShardTarget target = result.getSearchShardTarget();
+                emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
+                return true;
+            }
+            // Check circuit breaker before consuming
+            if (hasAggs) {
+                long aggsSize = ramBytesUsedQueryResult(result);
+                try {
+                    addEstimateAndMaybeBreak(aggsSize);
+                    aggsCurrentBufferSize += aggsSize;
+                } catch (CircuitBreakingException e) {
+                    onMergeFailure(e);
+                    return true;
+                }
+            }
+            // Process non-empty results
+            int size = buffer.size() + (hasPartialReduce ? 1 : 0);
+            if (size >= batchReduceSize) {
+                hasPartialReduce = true;
+                // the callback must wait for the new merge task to complete to maintain proper result processing order
+                QuerySearchResult[] clone = buffer.toArray(QuerySearchResult[]::new);
+                MergeTask task = new MergeTask(clone, aggsCurrentBufferSize, new ArrayList<>(emptyResults), callback);
+                aggsCurrentBufferSize = 0;
+                buffer.clear();
+                emptyResults.clear();
+                queue.add(task);
+                tryExecuteNext();
+                buffer.add(result);
+                return false; // callback will be run by merge task
+            }
+            buffer.add(result);
+            return true;
         }
 
         private void tryExecuteNext() {
