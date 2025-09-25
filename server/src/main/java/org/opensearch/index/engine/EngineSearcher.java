@@ -13,6 +13,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.search.aggregations.SearchResultsCollector;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 @ExperimentalApi
@@ -28,6 +29,10 @@ public interface EngineSearcher<Q,C> extends Releasable {
      * Search using substrait query plan bytes and call the result collectors
      */
     default void search(Q query, List<SearchResultsCollector<C>> collectors) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    default long search(Q query) throws IOException {
         throw new UnsupportedOperationException();
     }
 }

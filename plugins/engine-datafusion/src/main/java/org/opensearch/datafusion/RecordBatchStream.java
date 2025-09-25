@@ -29,23 +29,22 @@ import static org.apache.arrow.c.Data.importField;
  */
 public class RecordBatchStream {
 
-    private final SessionContext context;
     private final long streamPointer;
     private final BufferAllocator allocator;
     private final CDataDictionaryProvider dictionaryProvider;
     private boolean initialized = false;
     private VectorSchemaRoot vectorSchemaRoot = null;
+    private long runtimePtr;
 
     /**
      * Creates a new RecordBatchStream for the given stream pointer
-     * @param ctx the session context
-     * @param streamId pointer to the native stream
+     * @param streamId the stream pointer
      * @param allocator memory allocator for Arrow vectors
      */
-    public RecordBatchStream(SessionContext ctx, long streamId, BufferAllocator allocator) {
-        this.context = ctx;
+    public RecordBatchStream(long streamId, long runtimePtr, BufferAllocator allocator) {
         this.streamPointer = streamId;
         this.allocator = allocator;
+        this.runtimePtr = runtimePtr;
         this.dictionaryProvider = new CDataDictionaryProvider();
     }
 
@@ -99,7 +98,7 @@ public class RecordBatchStream {
      */
     public CompletableFuture<Boolean> loadNextBatch() {
         ensureInitialized();
-        long runtimePointer = context.getRuntime();
+        long runtimePointer = this.runtimePtr;
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         next(runtimePointer, streamPointer, (errString, arrowArrayAddress) -> {
             if (ErrorUtil.containsError(errString)) {

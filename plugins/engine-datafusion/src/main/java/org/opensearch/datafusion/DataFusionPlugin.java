@@ -125,7 +125,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     public SearchExecEngine<DatafusionContext, DatafusionSearcher,
             DatafusionReaderManager, DatafusionQuery>
         createEngine(DataFormat dataFormat,Collection<FileMetadata> formatCatalogSnapshot) throws IOException {
-        return new DatafusionEngine(dataFormat, formatCatalogSnapshot);
+        return new DatafusionEngine(dataFormat, formatCatalogSnapshot, dataFusionService);
     }
 
     /**

@@ -48,6 +48,11 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
         }
     }
 
+    @Override
+    public long search(DatafusionQuery datafusionQuery) {
+        return DataFusionQueryJNI.executeSubstraitQuery(reader.getCachePtr(), datafusionQuery.getSubstraitBytes());
+    }
+
     public DatafusionReader getReader() {
         return reader;
     }

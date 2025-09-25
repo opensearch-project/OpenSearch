@@ -161,6 +161,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return engine.executeSubstraitQuery(sessionContextId, substraitPlanBytes);
     }
 
+    public long getRuntimePointer() {
+        return globalRuntimeEnv.getPointer();
+    }
     /**
      * Close the session context and clean up resources
      *
