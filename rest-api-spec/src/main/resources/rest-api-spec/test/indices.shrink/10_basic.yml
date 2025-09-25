@@ -72,6 +72,20 @@ setup:
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
+  - do:
+      catch: /action_request_validation_exception/
+      indices.shrink:
+        index: "source"
+        target: "new_shrunken_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.blocks.read_only: true
+
+
 # Related issue: https://github.com/opensearch-project/OpenSearch/issues/4845
 ---
 "Returns error if target index's metadata write is blocked":
