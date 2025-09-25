@@ -67,6 +67,24 @@ setup:
   - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
 
 ---
+"Global String Value Script with doc notation":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str","execution_hint": "global_ordinals", "script": { "source": "return doc.str[0] + \"1\""} } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 2 }
+  - match: { aggregations.str_terms.buckets.0.key: "abc1" }
+  - is_false: aggregations.str_terms.buckets.0.key_as_string
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.1.key: "bcd1" }
+  - is_false: aggregations.str_terms.buckets.1.key_as_string
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+
+---
 "Long Value Script with doc notation":
 
   - do:

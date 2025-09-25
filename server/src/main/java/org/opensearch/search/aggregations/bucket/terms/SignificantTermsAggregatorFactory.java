@@ -102,7 +102,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 SignificanceHeuristic significanceHeuristic,
                 SignificanceLookup lookup,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
 
                 ExecutionMode execution = null;
@@ -138,7 +139,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     significanceHeuristic,
                     lookup,
                     cardinality,
-                    metadata
+                    metadata,
+                    config
                 );
             }
         };
@@ -164,7 +166,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 SignificanceHeuristic significanceHeuristic,
                 SignificanceLookup lookup,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -302,7 +305,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             significanceHeuristic,
             lookup,
             cardinality,
-            metadata
+            metadata,
+            config
         );
     }
 
@@ -333,7 +337,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 SignificanceHeuristic significanceHeuristic,
                 SignificanceLookup lookup,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
                 int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.StringFilter filter = includeExclude == null
@@ -353,7 +358,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
                     cardinality,
-                    metadata
+                    metadata,
+                    config
                 );
 
             }
@@ -374,7 +380,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 SignificanceHeuristic significanceHeuristic,
                 SignificanceLookup lookup,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
                 int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null
@@ -406,7 +413,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
                     cardinality,
-                    metadata
+                    metadata,
+                    config
                 );
             }
         };
@@ -444,7 +452,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             SignificanceHeuristic significanceHeuristic,
             SignificanceLookup lookup,
             CardinalityUpperBound cardinality,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            ValuesSourceConfig config
         ) throws IOException;
 
         @Override
