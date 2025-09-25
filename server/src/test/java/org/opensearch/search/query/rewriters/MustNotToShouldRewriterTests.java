@@ -134,6 +134,38 @@ public class MustNotToShouldRewriterTests extends OpenSearchTestCase {
         assertThat(nestedBool.minimumShouldMatch(), equalTo("1"));
     }
 
+    public void testIdempotence() {
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("status", 3));
+        QueryBuilder once = rewriter.rewrite(query, context);
+        QueryBuilder twice = rewriter.rewrite(once, context);
+        assertEquals(once.toString(), twice.toString());
+    }
+
+    public void testMultiValuedNumericFieldNotRewritten() throws Exception {
+        // Create an index where a field has multiple values per doc
+        Directory multiDir = newDirectory();
+        IndexWriter writer = new IndexWriter(multiDir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        Document doc = new Document();
+        doc.add(new IntPoint("multi_age", 10));
+        doc.add(new IntPoint("multi_age", 20));
+        writer.addDocument(doc);
+        writer.close();
+
+        IndexReader multiReader = DirectoryReader.open(multiDir);
+        when(context.getIndexReader()).thenReturn(multiReader);
+        // numeric field type mapping
+        NumberFieldMapper.NumberFieldType intFieldType = mock(NumberFieldMapper.NumberFieldType.class);
+        when(context.fieldMapper("multi_age")).thenReturn(intFieldType);
+
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("multi_age").gte(15));
+        QueryBuilder rewritten = rewriter.rewrite(query, context);
+        // Should not rewrite because docs can have multiple values
+        assertSame(query, rewritten);
+
+        multiReader.close();
+        multiDir.close();
+    }
+
     public void testNumericTermsQueryRewritten() {
         // Test that must_not terms query on numeric field is rewritten
         QueryBuilder query = QueryBuilders.boolQuery().mustNot(QueryBuilders.termsQuery("status", new Object[] { 1, 2, 3 }));
