@@ -221,6 +221,7 @@ final class DefaultSearchContext extends SearchContext {
 
     private final boolean isStreamSearch;
     private StreamSearchChannelListener listener;
+    private Map<String, Object[]> dfResults;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -1276,5 +1277,13 @@ final class DefaultSearchContext extends SearchContext {
 
     public boolean isStreamSearch() {
         return isStreamSearch;
+    }
+
+    public void setDFResults(Map<String, Object[]> dfResults) {
+        this.dfResults = dfResults;
+    }
+
+    public Map<String, Object[]> getDFResults() {
+        return dfResults;
     }
 }

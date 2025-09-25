@@ -19,4 +19,3 @@ public interface SearchResultsCollector<T> {
      */
     void collect(T value);
 }
-
