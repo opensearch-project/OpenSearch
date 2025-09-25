@@ -1209,6 +1209,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType));
     }
 
+    public boolean isAllActiveIngestionEnabled() {
+        return INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
+    }
+
     public IngestionStatus getIngestionStatus() {
         return ingestionStatus;
     }
