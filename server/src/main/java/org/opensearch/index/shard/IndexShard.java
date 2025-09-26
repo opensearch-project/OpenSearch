@@ -434,7 +434,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
         @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
-        final SearchExecutionEngine searchExecutionEngine,
         PluginsService pluginsService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);

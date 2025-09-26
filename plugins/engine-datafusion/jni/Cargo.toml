@@ -13,7 +13,6 @@ crate-type = ["cdylib"]
 # DataFusion dependencies
 datafusion = "49.0.0"
 arrow-json = "55.2"
-datafusion-substrait = "49.0.0"
 #arrow = { version = "55.2", features = ["ffi", "ipc_compression"] }
 arrow = "55.2.0"
 arrow-array = "55.2.0"
@@ -52,7 +51,6 @@ url = "2.0"
 
 # Substrait support
 substrait = "0.47"
-prost = "0.13"
 
 # Temporary directory support
 tempfile = "3.0"

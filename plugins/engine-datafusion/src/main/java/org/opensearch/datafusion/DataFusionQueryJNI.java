@@ -79,6 +79,8 @@ public class DataFusionQueryJNI {
      */
     public static native long createGlobalRuntime();
 
+    public static native long createTokioRuntime();
+
     /**
      * Closes global runtime environment
      * @param pointer the runtime environment pointer to close
@@ -111,7 +113,7 @@ public class DataFusionQueryJNI {
      * @param substraitPlan the serialized Substrait query plan
      * @return stream pointer for result iteration
      */
-    public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan);
+    public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long runtimePtr);
 
     public static native long createDatafusionReader(String path, Collection<FileMetadata> files);
 

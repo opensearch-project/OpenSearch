@@ -15,24 +15,22 @@ mod util;
 
 use datafusion::execution::context::SessionContext;
 
-use datafusion::DATAFUSION_VERSION;
-use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::execution::cache::cache_manager::{CacheManager, CacheManagerConfig, FileStatisticsCache};
-use datafusion::execution::disk_manager::DiskManagerConfig;
-use datafusion::execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder};
-use datafusion::prelude::SessionConfig;
 use crate::util::{create_object_meta_from_filenames, parse_string_arr};
+use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl};
+use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::cache::cache_unit::DefaultListFilesCache;
 use datafusion::execution::cache::CacheAccessor;
-use datafusion::execution::SendableRecordBatchStream;
+use datafusion::execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder};
+use datafusion::prelude::SessionConfig;
+use datafusion::DATAFUSION_VERSION;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::Plan;
 use jni::objects::{JObjectArray, JString};
+use object_store::ObjectMeta;
 use prost::Message;
 use tokio::runtime::Runtime;
-use object_store::ObjectMeta;
 
 /// Create a new DataFusion session context
 #[no_mangle]
@@ -76,6 +74,16 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_getVers
 }
 
 #[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createTokioRuntime(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jlong {
+    let rt = Runtime::new().unwrap();
+    let ctx = Box::into_raw(Box::new(rt)) as jlong;
+    ctx
+}
+
+#[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createGlobalRuntime(
     _env: JNIEnv,
     _class: JClass,
@@ -98,6 +106,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createG
     let config = SessionConfig::new().with_repartition_aggregations(true);
     let context = SessionContext::new_with_config(config);
     **/
+
     let ctx = Box::into_raw(Box::new(runtime_env)) as jlong;
     ctx
 }
@@ -181,17 +190,15 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeE
     _class: JClass,
     shard_view_ptr: jlong,
     substrait_bytes: jbyteArray,
+    tokio_runtime_env_ptr: jlong,
     // callback: JObject,
 ) -> jlong {
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
+    let runtime_ptr = unsafe { &*(tokio_runtime_env_ptr as *const Runtime)};
+
     let table_path = shard_view.table_path();
     let files_meta = shard_view.files_meta();
 
-    // Will use it once the global RunTime is defined
-    // let runtime_arc = unsafe {
-    //     let boxed = &*(runtime_env_ptr as *const Pin<Arc<RuntimeEnv>>);
-    //     (**boxed).clone()
-    // };
 
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), files_meta);
@@ -200,18 +207,16 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeE
         .with_cache_manager(CacheManagerConfig::default()
             .with_list_files_cache(Some(list_file_cache))).build().unwrap();
 
-
-
     let ctx = SessionContext::new_with_config_rt(SessionConfig::new(), Arc::new(runtime_env));
 
 
     // Create default parquet options
-    let file_format = CsvFormat::default();
+    let file_format = ParquetFormat::new();
     let listing_options = ListingOptions::new(Arc::new(file_format))
-        .with_file_extension(".csv");
+        .with_file_extension(".parquet");
 
     // Ideally the executor will give this
-    Runtime::new().expect("Failed to create Tokio Runtime").block_on(async {
+    runtime_ptr.block_on(async {
         let resolved_schema = listing_options
             .infer_schema(&ctx.state(), &table_path.clone())
             .await.unwrap();
@@ -252,7 +257,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeE
     };
 
     //let runtime = unsafe { &mut *(runtime_ptr as *mut Runtime) };
-    Runtime::new().expect("Failed to create Tokio Runtime").block_on(async {
+    runtime_ptr.block_on(async {
 
         let logical_plan = match from_substrait_plan(&ctx.state(), &substrait_plan).await {
             Ok(plan) => {
@@ -261,30 +266,17 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeE
             },
             Err(e) => {
                 println!("SUBSTRAIT Rust: Failed to convert Substrait plan: {}", e);
-                return;
+                return 0;
             }
         };
 
-        let dataframe = ctx.execute_logical_plan(logical_plan)
-            .await.expect("Failed to run Logical Plan");
+        let dataframe = ctx.execute_logical_plan(logical_plan).await.unwrap();
+        let stream = dataframe.execute_stream().await.unwrap();
+        let stream_ptr = Box::into_raw(Box::new(stream)) as jlong;
 
-        // TODO : check if this works
-        return match dataframe.execute_stream() {
-            Ok(stream) => {
-                let boxed_stream = Box::new(stream);
-                let stream_ptr = Box::into_raw(boxed_stream);
-                stream_ptr as jlong
-            },
-            Err(e) => {
-                0
-            }
-        }
+        stream_ptr
+
     })
-
-
-    // Create DataFrame from the converted logical plan
-
-
 }
 
 // If we need to create session context separately
