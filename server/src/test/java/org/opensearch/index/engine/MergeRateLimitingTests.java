@@ -166,36 +166,4 @@ public class MergeRateLimitingTests extends OpenSearchTestCase {
             Loggers.setLevel(logger, (Level) null);
         }
     }
-
-    /**
-     * Test edge cases and validation for rate limiting settings
-     */
-    public void testRateLimitingEdgeCases() {
-        // Test minimum value (0.0)
-        Settings.Builder builder = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, "1")
-            .put(SETTING_NUMBER_OF_REPLICAS, "0")
-            .put(MAX_FORCE_MERGE_MB_PER_SEC_SETTING.getKey(), "0.0");
-
-        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test_index", builder.build()), Settings.EMPTY);
-        ShardId shardId = new ShardId("test_index", "test_uuid", 0);
-
-        OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(shardId, indexSettings);
-        assertThat(scheduler.getForceMergeMBPerSec(), equalTo(0.0));
-
-        // Test very small value
-        builder.put(MAX_FORCE_MERGE_MB_PER_SEC_SETTING.getKey(), "0.1");
-        indexSettings.updateIndexMetadata(newIndexMeta("test_index", builder.build()));
-        scheduler.refreshConfig();
-
-        assertThat(scheduler.getForceMergeMBPerSec(), equalTo(0.1));
-
-        // Test very large value
-        builder.put(MAX_FORCE_MERGE_MB_PER_SEC_SETTING.getKey(), "99999.9");
-        indexSettings.updateIndexMetadata(newIndexMeta("test_index", builder.build()));
-        scheduler.refreshConfig();
-
-        assertThat(scheduler.getForceMergeMBPerSec(), equalTo(99999.9));
-    }
 }

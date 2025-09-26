@@ -234,7 +234,7 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
      */
     private void applyMergeRateLimit() {
         double maxForceMergeMBPerSec = config.getMaxForceMergeMBPerSec();
-        if (maxForceMergeMBPerSec != super.getForceMergeMBPerSec()) {
+        if (maxForceMergeMBPerSec != getForceMergeMBPerSec()) {
             logger.info(
                 "[{}][{}] updating force merge rate limit from [{}] to [{}] MB/sec",
                 shardId.getIndexName(),
@@ -242,7 +242,7 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                 super.getForceMergeMBPerSec(),
                 maxForceMergeMBPerSec
             );
-            super.setForceMergeMBPerSec(maxForceMergeMBPerSec);
+            setForceMergeMBPerSec(maxForceMergeMBPerSec);
         }
     }
 
