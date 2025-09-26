@@ -114,7 +114,8 @@ public class MockSearchService extends SearchService {
             indexSearcherExecutor,
             taskResourceTrackingService,
             Collections.emptyList(),
-            Collections.emptyList()
+            Collections.emptyList(),
+            null // TODO
         );
     }
 
