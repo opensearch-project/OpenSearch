@@ -355,7 +355,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
         MappedFieldType dateType = new DateFieldMapper.DateFieldType(AGGREGABLE_DATE);
         String categoryField = "category";
-        NumberFieldMapper.NumberFieldType categoryType = new NumberFieldMapper.NumberFieldType(categoryField, NumberFieldMapper.NumberType.LONG);
+        NumberFieldMapper.NumberFieldType categoryType = new NumberFieldMapper.NumberFieldType(
+            categoryField,
+            NumberFieldMapper.NumberType.LONG
+        );
 
         IndexNumericFieldData fieldData = (IndexNumericFieldData) dateType.fielddataBuilder("index", () -> {
             throw new UnsupportedOperationException();
@@ -412,8 +415,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 // Create date histogram with terms sub-aggregation
-                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("test")
-                    .field(AGGREGABLE_DATE)
+                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
                     .calendarInterval(DateHistogramInterval.YEAR)
                     .subAggregation(new MaxAggregationBuilder(categoryField).field(categoryField));
 
@@ -437,28 +439,33 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 assertEquals("2015-01-01T00:00:00.000Z", bucket2015.getKeyAsString());
                 assertEquals(3, bucket2015.getDocCount());
 
-                // The key test: verify that sub-aggregations exist, proving skiplist collector supports them
+                // Assert sub-aggregation values for 2015 bucket (docs 5,6,7 with categories 1,0,1)
                 assertNotNull("Sub-aggregation should exist for 2015 bucket", bucket2015.getAggregations());
-                assertNotNull("Categories sub-agg should exist", bucket2015.getAggregations().get(categoryField));
-                assertTrue("Should have sub-aggregations", bucket2015.getAggregations().asList().size() > 0);
+                org.opensearch.search.aggregations.metrics.InternalMax maxAgg2015 = bucket2015.getAggregations().get(categoryField);
+                assertNotNull("Max sub-agg should exist", maxAgg2015);
+                assertEquals("Max category value for 2015 bucket should be 1", 1.0, maxAgg2015.getValue(), 0.0);
 
                 // Verify second bucket (2016)
                 InternalDateHistogram.Bucket bucket2016 = (InternalDateHistogram.Bucket) histogram.getBuckets().get(1);
                 assertEquals("2016-01-01T00:00:00.000Z", bucket2016.getKeyAsString());
                 assertEquals(1, bucket2016.getDocCount());
 
+                // Assert sub-aggregation values for 2016 bucket (doc 8 with category 0)
                 assertNotNull("Sub-aggregation should exist for 2016 bucket", bucket2016.getAggregations());
-                assertNotNull("Categories sub-agg should exist", bucket2016.getAggregations().get(categoryField));
-                assertTrue("Should have sub-aggregations", bucket2016.getAggregations().asList().size() > 0);
+                org.opensearch.search.aggregations.metrics.InternalMax maxAgg2016 = bucket2016.getAggregations().get(categoryField);
+                assertNotNull("Max sub-agg should exist", maxAgg2016);
+                assertEquals("Max category value for 2016 bucket should be 0", 0.0, maxAgg2016.getValue(), 0.0);
 
                 // Verify third bucket (2017)
                 InternalDateHistogram.Bucket bucket2017 = (InternalDateHistogram.Bucket) histogram.getBuckets().get(2);
                 assertEquals("2017-01-01T00:00:00.000Z", bucket2017.getKeyAsString());
                 assertEquals(1, bucket2017.getDocCount());
 
+                // Assert sub-aggregation values for 2017 bucket (doc 9 with category 1)
                 assertNotNull("Sub-aggregation should exist for 2017 bucket", bucket2017.getAggregations());
-                assertNotNull("Categories sub-agg should exist", bucket2017.getAggregations().get(categoryField));
-                assertTrue("Should have sub-aggregations", bucket2017.getAggregations().asList().size() > 0);
+                org.opensearch.search.aggregations.metrics.InternalMax maxAgg2017 = bucket2017.getAggregations().get(categoryField);
+                assertNotNull("Max sub-agg should exist", maxAgg2017);
+                assertEquals("Max category value for 2017 bucket should be 1", 1.0, maxAgg2017.getValue(), 0.0);
             }
         }
     }

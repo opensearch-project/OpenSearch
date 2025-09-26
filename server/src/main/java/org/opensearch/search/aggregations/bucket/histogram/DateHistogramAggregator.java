@@ -38,7 +38,6 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
@@ -511,6 +510,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
             if (upToSameBucket) {
                 aggregator.incrementBucketDocCount(upToBucketIndex, 1L);
+                sub.collect(doc, upToBucketIndex);
             } else if (values.advanceExact(doc)) {
                 final long value = values.longValue();
                 long bucketIndex = bucketOrds.add(owningBucketOrd, preparedRounding.round(value));
@@ -528,27 +528,5 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             collect(doc, 0);
         }
 
-        @Override
-        public void collect(DocIdStream stream) throws IOException {
-            for (;;) {
-                int upToExclusive = upToInclusive + 1;
-                if (upToExclusive < 0) { // overflow
-                    upToExclusive = Integer.MAX_VALUE;
-                }
-
-                if (upToSameBucket && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
-                    long count = stream.count(upToExclusive);
-                    aggregator.incrementBucketDocCount(upToBucketIndex, count);
-                } else {
-                    stream.forEach(upToExclusive, this::collect);
-                }
-
-                if (stream.mayHaveRemaining()) {
-                    advanceSkipper(upToExclusive);
-                } else {
-                    break;
-                }
-            }
-        }
     }
 }
