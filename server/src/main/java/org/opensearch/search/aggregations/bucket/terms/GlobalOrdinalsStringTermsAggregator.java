@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import joptsimple.internal.Strings;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -109,6 +110,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
     protected CardinalityUpperBound cardinalityUpperBound;
+    private String resultSelectionStrategy;
 
     public GlobalOrdinalsStringTermsAggregator(
         String name,
@@ -150,6 +152,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData)
             ? ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.resultSelectionStrategy = Strings.EMPTY;
     }
 
     String descriptCollectionStrategy() {
@@ -403,6 +406,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
         add.accept("has_filter", acceptedGlobalOrdinals != ALWAYS_TRUE);
+        add.accept("result_selection_strategy", resultSelectionStrategy);
+    }
+
+    public String getResultSelectionStrategy() {
+        return resultSelectionStrategy;
     }
 
     /**
@@ -854,10 +862,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     size = (int) Math.min(maxBucketOrd(), localBucketCountThresholds.getRequiredSize());
                 }
 
-                // When request size is smaller than 20% of total buckets, use priority queue to get topN buckets
                 // partiallyBuiltBucketComparator is null for significantTerm Aggregations use case and the way buckets sorted in the
                 // priority queue is based on the significanceScore
-                if ((size < 0.20 * valueCount) || isKeyOrder(order) || partiallyBuiltBucketComparator == null) {
+                BucketSelectionStrategy strategy = BucketSelectionStrategy.determine(
+                    size,
+                    valueCount,
+                    order,
+                    partiallyBuiltBucketComparator,
+                    context.bucketSelectionStrategyFactor()
+                );
+
+                if (strategy.equals(BucketSelectionStrategy.PRIORITY_QUEUE)) {
                     PriorityQueue<TB> ordered = buildPriorityQueue(size);
                     final int finalOrdIdx = ordIdx;
                     BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
@@ -894,6 +909,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
                         }
                     }
+                    resultSelectionStrategy = "priority_queue";
                 } else {
                     final int finalOrdIdx = ordIdx;
                     Object[] bucketsForOrdArr = new Object[(int) valueCount];
@@ -927,6 +943,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket((TB) bucketsForOrdArr[i]);
                             otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
                         }
+                        resultSelectionStrategy = "quick_select";
                     } else {
                         // All buckets fit within the required size, no selection needed
                         topBucketsPerOwningOrd[ordIdx] = buildBuckets(tot[0]);
@@ -934,6 +951,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket((TB) bucketsForOrdArr[i]);
                         }
                         otherDocCount[ordIdx] = 0;
+                        resultSelectionStrategy = "select_all";
                     }
                 }
             }
