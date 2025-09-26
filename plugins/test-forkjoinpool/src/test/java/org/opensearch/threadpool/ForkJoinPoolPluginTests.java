@@ -1,16 +1,9 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
 package org.opensearch.threadpool;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.threadpool.ForkJoinPoolPlugin;
-import org.junit.Assert;
+import org.opensearch.threadpool.ExecutorBuilder;
 
 import java.util.List;
 
@@ -20,7 +13,7 @@ import java.util.List;
  * This test verifies that the ForkJoinPoolPlugin registers the expected ForkJoinPoolExecutorBuilder
  * with the correct name and type.
  */
-public class ForkJoinPoolPluginTests {
+public class ForkJoinPoolPluginTests extends LuceneTestCase {
 
     /**
      * Tests that the ForkJoinPoolPlugin registers exactly one ForkJoinPoolExecutorBuilder
@@ -31,11 +24,11 @@ public class ForkJoinPoolPluginTests {
         List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(Settings.EMPTY);
 
         // Should register exactly one builder (jvector)
-        Assert.assertEquals("Plugin should register exactly one builder", 1, builders.size());
+        assertEquals("Plugin should register exactly one builder", 1, builders.size());
         ExecutorBuilder<?> builder = builders.get(0);
 
         // The builder should be of the correct type and name
-        Assert.assertTrue("Builder should be of type ForkJoinPoolExecutorBuilder", builder instanceof ForkJoinPoolExecutorBuilder);
-        Assert.assertEquals("Builder name should be 'jvector'", "jvector", builder.name());
+        assertTrue("Builder should be of type ForkJoinPoolExecutorBuilder", builder instanceof ForkJoinPoolExecutorBuilder);
+        assertEquals("Builder name should be 'jvector'", "jvector", builder.name());
     }
 }
