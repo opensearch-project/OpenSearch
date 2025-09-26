@@ -15,7 +15,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
-import org.opensearch.transport.grpc.server.spi.GrpcServiceFactory;
+import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
 import org.opensearch.transport.grpc.ssl.NettyGrpcClient;
 
 import java.util.Collection;
