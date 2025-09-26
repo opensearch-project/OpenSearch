@@ -365,7 +365,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testGeometryCollectionRelations() throws Exception {
         XContentBuilder mapping = createDefaultMapping();
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), mapping);
 
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(-10, 10), new Coordinate(10, -10));
 
@@ -490,7 +490,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
         XContentBuilder mapping = createDefaultMapping();
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
+        createIndexWithSimpleMappings("shapes", Settings.EMPTY, "_source", "enabled=false");
         ensureGreen();
 
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
@@ -749,7 +749,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .endObject()
             .endObject();
 
-        createIndex("test", Settings.EMPTY, "type", mapping);
+        createIndex("test", Settings.EMPTY, mapping);
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.MULTIPOINT);
         client().prepareIndex("test")

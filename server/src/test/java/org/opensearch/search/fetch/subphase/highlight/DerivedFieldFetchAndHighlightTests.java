@@ -124,7 +124,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
             .endObject();
 
         int docId = 0;
-        IndexService indexService = createIndex("test_index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("test_index", Settings.EMPTY, mapping);
         MapperService mapperService = indexService.mapperService();
 
         try (
@@ -260,7 +260,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
         // Create index and mapper service
         // We are not defining derived fields in index mapping here
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().endObject();
-        IndexService indexService = createIndex("test_index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("test_index", Settings.EMPTY, mapping);
         MapperService mapperService = indexService.mapperService();
 
         try (

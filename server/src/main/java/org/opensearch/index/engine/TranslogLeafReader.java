@@ -57,6 +57,7 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -375,12 +376,12 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
-    public void searchNearestVectors(String field, byte[] target, KnnCollector k, Bits acceptDocs) throws IOException {
+    public void searchNearestVectors(String field, byte[] target, KnnCollector k, AcceptDocs acceptDocs) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void searchNearestVectors(String field, float[] target, KnnCollector k, Bits acceptDocs) throws IOException {
+    public void searchNearestVectors(String field, float[] target, KnnCollector k, AcceptDocs acceptDocs) throws IOException {
         throw new UnsupportedOperationException();
     }
 

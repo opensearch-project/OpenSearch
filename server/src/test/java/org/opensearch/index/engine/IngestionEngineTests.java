@@ -127,8 +127,8 @@ public class IngestionEngineTests extends EngineTestCase {
 
         // validate ingestion state on successful engine creation
         ShardIngestionState ingestionState = ingestionEngine.getIngestionState();
-        assertEquals("test", ingestionState.index());
-        assertEquals("DROP", ingestionState.errorPolicy());
+        assertEquals("test", ingestionState.getIndex());
+        assertEquals("DROP", ingestionState.getErrorPolicy());
         assertFalse(ingestionState.isPollerPaused());
         assertFalse(ingestionState.isWriteBlockEnabled());
     }
