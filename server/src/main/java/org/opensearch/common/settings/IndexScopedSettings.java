@@ -199,6 +199,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_COMPOSITE_STORE_TYPE_SETTING,
+                IndexModule.INDEX_STORE_FACTORY_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
                 IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS,
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
@@ -276,6 +277,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT,
                 IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING,
                 IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,

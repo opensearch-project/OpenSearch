@@ -31,6 +31,8 @@
 
 package org.opensearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.opensearch.common.SuppressForbidden;
@@ -53,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
+@ThreadLeakFilters(filters = EventLoopThreadFilter.class)
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
@@ -113,7 +116,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "s3", settings);
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, "s3", settings);
     }
 
     @Override

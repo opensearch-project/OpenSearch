@@ -216,6 +216,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         int urgentEventLoopThreads = urgentPoolCount(clusterService.getSettings());
         int priorityEventLoopThreads = priorityPoolCount(clusterService.getSettings());
         int normalEventLoopThreads = normalPoolCount(clusterService.getSettings());
+
         this.urgentExecutorBuilder = new AsyncExecutorContainer(
             threadPool.executor(URGENT_FUTURE_COMPLETION),
             threadPool.executor(URGENT_STREAM_READER),
@@ -371,7 +372,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.REDIRECT_LARGE_S3_UPLOAD,
             S3Repository.UPLOAD_RETRY_ENABLED,
             S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
-            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED
+            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED,
+            S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE
         );
     }
 
@@ -387,8 +389,14 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void close() throws IOException {
         service.close();
         s3AsyncService.close();
-        urgentExecutorBuilder.getAsyncTransferEventLoopGroup().close();
-        priorityExecutorBuilder.getAsyncTransferEventLoopGroup().close();
-        normalExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        if (urgentExecutorBuilder.getAsyncTransferEventLoopGroup() != null) {
+            urgentExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        }
+        if (priorityExecutorBuilder.getAsyncTransferEventLoopGroup() != null) {
+            priorityExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        }
+        if (normalExecutorBuilder.getAsyncTransferEventLoopGroup() != null) {
+            normalExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        }
     }
 }

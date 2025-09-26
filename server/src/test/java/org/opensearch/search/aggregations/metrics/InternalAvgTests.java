@@ -127,8 +127,9 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         // Add ScriptedMetric with ScriptedAvg object
         InternalScriptedMetric scriptedMetric1 = mock(InternalScriptedMetric.class);
         when(scriptedMetric1.getName()).thenReturn(name);
-        ScriptedAvg scriptedAvg = new ScriptedAvg(100.0, 20L);
-        when(scriptedMetric1.aggregation()).thenReturn(scriptedAvg);
+        List<Object> aggList = new ArrayList<>();
+        aggList.add(new ScriptedAvg(100.0, 20L));
+        when(scriptedMetric1.aggregationsList()).thenReturn(aggList);
         aggregations.add(scriptedMetric1);
 
         InternalAvg avg = new InternalAvg(name, 0.0, 0L, formatter, null);
@@ -175,7 +176,9 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         // Add ScriptedMetric with invalid return type (String instead of double[])
         InternalScriptedMetric scriptedMetric1 = mock(InternalScriptedMetric.class);
         when(scriptedMetric1.getName()).thenReturn(name);
-        when(scriptedMetric1.aggregation()).thenReturn("invalid_type");
+        List<Object> aggList = new ArrayList<>();
+        aggList.add("invalid_type");
+        when(scriptedMetric1.aggregationsList()).thenReturn(aggList);
         aggregations.add(scriptedMetric1);
 
         InternalAvg avg = new InternalAvg(name, 0.0, 0L, formatter, null);
@@ -199,7 +202,9 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         // Add ScriptedMetric with double array of wrong length (should be 2)
         InternalScriptedMetric scriptedMetric = mock(InternalScriptedMetric.class);
         when(scriptedMetric.getName()).thenReturn(name);
-        when(scriptedMetric.aggregation()).thenReturn(new double[] { 100.0, 20.0, 30.0 });  // length 3 instead of 2
+        List<Object> aggList = new ArrayList<>();
+        aggList.add(new double[] { 100.0, 20.0, 30.0 });  // Add double array to list
+        when(scriptedMetric.aggregationsList()).thenReturn(aggList);
         aggregations.add(scriptedMetric);
 
         InternalAvg avg = new InternalAvg(name, 0.0, 0L, formatter, null);

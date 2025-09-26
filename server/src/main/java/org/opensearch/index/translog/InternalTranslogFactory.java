@@ -41,7 +41,8 @@ public class InternalTranslogFactory implements TranslogFactory {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -64,7 +65,8 @@ public class InternalTranslogFactory implements TranslogFactory {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            translogOperationHelper
+            translogOperationHelper,
+            null
         );
     }
 }

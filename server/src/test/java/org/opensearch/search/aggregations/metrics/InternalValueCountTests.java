@@ -71,17 +71,23 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
 
         // Add ScriptedMetric with Long value
         InternalScriptedMetric scriptedMetric1 = mock(InternalScriptedMetric.class);
-        when(scriptedMetric1.aggregation()).thenReturn(20L);
+        List<Object> aggList1 = new ArrayList<>();
+        aggList1.add(20L);
+        when(scriptedMetric1.aggregationsList()).thenReturn(aggList1);
         aggregations.add(scriptedMetric1);
 
         // Add ScriptedMetric with Integer value
         InternalScriptedMetric scriptedMetric2 = mock(InternalScriptedMetric.class);
-        when(scriptedMetric2.aggregation()).thenReturn(30);
+        List<Object> aggList2 = new ArrayList<>();
+        aggList2.add(30);
+        when(scriptedMetric2.aggregationsList()).thenReturn(aggList2);
         aggregations.add(scriptedMetric2);
 
         // Add ScriptedMetric with Double value
         InternalScriptedMetric scriptedMetric3 = mock(InternalScriptedMetric.class);
-        when(scriptedMetric3.aggregation()).thenReturn(10.5);
+        List<Object> aggList3 = new ArrayList<>();
+        aggList3.add(10.5);
+        when(scriptedMetric3.aggregationsList()).thenReturn(aggList3);
         aggregations.add(scriptedMetric3);
 
         InternalValueCount valueCount = new InternalValueCount(name, 0L, null);
@@ -92,6 +98,7 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
     }
 
     public void testReduceWithInternalValueCountOnly() {
+        // This test remains unchanged as it doesn't use ScriptedMetric
         String name = "test_value_count";
         List<InternalAggregation> aggregations = new ArrayList<>();
 
@@ -116,7 +123,9 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
 
         // Add ScriptedMetric with invalid value type (String instead of Number)
         InternalScriptedMetric scriptedMetric = mock(InternalScriptedMetric.class);
-        when(scriptedMetric.aggregation()).thenReturn("invalid_value");
+        List<Object> aggList = new ArrayList<>();
+        aggList.add("invalid_value");
+        when(scriptedMetric.aggregationsList()).thenReturn(aggList);
         aggregations.add(scriptedMetric);
 
         InternalValueCount valueCount = new InternalValueCount(name, 0L, null);
@@ -131,6 +140,29 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
                 + "Expected numeric value from ScriptedMetric aggregation but got [java.lang.String]",
             e.getMessage()
         );
+    }
+
+    public void testReduceWithMultipleValuesInList() {
+        String name = "test_scripted_metric";
+        List<InternalAggregation> aggregations = new ArrayList<>();
+
+        // Add regular InternalValueCount
+        aggregations.add(new InternalValueCount(name, 50L, null));
+
+        // Add ScriptedMetric with multiple values in the list
+        InternalScriptedMetric scriptedMetric = mock(InternalScriptedMetric.class);
+        List<Object> aggList = new ArrayList<>();
+        aggList.add(20L);
+        aggList.add(30);
+        aggList.add(10.5);
+        when(scriptedMetric.aggregationsList()).thenReturn(aggList);
+        aggregations.add(scriptedMetric);
+
+        InternalValueCount valueCount = new InternalValueCount(name, 0L, null);
+        InternalValueCount reduced = (InternalValueCount) valueCount.reduce(aggregations, null);
+
+        // Expected: 50 + 20 + 30 + 10 = 110
+        assertEquals(110L, reduced.getValue());
     }
 
     @Override

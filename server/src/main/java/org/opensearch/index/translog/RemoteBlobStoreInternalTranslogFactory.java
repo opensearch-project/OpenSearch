@@ -122,7 +122,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
                 remoteStoreSettings,
-                translogOperationHelper
+                translogOperationHelper,
+                null
             );
         }
     }

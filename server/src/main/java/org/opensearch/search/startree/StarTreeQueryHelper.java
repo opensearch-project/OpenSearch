@@ -47,8 +47,6 @@ import java.util.function.Consumer;
  */
 public class StarTreeQueryHelper {
 
-    private static StarTreeValues starTreeValues;
-
     /**
      * Checks if the search context can be supported by star-tree
      */
@@ -63,10 +61,9 @@ public class StarTreeQueryHelper {
 
     public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
-        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) {
+        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader starTreeDocValuesReader)) {
             return null;
         }
-        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
         return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
     }
 

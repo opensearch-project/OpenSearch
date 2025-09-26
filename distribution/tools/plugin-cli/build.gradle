@@ -45,8 +45,10 @@ dependencies {
   testRuntimeOnly("com.google.guava:guava:${versions.guava}") {
     transitive = false
   }
+  api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-io:commons-io:${versions.commonsio}"
-  implementation "org.apache.commons:commons-compress:${versions.commonscompress}"
+  api "org.apache.commons:commons-lang3:${versions.commonslang}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -60,7 +62,9 @@ test {
 }
 
 thirdPartyAudit.ignoreMissingClasses(
+  // org.brotli:dec is an optional dependency of commons-compress
   'org.brotli.dec.BrotliInputStream',
+  // org.ow2.asm:asm is an optional dependency of commons-compress
   'org.objectweb.asm.AnnotationVisitor',
   'org.objectweb.asm.Attribute',
   'org.objectweb.asm.ClassReader',
@@ -69,6 +73,7 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.objectweb.asm.Label',
   'org.objectweb.asm.MethodVisitor',
   'org.objectweb.asm.Type',
+  // org.tukaani:xz is an optional dependency of commons-compress
   'org.tukaani.xz.DeltaOptions',
   'org.tukaani.xz.FilterOptions',
   'org.tukaani.xz.LZMA2InputStream',
@@ -78,8 +83,5 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.tukaani.xz.MemoryLimitException',
   'org.tukaani.xz.UnsupportedOptionsException',
   'org.tukaani.xz.XZ',
-  'org.tukaani.xz.XZOutputStream',
-  'org.apache.commons.codec.digest.PureJavaCrc32C',
-  'org.apache.commons.codec.digest.XXHash32',
-  'org.apache.commons.lang3.reflect.FieldUtils'
+  'org.tukaani.xz.XZOutputStream'
 )
