@@ -39,6 +39,8 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -51,6 +53,7 @@ import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.http.apache.internal.conn.SdkTlsSocketFactory;
 import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -242,6 +245,11 @@ class S3Service implements Closeable {
         }
         if (clientSettings.disableChunkedEncoding) {
             builder.serviceConfiguration(s -> s.chunkedEncodingEnabled(false));
+        }
+        builder.requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+            .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+        if (clientSettings.legacyMd5ChecksumCalculation) {
+            builder.addPlugin(LegacyMd5Plugin.create());
         }
         final S3Client client = SocketAccess.doPrivileged(builder::build);
         return AmazonS3WithCredentials.create(client, credentials);

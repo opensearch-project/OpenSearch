@@ -312,6 +312,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final int ignoreAbove;
         private final String nullValue;
         private final boolean useSimilarity;
+        private final boolean splitQueriesOnWhitespace;
 
         public KeywordFieldType(String name, FieldType fieldType, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
             super(
@@ -328,6 +329,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
             this.useSimilarity = builder.useSimilarity.getValue();
+            this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
@@ -335,11 +337,23 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, boolean useSimilarity, Map<String, String> meta) {
+            this(name, isSearchable, hasDocValues, useSimilarity, false, meta);
+        }
+
+        public KeywordFieldType(
+            String name,
+            boolean isSearchable,
+            boolean hasDocValues,
+            boolean useSimilarity,
+            boolean splitQueriesOnWhitespace,
+            Map<String, String> meta
+        ) {
             super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
             this.useSimilarity = useSimilarity;
+            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
         public KeywordFieldType(String name) {
@@ -358,6 +372,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
             this.useSimilarity = false;
+            this.splitQueriesOnWhitespace = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -365,6 +380,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
             this.useSimilarity = false;
+            this.splitQueriesOnWhitespace = false;
         }
 
         @Override
@@ -447,6 +463,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (isSearchable()) {
                 return super.termQueryCaseInsensitive(value, context);
             } else {
@@ -467,6 +484,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (isSearchable()) {
                 Query query = super.termQuery(value, context);
                 if (!this.useSimilarity) {
@@ -494,6 +512,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             // has index and doc_values enabled
             if (isSearchable() && hasDocValues()) {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
@@ -559,6 +578,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (isSearchable() && hasDocValues()) {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
                     return super.prefixQuery(value, method, caseInsensitive, context);
@@ -602,6 +622,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (isSearchable() && hasDocValues()) {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
                     return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
@@ -640,6 +661,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (isSearchable() && hasDocValues()) {
                 Query indexQuery = new TermRangeQuery(
                     name(),
@@ -688,6 +710,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             QueryShardContext context
         ) {
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (context.allowExpensiveQueries() == false) {
                 throw new OpenSearchException(
                     "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to " + "false."
@@ -735,6 +758,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             // keyword field types are always normalized, so ignore case sensitivity and force normalize the
             // wildcard
             // query text
@@ -762,6 +786,13 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return super.wildcardQuery(value, method, caseInsensitive, true, context);
+        }
+
+        private void checkToDisableCaching(QueryShardContext context) {
+            // Mark the query as non-cacheable if the defaults for useSimilarity or splitQueriesOnWhitespace are not used.
+            if (useSimilarity || splitQueriesOnWhitespace) {
+                context.setIsCacheable(false);
+            }
         }
 
     }

@@ -117,6 +117,7 @@ public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
             indexed,
             false,
             true,
+            true,
             false,
             null,
             Collections.emptyMap()
