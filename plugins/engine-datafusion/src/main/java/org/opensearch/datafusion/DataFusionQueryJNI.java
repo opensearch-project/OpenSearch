@@ -115,7 +115,7 @@ public class DataFusionQueryJNI {
      */
     public static native long executeSubstraitQuery(long cachePtr, byte[] substraitPlan, long runtimePtr);
 
-    public static native long createDatafusionReader(String path, Collection<FileMetadata> files);
+    public static native long createDatafusionReader(String path, String[] files);
 
     public static native void closeDatafusionReader(long ptr);
 

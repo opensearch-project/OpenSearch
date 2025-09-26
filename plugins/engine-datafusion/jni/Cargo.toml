@@ -12,9 +12,11 @@ crate-type = ["cdylib"]
 [dependencies]
 # DataFusion dependencies
 datafusion = "49.0.0"
+datafusion-expr = "49.0.0"
+datafusion-datasource = "49.0.0"
 arrow-json = "55.2"
-#arrow = { version = "55.2", features = ["ffi", "ipc_compression"] }
-arrow = "55.2.0"
+arrow = { version = "55.2", features = ["ffi", "ipc_compression"] }
+#arrow = "55.2.0"
 arrow-array = "55.2.0"
 arrow-schema = "55.2.0"
 arrow-buffer = "55.2.0"
@@ -55,6 +57,11 @@ substrait = "0.47"
 # Temporary directory support
 tempfile = "3.0"
 chrono = "0.4.41"
+
+async-trait = "0.1.89"
+itertools = "0.14.0"
+rstest = "0.26.1"
+regex = "1.11.2"
 
 [build-dependencies]
 cbindgen = "0.27"

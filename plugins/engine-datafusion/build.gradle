@@ -43,7 +43,7 @@ dependencies {
     implementation "org.apache.arrow:arrow-c-data:17.0.0"
     implementation "org.apache.arrow:arrow-format:17.0.0"
     // SLF4J API for Arrow logging compatibility
-    implementation "org.slf4j:slf4j-api:2.0.17"
+    implementation "org.slf4j:slf4j-api:${versions.slf4j}"
     // CheckerFramework annotations required by Arrow 17.0.0
     implementation "org.checkerframework:checker-qual:3.42.0"
     // FlatBuffers dependency required by Arrow 17.0.0
@@ -172,7 +172,9 @@ clean {
 
 test {
     // Set system property to help tests find the native library
-    systemProperty 'java.library.path', file('src/main/resources/native').absolutePath
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+
+  systemProperty 'java.library.path', file('src/main/resources/native').absolutePath
 }
 
 yamlRestTest {

@@ -14,6 +14,7 @@ import org.opensearch.index.engine.exec.FileMetadata;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.datafusion.DataFusionQueryJNI.closeDatafusionReader;
@@ -30,7 +31,8 @@ public class DatafusionReader implements Closeable {
     public DatafusionReader(String directoryPath, Collection<FileMetadata> files) {
         this.directoryPath = directoryPath;
         this.files = files;
-        this.cachePtr = DataFusionQueryJNI.createDatafusionReader(directoryPath, files /* Make this jarray to be compatible with rust*/);
+        String[] fileNames = Objects.isNull(files) ? new String[]{} : files.stream().map(FileMetadata::fileName).toArray(String[]::new);
+        this.cachePtr = DataFusionQueryJNI.createDatafusionReader(directoryPath, fileNames);
         incRef();
     }
 
