@@ -59,6 +59,7 @@ public final class TestProfiles {
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
         LIGHT_PROFILE = builder.build();
     }
 }

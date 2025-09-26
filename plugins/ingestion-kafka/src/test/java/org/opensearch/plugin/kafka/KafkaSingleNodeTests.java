@@ -105,7 +105,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return ingestionState.getFailedShards() == 0
                 && Arrays.stream(ingestionState.getShardStates())
-                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+                    .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         produceData("{\"_id\":\"1\",\"_version\":\"2\",\"_op_type\":\"index\",\"_source\":{\"name\":\"name\", \"age\": 30}}");
@@ -121,7 +121,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
             return Arrays.stream(ingestionState.getShardStates())
                 .allMatch(
                     state -> state.isPollerPaused() == false
-                        && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                        && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
                 );
         });
 
@@ -131,6 +131,24 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .getPollingIngestStats();
             return stats.getConsumerStats().totalDuplicateMessageSkippedCount() == 2;
         });
+    }
+
+    // This test validates shard initialization does not fail due to kafka connection errors.
+    public void testShardInitializationUsingUnknownTopic() throws Exception {
+        createIndexWithMappingSource(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", "unknownTopic")
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            mappings
+        );
+        ensureGreen(indexName);
     }
 
     private void setupKafka() {

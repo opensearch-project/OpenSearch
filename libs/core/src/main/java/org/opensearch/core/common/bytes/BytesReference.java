@@ -63,11 +63,10 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     static BytesReference bytes(XContentBuilder xContentBuilder) {
         xContentBuilder.close();
         OutputStream stream = xContentBuilder.getOutputStream();
-        if (stream instanceof ByteArrayOutputStream) {
-            return new BytesArray(((ByteArrayOutputStream) stream).toByteArray());
-        } else {
-            return ((BytesStream) stream).bytes();
-        }
+        return switch (stream) {
+            case ByteArrayOutputStream baos -> new BytesArray(baos.toByteArray());
+            default -> ((BytesStream) stream).bytes();
+        };
     }
 
     /**

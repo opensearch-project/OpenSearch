@@ -175,7 +175,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, false, true, null, Collections.emptyMap());
+        return new NumberFieldType("field", NumberType.LONG, false, false, false, false, true, null, Collections.emptyMap());
     }
 
     public void testTermQuery() {
@@ -687,7 +687,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("foo", valueSupplier.get(), true, true, false));
+            w.addDocument(type.createFields("foo", valueSupplier.get(), true, true, false, false));
         }
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = newSearcher(reader);
@@ -752,7 +752,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, writerConfig);
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("field", valueSupplier.get(), true, true, false));
+            w.addDocument(type.createFields("field", valueSupplier.get(), true, true, false, false));
         }
 
         // Ensure that the optimized index sort query gives the same results as a points query.
@@ -1004,10 +1004,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ft.bitmapQuery(bitmap)
         );
 
-        ft = new NumberFieldType("field", NumberType.INTEGER, false, false, true, true, null, Collections.emptyMap());
+        ft = new NumberFieldType("field", NumberType.INTEGER, false, false, true, true, true, null, Collections.emptyMap());
         assertEquals(new BitmapDocValuesQuery("field", r), ft.bitmapQuery(bitmap));
 
-        ft = new NumberFieldType("field", NumberType.INTEGER, true, false, false, true, null, Collections.emptyMap());
+        ft = new NumberFieldType("field", NumberType.INTEGER, true, false, false, false, true, null, Collections.emptyMap());
         assertEquals(new BitmapIndexQuery("field", r), ft.bitmapQuery(bitmap));
 
         Directory dir = newDirectory();

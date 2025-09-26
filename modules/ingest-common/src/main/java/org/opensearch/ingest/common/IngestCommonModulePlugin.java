@@ -120,6 +120,9 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(RemoveByPatternProcessor.TYPE, new RemoveByPatternProcessor.Factory());
         processors.put(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory());
         processors.put(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory());
+        processors.put(HierarchicalRoutingProcessor.TYPE, new HierarchicalRoutingProcessor.Factory());
+        processors.put(TemporalRoutingProcessor.TYPE, new TemporalRoutingProcessor.Factory());
+        processors.put(AclRoutingProcessor.TYPE, new AclRoutingProcessor.Factory());
         return filterForAllowlistSetting(parameters.env.settings(), processors);
     }
 

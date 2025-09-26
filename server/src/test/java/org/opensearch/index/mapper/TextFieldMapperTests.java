@@ -70,7 +70,10 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -89,6 +92,13 @@ import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.MatchQuery;
+import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -97,6 +107,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1081,14 +1093,47 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
     }
 
-    public void testPossibleToDeriveSource_WhenStoredFieldDisabled() throws IOException {
-        TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false);
-        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    public void testDefaultStoredFieldForDerivedSource() throws IOException {
+        IndexMetadata build = IndexMetadata.builder("test_index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(build, Settings.EMPTY);
+        MapperRegistry mapperRegistry = new IndicesModule(
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+        ).getMapperRegistry();
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
+        );
+        ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
+        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
+        MapperService mapperService = new MapperService(
+            indexSettings,
+            createIndexAnalyzers(indexSettings),
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> {
+                throw new UnsupportedOperationException();
+            },
+            () -> true,
+            scriptService
+        );
+
+        merge(mapperService, fieldMapping(b -> b.field("type", "text").field("store", false)));
+        TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertTrue(textFieldMapper.fieldType.stored());
     }
 
     public void testDerivedValueFetching_StoredField() throws IOException {
         try (Directory directory = newDirectory()) {
-            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), true);
+            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false);
             String value = "value";
             try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
                 iw.addDocument(createDocument("field", value, false, false));

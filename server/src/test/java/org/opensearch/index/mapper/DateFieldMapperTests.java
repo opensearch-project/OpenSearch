@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -87,6 +88,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("skip_list", b -> b.field("skip_list", true));
         checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
         checker.registerConflictCheck("print_format", b -> b.field("print_format", "yyyy-MM-dd"));
         checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
@@ -440,7 +442,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(
                 b -> b.field("type", "date_nanos")
-                    .field("format", "strict_date_time_no_millis")
+                    .field("format", "strict_date_optional_time_nanos")
                     .field("doc_values", false)
                     .field("store", true)
             )
@@ -475,14 +477,14 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         doAnswer(invocation -> {
             SingleFieldsVisitor visitor = invocation.getArgument(1);
-            visitor.longField(mockFieldInfo, TEST_TIMESTAMP * 1000000L);
+            visitor.longField(mockFieldInfo, TEST_TIMESTAMP * 1000000L + 111111111L);
             return null;
         }).when(storedFields).document(anyInt(), any(StoredFieldVisitor.class));
 
         dateFieldMapper.deriveSource(builder, leafReader, 0);
         builder.endObject();
         String source = builder.toString();
-        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00Z\""));
+        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00.111111111Z\""));
     }
 
     public void testDeriveSource_WhenStoredFieldEnabledWithMultiValue() throws IOException {
@@ -556,7 +558,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(
                 b -> b.field("type", "date_nanos")
-                    .field("format", "strict_date_time_no_millis")
+                    .field("format", "strict_date_optional_time_nanos")
                     .field("store", false)
                     .field("doc_values", true)
             )
@@ -569,12 +571,12 @@ public class DateFieldMapperTests extends MapperTestCase {
         when(leafReader.getSortedNumericDocValues("field")).thenReturn(docValues);
         when(docValues.advanceExact(0)).thenReturn(true);
         when(docValues.docValueCount()).thenReturn(1);
-        when(docValues.nextValue()).thenReturn(TEST_TIMESTAMP * 1000000L);
+        when(docValues.nextValue()).thenReturn(TEST_TIMESTAMP * 1000000L + 222222222L);
 
         dateFieldMapper.deriveSource(builder, leafReader, 0);
         builder.endObject();
         String source = builder.toString();
-        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00Z\""));
+        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00.222222222Z\""));
     }
 
     public void testDeriveSource_WhenDocValuesEnabledWithMultiValue() throws IOException {
@@ -617,5 +619,249 @@ public class DateFieldMapperTests extends MapperTestCase {
         builder.endObject();
         String source = builder.toString();
         assertEquals("{}", source);
+    }
+
+    public void testDateEncodePoint() {
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("test_field");
+        // Test basic roundUp
+        long baseTime = fieldType.parse("2024-01-15T10:30:00Z");
+        byte[] encoded = fieldType.encodePoint("2024-01-15T10:30:00Z", true);
+        long decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(baseTime + 1, decoded);
+        // Test basic roundDown
+        encoded = fieldType.encodePoint("2024-01-15T10:30:00Z", false);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals(baseTime - 1, decoded);
+        // Test with extreme long values,
+        long largeEpoch = 253402300799999L;
+        String largeEpochStr = String.valueOf(largeEpoch);
+        encoded = fieldType.encodePoint(largeEpochStr, true);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals("Should increment epoch millis", largeEpoch + 1, decoded);
+        long negativeEpoch = -377705116800000L;
+        String negativeEpochStr = String.valueOf(negativeEpoch);
+        encoded = fieldType.encodePoint(negativeEpochStr, false);
+        decoded = LongPoint.decodeDimension(encoded, 0);
+        assertEquals("Should decrement epoch millis", negativeEpoch - 1, decoded);
+    }
+
+    public void testSkipListParameterValidBooleanValues() throws IOException {
+        // Test skip_list=true
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", true)));
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertTrue("skip_list should be true", dateFieldMapper.skiplist());
+
+        // Test skip_list=false
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", false)));
+        dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertFalse("skip_list should be false", dateFieldMapper.skiplist());
+    }
+
+    public void testSkipListParameterDefaultBehavior() throws IOException {
+        // Test default behavior when skip_list parameter is omitted
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertFalse("skip_list should default to false", dateFieldMapper.skiplist());
+    }
+
+    public void testSkipListParameterInvalidValues() throws IOException {
+        // Test invalid string value
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", "invalid")))
+        );
+        assertThat(e.getMessage(), containsString("Failed to parse mapping"));
+
+        // Test invalid numeric value
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", 123)))
+        );
+        assertThat(e.getMessage(), containsString("Failed to parse mapping"));
+
+        // Test null value
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").nullField("skip_list")))
+        );
+        assertThat(e.getMessage(), containsString("Failed to parse mapping"));
+    }
+
+    public void testSkipListParameterDateNanos() throws IOException {
+        // Test skip_list=true with date_nanos type
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date_nanos").field("skip_list", true)));
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertTrue("skip_list should be true for date_nanos", dateFieldMapper.skiplist());
+
+        // Test skip_list=false with date_nanos type
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date_nanos").field("skip_list", false)));
+        dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertFalse("skip_list should be false for date_nanos", dateFieldMapper.skiplist());
+
+        // Test default behavior for date_nanos
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date_nanos")));
+        dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertFalse("skip_list should default to false for date_nanos", dateFieldMapper.skiplist());
+    }
+
+    // Integration tests for end-to-end skip_list functionality
+
+    public void testSkipListIntegrationDateFieldWithIndexedDocValues() throws IOException {
+        // Test creating index with skip_list=true for date field
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", true)));
+
+        // Parse a document with date field
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11T10:30:00Z")));
+
+        // Verify the field structure
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals("Should have 2 fields (point and doc values)", 2, fields.length);
+
+        // Verify point field
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
+        assertEquals(8, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(1457692200000L, pointField.numericValue().longValue());
+
+        // Verify doc values field - when skip_list=true, should use indexed doc values
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(1457692200000L, dvField.numericValue().longValue());
+        assertFalse(dvField.fieldType().stored());
+
+        // Verify the mapper has skip_list enabled
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertTrue("skip_list should be enabled", dateFieldMapper.skiplist());
+    }
+
+    public void testSkipListIntegrationDateNanosFieldWithIndexedDocValues() throws IOException {
+        // Test creating index with skip_list=true for date_nanos field
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date_nanos").field("skip_list", true)));
+
+        // Parse a document with date_nanos field
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11T10:30:00.123456789Z")));
+
+        // Verify the field structure
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals("Should have 2 fields (point and doc values)", 2, fields.length);
+
+        // Verify point field
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
+        assertEquals(8, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+
+        // Verify doc values field - when skip_list=true, should use indexed doc values
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertFalse(dvField.fieldType().stored());
+
+        // Verify the mapper has skip_list enabled
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertTrue("skip_list should be enabled", dateFieldMapper.skiplist());
+    }
+
+    public void testSkipListIntegrationRegularDocValuesWhenDisabled() throws IOException {
+        // Test creating index with skip_list=false for date field
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", false)));
+
+        // Parse a document with date field
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11T10:30:00Z")));
+
+        // Verify the field structure
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals("Should have 2 fields (point and doc values)", 2, fields.length);
+
+        // Verify point field
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
+        assertEquals(8, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(1457692200000L, pointField.numericValue().longValue());
+
+        // Verify doc values field - when skip_list=false, should use regular doc values
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(1457692200000L, dvField.numericValue().longValue());
+        assertFalse(dvField.fieldType().stored());
+
+        // Verify the mapper has skip_list disabled
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+        assertFalse("skip_list should be disabled", dateFieldMapper.skiplist());
+    }
+
+    public void testSkipListIntegrationWithMultipleResolutions() throws IOException {
+        // Test both MILLISECONDS and NANOSECONDS resolution with skip_list enabled
+
+        // Test MILLISECONDS resolution (date type)
+        DocumentMapper mapperMillis = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", true)));
+        ParsedDocument docMillis = mapperMillis.parse(source(b -> b.field("field", "2016-03-11T10:30:00Z")));
+
+        IndexableField[] fieldsMillis = docMillis.rootDoc().getFields("field");
+        assertEquals("Date field should have 2 fields", 2, fieldsMillis.length);
+        assertEquals(1457692200000L, fieldsMillis[0].numericValue().longValue());
+        assertEquals(1457692200000L, fieldsMillis[1].numericValue().longValue());
+
+        DateFieldMapper dateMapperMillis = (DateFieldMapper) mapperMillis.mappers().getMapper("field");
+        assertTrue("Date field skip_list should be enabled", dateMapperMillis.skiplist());
+
+        // Test NANOSECONDS resolution (date_nanos type)
+        DocumentMapper mapperNanos = createDocumentMapper(fieldMapping(b -> b.field("type", "date_nanos").field("skip_list", true)));
+        ParsedDocument docNanos = mapperNanos.parse(source(b -> b.field("field", "2016-03-11T10:30:00.123456789Z")));
+
+        IndexableField[] fieldsNanos = docNanos.rootDoc().getFields("field");
+        assertEquals("Date_nanos field should have 2 fields", 2, fieldsNanos.length);
+
+        DateFieldMapper dateMapperNanos = (DateFieldMapper) mapperNanos.mappers().getMapper("field");
+        assertTrue("Date_nanos field skip_list should be enabled", dateMapperNanos.skiplist());
+    }
+
+    public void testSkipListIntegrationMappingDefinitionSerialization() throws IOException {
+        // Test that skip_list parameter appears correctly in mapping definitions
+
+        // Create mapper with skip_list=true
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "date").field("skip_list", true)));
+
+        // Get the field type and verify skip_list is set
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertTrue("skip_list should be true in mapper", dateFieldMapper.skiplist());
+
+        // Test with date_nanos as well
+        MapperService mapperServiceNanos = createMapperService(fieldMapping(b -> b.field("type", "date_nanos").field("skip_list", true)));
+        DateFieldMapper dateFieldMapperNanos = (DateFieldMapper) mapperServiceNanos.documentMapper().mappers().getMapper("field");
+        assertTrue("skip_list should be true in date_nanos mapper", dateFieldMapperNanos.skiplist());
+    }
+
+    public void testSkipListIntegrationFieldBehaviorConsistency() throws IOException {
+        // Test that field behavior is consistent between skip_list enabled and disabled
+
+        String dateValue = "2016-03-11T10:30:00Z";
+        long expectedTimestamp = 1457692200000L;
+
+        // Test with skip_list=true
+        DocumentMapper mapperEnabled = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", true)));
+        ParsedDocument docEnabled = mapperEnabled.parse(source(b -> b.field("field", dateValue)));
+
+        // Test with skip_list=false
+        DocumentMapper mapperDisabled = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("skip_list", false)));
+        ParsedDocument docDisabled = mapperDisabled.parse(source(b -> b.field("field", dateValue)));
+
+        // Both should have the same field structure and values
+        IndexableField[] fieldsEnabled = docEnabled.rootDoc().getFields("field");
+        IndexableField[] fieldsDisabled = docDisabled.rootDoc().getFields("field");
+
+        assertEquals("Both should have same number of fields", fieldsEnabled.length, fieldsDisabled.length);
+        assertEquals(
+            "Point field values should match",
+            fieldsEnabled[0].numericValue().longValue(),
+            fieldsDisabled[0].numericValue().longValue()
+        );
+        assertEquals(
+            "Doc values field values should match",
+            fieldsEnabled[1].numericValue().longValue(),
+            fieldsDisabled[1].numericValue().longValue()
+        );
+        assertEquals("Expected timestamp should match", expectedTimestamp, fieldsEnabled[0].numericValue().longValue());
     }
 }

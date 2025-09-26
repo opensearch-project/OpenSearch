@@ -1570,6 +1570,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
         final ReplicationTracker tracker = newTracker(primaryId, settings);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));

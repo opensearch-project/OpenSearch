@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import joptsimple.internal.Strings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -73,7 +74,6 @@ import org.opensearch.search.startree.filter.MatchAllFilter;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -94,6 +94,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
     private final String fieldName;
+    private String resultSelectionStrategy;
 
     public NumericTermsAggregator(
         String name,
@@ -118,6 +119,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         this.fieldName = (this.valuesSource instanceof ValuesSource.Numeric.FieldData)
             ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.resultSelectionStrategy = Strings.EMPTY;
     }
 
     @Override
@@ -239,6 +241,11 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds.size());
+        add.accept("result_selection_strategy", resultSelectionStrategy);
+    }
+
+    public String getResultSelectionStrategy() {
+        return resultSelectionStrategy;
     }
 
     /**
@@ -255,42 +262,43 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 checkCancelled();
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
-
                 int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
-                PriorityQueue<B> ordered = buildPriorityQueue(size);
-                B spare = null;
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                while (ordsEnum.next()) {
-                    long docCount = bucketDocCount(ordsEnum.ord());
-                    otherDocCounts[ordIdx] += docCount;
-                    if (docCount < localBucketCountThresholds.getMinDocCount()) {
-                        continue;
-                    }
-                    if (spare == null) {
-                        spare = emptyBucketBuilder.get();
-                    }
-                    updateBucket(spare, ordsEnum, docCount);
-                    spare = ordered.insertWithOverflow(spare);
-                }
 
-                // Get the top buckets
-                B[] bucketsForOrd = buildBuckets(ordered.size());
-                topBucketsPerOrd[ordIdx] = bucketsForOrd;
-                if (isKeyOrder(order)) {
-                    for (int b = ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
-                    }
-                } else {
-                    // sorted buckets not needed as they will be sorted by key in buildResult() which is different from
-                    // order in priority queue ordered
-                    Iterator<B> itr = ordered.iterator();
-                    for (int b = ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = itr.next();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
-                    }
-                }
+                BucketSelectionStrategy strategy = BucketSelectionStrategy.determine(
+                    size,
+                    bucketsInOrd,
+                    order,
+                    partiallyBuiltBucketComparator,
+                    context.bucketSelectionStrategyFactor()
+                );
+
+                BucketSelectionStrategy.SelectionInput<B> selectionInput = new BucketSelectionStrategy.SelectionInput<>(
+                    size,
+                    bucketsInOrd,
+                    ordsEnum,
+                    emptyBucketBuilder,
+                    localBucketCountThresholds,
+                    ordIdx,
+                    order,
+                    this::buildPriorityQueue,
+                    this::buildBuckets,
+                    (spare, ordsEnumParam, docCount) -> {
+                        try {
+                            updateBucket(spare, ordsEnumParam, docCount);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error updating bucket", e);
+                        }
+                    },
+                    NumericTermsAggregator.this::bucketDocCount,
+                    partiallyBuiltBucketComparator
+                );
+
+                BucketSelectionStrategy.SelectionResult<B> result = strategy.selectTopBuckets(selectionInput);
+                topBucketsPerOrd[ordIdx] = result.topBuckets;
+                otherDocCounts[ordIdx] = result.otherDocCount;
+                resultSelectionStrategy = result.actualStrategyUsed;
             }
 
             buildSubAggs(topBucketsPerOrd);

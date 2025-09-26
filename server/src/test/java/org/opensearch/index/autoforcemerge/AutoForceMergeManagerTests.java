@@ -31,6 +31,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.monitor.MonitorService;
@@ -40,6 +42,9 @@ import org.opensearch.monitor.jvm.JvmService;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.os.OsStats;
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -48,6 +53,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +66,10 @@ import java.util.concurrent.Executors;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -80,6 +90,16 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
     private OsStats.Cpu cpu;
     private FsInfo.Path disk;
     private JvmStats.Mem jvm;
+    private AutoForceMergeMetrics autoForceMergeMetrics;
+
+    private Histogram mockSchedulerExecutionTimeHistogram;
+    private Histogram mockShardMergeLatencyHistogram;
+    private Counter mockMergesTriggeredCounter;
+    private Counter mockSkipsFromConfigValidatorCounter;
+    private Counter mockSkipsFromNodeValidatorCounter;
+    private Counter mockMergesFailedCounter;
+    private Counter mockShardSizeCounter;
+    private Counter mockSegmentCountCounter;
 
     private final String DATA_NODE_1 = "DATA_NODE_1";
     private final String DATA_NODE_2 = "DATA_NODE_2";
@@ -103,6 +123,47 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         osService = mock(OsService.class);
         fsService = mock(FsService.class);
         jvmService = mock(JvmService.class);
+
+        MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+
+        mockSchedulerExecutionTimeHistogram = mock(Histogram.class);
+        mockShardMergeLatencyHistogram = mock(Histogram.class);
+        mockMergesTriggeredCounter = mock(Counter.class);
+        mockSkipsFromConfigValidatorCounter = mock(Counter.class);
+        mockSkipsFromNodeValidatorCounter = mock(Counter.class);
+        mockMergesFailedCounter = mock(Counter.class);
+        mockShardSizeCounter = mock(Counter.class);
+        mockSegmentCountCounter = mock(Counter.class);
+
+        when(metricsRegistry.createHistogram(eq("auto_force_merge.scheduler.execution_time"), anyString(), eq("ms"))).thenReturn(
+            mockSchedulerExecutionTimeHistogram
+        );
+
+        when(metricsRegistry.createHistogram(eq("auto_force_merge.shard.merge_latency"), anyString(), eq("ms"))).thenReturn(
+            mockShardMergeLatencyHistogram
+        );
+
+        when(metricsRegistry.createCounter(eq("auto_force_merge.merges.triggered"), anyString(), eq("1"))).thenReturn(
+            mockMergesTriggeredCounter
+        );
+
+        when(metricsRegistry.createCounter(eq("auto_force_merge.merges.skipped.config_validator"), anyString(), eq("1"))).thenReturn(
+            mockSkipsFromConfigValidatorCounter
+        );
+
+        when(metricsRegistry.createCounter(eq("auto_force_merge.merges.skipped.node_validator"), anyString(), eq("1"))).thenReturn(
+            mockSkipsFromNodeValidatorCounter
+        );
+
+        when(metricsRegistry.createCounter(eq("auto_force_merge.merges.failed"), anyString(), eq("1"))).thenReturn(mockMergesFailedCounter);
+
+        when(metricsRegistry.createCounter(eq("auto_force_merge.shard.size"), anyString(), eq("bytes"))).thenReturn(mockShardSizeCounter);
+
+        when(metricsRegistry.createCounter(eq("auto_force_merge.shard.segment_count"), anyString(), eq("1"))).thenReturn(
+            mockSegmentCountCounter
+        );
+
+        autoForceMergeMetrics = new AutoForceMergeMetrics(metricsRegistry);
 
         when(monitorService.osService()).thenReturn(osService);
         when(monitorService.fsService()).thenReturn(fsService);
@@ -531,15 +592,20 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(indicesService.spliterator()).thenReturn(indexServices.spliterator());
 
         AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
-            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getConfiguredClusterSettings(
+                true,
+                true,
+                // Configure maximum delay because this test will interrupt it
+                Map.of(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), TimeValue.timeValueSeconds(60))
+            ),
             dataNode1
         );
         autoForceMergeManager.start();
         Thread testThread = new Thread(() -> autoForceMergeManager.getTask().runInternal());
         testThread.start();
-        Thread.sleep(1000L);
         testThread.interrupt();
-        assertTrue(testThread.isInterrupted());
+        assertTrue("Expected testThread to exit quickly after being interrupted", testThread.join(Duration.ofSeconds(10)));
+        assertTrue("Expected the interrupt status to be set", testThread.isInterrupted());
         autoForceMergeManager.close();
         executorService.shutdown();
     }
@@ -557,8 +623,202 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             threadPool,
             monitorService,
             indicesService,
-            clusterService
+            clusterService,
+            autoForceMergeMetrics
         );
+    }
+
+    public void testMergesSkippedNoWarmNodesMetric() {
+        AutoForceMergeManager manager = createManagerWithoutWarmNodes();
+
+        executeTestWithManager(manager, () -> {
+            manager.getTask().runInternal();
+
+            verify(mockSkipsFromConfigValidatorCounter, times(1)).add(eq(1.0), any());
+            verify(mockSchedulerExecutionTimeHistogram, times(1)).record(anyDouble(), any());
+            verify(mockMergesTriggeredCounter, never()).add(anyDouble(), any());
+        }, null);
+    }
+
+    public void testSkipsFromNodeValidatorHighCPUMetric() {
+        AutoForceMergeManager manager = createManagerWithWarmCluster();
+
+        executeTestWithManager(manager, () -> {
+            when(cpu.getPercent()).thenReturn((short) 95);
+            manager.getTask().runInternal();
+
+            verify(mockSkipsFromNodeValidatorCounter, times(1)).add(eq(1.0), any());
+            verify(mockSkipsFromConfigValidatorCounter, never()).add(eq(1.0), any());
+            verify(mockSchedulerExecutionTimeHistogram, times(1)).record(anyDouble(), any());
+        }, null);
+    }
+
+    public void testMergesFailedMetric() throws IOException {
+        ExecutorService executorService = setupCompleteEnvironmentForMerge();
+        setupIndexServiceWithShard(1024L, 2);
+
+        IndexService indexService = mock(IndexService.class);
+        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        IndexShard shard = getShard(TEST_INDEX_1, translogStats, 2);
+        doThrow(new IOException("Test exception")).when(shard).forceMerge(any());
+
+        when(indexService.spliterator()).thenReturn(List.of(shard).spliterator());
+        when(indicesService.spliterator()).thenReturn(List.of(indexService).spliterator());
+
+        AutoForceMergeManager manager = createManagerWithWarmCluster();
+
+        executeTestWithManager(manager, () -> {
+            manager.getTask().runInternal();
+
+            verify(mockMergesTriggeredCounter, times(1)).add(eq(1.0), any());
+            verify(mockMergesFailedCounter, times(1)).add(eq(1.0), any());
+            verify(mockSchedulerExecutionTimeHistogram, times(1)).record(anyDouble(), any());
+            verify(mockShardMergeLatencyHistogram, times(1)).record(anyDouble(), any());
+        }, executorService);
+    }
+
+    public void testComprehensiveSuccessfulMergeMetrics() throws IOException {
+        ExecutorService executorService = setupCompleteEnvironmentForMerge();
+        setupIndexServiceWithShard(2048L, 3);
+
+        AutoForceMergeManager manager = createManagerWithWarmCluster();
+
+        executeTestWithManager(manager, () -> {
+            manager.getTask().runInternal();
+
+            verify(mockSchedulerExecutionTimeHistogram, times(1)).record(anyDouble(), any());
+            verify(mockMergesTriggeredCounter, times(1)).add(eq(1.0), any());
+            verify(mockShardSizeCounter, times(1)).add(eq(2048.0), any());
+            verify(mockSegmentCountCounter, times(1)).add(eq(3.0), any());
+            verify(mockShardMergeLatencyHistogram, times(1)).record(anyDouble(), any());
+
+            verify(mockMergesFailedCounter, never()).add(anyDouble(), any());
+            verify(mockSkipsFromConfigValidatorCounter, never()).add(anyDouble(), any());
+        }, executorService);
+    }
+
+    public void testNoMetricsWhenFeatureDisabled() {
+        AutoForceMergeManager manager = clusterSetupWithNode(
+            getConfiguredClusterSettings(false, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+
+        executeTestWithManager(manager, () -> {
+            manager.getTask().runInternal();
+
+            verify(mockSchedulerExecutionTimeHistogram, never()).record(anyDouble(), any());
+            verify(mockMergesTriggeredCounter, never()).add(anyDouble(), any());
+            verify(mockSkipsFromConfigValidatorCounter, never()).add(anyDouble(), any());
+            verify(mockSkipsFromNodeValidatorCounter, never()).add(anyDouble(), any());
+            verify(mockMergesFailedCounter, never()).add(anyDouble(), any());
+            verify(mockShardSizeCounter, never()).add(anyDouble(), any());
+            verify(mockSegmentCountCounter, never()).add(anyDouble(), any());
+            verify(mockShardMergeLatencyHistogram, never()).record(anyDouble(), any());
+        }, null);
+    }
+
+    private ClusterState createClusterWithWarmNodes() {
+        DiscoveryNode dataNode1 = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        DiscoveryNode warmNode1 = getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.WARM_ROLE));
+
+        return ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(dataNode1)
+                    .add(warmNode1)
+                    .localNodeId(dataNode1.getId())
+                    .clusterManagerNodeId(dataNode1.getId())
+            )
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
+    }
+
+    private ClusterState createClusterWithoutWarmNodes() {
+        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+
+        return ClusterState.builder(new ClusterName("test-cluster"))
+            .nodes(DiscoveryNodes.builder().add(dataNode).localNodeId(dataNode.getId()).clusterManagerNodeId(dataNode.getId()))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
+    }
+
+    private void setupHealthySystemResources() {
+        when(cpu.getPercent()).thenReturn((short) 50);
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
+    }
+
+    private ExecutorService setupForceMergeThreadPool() {
+        return setupForceMergeThreadPool(1);
+    }
+
+    private ExecutorService setupForceMergeThreadPool(int threadCount) {
+        ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+        when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
+
+        ThreadPoolStats stats = new ThreadPoolStats(
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, threadCount, 0, 0, 0, threadCount, 0, -1))
+        );
+        when(threadPool.stats()).thenReturn(stats);
+
+        return executorService;
+    }
+
+    private ExecutorService setupCompleteEnvironmentForMerge() {
+        when(clusterService.state()).thenReturn(createClusterWithWarmNodes());
+        setupHealthySystemResources();
+        return setupForceMergeThreadPool();
+    }
+
+    private void setupIndexServiceWithShard(long shardSize, int segmentCount) throws IOException {
+        IndexService indexService = mock(IndexService.class);
+        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        IndexShard shard = getShard(TEST_INDEX_1, translogStats, segmentCount);
+
+        if (shardSize != 1024L) {
+            Store mockStore = mock(Store.class);
+            StoreStats mockStoreStats = mock(StoreStats.class);
+            when(shard.store()).thenReturn(mockStore);
+            when(mockStore.stats(anyLong())).thenReturn(mockStoreStats);
+            when(mockStoreStats.sizeInBytes()).thenReturn(shardSize);
+        }
+
+        List<IndexShard> shards = List.of(shard);
+        when(indexService.spliterator()).thenReturn(shards.spliterator());
+        when(indicesService.spliterator()).thenReturn(List.of(indexService).spliterator());
+    }
+
+    private void executeTestWithManager(AutoForceMergeManager manager, Runnable testAction, ExecutorService executorService) {
+        try {
+            manager.start();
+            testAction.run();
+
+            if (executorService != null) {
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        } finally {
+            manager.close();
+            if (executorService != null) {
+                executorService.shutdown();
+            }
+        }
+    }
+
+    private AutoForceMergeManager createManagerWithWarmCluster() {
+        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        when(clusterService.state()).thenReturn(createClusterWithWarmNodes());
+
+        return clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), dataNode);
+    }
+
+    private AutoForceMergeManager createManagerWithoutWarmNodes() {
+        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        when(clusterService.state()).thenReturn(createClusterWithoutWarmNodes());
+
+        return clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), dataNode);
     }
 
     private IndexShard getShard(String indexName, TranslogStats translogStats, Integer segmentCount) {
@@ -567,6 +827,16 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         SegmentsStats segmentsStats = new SegmentsStats();
         segmentsStats.add(segmentCount);
         ShardRouting shardRouting = mock(ShardRouting.class);
+
+        Store mockStore = mock(Store.class);
+        StoreStats mockStoreStats = mock(StoreStats.class);
+        when(mockStoreStats.sizeInBytes()).thenReturn(1024L);
+        try {
+            when(mockStore.stats(anyLong())).thenReturn(mockStoreStats);
+        } catch (IOException e) {
+            throw new RuntimeException("Unexpected IOException in mock setup", e);
+        }
+
         when(shard.shardId()).thenReturn(shardId1);
         when(shard.translogStats()).thenReturn(translogStats);
         when(shard.segmentStats(false, false)).thenReturn(segmentsStats);
@@ -574,6 +844,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(shardRouting.primary()).thenReturn(true);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         when(shard.indexSettings()).thenReturn(getNewIndexSettings(TEST_INDEX_1));
+        when(shard.store()).thenReturn(mockStore);
         return shard;
     }
 

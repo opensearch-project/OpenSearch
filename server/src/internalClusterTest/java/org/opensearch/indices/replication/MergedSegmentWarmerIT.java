@@ -9,27 +9,35 @@
 package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.Directory;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.engine.Segment;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
 
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
  * This class runs Segment Replication Integ test suite with merged segment warmer enabled.
@@ -38,7 +46,10 @@ import java.util.stream.Collectors;
 public class MergedSegmentWarmerIT extends SegmentReplicationIT {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            .build();
     }
 
     @Override
@@ -173,6 +184,87 @@ public class MergedSegmentWarmerIT extends SegmentReplicationIT {
         client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1)).get();
         final IndicesSegmentResponse response = client().admin().indices().prepareSegments(INDEX_NAME).get();
         assertEquals(1, response.getIndices().get(INDEX_NAME).getShards().values().size());
+    }
+
+    // Construct a case with redundant pending merge segments in replica shard, and finally delete these files
+    public void testCleanupRedundantPendingMergeFile() throws Exception {
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(indexSettings())
+                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), 5)
+                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), 5)
+                .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false)
+                .build()
+        );
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        AtomicBoolean forceMergeComplete = new AtomicBoolean(false);
+        MockTransportService primaryTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode
+        ));
+
+        primaryTransportService.addSendBehavior(
+            internalCluster().getInstance(TransportService.class, replicaNode),
+            (connection, requestId, action, request, options) -> {
+                if (action.equals(SegmentReplicationTargetService.Actions.FILE_CHUNK)) {
+                    if (forceMergeComplete.get() == false) {
+                        logger.trace("mock connection exception");
+                        throw new ConnectTransportException(connection.getNode(), "mock connection exception");
+                    }
+
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        );
+
+        for (int i = 0; i < 30; i++) {
+            client().prepareIndex(INDEX_NAME)
+                .setId(String.valueOf(i))
+                .setSource("foo" + i, "bar" + i)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+        assertBusy(() -> assertFalse(replicaShard.getPendingMergedSegmentCheckpoints().isEmpty()));
+
+        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1)).get();
+        forceMergeComplete.set(true);
+
+        // Verify replica shard has pending merged segments
+        assertBusy(() -> { assertFalse(replicaShard.getPendingMergedSegmentCheckpoints().isEmpty()); }, 1, TimeUnit.MINUTES);
+
+        waitForSegmentCount(INDEX_NAME, 1, logger);
+        primaryTransportService.clearAllRules();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                )
+        );
+
+        assertBusy(() -> {
+            IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+            Directory primaryDirectory = primaryShard.store().directory();
+            Set<String> primaryFiles = Sets.newHashSet(primaryDirectory.listAll());
+            primaryFiles.removeIf(f -> f.startsWith("segment"));
+            Directory replicaDirectory = replicaShard.store().directory();
+            Set<String> replicaFiles = Sets.newHashSet(replicaDirectory.listAll());
+            replicaFiles.removeIf(f -> f.startsWith("segment"));
+            // Verify replica shard does not have pending merged segments
+            assertEquals(0, replicaShard.getPendingMergedSegmentCheckpoints().size());
+            // Verify that primary shard and replica shard have the same file list
+            assertEquals(primaryFiles, replicaFiles);
+        }, 1, TimeUnit.MINUTES);
     }
 
     public static void waitForSegmentCount(String indexName, int segmentCount, Logger logger) throws Exception {

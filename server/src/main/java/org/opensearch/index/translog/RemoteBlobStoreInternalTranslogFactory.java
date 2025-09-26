@@ -66,6 +66,31 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         LongConsumer persistedSequenceNumberConsumer,
         BooleanSupplier startedPrimarySupplier
     ) throws IOException {
+        assert config.getIndexSettings().isDerivedSourceEnabled() == false; // For derived source supported index, primary method must be
+                                                                            // used
+        return this.newTranslog(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            startedPrimarySupplier,
+            TranslogOperationHelper.DEFAULT
+        );
+    }
+
+    @Override
+    public Translog newTranslog(
+        TranslogConfig config,
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer,
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
+    ) throws IOException {
 
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
@@ -81,7 +106,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 threadPool,
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
-                remoteStoreSettings
+                remoteStoreSettings,
+                translogOperationHelper
             );
         } else {
             return new RemoteFsTranslog(
@@ -95,7 +121,9 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 threadPool,
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
-                remoteStoreSettings
+                remoteStoreSettings,
+                translogOperationHelper,
+                null
             );
         }
     }

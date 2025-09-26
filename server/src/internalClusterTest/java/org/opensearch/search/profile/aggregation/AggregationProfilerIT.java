@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -46,8 +47,11 @@ import org.opensearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTerms
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.search.profile.fetch.FetchProfileShardResult;
 import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
+import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.core.IsNull;
@@ -69,6 +73,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.stats;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.search.aggregations.AggregationBuilders.topHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
@@ -999,5 +1004,94 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(collectorResult.getCollectorResult().getProfiledChildren().get(0).getReason(), equalTo(REASON_SEARCH_TOP_HITS));
             assertThat(collectorResult.getCollectorResult().getProfiledChildren().get(1).getReason(), equalTo(REASON_AGGREGATION));
         }
+    }
+
+    public void testTopHitsAggregationFetchProfiling() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+            .setProfile(true)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .addAggregation(topHits("top_hits_agg1").size(1))
+            .addAggregation(topHits("top_hits_agg2").size(1).sort(SortBuilders.fieldSort(NUMBER_FIELD).order(SortOrder.DESC)))
+            .get();
+
+        assertSearchResponse(response);
+        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        assertNotNull("Profile results should not be null", profileResults);
+        assertFalse("Profile results should not be empty", profileResults.isEmpty());
+
+        int shardsWithDocuments = 0;
+        int shardsWithCorrectProfile = 0;
+
+        for (ProfileShardResult shardResult : profileResults.values()) {
+            FetchProfileShardResult fetchProfileResult = shardResult.getFetchProfileResult();
+            if (fetchProfileResult != null && !fetchProfileResult.getFetchProfileResults().isEmpty()) {
+                shardsWithDocuments++;
+                List<ProfileResult> fetchProfileResults = fetchProfileResult.getFetchProfileResults();
+
+                // Count different types of fetch operations dynamically
+                int mainFetchCount = 0;
+                int topHitsAgg1Count = 0;
+                int topHitsAgg2Count = 0;
+                ProfileResult topHitsFetch1 = null;
+                ProfileResult topHitsFetch2 = null;
+
+                for (ProfileResult result : fetchProfileResults) {
+                    if ("fetch".equals(result.getQueryName())) {
+                        mainFetchCount++;
+                    } else if (result.getQueryName().contains("top_hits_agg1")) {
+                        if (topHitsFetch1 == null) {
+                            topHitsFetch1 = result; // Keep first instance for validation
+                        }
+                        topHitsAgg1Count++;
+                    } else if (result.getQueryName().contains("top_hits_agg2")) {
+                        if (topHitsFetch2 == null) {
+                            topHitsFetch2 = result; // Keep first instance for validation
+                        }
+                        topHitsAgg2Count++;
+                    }
+                }
+
+                // Verify we have the expected aggregations (concurrent search may create multiple instances)
+                assertTrue("Should have at least 1 top_hits_agg1 fetch operation", topHitsAgg1Count >= 1);
+                assertTrue("Should have at least 1 top_hits_agg2 fetch operation", topHitsAgg2Count >= 1);
+                assertTrue("Should have at least one main fetch operation", mainFetchCount >= 1);
+                assertTrue("Should have at least 3 total fetch operations", fetchProfileResults.size() >= 3);
+
+                assertNotNull("Should have top_hits_agg1 fetch operation", topHitsFetch1);
+                assertTrue("Should be top_hits aggregation fetch", topHitsFetch1.getQueryName().startsWith("fetch_top_hits_aggregation"));
+                assertTrue("Should contain aggregation name", topHitsFetch1.getQueryName().contains("top_hits_agg1"));
+                assertNotNull(topHitsFetch1.getTimeBreakdown());
+                assertEquals("Top hits fetch should have 1 child (FetchSourcePhase)", 1, topHitsFetch1.getProfiledChildren().size());
+                assertEquals("FetchSourcePhase", topHitsFetch1.getProfiledChildren().get(0).getQueryName());
+
+                assertNotNull("Should have top_hits_agg2 fetch operation", topHitsFetch2);
+                assertTrue("Should be top_hits aggregation fetch", topHitsFetch2.getQueryName().startsWith("fetch_top_hits_aggregation"));
+                assertTrue("Should contain aggregation name", topHitsFetch2.getQueryName().contains("top_hits_agg2"));
+                assertNotNull(topHitsFetch2.getTimeBreakdown());
+                assertEquals("Top hits fetch should have 1 child (FetchSourcePhase)", 1, topHitsFetch2.getProfiledChildren().size());
+                assertEquals("FetchSourcePhase", topHitsFetch2.getProfiledChildren().get(0).getQueryName());
+
+                for (ProfileResult fetchResult : fetchProfileResults) {
+                    Map<String, Long> breakdown = fetchResult.getTimeBreakdown();
+                    assertTrue(
+                        "CREATE_STORED_FIELDS_VISITOR timing should be present",
+                        breakdown.containsKey("create_stored_fields_visitor")
+                    );
+                    assertTrue("BUILD_SUB_PHASE_PROCESSORS timing should be present", breakdown.containsKey("build_sub_phase_processors"));
+                    assertTrue("GET_NEXT_READER timing should be present", breakdown.containsKey("get_next_reader"));
+                    assertTrue("LOAD_STORED_FIELDS timing should be present", breakdown.containsKey("load_stored_fields"));
+                    assertTrue("LOAD_SOURCE timing should be present", breakdown.containsKey("load_source"));
+                }
+
+                shardsWithCorrectProfile++;
+            }
+        }
+
+        assertTrue("Should have at least one shard with documents", shardsWithDocuments > 0);
+        assertEquals(
+            "All shards with documents should have correct fetch profile structure",
+            shardsWithDocuments,
+            shardsWithCorrectProfile
+        );
     }
 }

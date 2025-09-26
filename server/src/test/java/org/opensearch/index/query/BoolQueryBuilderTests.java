@@ -73,7 +73,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -517,64 +516,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     }
 
-    public void testOneMustNotRangeRewritten() throws Exception {
-        int from = 10;
-        int to = 20;
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
-        addDocument(w, INT_FIELD_NAME, 1);
-        DirectoryReader reader = DirectoryReader.open(w);
-        IndexSearcher searcher = getIndexSearcher(reader);
-
-        for (boolean includeLower : new boolean[] { true, false }) {
-            for (boolean includeUpper : new boolean[] { true, false }) {
-                BoolQueryBuilder qb = new BoolQueryBuilder();
-                QueryBuilder rq = getRangeQueryBuilder(INT_FIELD_NAME, from, to, includeLower, includeUpper);
-                qb.mustNot(rq);
-
-                BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
-                assertFalse(rewritten.mustNot().contains(rq));
-
-                QueryBuilder expectedLowerQuery = getRangeQueryBuilder(INT_FIELD_NAME, null, from, false, !includeLower);
-                QueryBuilder expectedUpperQuery = getRangeQueryBuilder(INT_FIELD_NAME, to, null, !includeUpper, true);
-                assertEquals(1, rewritten.must().size());
-
-                BoolQueryBuilder nestedBoolQuery = (BoolQueryBuilder) rewritten.must().get(0);
-                assertEquals(2, nestedBoolQuery.should().size());
-                assertEquals("1", nestedBoolQuery.minimumShouldMatch());
-                assertTrue(nestedBoolQuery.should().contains(expectedLowerQuery));
-                assertTrue(nestedBoolQuery.should().contains(expectedUpperQuery));
-            }
-        }
-        IOUtils.close(w, reader, dir);
-    }
-
-    public void testOneSingleEndedMustNotRangeRewritten() throws Exception {
-        // Test a must_not range query with only one endpoint is rewritten correctly
-        int from = 10;
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
-        addDocument(w, INT_FIELD_NAME, 1);
-        DirectoryReader reader = DirectoryReader.open(w);
-        IndexSearcher searcher = getIndexSearcher(reader);
-
-        BoolQueryBuilder qb = new BoolQueryBuilder();
-        QueryBuilder rq = getRangeQueryBuilder(INT_FIELD_NAME, from, null, false, false);
-        qb.mustNot(rq);
-        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
-        assertFalse(rewritten.mustNot().contains(rq));
-
-        QueryBuilder expectedQuery = getRangeQueryBuilder(INT_FIELD_NAME, null, from, false, true);
-        assertEquals(1, rewritten.must().size());
-        BoolQueryBuilder nestedBoolQuery = (BoolQueryBuilder) rewritten.must().get(0);
-        assertEquals(1, nestedBoolQuery.should().size());
-        assertTrue(nestedBoolQuery.should().contains(expectedQuery));
-        assertEquals("1", nestedBoolQuery.minimumShouldMatch());
-
-        IOUtils.close(w, reader, dir);
-    }
-
-    public void testMultipleMustNotRangesNotRewritten() throws Exception {
+    public void testMultipleComplementAwareOnSameFieldNotRewritten() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
         addDocument(w, INT_FIELD_NAME, 1);
@@ -591,6 +533,16 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         assertTrue(rewritten.mustNot().contains(rq1of2));
         assertTrue(rewritten.mustNot().contains(rq2of2));
+        assertEquals(0, rewritten.should().size());
+
+        // Similarly 1 range query and 1 match query on the same field shouldn't be rewritten
+        qb = new BoolQueryBuilder();
+        qb.mustNot(rq1of2);
+        QueryBuilder matchQuery = new MatchQueryBuilder(INT_FIELD_NAME, 200);
+        qb.mustNot(matchQuery);
+        rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext(searcher));
+        assertTrue(rewritten.mustNot().contains(rq1of2));
+        assertTrue(rewritten.mustNot().contains(matchQuery));
         assertEquals(0, rewritten.should().size());
 
         IOUtils.close(w, reader, dir);
@@ -631,65 +583,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         IOUtils.close(w, reader, dir);
     }
 
-    public void testMustClausesRewritten() throws Exception {
-        BoolQueryBuilder qb = new BoolQueryBuilder();
-
-        // Should be moved
-        QueryBuilder intTermQuery = new TermQueryBuilder(INT_FIELD_NAME, 200);
-        QueryBuilder rangeQuery = new RangeQueryBuilder(INT_FIELD_NAME).gt(10).lt(20);
-        // Should be moved to filter clause, the boost applies equally to all matched docs
-        QueryBuilder rangeQueryWithBoost = new RangeQueryBuilder(DATE_FIELD_NAME).gt(10).lt(20).boost(2);
-        QueryBuilder intTermsQuery = new TermsQueryBuilder(INT_FIELD_NAME, new int[] { 1, 4, 100 });
-        QueryBuilder boundingBoxQuery = new GeoBoundingBoxQueryBuilder(GEO_POINT_FIELD_NAME);
-        QueryBuilder doubleMatchQuery = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 5.5);
-
-        // Should not be moved
-        QueryBuilder textTermQuery = new TermQueryBuilder(TEXT_FIELD_NAME, "bar");
-        QueryBuilder textTermsQuery = new TermsQueryBuilder(TEXT_FIELD_NAME, "foo", "bar");
-        QueryBuilder textMatchQuery = new MatchQueryBuilder(TEXT_FIELD_NAME, "baz");
-
-        qb.must(intTermQuery);
-        qb.must(rangeQuery);
-        qb.must(rangeQueryWithBoost);
-        qb.must(intTermsQuery);
-        qb.must(boundingBoxQuery);
-        qb.must(doubleMatchQuery);
-
-        qb.must(textTermQuery);
-        qb.must(textTermsQuery);
-        qb.must(textMatchQuery);
-
-        BoolQueryBuilder rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, createShardContext());
-        for (QueryBuilder clause : List.of(
-            intTermQuery,
-            rangeQuery,
-            rangeQueryWithBoost,
-            intTermsQuery,
-            boundingBoxQuery,
-            doubleMatchQuery
-        )) {
-            assertFalse(rewritten.must().contains(clause));
-            assertTrue(rewritten.filter().contains(clause));
-        }
-        for (QueryBuilder clause : List.of(textTermQuery, textTermsQuery, textMatchQuery)) {
-            assertTrue(rewritten.must().contains(clause));
-            assertFalse(rewritten.filter().contains(clause));
-        }
-
-        // If we have null QueryShardContext, match/term/terms queries should not be moved as we can't determine if they're numeric.
-        QueryRewriteContext nullContext = mock(QueryRewriteContext.class);
-        when(nullContext.convertToShardContext()).thenReturn(null);
-        rewritten = (BoolQueryBuilder) Rewriteable.rewrite(qb, nullContext);
-        for (QueryBuilder clause : List.of(rangeQuery, rangeQueryWithBoost, boundingBoxQuery)) {
-            assertFalse(rewritten.must().contains(clause));
-            assertTrue(rewritten.filter().contains(clause));
-        }
-        for (QueryBuilder clause : List.of(textTermQuery, textTermsQuery, textMatchQuery, intTermQuery, intTermsQuery, doubleMatchQuery)) {
-            assertTrue(rewritten.must().contains(clause));
-            assertFalse(rewritten.filter().contains(clause));
-        }
-    }
-
     private QueryBuilder getRangeQueryBuilder(String fieldName, Integer lower, Integer upper, boolean includeLower, boolean includeUpper) {
         RangeQueryBuilder rq = new RangeQueryBuilder(fieldName);
         if (lower != null) {
@@ -718,7 +611,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         w.commit();
     }
 
-    private IndexSearcher getIndexSearcher(DirectoryReader reader) throws Exception {
+    static IndexSearcher getIndexSearcher(DirectoryReader reader) throws Exception {
         SearchContext searchContext = mock(SearchContext.class);
         return new ContextIndexSearcher(
             reader,

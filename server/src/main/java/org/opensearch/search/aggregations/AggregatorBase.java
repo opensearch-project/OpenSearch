@@ -299,6 +299,14 @@ public abstract class AggregatorBase extends Aggregator {
         collectableSubAggregators.postCollection();
     }
 
+    @Override
+    public void reset() {
+        doReset();
+        collectableSubAggregators.reset();
+    }
+
+    protected void doReset() {}
+
     /** Called upon release of the aggregator. */
     @Override
     public void close() {

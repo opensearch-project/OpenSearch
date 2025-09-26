@@ -57,7 +57,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 import java.security.AccessController;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
@@ -120,7 +120,7 @@ public final class PainlessLookupBuilder {
 
     static {
         try {
-            CODESOURCE = new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null);
+            CODESOURCE = new CodeSource(URI.create("file:" + BootstrapInfo.UNTRUSTED_CODEBASE).toURL(), (Certificate[]) null);
         } catch (MalformedURLException mue) {
             throw new RuntimeException(mue);
         }

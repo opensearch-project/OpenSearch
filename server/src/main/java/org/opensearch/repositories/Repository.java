@@ -303,6 +303,11 @@ public interface Repository extends LifecycleComponent {
     long getRemoteDownloadThrottleTimeInNanos();
 
     /**
+     * Returns low priority remote download throttle time in nanoseconds
+     */
+    long getLowPriorityRemoteDownloadThrottleTimeInNanos();
+
+    /**
      * Returns stats on the repository usage
      */
     default RepositoryStats stats() {

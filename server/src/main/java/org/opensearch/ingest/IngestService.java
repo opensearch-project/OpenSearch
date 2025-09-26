@@ -95,7 +95,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -1266,9 +1265,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final PipelineHolder holder = pipelines.get(pipelineId);
         if (IngestPipelineType.SYSTEM_FINAL.equals(pipelineType)) {
             Pipeline indexPipeline = systemIngestPipelineCache.getSystemIngestPipeline(pipelineId);
-            // In very edge case it is possible the cache is invalidated after we resolve the
-            // pipeline. So try to resolve the system ingest pipeline again here.
+            // In some edge cases it is possible the cache is invalidated after we resolve the
+            // pipeline or the request is forwarded from a non-ingest node. In that case we should try to resolve the
+            // system ingest pipeline on this node one more time.
             if (indexPipeline == null) {
+                // reset isPipelineResolved as false so that we can resolve it again
+                indexRequest.isPipelineResolved(false);
                 resolveSystemIngestPipeline(actionRequest, indexRequest, state.metadata());
                 final String newPipelineId = indexRequest.getSystemIngestPipeline();
                 // set it as NOOP to avoid duplicated execution after we switch back to the write thread
@@ -1376,8 +1378,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
         IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-            totalMetrics.after(ingestTimeInMillis);
+            long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+            totalMetrics.after(ingestTimeInNanos);
             if (e != null) {
                 totalMetrics.failed();
                 handler.accept(e);
@@ -1421,8 +1423,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (results.isEmpty()) return;
             allResults.addAll(results);
             if (counter.addAndGet(-results.size()) == 0) {
-                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-                totalMetrics.afterN(size, ingestTimeInMillis);
+                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                totalMetrics.afterN(size, ingestTimeInNanos);
                 List<IngestDocumentWrapper> succeeded = new ArrayList<>();
                 List<IngestDocumentWrapper> dropped = new ArrayList<>();
                 List<IngestDocumentWrapper> exceptions = new ArrayList<>();

@@ -36,6 +36,8 @@ import java.util.Objects;
  * FlightService manages the Arrow Flight server and client for OpenSearch.
  * It handles the initialization, startup, and shutdown of the Flight server and client,
  * as well as managing the stream operations through a FlightStreamManager.
+ *
+ * @opensearch.internal
  */
 public class FlightService extends AuxTransport {
     /**
@@ -59,11 +61,6 @@ public class FlightService extends AuxTransport {
      */
     public FlightService(Settings settings) {
         Objects.requireNonNull(settings, "Settings cannot be null");
-        try {
-            ServerConfig.init(settings);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize Arrow Flight server", e);
-        }
         this.serverComponents = new ServerComponents(settings);
         this.streamManager = new FlightStreamManager();
     }
@@ -76,24 +73,44 @@ public class FlightService extends AuxTransport {
         return ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
     }
 
-    void setClusterService(ClusterService clusterService) {
+    /**
+     * Sets the cluster service for the Flight service.
+     * @param clusterService The cluster service instance
+     */
+    public void setClusterService(ClusterService clusterService) {
         serverComponents.setClusterService(Objects.requireNonNull(clusterService, "ClusterService cannot be null"));
     }
 
-    void setNetworkService(NetworkService networkService) {
+    /**
+     * Sets the network service for the Flight service.
+     * @param networkService The network service instance
+     */
+    public void setNetworkService(NetworkService networkService) {
         serverComponents.setNetworkService(Objects.requireNonNull(networkService, "NetworkService cannot be null"));
     }
 
-    void setThreadPool(ThreadPool threadPool) {
+    /**
+     * Sets the thread pool for the Flight service.
+     * @param threadPool The thread pool instance
+     */
+    public void setThreadPool(ThreadPool threadPool) {
         this.threadPool = Objects.requireNonNull(threadPool, "ThreadPool cannot be null");
         serverComponents.setThreadPool(threadPool);
     }
 
-    void setClient(Client client) {
+    /**
+     * Sets the client for the Flight service.
+     * @param client The client instance
+     */
+    public void setClient(Client client) {
         this.client = client;
     }
 
-    void setSecureTransportSettingsProvider(SecureTransportSettingsProvider secureTransportSettingsProvider) {
+    /**
+     * Sets the secure transport settings provider for the Flight service.
+     * @param secureTransportSettingsProvider The secure transport settings provider
+     */
+    public void setSecureTransportSettingsProvider(SecureTransportSettingsProvider secureTransportSettingsProvider) {
         this.secureTransportSettingsProvider = secureTransportSettingsProvider;
     }
 
@@ -104,6 +121,7 @@ public class FlightService extends AuxTransport {
     @Override
     protected void doStart() {
         try {
+            logger.info("Starting FlightService...");
             allocator = AccessController.doPrivileged((PrivilegedAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
             serverComponents.setAllocator(allocator);
             SslContextProvider sslContextProvider = ServerConfig.isSslEnabled()
@@ -122,7 +140,6 @@ public class FlightService extends AuxTransport {
             initializeStreamManager(clientManager);
             serverComponents.setFlightProducer(new BaseFlightProducer(clientManager, streamManager, allocator));
             serverComponents.start();
-
         } catch (Exception e) {
             logger.error("Failed to start Flight server", e);
             doClose();

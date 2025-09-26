@@ -105,6 +105,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.NodeScope
     );
 
+    /**
+     * If an incoming request would cause the field data cache to exceed this size, the request is cancelled.
+     */
     public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
         "indices.breaker.fielddata.limit",
         "40%",

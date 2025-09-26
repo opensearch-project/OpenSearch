@@ -49,7 +49,7 @@ jobs:
           echo "NEXT_VERSION_UNDERSCORE=$NEXT_VERSION_UNDERSCORE" >> $GITHUB_ENV
           echo "NEXT_VERSION_ID=$NEXT_VERSION_ID" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.BASE }}
 
@@ -75,7 +75,7 @@ jobs:
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and incremented the version from ${{ env.CURRENT_VERSION }} to ${{ env.NEXT_VERSION }}.
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.MAIN_BRANCH }}
 

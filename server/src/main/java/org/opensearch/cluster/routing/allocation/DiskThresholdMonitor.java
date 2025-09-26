@@ -53,7 +53,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
-import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
@@ -70,7 +69,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.routing.RoutingPool.REMOTE_CAPABLE;
-import static org.opensearch.cluster.routing.RoutingPool.getIndexPool;
 import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
 
 /**
@@ -86,7 +84,6 @@ public class DiskThresholdMonitor {
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
-    private final Supplier<Double> dataToFileCacheSizeRatioSupplier;
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
     private final NodeDiskEvaluator nodeDiskEvaluator;
@@ -126,7 +123,6 @@ public class DiskThresholdMonitor {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
         this.nodeDiskEvaluator = new NodeDiskEvaluator(diskThresholdSettings, dataToFileCacheSizeRatioSupplier);
-        this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
     }
 
     private void checkFinished() {
@@ -181,10 +177,6 @@ public class DiskThresholdMonitor {
             // Only for Dedicated Warm Nodes
             final boolean isWarmNode = REMOTE_CAPABLE.equals(getNodePool(routingNode));
             nodeDiskEvaluator.setNodeType(isWarmNode);
-            if (isWarmNode) {
-                // Create DiskUsage for Warm Nodes based on total Addressable Space
-                usage = getWarmDiskUsage(usage, info, routingNode, state);
-            }
 
             if (nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage)) {
 
@@ -429,29 +421,6 @@ public class DiskThresholdMonitor {
             reroutedClusterState.metadata(),
             reroutedClusterState.routingTable()
         );
-    }
-
-    private DiskUsage getWarmDiskUsage(DiskUsage diskUsage, ClusterInfo info, RoutingNode node, ClusterState state) {
-        double dataToFileCacheSizeRatio = dataToFileCacheSizeRatioSupplier.get();
-        AggregateFileCacheStats fileCacheStats = info.getNodeFileCacheStats().getOrDefault(diskUsage.getNodeId(), null);
-        final long nodeCacheSize = fileCacheStats != null ? fileCacheStats.getTotal().getBytes() : 0;
-        long totalAddressableSpace = (long) dataToFileCacheSizeRatio * nodeCacheSize;
-        final List<ShardRouting> remoteShardsOnNode = StreamSupport.stream(node.spliterator(), false)
-            .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getIndexPool(state.metadata().getIndexSafe(shard.index()))))
-            .collect(Collectors.toList());
-
-        long remoteShardSize = 0L;
-        for (ShardRouting shard : remoteShardsOnNode) {
-            remoteShardSize += DiskThresholdDecider.getExpectedShardSize(shard, 0L, info, null, state.metadata(), state.getRoutingTable());
-        }
-        final DiskUsage warmDiskUsage = new DiskUsage(
-            diskUsage.getNodeId(),
-            diskUsage.getNodeName(),
-            diskUsage.getPath(),
-            totalAddressableSpace,
-            Math.max(0, totalAddressableSpace - remoteShardSize)
-        );
-        return warmDiskUsage;
     }
 
     private void markNodesMissingUsageIneligibleForRelease(

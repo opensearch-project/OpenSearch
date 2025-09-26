@@ -104,6 +104,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
@@ -119,6 +120,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -820,6 +822,270 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    public void testFailedUpdatePreparationDoesNotTriggerRefresh() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        // Create an update request that will fail during preparation
+        DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+
+        // Mock the UpdateHelper to throw a version conflict exception during preparation
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        final VersionConflictEngineException versionConflict = new VersionConflictEngineException(
+            shardId,
+            "id",
+            "version conflict during update preparation"
+        );
+        when(updateHelper.prepare(any(), eq(shard), any())).thenThrow(versionConflict);
+
+        // Create bulk request with IMMEDIATE refresh policy
+        BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.IMMEDIATE, items);
+
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
+
+        // Execute the bulk operation through performOnPrimary
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean refreshCalled = new AtomicBoolean(false);
+
+        // Mock refresh to track if it's called
+        doAnswer(invocation -> {
+            refreshCalled.set(true);
+            return null;
+        }).when(shard).refresh(any());
+
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                WritePrimaryResult<BulkShardRequest, BulkShardResponse> primaryResult = (WritePrimaryResult<
+                    BulkShardRequest,
+                    BulkShardResponse>) result;
+
+                // Verify no location to sync (no writes occurred)
+                assertNull(primaryResult.location);
+
+                // Run post replication actions
+                primaryResult.runPostReplicationActions(ActionListener.wrap(v -> {
+                    // Success - refresh should not have been called
+                }, e -> { fail("Post replication actions should not fail: " + e.getMessage()); }));
+
+                // Verify refresh was NOT called even though refresh policy was IMMEDIATE
+                assertFalse(refreshCalled.get());
+            }), latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+    }
+
+    public void testBulkRequestWithMixedSuccessAndFailureRefresh() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        // Create a mix of successful and failed operations
+        BulkItemRequest[] items = new BulkItemRequest[3];
+
+        // Item 0: Successful index operation
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").id("success1").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+
+        // Item 1: Failed update operation
+        items[1] = new BulkItemRequest(1, new UpdateRequest("index", "fail1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+
+        // Item 2: Successful index operation
+        items[2] = new BulkItemRequest(2, new IndexRequest("index").id("success2").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.IMMEDIATE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+
+        // Mock successful index operations
+        Translog.Location resultLocation1 = new Translog.Location(42, 42, 42);
+        Translog.Location resultLocation2 = new Translog.Location(43, 43, 43);
+        Engine.IndexResult successResult1 = new FakeIndexResult(1, 1, 10, true, resultLocation1);
+        Engine.IndexResult successResult2 = new FakeIndexResult(1, 1, 12, true, resultLocation2);
+
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            successResult1
+        ).thenReturn(successResult2);
+
+        // Mock failed update operation
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any())).thenThrow(
+            new VersionConflictEngineException(shardId, "fail1", "version conflict")
+        );
+
+        // Track refresh calls
+        AtomicBoolean refreshCalled = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            refreshCalled.set(true);
+            return null;
+        }).when(shard).refresh(any());
+
+        // Execute bulk operation
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                WritePrimaryResult<BulkShardRequest, BulkShardResponse> primaryResult = (WritePrimaryResult<
+                    BulkShardRequest,
+                    BulkShardResponse>) result;
+
+                // Should have a location since some operations succeeded
+                assertNotNull(primaryResult.location);
+
+                // Run post replication actions
+                primaryResult.runPostReplicationActions(ActionListener.wrap(v -> {
+                    // Success
+                }, e -> { fail("Post replication actions should not fail: " + e.getMessage()); }));
+
+                // Verify refresh WAS called because there were successful writes
+                assertTrue(refreshCalled.get());
+            }), latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+    }
+
+    public void testBulkRequestWithAllFailedUpdatesNoRefresh() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        // Create multiple failed update operations
+        BulkItemRequest[] items = new BulkItemRequest[3];
+        for (int i = 0; i < 3; i++) {
+            items[i] = new BulkItemRequest(i, new UpdateRequest("index", "id" + i).doc(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+        }
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.IMMEDIATE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+
+        // Mock all updates to fail
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any())).thenThrow(
+            new VersionConflictEngineException(shardId, "id", "version conflict")
+        );
+
+        // Track refresh calls
+        AtomicBoolean refreshCalled = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            refreshCalled.set(true);
+            return null;
+        }).when(shard).refresh(any());
+
+        // Execute bulk operation
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                WritePrimaryResult<BulkShardRequest, BulkShardResponse> primaryResult = (WritePrimaryResult<
+                    BulkShardRequest,
+                    BulkShardResponse>) result;
+
+                // No location since all operations failed
+                assertNull(primaryResult.location);
+
+                // Run post replication actions
+                primaryResult.runPostReplicationActions(ActionListener.wrap(v -> {
+                    // Success
+                }, e -> { fail("Post replication actions should not fail: " + e.getMessage()); }));
+
+                // Verify refresh was NOT called
+                assertFalse(refreshCalled.get());
+            }), latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+    }
+
+    public void testSuccessfulBulkOperationStillTriggersRefresh() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        // Create successful operations
+        BulkItemRequest[] items = new BulkItemRequest[2];
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").id("id1").source(Requests.INDEX_CONTENT_TYPE, "field", "value1"));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").id("id2").source(Requests.INDEX_CONTENT_TYPE, "field", "value2"));
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.IMMEDIATE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+
+        // Mock successful operations
+        AtomicInteger locationCounter = new AtomicInteger(42);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenAnswer(
+            invocation -> {
+                int loc = locationCounter.getAndIncrement();
+                return new FakeIndexResult(1, 1, loc, true, new Translog.Location(loc, loc, loc));
+            }
+        );
+
+        // Track refresh calls
+        AtomicBoolean refreshCalled = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            refreshCalled.set(true);
+            return null;
+        }).when(shard).refresh(any());
+
+        // Execute bulk operation
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                WritePrimaryResult<BulkShardRequest, BulkShardResponse> primaryResult = (WritePrimaryResult<
+                    BulkShardRequest,
+                    BulkShardResponse>) result;
+
+                // Should have location from successful operations
+                assertNotNull(primaryResult.location);
+
+                // Run post replication actions
+                primaryResult.runPostReplicationActions(ActionListener.wrap(v -> {
+                    // Success
+                }, e -> { fail("Post replication actions should not fail: " + e.getMessage()); }));
+
+                // Verify refresh WAS called
+                assertTrue(refreshCalled.get());
+            }), latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
     }
 
     public void testTranslogPositionToSync() throws Exception {

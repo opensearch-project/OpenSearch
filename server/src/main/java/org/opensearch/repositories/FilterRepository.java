@@ -177,6 +177,11 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public long getLowPriorityRemoteDownloadThrottleTimeInNanos() {
+        return in.getLowPriorityRemoteDownloadThrottleTimeInNanos();
+    }
+
+    @Override
     public String startVerification() {
         return in.startVerification();
     }

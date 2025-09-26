@@ -32,7 +32,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
     /**
      * Where this class fetches IndexInput parts from
      */
-    final TransferManager transferManager;
+    protected final TransferManager transferManager;
 
     /**
      * FileInfo contains snapshot metadata references for this IndexInput
@@ -96,7 +96,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         );
     }
 
-    OnDemandBlockSnapshotIndexInput(
+    protected OnDemandBlockSnapshotIndexInput(
         OnDemandBlockIndexInput.Builder builder,
         FileInfo fileInfo,
         FSDirectory directory,

@@ -2177,6 +2177,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
             try (TransportService service = buildService("TS_TPC", Version.CURRENT, null, Settings.EMPTY, true, false)) {
                 IOUtils.close(service.openConnection(first, builder.build()));
@@ -2213,6 +2214,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             expectThrows(ConnectTransportException.class, () -> serviceA.openConnection(node, builder.build()));
         }
     }
@@ -2234,6 +2236,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
                 assertEquals(version, connection.getVersion());
             }
@@ -2305,6 +2308,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
             ConnectTransportException ex = expectThrows(
                 ConnectTransportException.class,
@@ -2347,6 +2351,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
             ConnectTransportException ex = expectThrows(
                 ConnectTransportException.class,
@@ -2470,6 +2475,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
+
         try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
             serviceC.close();
             serviceB.sendRequest(
@@ -2541,6 +2548,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
 
         try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
             serviceB.sendRequest(
@@ -2621,6 +2629,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
         try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
@@ -2742,6 +2751,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE
         );
+        builder.addConnections(0, TransportRequestOptions.Type.STREAM);
         try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
@@ -3027,6 +3037,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
+            builder.addConnections(0, TransportRequestOptions.Type.STREAM);
             final ConnectTransportException e = expectThrows(
                 ConnectTransportException.class,
                 () -> service.openConnection(nodeA, builder.build())

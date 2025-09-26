@@ -55,7 +55,7 @@ public class HalfFloatFielddataTests extends OpenSearchTestCase {
         // we need the default codec to check for singletons
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setCodec(TestUtil.getDefaultCodec()));
         Document doc = new Document();
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 3f, false, true, false)) {
+        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 3f, false, true, false, false)) {
             doc.add(f);
         }
         w.addDocument(doc);
@@ -74,10 +74,10 @@ public class HalfFloatFielddataTests extends OpenSearchTestCase {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         Document doc = new Document();
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 3f, false, true, false)) {
+        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 3f, false, true, false, false)) {
             doc.add(f);
         }
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 2f, false, true, false)) {
+        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 2f, false, true, false, false)) {
             doc.add(f);
         }
         w.addDocument(doc);

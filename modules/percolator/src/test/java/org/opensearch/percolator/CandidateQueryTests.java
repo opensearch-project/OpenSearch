@@ -321,7 +321,7 @@ public class CandidateQueryTests extends OpenSearchSingleNodeTestCase {
             document.add(new TextField(entry.getKey(), value, Field.Store.NO));
         }
         for (Integer intValue : intValues) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields("int_field", intValue, true, true, false);
+            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields("int_field", intValue, true, true, false, false);
             for (Field numberField : numberFields) {
                 document.add(numberField);
             }
@@ -449,6 +449,7 @@ public class CandidateQueryTests extends OpenSearchSingleNodeTestCase {
                 between(range[0], range[1]),
                 true,
                 true,
+                false,
                 false
             );
             for (Field numberField : numberFields) {

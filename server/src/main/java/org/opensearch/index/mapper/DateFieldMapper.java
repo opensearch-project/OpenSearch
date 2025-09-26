@@ -46,6 +46,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.TriFunction;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.BytesRefs;
@@ -56,6 +57,7 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -80,7 +82,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -269,6 +270,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+        private final Parameter<Boolean> skiplist = new Parameter<>(
+            "skip_list",
+            false,
+            () -> false,
+            (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
+            m -> toType(m).skiplist
+        );
 
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -337,7 +345,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
+            return Arrays.asList(index, docValues, store, skiplist, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -511,11 +519,30 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
-            return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
-                if (isSearchable()) {
+            return dateRangeQuery(
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                timeZone,
+                parser,
+                context,
+                resolution,
+                (l, u, nowUsed) -> {
+                    Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
+
+                    // Not searchable. Must have doc values.
+                    if (!isSearchable()) {
+                        if (context.indexSortedOnField(name())) {
+                            dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
+                        }
+                        return nowUsed[0] ? new DateRangeIncludingNowQuery(dvQuery) : dvQuery;
+                    }
+
+                    // Field is searchable
                     Query pointRangeQuery = LongPoint.newRangeQuery(name(), l, u);
                     Query query;
+
                     if (dvQuery != null) {
                         query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
                         if (context.indexSortedOnField(name())) {
@@ -524,24 +551,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     } else {
                         query = pointRangeQuery;
                     }
-                    return new ApproximateScoreQuery(
-                        query,
-                        new ApproximatePointRangeQuery(
-                            name(),
-                            pack(new long[] { l }).bytes,
-                            pack(new long[] { u }).bytes,
-                            new long[] { l }.length,
-                            ApproximatePointRangeQuery.LONG_FORMAT
-                        )
-                    );
-                }
 
-                // Not searchable. Must have doc values.
-                if (context.indexSortedOnField(name())) {
-                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
+                    ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(
+                        name(),
+                        pack(new long[] { l }).bytes,
+                        pack(new long[] { u }).bytes,
+                        new long[] { l }.length,
+                        ApproximatePointRangeQuery.LONG_FORMAT
+                    );
+
+                    return nowUsed[0]
+                        ? new ApproximateScoreQuery(new DateRangeIncludingNowQuery(query), approxQuery)
+                        : new ApproximateScoreQuery(query, approxQuery);
+
                 }
-                return dvQuery;
-            });
+            );
         }
 
         public static Query dateRangeQuery(
@@ -553,44 +577,31 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser parser,
             QueryShardContext context,
             Resolution resolution,
-            BiFunction<Long, Long, Query> builder
+            TriFunction<Long, Long, boolean[], Query> builder
         ) {
-            return handleNow(context, nowSupplier -> {
-                long l, u;
-                if (lowerTerm == null) {
-                    l = Long.MIN_VALUE;
-                } else {
-                    l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
-                    if (includeLower == false) {
-                        ++l;
-                    }
-                }
-                if (upperTerm == null) {
-                    u = Long.MAX_VALUE;
-                } else {
-                    u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
-                    if (includeUpper == false) {
-                        --u;
-                    }
-                }
-                return builder.apply(l, u);
-            });
-        }
-
-        /**
-         * Handle {@code now} in queries.
-         * @param context context from which to read the current time
-         * @param builder build the query
-         * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
-         */
-        public static Query handleNow(QueryShardContext context, Function<LongSupplier, Query> builder) {
             boolean[] nowUsed = new boolean[1];
             LongSupplier nowSupplier = () -> {
                 nowUsed[0] = true;
                 return context.nowInMillis();
             };
-            Query query = builder.apply(nowSupplier);
-            return nowUsed[0] ? new DateRangeIncludingNowQuery(query) : query;
+            long l, u;
+            if (lowerTerm == null) {
+                l = Long.MIN_VALUE;
+            } else {
+                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
+                if (includeLower == false) {
+                    ++l;
+                }
+            }
+            if (upperTerm == null) {
+                u = Long.MAX_VALUE;
+            } else {
+                u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
+                if (includeUpper == false) {
+                    --u;
+                }
+            }
+            return builder.apply(l, u, nowUsed);
         }
 
         public long parseToLong(Object value, boolean roundUp, @Nullable ZoneId zone, DateMathParser dateParser, LongSupplier now) {
@@ -614,6 +625,23 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             byte[] point = new byte[Long.BYTES];
             LongPoint.encodeDimension(value.longValue(), point, 0);
             return point;
+        }
+
+        @Override
+        public byte[] encodePoint(Object value, boolean roundUp) {
+            // Always parse with roundUp=false to get consistent date math
+            // In this method the parseToLong is only used for date math rounding operations
+            long timestamp = parseToLong(value, false, null, null, null);
+            if (roundUp) {
+                if (timestamp < Long.MAX_VALUE) {
+                    timestamp = timestamp + 1;
+                }
+            } else {
+                if (timestamp > Long.MIN_VALUE) {
+                    timestamp = timestamp - 1;
+                }
+            }
+            return encodePoint(timestamp);
         }
 
         @Override
@@ -724,6 +752,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final boolean store;
     private final boolean indexed;
     private final boolean hasDocValues;
+    private final boolean skiplist;
     private final Locale locale;
     private final String format;
     private final String printFormat;
@@ -748,6 +777,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
+        this.skiplist = builder.skiplist.getValue();
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
         this.printFormat = builder.printFormat.getValue();
@@ -816,7 +846,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (hasDocValues) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            if (skiplist) {
+                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
+            } else {
+                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            }
         } else if (store || indexed) {
             createFieldNamesField(context);
         }
@@ -827,6 +861,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public Long getNullValue() {
         return nullValue;
+    }
+
+    public boolean skiplist() {
+        return skiplist;
     }
 
     @Override

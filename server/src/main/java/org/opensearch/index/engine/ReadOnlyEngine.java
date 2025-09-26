@@ -34,6 +34,7 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
@@ -53,6 +54,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.transport.Transports;
@@ -61,6 +63,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
@@ -254,12 +257,14 @@ public class ReadOnlyEngine extends Engine {
             Translog translog = config.getTranslogFactory()
                 .newTranslog(
                     translogConfig,
+
                     translogUuid,
                     translogDeletionPolicy,
                     config.getGlobalCheckpointSupplier(),
                     config.getPrimaryTermSupplier(),
                     seqNo -> {},
-                    config.getStartedPrimarySupplier()
+                    config.getStartedPrimarySupplier(),
+                    TranslogOperationHelper.create(config)
                 )
         ) {
             return translog.stats();
@@ -498,6 +503,17 @@ public class ReadOnlyEngine extends Engine {
     protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
         assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
         final DirectoryReader reader = DirectoryReader.open(directory);
+        if (wrapSoftDeletes) {
+            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+        } else {
+            return reader;
+        }
+    }
+
+    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes, Comparator<LeafReader> leafSorter)
+        throws IOException {
+        assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
+        final DirectoryReader reader = DirectoryReader.open(directory, leafSorter);
         if (wrapSoftDeletes) {
             return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         } else {
