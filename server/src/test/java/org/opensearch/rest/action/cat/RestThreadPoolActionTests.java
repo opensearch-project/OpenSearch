@@ -25,7 +25,7 @@ import java.util.List;
 public class RestThreadPoolActionTests extends OpenSearchTestCase {
 
     public void testForkJoinPoolTypeStatsAreReported() {
-        // Setup ForkJoinPool stats
+        // Setup for ForkJoinPool stats
         ThreadPoolStats.Stats fjStats = new ThreadPoolStats.Stats(
             "fork_join", // name
             42,          // active
@@ -34,7 +34,7 @@ public class RestThreadPoolActionTests extends OpenSearchTestCase {
             64,          // completed
             -1,          // queue (should be -1 for FJ)
             1,           // threads
-            0,            // taskTimeNanos (or whatever the last arg is)
+            0,           // taskTimeNanos (or whatever the last arg is)
             8            // parallelism (for example: 8, or whatever is appropriate for your test)
         );
 
