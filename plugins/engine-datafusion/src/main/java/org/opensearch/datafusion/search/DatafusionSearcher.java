@@ -61,7 +61,9 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     @Override
     public void close() {
         try {
-            closeable.close();
+            if (closeable != null) {
+                closeable.close();
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("failed to close", e);
         } catch (AlreadyClosedException e) {

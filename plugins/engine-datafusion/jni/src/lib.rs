@@ -5,19 +5,25 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
-use jni::objects::{JByteArray, JClass};
+use std::ptr::addr_of_mut;
+use jni::objects::{JByteArray, JClass, JObject};
 use jni::sys::{jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use std::sync::Arc;
+use arrow_array::{Array, StructArray};
+use arrow_array::ffi::FFI_ArrowArray;
+use arrow_schema::DataType;
+use arrow_schema::ffi::FFI_ArrowSchema;
 
 mod util;
+mod row_id_optimizer;
+mod listing_table;
 
 use datafusion::execution::context::SessionContext;
 
-use crate::util::{create_object_meta_from_filenames, parse_string_arr};
+use crate::util::{create_object_meta_from_filenames, parse_string_arr, set_object_result_error, set_object_result_ok};
 use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl};
+use datafusion::datasource::listing::{ListingTableUrl};
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::cache::cache_unit::DefaultListFilesCache;
 use datafusion::execution::cache::CacheAccessor;
@@ -25,12 +31,16 @@ use datafusion::execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder};
 use datafusion::prelude::SessionConfig;
 use datafusion::DATAFUSION_VERSION;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::Plan;
+use futures::TryStreamExt;
 use jni::objects::{JObjectArray, JString};
 use object_store::ObjectMeta;
 use prost::Message;
 use tokio::runtime::Runtime;
+use crate::listing_table::{ListingOptions, ListingTable, ListingTableConfig};
+use crate::row_id_optimizer::FilterRowIdOptimizer;
 
 /// Create a new DataFusion session context
 #[no_mangle]
@@ -135,7 +145,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_closeSe
 
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createReader(
+pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_createDatafusionReader(
     mut env: JNIEnv,
     _class: JClass,
     table_path: JString,
@@ -185,7 +195,7 @@ impl ShardView {
 
 
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeExecuteSubstraitQuery(
+pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_executeSubstraitQuery(
     mut env: JNIEnv,
     _class: JClass,
     shard_view_ptr: jlong,
@@ -205,15 +215,28 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeE
 
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(CacheManagerConfig::default()
-            .with_list_files_cache(Some(list_file_cache))).build().unwrap();
+            //.with_list_files_cache(Some(list_file_cache)) TODO: //Fix this
+        ).build().unwrap();
 
-    let ctx = SessionContext::new_with_config_rt(SessionConfig::new(), Arc::new(runtime_env));
+    // TODO: get config from CSV DataFormat
+    let mut config = SessionConfig::new();
+    // config.options_mut().execution.parquet.pushdown_filters = true;
 
+    let state = datafusion::execution::SessionStateBuilder::new()
+        .with_config(config)
+        .with_runtime_env(Arc::from(runtime_env))
+        .with_default_features()
+        // .with_optimizer_rule(Arc::new(OptimizeRowId))
+        // .with_physical_optimizer_rule(Arc::new(FilterRowIdOptimizer)) // TODO: enable only for query phase
+        .build();
+
+    let ctx = SessionContext::new_with_state(state);
 
     // Create default parquet options
     let file_format = ParquetFormat::new();
     let listing_options = ListingOptions::new(Arc::new(file_format))
-        .with_file_extension(".parquet");
+        .with_file_extension(".parquet"); // TODO: take this as parameter
+        // .with_table_partition_cols(vec![("row_base".to_string(), DataType::Int32)]); // TODO: enable only for query phase
 
     // Ideally the executor will give this
     runtime_ptr.block_on(async {
@@ -229,7 +252,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeE
         // Create a new TableProvider
         let provider = Arc::new(ListingTable::try_new(config).unwrap());
         let shard_id = table_path.prefix().filename().expect("error in fetching Path");
-        ctx.register_table(shard_id, provider)
+        ctx.register_table("logs", provider)
             .expect("Failed to attach the Table");
 
     });
@@ -345,4 +368,65 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_nativeC
 
 
 
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_next(
+    mut env: JNIEnv,
+    _class: JClass,
+    runtime_ptr: jlong,
+    stream: jlong,
+    callback: JObject,
+) {
+    let runtime = unsafe { &mut *(runtime_ptr as *mut Runtime) };
 
+    let stream = unsafe { &mut *(stream as *mut SendableRecordBatchStream) };
+    runtime.block_on(async {
+        //let fetch_start = std::time::Instant::now();
+        let next = stream.try_next().await;
+        //let fetch_time = fetch_start.elapsed();
+        match next {
+            Ok(Some(batch)) => {
+                //let convert_start = std::time::Instant::now();
+                // Convert to struct array for compatibility with FFI
+                //println!("Num rows : {}", batch.num_rows());
+                let struct_array: StructArray = batch.into();
+                let array_data = struct_array.into_data();
+                let mut ffi_array = FFI_ArrowArray::new(&array_data);
+                //let convert_time = convert_start.elapsed();
+                // ffi_array must remain alive until after the callback is called
+                // let callback_start = std::time::Instant::now();
+                set_object_result_ok(&mut env, callback, addr_of_mut!(ffi_array));
+                // let callback_time = callback_start.elapsed();
+                // println!("Fetch: {:?}, Convert: {:?}, Callback: {:?}",
+                //          fetch_time, convert_time, callback_time);
+            }
+            Ok(None) => {
+                set_object_result_ok(&mut env, callback, 0 as *mut FFI_ArrowSchema);
+            }
+            Err(err) => {
+                set_object_result_error(&mut env, callback, &err);
+            }
+        }
+        //println!("Total time: {:?}", start.elapsed());
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_RecordBatchStream_getSchema(
+    mut env: JNIEnv,
+    _class: JClass,
+    stream: jlong,
+    callback: JObject,
+) {
+    let stream = unsafe { &mut *(stream as *mut SendableRecordBatchStream) };
+    let schema = stream.schema();
+    let ffi_schema = FFI_ArrowSchema::try_from(&*schema);
+    match ffi_schema {
+        Ok(mut ffi_schema) => {
+            // ffi_schema must remain alive until after the callback is called
+            set_object_result_ok(&mut env, callback, addr_of_mut!(ffi_schema));
+        }
+        Err(err) => {
+            set_object_result_error(&mut env, callback, &err);
+        }
+    }
+}
