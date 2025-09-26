@@ -184,10 +184,16 @@ External plugins may also be fetched and installed from maven snapshots:
 ./gradlew run -PinstalledPlugins="['opensearch-job-scheduler', 'opensearch-sql-plugin']"
 ```
 
-You can also specify a plugin version to pull to test a released version:
+You can specify a plugin version to pull to test a specific version in the org.opensearch.plugin groupId:
 ```bash
 ./gradlew run -PinstalledPlugins="['opensearch-job-scheduler:3.3.x.x']"
 ```
+
+or install with fully qualified maven coordinates:
+```bash
+./gradlew run -PinstalledPlugins="['com.example:my-cool-plugin:3.3.x.x']"
+```
+
 
 That will build OpenSearch and start it, writing its log above Gradle's status message. We log a lot of stuff on startup, specifically these lines tell you that OpenSearch is ready.
 

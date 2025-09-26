@@ -44,8 +44,14 @@ testClusters {
       installedPlugins = Eval.me(installedPlugins)
 
       def resolveMavenPlugin = { coords ->
+        // Add default groupId if not fully qualified (less than 2 colons)
+        String[] parts = coords.split(':')
+        if (parts.length == 2 && parts[0].contains('.')) {
+          throw new IllegalArgumentException("version is required if groupdId is specified '${coords}' Use format: groupId:artifactId:version")
+        }
+        String fullCoords = parts.length < 3 ? 'org.opensearch.plugin:' + coords : coords
         def config = project.configurations.detachedConfiguration(
-          project.dependencies.create('org.opensearch.plugin:' + coords)
+          project.dependencies.create(fullCoords)
         )
         config.resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
         plugin(project.layout.file(project.provider { config.singleFile }))
