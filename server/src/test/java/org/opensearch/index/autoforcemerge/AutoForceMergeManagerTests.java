@@ -756,7 +756,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
 
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, threadCount, 0, 0, 0, threadCount, 0, -1))
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, threadCount, 0, 0, 0, threadCount, 0, -1, -1))
         );
         when(threadPool.stats()).thenReturn(stats);
 
