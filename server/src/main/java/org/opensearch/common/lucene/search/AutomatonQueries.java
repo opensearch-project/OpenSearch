@@ -41,6 +41,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -177,7 +178,7 @@ public class AutomatonQueries {
         int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
         Automaton result;
         if (altCase != codepoint) {
-            result = Operations.union(case1, Automata.makeChar(altCase));
+            result = Operations.union(Arrays.asList(case1, Automata.makeChar(altCase)));
         } else {
             result = case1;
         }
