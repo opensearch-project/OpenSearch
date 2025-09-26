@@ -1345,8 +1345,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterState previousClusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().build();
         BlobContainer container = mockBlobStoreObjects();
-        Exception mockException = new IOException("mock exception");
-        when(container.readBlob(anyString())).thenThrow(mockException);
+        String exceptionMsg = "mock exception";
+        when(container.readBlob(anyString())).thenAnswer(inv -> { throw new IOException(exceptionMsg); });
         remoteClusterStateService.start();
         RemoteStateTransferException exception = expectThrows(
             RemoteStateTransferException.class,
@@ -1372,7 +1372,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
         assertEquals("Exception during reading cluster state from remote", exception.getMessage());
         assertTrue(exception.getSuppressed().length > 0);
-        assertEquals(mockException, exception.getSuppressed()[0].getCause());
+        assertEquals(exceptionMsg, exception.getSuppressed()[0].getCause().getMessage());
     }
 
     public void testReadClusterStateInParallel_UnexpectedResult() throws IOException {
