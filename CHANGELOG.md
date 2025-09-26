@@ -46,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Optimize source conversion in gRPC search hits using zero-copy BytesRef ([#19280](https://github.com/opensearch-project/OpenSearch/pull/19280))
 - Allow plugins to copy folders into their config dir during installation ([#19343](https://github.com/opensearch-project/OpenSearch/pull/19343))
 - Add failureaccess as runtime dependency to transport-grpc module  ([#19339](https://github.com/opensearch-project/OpenSearch/pull/19339))
+- Migrate usages of deprecated `Operations#union` from Lucene ([#19397](https://github.com/opensearch-project/OpenSearch/pull/19397))
 
 ### Fixed
 - Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
@@ -68,9 +69,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Flaky Test] Fix flaky test IngestFromKinesisIT.testAllActiveIngestion ([#19380](https://github.com/opensearch-project/OpenSearch/pull/19380))
 - Fix lag metric for pull-based ingestion when streaming source is empty ([#19393](https://github.com/opensearch-project/OpenSearch/pull/19393))
 - Fix ingestion state xcontent serialization in IndexMetadata and fail fast on mapping errors([#19320](https://github.com/opensearch-project/OpenSearch/pull/19320))
+- Fix updated keyword field params leading to stale responses from request cache ([#19385](https://github.com/opensearch-project/OpenSearch/pull/19385))
 
 ### Dependencies
-- Update to Gradle 9.1.0 ([#19329](https://github.com/opensearch-project/OpenSearch/pull/19329))
 - Bump `com.gradleup.shadow:shadow-gradle-plugin` from 8.3.5 to 8.3.9 ([#19400](https://github.com/opensearch-project/OpenSearch/pull/19400))
 - Bump `com.netflix.nebula.ospackage-base` from 12.0.0 to 12.1.0 ([#19019](https://github.com/opensearch-project/OpenSearch/pull/19019))
 - Bump `actions/checkout` from 4 to 5 ([#19023](https://github.com/opensearch-project/OpenSearch/pull/19023))
@@ -104,7 +105,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.code.gson:gson` from 2.13.1 to 2.13.2 ([#19290](https://github.com/opensearch-project/OpenSearch/pull/19290)) ([#19293](https://github.com/opensearch-project/OpenSearch/pull/19293))
 - Bump `actions/stale` from 9 to 10 ([#19292](https://github.com/opensearch-project/OpenSearch/pull/19292))
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.25 to 11.28 ([#19291](https://github.com/opensearch-project/OpenSearch/pull/19291))
-- Bump `log4j2` from 2.21.0 to 2.25.1 ([#19184](https://github.com/opensearch-project/OpenSearch/pull/19184))
 - Bump Apache Lucene from 10.2.2 to 10.3.0 ([#19296](https://github.com/opensearch-project/OpenSearch/pull/19296))
 - Add com.google.code.gson:gson to the gradle version catalog ([#19328](https://github.com/opensearch-project/OpenSearch/pull/19328))
 - Bump `org.apache.logging.log4j:log4j-core` from 2.25.1 to 2.25.2 ([#19360](https://github.com/opensearch-project/OpenSearch/pull/19360))
