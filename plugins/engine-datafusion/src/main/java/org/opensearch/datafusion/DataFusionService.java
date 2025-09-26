@@ -164,6 +164,11 @@ public class DataFusionService extends AbstractLifecycleComponent {
     public long getRuntimePointer() {
         return globalRuntimeEnv.getPointer();
     }
+
+    public long getTokioRuntimePointer() {
+        return globalRuntimeEnv.getTokioRuntimePtr();
+    }
+
     /**
      * Close the session context and clean up resources
      *

@@ -85,20 +85,20 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
             Set.of(PublicApi.class, ExperimentalApi.class, DeprecatedApi.class)
         );
 
-        for (var element : elements) {
-            validate(element);
-
-            if (!checkPackage(element)) {
-                continue;
-            }
-
-            // Skip all not-public elements
-            checkPublicVisibility(null, element);
-
-            if (element instanceof TypeElement) {
-                process((TypeElement) element);
-            }
-        }
+//        for (var element : elements) {
+//            validate(element);
+//
+//            if (!checkPackage(element)) {
+//                continue;
+//            }
+//
+//            // Skip all not-public elements
+//            checkPublicVisibility(null, element);
+//
+//            if (element instanceof TypeElement) {
+//                process((TypeElement) element);
+//            }
+//        }
 
         return false;
     }

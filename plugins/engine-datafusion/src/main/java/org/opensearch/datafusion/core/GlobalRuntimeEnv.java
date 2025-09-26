@@ -10,6 +10,7 @@ package org.opensearch.datafusion.core;
 
 import static org.opensearch.datafusion.DataFusionQueryJNI.closeGlobalRuntime;
 import static org.opensearch.datafusion.DataFusionQueryJNI.createGlobalRuntime;
+import static org.opensearch.datafusion.DataFusionQueryJNI.createTokioRuntime;
 
 /**
  * Global runtime environment for DataFusion operations.
@@ -18,12 +19,14 @@ import static org.opensearch.datafusion.DataFusionQueryJNI.createGlobalRuntime;
 public class GlobalRuntimeEnv implements AutoCloseable {
     // ptr to runtime environment in df
     private final long ptr;
+    private final long tokio_runtime_ptr;
 
     /**
      * Creates a new global runtime environment.
      */
     public GlobalRuntimeEnv() {
         this.ptr = createGlobalRuntime();
+        this.tokio_runtime_ptr = createTokioRuntime();
     }
 
     /**
@@ -32,6 +35,10 @@ public class GlobalRuntimeEnv implements AutoCloseable {
      */
     public long getPointer() {
         return ptr;
+    }
+
+    public long getTokioRuntimePtr() {
+        return tokio_runtime_ptr;
     }
 
     @Override

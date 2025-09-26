@@ -807,7 +807,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 clusterService.getClusterApplierService(),
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null,
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null,
-                this.searchEnginePlugin.createEngine(),
                 pluginsService
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

@@ -16,6 +16,10 @@ import org.junit.Before;
 
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.opensearch.vectorized.execution.search.DataFormat;
+import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
+
+import java.util.Map;
 
 import static org.mockito.Mockito.when;
 
