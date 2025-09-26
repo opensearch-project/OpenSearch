@@ -38,6 +38,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
@@ -228,7 +229,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         logger.trace("Index sort field found: {}, skipper: {}", fieldIndexSort, skipper);
         if (fieldIndexSort && skipper != null && singleton != null) {
             // TODO: add hard bounds support
-            if (hardBounds == null) {
+            // TODO: current assumes this is the top level
+            if (hardBounds == null && parent == null) {
                 return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
             }
         }
@@ -526,6 +528,29 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Override
         public void collect(int doc) throws IOException {
             collect(doc, 0);
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            for (;;) {
+                int upToExclusive = upToInclusive + 1;
+                if (upToExclusive < 0) { // overflow
+                    upToExclusive = Integer.MAX_VALUE;
+                }
+
+                if (upToSameBucket && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+                    long count = stream.count(upToExclusive);
+                    aggregator.incrementBucketDocCount(upToBucketIndex, count);
+                } else {
+                    stream.forEach(upToExclusive, this::collect);
+                }
+
+                if (stream.mayHaveRemaining()) {
+                    advanceSkipper(upToExclusive);
+                } else {
+                    break;
+                }
+            }
         }
 
     }
