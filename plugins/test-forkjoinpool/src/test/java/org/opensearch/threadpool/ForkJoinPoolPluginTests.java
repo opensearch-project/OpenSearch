@@ -8,10 +8,9 @@
 
 package org.opensearch.threadpool;
 
-import org.junit.Assert;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.threadpool.ForkJoinPoolPlugin;
-import org.opensearch.threadpool.ExecutorBuilder;
+import org.junit.Assert;
 
 import java.util.List;
 
@@ -36,8 +35,7 @@ public class ForkJoinPoolPluginTests {
         ExecutorBuilder<?> builder = builders.get(0);
 
         // The builder should be of the correct type and name
-        Assert.assertTrue("Builder should be of type ForkJoinPoolExecutorBuilder",
-            builder instanceof ForkJoinPoolExecutorBuilder);
+        Assert.assertTrue("Builder should be of type ForkJoinPoolExecutorBuilder", builder instanceof ForkJoinPoolExecutorBuilder);
         Assert.assertEquals("Builder name should be 'jvector'", "jvector", builder.name());
     }
 }
