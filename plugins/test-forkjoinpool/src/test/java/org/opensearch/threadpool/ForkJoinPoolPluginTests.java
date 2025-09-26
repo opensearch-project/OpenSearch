@@ -3,7 +3,6 @@ package org.opensearch.threadpool;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.threadpool.ForkJoinPoolPlugin;
-import org.opensearch.threadpool.ExecutorBuilder;
 
 import java.util.List;
 
