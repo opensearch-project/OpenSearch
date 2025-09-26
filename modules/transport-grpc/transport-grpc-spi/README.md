@@ -70,6 +70,7 @@ For GrpcServiceFactory implementations:
 ```
 org.opensearch.mypackage.MyCustomGrpcServiceFactory
 ```
+
 ### 3. Run SPI unit tests
 
 ```bash
@@ -290,3 +291,25 @@ org.opensearch.knn.grpc.proto.request.search.query.KNNQueryBuilderProtoConverter
 
 **Why k-NN needs the registry:**
 The k-NN query's `filter` field is a `QueryContainer` protobuf type that can contain any query type (MatchAll, Term, Terms, etc.). The k-NN converter needs access to the registry to convert these nested queries to their corresponding QueryBuilder objects.
+
+## GrpcServiceFactory
+
+### 1. Implement Custom Query Converter
+
+Several node resources are exposed to a `GrpcServiceFactory` for use within services such as client, settings, and thread pools.
+A plugin's `GrpcServiceFactory` implementation will be discovered through the SPI registration file and registered on the gRPC transport.
+
+```java
+public static class MockServiceProvider implements GrpcServiceFactory {
+
+    @Override
+    public String plugin() {
+        return "MockExtendingPlugin";
+    }
+
+    @Override
+    public List<BindableService> build() {
+        return List.of(new MockChannelzService());
+    }
+}
+```
