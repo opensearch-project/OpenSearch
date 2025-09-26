@@ -8,6 +8,17 @@
 
 package org.opensearch.index.engine.exec.composite;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.lucene.util.SetOnce;
+import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.DocumentInput;
+import org.opensearch.index.engine.exec.FileInfos;
+import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.FlushIn;
+import org.opensearch.index.engine.exec.WriteResult;
+import org.opensearch.index.engine.exec.Writer;
+import org.opensearch.index.mapper.MappedFieldType;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,35 +28,32 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
-import org.apache.lucene.util.SetOnce;
-import org.opensearch.index.engine.exec.DocumentInput;
-import org.opensearch.index.engine.exec.FileMetadata;
-import org.opensearch.index.engine.exec.FlushIn;
-import org.opensearch.index.engine.exec.WriteResult;
-import org.opensearch.index.engine.exec.Writer;
-import org.opensearch.index.mapper.MappedFieldType;
 
 public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWriter.CompositeDocumentInput>, Lock {
 
-    private final List<Writer<? extends DocumentInput>> writers;
+    private final List<ImmutablePair<DataFormat, Writer<? extends DocumentInput<?>>>> writers;
     private final Runnable postWrite;
     private final ReentrantLock lock;
     private final SetOnce<Boolean> flushPending = new SetOnce<>();
     private final SetOnce<Boolean> hasFlushed = new SetOnce<>();
+    private final long writerGeneration;
     private boolean aborted;
 
-    public CompositeDataFormatWriter(CompositeIndexingExecutionEngine engine) {
+    public CompositeDataFormatWriter(CompositeIndexingExecutionEngine engine,
+        long writerGeneration) {
         this.writers = new ArrayList<>();
         this.lock = new ReentrantLock();
         this.aborted = false;
-        engine.delegates.forEach(delegate -> {
+        this.writerGeneration = writerGeneration;
+        engine.getDelegates().forEach(delegate -> {
             try {
-                writers.add(delegate.createWriter());
+                writers.add(ImmutablePair.of(delegate.getDataFormat(), delegate.createWriter(writerGeneration)));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         });
         this.postWrite = () -> {
+            engine.getDataFormatWriterPool().releaseAndUnlock(this);
         };
     }
 
@@ -55,13 +63,16 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     }
 
     @Override
-    public FileMetadata flush(FlushIn flushIn) throws IOException {
-        FileMetadata metadata = null;
-        for (Writer<? extends DocumentInput> writer : writers) {
-            metadata = writer.flush(flushIn);
+    public FileInfos flush(FlushIn flushIn) throws IOException {
+        FileInfos fileInfos = new FileInfos();
+        for (ImmutablePair<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
+            Optional<WriterFileSet> fileMetadataOptional = writerPair.getRight().flush(flushIn)
+                .getWriterFileSet(writerPair.getLeft());
+            fileMetadataOptional.ifPresent(
+                fileMetadata -> fileInfos.putWriterFileSet(writerPair.getLeft(), fileMetadata));
         }
         hasFlushed.set(true);
-        return metadata; // todo: model meta in a way that it can handle multiple writers.
+        return fileInfos;
     }
 
     @Override
@@ -75,13 +86,9 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     }
 
     @Override
-    public Optional<FileMetadata> getMetadata() {
-        return Optional.empty();
-    }
-
-    @Override
     public CompositeDocumentInput newDocumentInput() {
-        return new CompositeDocumentInput(writers.stream().map(Writer::newDocumentInput).collect(Collectors.toList()),
+        return new CompositeDocumentInput(
+            writers.stream().map(ImmutablePair::getRight).map(Writer::newDocumentInput).collect(Collectors.toList()),
             this, postWrite);
     }
 

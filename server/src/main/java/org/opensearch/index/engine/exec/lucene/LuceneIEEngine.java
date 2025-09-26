@@ -13,7 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
-import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.engine.exec.RefreshInput;
@@ -26,7 +26,6 @@ import org.opensearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.LuceneDataFormat> {
 
@@ -41,9 +40,10 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
         return List.of();
     }
 
+
     @Override
-    public Writer<? extends DocumentInput<?>> createWriter() throws IOException {
-        return new LuceneWriter(internalEngine.indexWriter);
+    public Writer<? extends DocumentInput<?>> createWriter(long writerGeneration) throws IOException {
+        return new LuceneWriter(internalEngine.indexWriter, writerGeneration);
     }
 
     @Override
@@ -92,10 +92,12 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
 
     public static class LuceneWriter implements Writer<LuceneDocumentInput> {
 
-        private IndexWriter writer;
+        private final IndexWriter writer;
+        private final long writerGeneration;
 
-        public LuceneWriter(IndexWriter writer) {
+        public LuceneWriter(IndexWriter writer, long writerGeneration) {
             this.writer = writer;
+            this.writerGeneration = writerGeneration;
         }
 
         @Override
@@ -105,7 +107,7 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
         }
 
         @Override
-        public FileMetadata flush(FlushIn flushIn) throws IOException {
+        public FileInfos flush(FlushIn flushIn) throws IOException {
             writer.flush();
             return null;
         }
@@ -118,11 +120,6 @@ public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.Lucene
         @Override
         public void close() {
             // no-op
-        }
-
-        @Override
-        public Optional<FileMetadata> getMetadata() {
-            return Optional.empty();
         }
 
         @Override

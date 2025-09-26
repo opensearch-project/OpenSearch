@@ -8,23 +8,40 @@
 
 package org.opensearch.index.engine.exec;
 
-import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class RefreshResult {
-    private Map<DataFormat, List<FileMetadata>> refreshedFiles = new HashMap<>();
+
+    private final Map<DataFormat, Map<Long, WriterFileSet>> refreshedFiles;
+    private final Set<Long> writerGenerations;
 
     public RefreshResult() {
-
+        this.refreshedFiles = new HashMap<>();
+        this.writerGenerations = new HashSet<>();
     }
 
-    public void add(DataFormat df, List<FileMetadata> fileMetadata) {
-        refreshedFiles.computeIfAbsent(df, ddf -> new ArrayList<>()).addAll(fileMetadata);
+    public Set<DataFormat> getDataFormats() {
+        return refreshedFiles.keySet();
     }
 
-    public Map<DataFormat, List<FileMetadata>> getRefreshedFiles() {
-        return refreshedFiles;
+    public void add(DataFormat df, Collection<WriterFileSet> writerFiles) {
+        writerFiles.forEach(writerFileSet -> {
+            refreshedFiles.computeIfAbsent(df, dataFormat -> new HashMap<>())
+                .put(writerFileSet.getWriterGeneration(), writerFileSet);
+            writerGenerations.add(writerFileSet.getWriterGeneration());
+        });
+    }
+
+    public Map<Long, WriterFileSet> getRefreshedFiles(DataFormat dataFormat) {
+        return Map.copyOf(refreshedFiles.get(dataFormat));
+    }
+
+    public Set<Long> getWriterGenerations() {
+        return Collections.unmodifiableSet(writerGenerations);
     }
 }

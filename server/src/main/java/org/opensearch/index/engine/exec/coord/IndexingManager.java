@@ -8,39 +8,46 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.WriteResult;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-public class IndexingManager {  //Internal Engine
+public class IndexingManager {
 
     private final CompositeIndexingExecutionEngine engine;
     private final List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
+    private final Committer committer;
     private CatalogSnapshot catalogSnapshot;
 
-    public IndexingManager(MapperService mapperService/*, EngineConfig engineConfig*/) {
-        this.engine = new CompositeIndexingExecutionEngine(mapperService, null, new Any(List.of(DataFormat.TEXT)), null);
+    public IndexingManager(Path indexPath, MapperService mapperService/*, EngineConfig engineConfig*/)
+        throws IOException {
+        this.engine = new CompositeIndexingExecutionEngine(mapperService, null, new Any(List.of(DataFormat.TEXT)), null,
+            0);
+        this.committer = new LuceneCommitEngine(indexPath);
     }
 
     public CompositeDataFormatWriter.CompositeDocumentInput documentInput() throws IOException {
-        return engine.createWriter().newDocumentInput();
+        return engine.createCompositeWriter().newDocumentInput();
     }
 
     public Engine.IndexResult index(Engine.Index index) throws Exception {
         WriteResult writeResult = index.documentInput.addToWriter();
         // translog, checkpoint, other checks
-        return new Engine.IndexResult(writeResult.version(), writeResult.seqNo(), writeResult.term(), writeResult.success());
+        return new Engine.IndexResult(writeResult.version(), writeResult.seqNo(), writeResult.term(),
+            writeResult.success());
     }
 
     public synchronized void refresh(String source) throws EngineException, IOException {
@@ -77,7 +84,7 @@ public class IndexingManager {  //Internal Engine
     // Each search side specific impl can decide on how to init specific reader instances using this pit snapshot provided by writers
     public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
         catalogSnapshot.incRef(); // this should be package-private
-        return new ReleasableRef<CatalogSnapshot>(catalogSnapshot) {
+        return new ReleasableRef<>(catalogSnapshot) {
             @Override
             public void close() throws Exception {
                 catalogSnapshot.decRef(); // this should be package-private
@@ -86,6 +93,7 @@ public class IndexingManager {  //Internal Engine
     }
 
     public static abstract class ReleasableRef<T> implements AutoCloseable {
+
         private final T t;
 
         public ReleasableRef(T t) {
@@ -98,7 +106,8 @@ public class IndexingManager {  //Internal Engine
     }
 
     public static void main(String[] args) throws Exception {
-        IndexingManager coordinator = new IndexingManager(null);
+        IndexingManager coordinator = new IndexingManager(
+            Path.of("/Users/shnkgo/Downloads/mustang/lucene-committer-index/"), null);
 
         for (int i = 0; i < 5; i++) {
 

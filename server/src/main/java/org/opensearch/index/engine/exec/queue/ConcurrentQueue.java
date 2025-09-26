@@ -19,10 +19,10 @@ public final class ConcurrentQueue<T> {
     static final int MIN_CONCURRENCY = 1;
     static final int MAX_CONCURRENCY = 256;
 
-    final int concurrency;
-    final Lock[] locks;
-    final Queue<T>[] queues;
-    final Supplier<Queue<T>> queueSupplier;
+    private final int concurrency;
+    private final Lock[] locks;
+    private final Queue<T>[] queues;
+    private final Supplier<Queue<T>> queueSupplier;
 
     ConcurrentQueue(Supplier<Queue<T>> queueSupplier, int concurrency) {
         if (concurrency < MIN_CONCURRENCY || concurrency > MAX_CONCURRENCY) {
@@ -32,7 +32,7 @@ public final class ConcurrentQueue<T> {
         this.concurrency = concurrency;
         this.queueSupplier = queueSupplier;
         locks = new Lock[concurrency];
-        @SuppressWarnings({ "rawtypes", "unchecked" }) Queue<T>[] queues = new Queue[concurrency];
+        @SuppressWarnings({"rawtypes", "unchecked"}) Queue<T>[] queues = new Queue[concurrency];
         this.queues = queues;
         for (int i = 0; i < concurrency; ++i) {
             locks[i] = new ReentrantLock();

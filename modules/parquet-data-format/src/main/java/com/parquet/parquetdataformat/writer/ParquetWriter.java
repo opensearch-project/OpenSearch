@@ -1,14 +1,17 @@
 package com.parquet.parquetdataformat.writer;
 
 import com.parquet.parquetdataformat.vsr.VSRManager;
-import org.opensearch.index.engine.exec.FileMetadata;
+import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.Writer;
-import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
-import java.util.Optional;
+import java.nio.file.Path;
+
+import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DATA_FORMAT;
 
 /**
  * Parquet file writer implementation that integrates with OpenSearch's Writer interface.
@@ -33,11 +36,13 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final String file;
     private final Schema schema;
     private final VSRManager vsrManager;
+    private final long writerGeneration;
 
-    public ParquetWriter(String file, Schema schema) {
+    public ParquetWriter(String file, Schema schema, long writerGeneration) {
         this.file = file;
         this.schema = schema;
         this.vsrManager = new VSRManager(file, schema);
+        this.writerGeneration = writerGeneration;
     }
 
     @Override
@@ -46,8 +51,13 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
-    public FileMetadata flush(FlushIn flushIn) throws IOException {
-        return vsrManager.flush(flushIn);
+    public FileInfos flush(FlushIn flushIn) throws IOException {
+        String fileName = vsrManager.flush(flushIn);
+        FileInfos fileInfos = new FileInfos();
+        WriterFileSet writerFileSet = new WriterFileSet(Path.of(fileName).getParent(), writerGeneration);
+        writerFileSet.add(fileName);
+        fileInfos.putWriterFileSet(PARQUET_DATA_FORMAT, writerFileSet);
+        return fileInfos;
     }
 
     @Override
@@ -58,11 +68,6 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     @Override
     public void close() {
         vsrManager.close();
-    }
-
-    @Override
-    public Optional<FileMetadata> getMetadata() {
-        return Optional.empty();
     }
 
     @Override
