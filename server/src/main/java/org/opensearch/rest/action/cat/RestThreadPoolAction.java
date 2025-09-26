@@ -315,6 +315,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(max);
                 table.addCell(size);
                 table.addCell(keepAlive);
+                table.addCell(null); // parallelism (only set for fork_join, null for others)
 
                 table.endRow();
             }

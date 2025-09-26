@@ -27,10 +27,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
   name = 'test-forkjoinpool'
   description = 'Test plugin for ForkJoinPool thread pool registration for REST tests'
   classname = 'org.opensearch.plugin.threadpool.ForkJoinPoolPlugin'
+  licenseFile = rootProject.file('LICENSE.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
 }
