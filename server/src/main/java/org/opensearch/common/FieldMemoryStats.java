@@ -52,7 +52,6 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<String, Long>> {
-
     private final Map<String, Long> stats;
 
     /**
@@ -99,6 +98,10 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
             builder.endObject();
         }
         builder.endObject();
+    }
+
+    public Map<String, Long> getStats() {
+        return stats;
     }
 
     /**
