@@ -1672,6 +1672,78 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testHighCardinalityNumericTermsAggregation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 1; i <= 1500; i++) {
+                    int repeatCount = (i <= 200) ? 1 : 2;
+                    for (int j = 1; j <= repeatCount; j++) {
+                        Document document = new Document();
+                        document.add(new NumericDocValuesField("user_id", i));
+                        indexWriter.addDocument(document);
+                    }
+                }
+                indexWriter.flush();
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("user_id", NumberFieldMapper.NumberType.LONG);
+
+                    // When the request size equal to the cardinality
+                    TermsAggregationBuilder aggregationBuilder0 = new TermsAggregationBuilder("user_id_terms").field("user_id").size(1500);
+                    Terms result0 = getAggregatedTerms(aggregationBuilder0, indexSearcher, fieldType);
+                    assertEquals(1500, result0.getBuckets().size());
+                    for (int i = 1; i <= 1500; i++) {
+                        Terms.Bucket bucket = result0.getBucketByKey(String.valueOf(i));
+                        if (i <= 200) {
+                            assertEquals(1L, bucket.getDocCount());
+                        } else {
+                            assertEquals(2L, bucket.getDocCount());
+                        }
+                    }
+
+                    // Test includes minDocCount and request size is lesser than the total number of buckets
+                    TermsAggregationBuilder aggregationBuilder1 = new TermsAggregationBuilder("user_id_terms").field("user_id")
+                        .minDocCount(2)
+                        .size(1100);
+                    Terms result1 = getAggregatedTerms(aggregationBuilder1, indexSearcher, fieldType);
+                    assertEquals(1100, result1.getBuckets().size());
+                    for (int i = 1; i <= 1100; i++) {
+                        Terms.Bucket bucket = result0.getBucketByKey(String.valueOf(i));
+                        if (i <= 200) {
+                            assertEquals(1L, bucket.getDocCount());
+                        } else {
+                            assertEquals(2L, bucket.getDocCount());
+                        }
+                    }
+
+                    // Request size is lesser than 1000, which performs priority queue based selection
+                    TermsAggregationBuilder aggregationBuilder2 = new TermsAggregationBuilder("user_id_terms").field("user_id")
+                        .minDocCount(2)
+                        .size(900);
+                    Terms result2 = getAggregatedTerms(aggregationBuilder2, indexSearcher, fieldType);
+                    assertEquals(900, result2.getBuckets().size());
+                    for (int i = 1; i <= 900; i++) {
+                        Terms.Bucket bucket = result0.getBucketByKey(String.valueOf(i));
+                        if (i <= 200) {
+                            assertEquals(1L, bucket.getDocCount());
+                        } else {
+                            assertEquals(2L, bucket.getDocCount());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private Terms getAggregatedTerms(TermsAggregationBuilder aggregationBuilder, IndexSearcher indexSearcher, MappedFieldType fieldType)
+        throws IOException {
+        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+        return reduce(aggregator);
+    }
+
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
 
     private List<Document> generateDocsWithNested(String id, int value, int[] nestedValues) {
