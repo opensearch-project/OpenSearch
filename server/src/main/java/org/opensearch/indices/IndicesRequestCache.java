@@ -266,6 +266,9 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
     void clear(CacheEntity entity) {
         cacheCleanupManager.enqueueCleanupKey(new CleanupKey(entity, null));
+    }
+
+    void forceCleanCache() {
         cacheCleanupManager.forceCleanCache();
     }
 
