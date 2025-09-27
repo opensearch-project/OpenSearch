@@ -86,9 +86,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(current);
+            out.writeZLong(current);
             out.writeVLong(total);
-            out.writeVLong(timeInMillis);
+            out.writeZLong(timeInMillis);
         }
 
         PhaseStatsLongHolder() {
@@ -102,9 +102,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         PhaseStatsLongHolder(StreamInput in) throws IOException {
-            this.current = in.readVLong();
+            this.current = in.readZLong();
             this.total = in.readVLong();
-            this.timeInMillis = in.readVLong();
+            this.timeInMillis = in.readZLong();
         }
 
     }
@@ -177,7 +177,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return requestStatsLongHolder;
         }
 
-        private Stats() {
+        Stats() {
             // for internal use, initializes all counts to 0
         }
 

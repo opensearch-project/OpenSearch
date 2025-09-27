@@ -8,6 +8,8 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.metrics.CounterMetric;
@@ -28,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 public final class SearchRequestStats extends SearchRequestOperationsListener {
     Map<SearchPhaseName, StatsHolder> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
     StatsHolder tookStatsHolder;
+    private static final Logger logger = LogManager.getLogger(SearchRequestStats.class);
 
     public static final String SEARCH_REQUEST_STATS_ENABLED_KEY = "search.request_stats_enabled";
     public static final Setting<Boolean> SEARCH_REQUEST_STATS_ENABLED = Setting.boolSetting(
@@ -80,6 +83,9 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
     protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         context.getCurrentPhase().getSearchPhaseNameOptional().ifPresent(name -> {
             StatsHolder phaseStats = phaseStatsMap.get(name);
+            if (phaseStats.current.count() == 0) {
+                logger.warn("SearchRequestStats 'current' went negative for phase '{}'", name);
+            }
             phaseStats.current.dec();
             phaseStats.total.inc();
             phaseStats.timing.inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos()));
