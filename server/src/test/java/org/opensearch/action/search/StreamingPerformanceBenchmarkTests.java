@@ -20,6 +20,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -137,7 +138,11 @@ public class StreamingPerformanceBenchmarkTests extends OpenSearchIntegTestCase 
         double improvement = ((double) (avgTraditional - avgStreaming) / Math.max(1, avgTraditional)) * 100;
         logger.info("TTFB classic (full reduce): {} ms", avgTraditional);
         logger.info("TTFB streaming (first partial): {} ms", avgStreaming);
-        logger.info("TTFB improvement: {}% (delta={} ms)", String.format("%.1f", improvement), (avgTraditional - avgStreaming));
+        logger.info(
+            "TTFB improvement: {}% (delta={} ms)",
+            String.format(Locale.ROOT, "%.1f", improvement),
+            (avgTraditional - avgStreaming)
+        );
     }
 
     private long measureTraditionalTTFB(int size) {
@@ -252,11 +257,12 @@ public class StreamingPerformanceBenchmarkTests extends OpenSearchIntegTestCase 
                 + " with additional text to make wildcard queries more expensive";
 
             String doc = String.format(
+                Locale.ROOT,
                 "{\"id\":%d,\"title\":\"Document %d\",\"content\":\"%s\",\"score\":%.2f,\"timestamp\":%d,\"category\":\"%s\"}",
                 i,
                 i,
                 content,
-                Math.random() * 100,
+                randomDouble() * 100,
                 System.currentTimeMillis() - (numDocs - i) * 1000,
                 "category_" + (i % 100)
             );
