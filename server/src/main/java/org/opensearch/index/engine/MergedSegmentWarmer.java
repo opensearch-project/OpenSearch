@@ -51,29 +51,39 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     @Override
     public void warm(LeafReader leafReader) throws IOException {
-        if (shouldWarm() == false) {
-            return;
-        }
-        // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
-        assert leafReader instanceof SegmentReader;
-        assert indexShard.indexSettings().isSegRepLocalEnabled() || indexShard.indexSettings().isRemoteStoreEnabled();
+        try {
+            if (shouldWarm() == false) {
+                return;
+            }
+            // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
+            assert leafReader instanceof SegmentReader;
+            assert indexShard.indexSettings().isSegRepLocalEnabled() || indexShard.indexSettings().isRemoteStoreEnabled();
 
-        long startTime = System.currentTimeMillis();
-        SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
-        logger.trace(() -> new ParameterizedMessage("Warming segment: {}", segmentCommitInfo));
-        indexShard.publishMergedSegment(segmentCommitInfo);
-        logger.trace(() -> {
-            long segmentSize = -1;
-            try {
-                segmentSize = segmentCommitInfo.sizeInBytes();
-            } catch (IOException ignored) {}
-            return new ParameterizedMessage(
-                "Completed segment warming for {}. Size: {}B, Timing: {}ms",
-                segmentCommitInfo.info.name,
-                segmentSize,
-                (System.currentTimeMillis() - startTime)
+            long startTime = System.currentTimeMillis();
+            SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
+            logger.info(() -> new ParameterizedMessage("Warming segment: {}", segmentCommitInfo));
+            indexShard.publishMergedSegment(segmentCommitInfo);
+            logger.trace(() -> {
+                long segmentSize = -1;
+                try {
+                    segmentSize = segmentCommitInfo.sizeInBytes();
+                } catch (IOException ignored) {}
+                return new ParameterizedMessage(
+                    "Completed segment warming for {}. Size: {}B, Timing: {}ms",
+                    segmentCommitInfo.info.name,
+                    segmentSize,
+                    (System.currentTimeMillis() - startTime)
+                );
+            });
+        } catch (Exception e) {
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "throw exception during merged segment warmer, skip merged segment {} warmer",
+                    ((SegmentReader) leafReader).getSegmentName()
+                ),
+                e
             );
-        });
+        }
     }
 
     // package-private for tests
