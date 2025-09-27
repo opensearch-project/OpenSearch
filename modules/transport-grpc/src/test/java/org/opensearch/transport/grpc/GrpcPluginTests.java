@@ -193,7 +193,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             () -> newPlugin.getAuxTransports(settings, threadPool, circuitBreakerService, networkService, clusterSettings, tracer)
         );
 
-        assertEquals("client cannot be null", exception.getMessage());
+        assertEquals("createComponents must be called first to initialize server provided resources.", exception.getMessage());
     }
 
     public void testGetSecureAuxTransportsWithNullClient() {
@@ -216,7 +216,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             )
         );
 
-        assertEquals("client cannot be null", exception.getMessage());
+        assertEquals("createComponents must be called first to initialize server provided resources.", exception.getMessage());
     }
 
     public void testLoadExtensions() {

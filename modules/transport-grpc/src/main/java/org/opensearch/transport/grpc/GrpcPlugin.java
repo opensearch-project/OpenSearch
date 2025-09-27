@@ -156,12 +156,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
-        if (client == null) {
-            throw new RuntimeException("client cannot be null");
-        }
-
-        if (queryRegistry == null) {
-            throw new IllegalStateException("createComponents must be called before getAuxTransports to initialize the registry");
+        if (client == null || queryRegistry == null || queryUtils == null) {
+            throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
 
         return Collections.singletonMap(GRPC_TRANSPORT_SETTING_KEY, () -> {
@@ -212,12 +208,8 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider,
         Tracer tracer
     ) {
-        if (client == null) {
-            throw new RuntimeException("client cannot be null");
-        }
-
-        if (queryRegistry == null) {
-            throw new IllegalStateException("createComponents must be called before getSecureAuxTransports to initialize the registry");
+        if (client == null || queryRegistry == null || queryUtils == null) {
+            throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
 
         return Collections.singletonMap(GRPC_SECURE_TRANSPORT_SETTING_KEY, () -> {
