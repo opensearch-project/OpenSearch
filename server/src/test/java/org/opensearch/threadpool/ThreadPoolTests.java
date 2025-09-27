@@ -32,15 +32,25 @@
 
 package org.opensearch.threadpool;
 
+import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
+import java.util.concurrent.RecursiveTask;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.opensearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
@@ -203,5 +213,234 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         assertThat(ThreadPool.oneEighthAllocatedProcessors(8), equalTo(1));
         assertThat(ThreadPool.oneEighthAllocatedProcessors(32), equalTo(4));
         assertThat(ThreadPool.oneEighthAllocatedProcessors(128), equalTo(16));
+    }
+
+    public void testForkJoinPoolRegistrationAndTaskExecution() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        AtomicInteger result = new AtomicInteger(0);
+        pool.submit(() -> result.set(42)).join();
+        assertEquals(42, result.get());
+        terminate(threadPool);
+    }
+
+    public void testForkJoinPoolRegistration() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ExecutorService pool = threadPool.executor("jvector");
+        assertNotNull(pool);
+        assertTrue(pool instanceof ForkJoinPool);
+        assertEquals(expectedParallelism, ((ForkJoinPool) pool).getParallelism());
+        terminate(threadPool);
+    }
+
+    public void testForkJoinPoolTaskExecution() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        AtomicInteger result = new AtomicInteger(0);
+        pool.submit(() -> result.set(42)).join();
+        assertEquals(42, result.get());
+        terminate(threadPool);
+    }
+
+    public void testForkJoinPoolParallelism() throws Exception {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+
+        CountDownLatch latch = new CountDownLatch(expectedParallelism);
+        AtomicInteger counter = new AtomicInteger(0);
+
+        for (int i = 0; i < expectedParallelism; i++) {
+            pool.submit(() -> {
+                counter.incrementAndGet();
+                latch.countDown();
+            });
+        }
+        latch.await(5, TimeUnit.SECONDS);
+        assertEquals(expectedParallelism, counter.get());
+        terminate(threadPool);
+    }
+
+    public void testForkJoinPoolShutdown() throws Exception {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        threadPool.shutdown();
+        assertTrue(pool.isShutdown());
+    }
+
+    public void testSubmitAfterShutdownThrows() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        threadPool.shutdown();
+        assertThrows(RejectedExecutionException.class, () -> pool.submit(() -> {}));
+    }
+
+    public void testForkJoinPoolParallelismOne() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", 1));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        assertEquals(1, pool.getParallelism());
+        terminate(threadPool);
+    }
+
+    public void testForkJoinPoolHighParallelism() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = 32;
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        assertEquals(expectedParallelism, pool.getParallelism());
+        terminate(threadPool);
+    }
+
+    public void testForkJoinPoolNullTask() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        assertThrows(NullPointerException.class, () -> pool.submit((Runnable) null));
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolTaskThrowsException() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        Future<?> future = pool.submit(() -> { throw new RuntimeException("fail!"); });
+        assertThrows(ExecutionException.class, () -> future.get());
+        threadPool.shutdown();
+    }
+
+    public void testForkJoinPoolRecursiveTask() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+        ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
+        RecursiveTask<Integer> task = new RecursiveTask<>() {
+            @Override
+            protected Integer compute() {
+                return 123;
+            }
+        };
+        int result = pool.invoke(task);
+        assertEquals(123, result);
+        threadPool.shutdown();
+    }
+
+    public void testValidateSettingSkipsForkJoinPool() {
+        // Setup minimal settings with node name
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        int expectedParallelism = OpenSearchExecutors.allocatedProcessors(settings);
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", expectedParallelism));
+
+        // ForkJoinPool does not support any config, but we still add dummy settings to trigger validateSetting
+        Settings forkJoinSettings = Settings.builder().put("jvector.size", "10").build();
+
+        // Should NOT throw, because validateSetting skips ForkJoinPool types
+        threadPool.setThreadPool(forkJoinSettings);
+
+        // Clean up
+        terminate(threadPool);
+    }
+
+    public void testExecutorHolderAcceptsForkJoinPool() {
+        ForkJoinPool pool = new ForkJoinPool(1);
+        ThreadPool.Info info = new ThreadPool.Info("jvector", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+        ThreadPool.ExecutorHolder holder = new ThreadPool.ExecutorHolder(pool, info);
+        assertTrue(holder.executor() instanceof ForkJoinPool);
+        assertEquals(info, holder.info);
+        pool.shutdown();
+    }
+
+    public void testThreadPoolInfoWriteToForkJoinLegacyVersion() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("jvector", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+
+        // Stub StreamOutput that sets legacy version and implements required methods
+        StreamOutput out = new StreamOutput() {
+            private Version version = Version.V_3_1_0;
+
+            @Override
+            public void writeByte(byte b) {}
+
+            @Override
+            public void writeBytes(byte[] b, int offset, int length) {}
+
+            @Override
+            public void writeBytes(byte[] b) {}
+
+            @Override
+            public void setVersion(Version v) {
+                this.version = v;
+            }
+
+            @Override
+            public Version getVersion() {
+                return version;
+            }
+
+            @Override
+            public void flush() throws IOException {} // required by abstract base class
+
+            @Override
+            public void reset() throws IOException {} // required by abstract base class
+
+            @Override
+            public void close() throws IOException {} // required by abstract base class
+        };
+        out.setVersion(Version.V_3_1_0);
+
+        // This will exercise the fallback logic for ForkJoinPool and legacy version
+        info.writeTo(out);
+    }
+
+    public void testThreadPoolInfoWriteToForkJoinCurrentVersion() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("jvector", ThreadPool.ThreadPoolType.FORK_JOIN, 1);
+
+        StreamOutput out = new StreamOutput() {
+            private Version version = Version.CURRENT;
+
+            @Override
+            public void writeByte(byte b) {}
+
+            @Override
+            public void writeBytes(byte[] b, int offset, int length) {}
+
+            @Override
+            public void writeBytes(byte[] b) {}
+
+            @Override
+            public void setVersion(Version v) {
+                this.version = v;
+            }
+
+            @Override
+            public Version getVersion() {
+                return version;
+            }
+
+            @Override
+            public void flush() throws IOException {} // required by abstract base class
+
+            @Override
+            public void reset() throws IOException {} // required by abstract base class
+
+            @Override
+            public void close() throws IOException {} // required by abstract base class
+        };
+        out.setVersion(Version.CURRENT);
+
+        // This will exercise the normal serialization logic for ForkJoinPool and current version
+        info.writeTo(out);
     }
 }

@@ -71,8 +71,19 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
         private final int largest;
         private final long completed;
         private final long waitTimeNanos;
+        private final int parallelism;
 
-        public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed, long waitTimeNanos) {
+        public Stats(
+            String name,
+            int threads,
+            int queue,
+            int active,
+            long rejected,
+            int largest,
+            long completed,
+            long waitTimeNanos,
+            int parallelism
+        ) {
             this.name = name;
             this.threads = threads;
             this.queue = queue;
@@ -81,6 +92,7 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             this.largest = largest;
             this.completed = completed;
             this.waitTimeNanos = waitTimeNanos;
+            this.parallelism = parallelism;
         }
 
         public Stats(StreamInput in) throws IOException {
@@ -92,6 +104,7 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             largest = in.readInt();
             completed = in.readLong();
             waitTimeNanos = in.getVersion().onOrAfter(Version.V_2_11_0) ? in.readLong() : -1;
+            parallelism = in.getVersion().onOrAfter(Version.V_3_2_0) ? in.readInt() : -1;
         }
 
         @Override
@@ -105,6 +118,9 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             out.writeLong(completed);
             if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
                 out.writeLong(waitTimeNanos);
+            }
+            if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+                out.writeLong(parallelism);
             }
         }
 
@@ -147,6 +163,9 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
+            if (parallelism != -1) {
+                builder.field(Fields.PARALLELISM, parallelism);
+            }
             if (threads != -1) {
                 builder.field(Fields.THREADS, threads);
             }
@@ -224,6 +243,7 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
         static final String COMPLETED = "completed";
         static final String WAIT_TIME = "total_wait_time";
         static final String WAIT_TIME_NANOS = "total_wait_time_in_nanos";
+        static final String PARALLELISM = "parallelism";
     }
 
     @Override
