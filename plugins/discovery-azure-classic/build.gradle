@@ -52,7 +52,7 @@ dependencies {
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "commons-lang:commons-lang:2.6"
+  api "org.apache.commons:commons-lang3:${versions.commonslang}"
   api "commons-io:commons-io:${versions.commonsio}"
   api 'javax.mail:mail:1.4.7'
   api 'javax.inject:javax.inject:1'
@@ -126,6 +126,7 @@ tasks.named("thirdPartyAudit").configure {
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',
+  'org.apache.commons.lang.StringUtils',
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
   'org.eclipse.persistence.descriptors.ClassDescriptor',
