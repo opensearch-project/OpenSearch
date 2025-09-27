@@ -340,12 +340,15 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchReset() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("field", new BytesRef("test")));
                 indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("best")));
+                indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
@@ -369,7 +372,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     aggregator.postCollection();
 
                     StringTerms firstResult = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
-                    assertThat(firstResult.getBuckets().size(), equalTo(1));
+                    assertThat(firstResult.getBuckets().size(), equalTo(2));
 
                     aggregator.doReset();
 
@@ -379,7 +382,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     aggregator.postCollection();
 
                     StringTerms secondResult = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
-                    assertThat(secondResult.getBuckets().size(), equalTo(1));
+                    assertThat(secondResult.getBuckets().size(), equalTo(2));
                     assertThat(secondResult.getBuckets().get(0).getDocCount(), equalTo(1L));
                 }
             }
@@ -426,7 +429,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithMax() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 document.add(new NumericDocValuesField("price", 100));
@@ -442,7 +445,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("price", 50));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
                     MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG);
@@ -1157,6 +1160,41 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     // Verify total document count across all buckets
                     long totalDocs = buckets.stream().mapToLong(StringTerms.Bucket::getDocCount).sum();
                     assertThat(totalDocs, equalTo(5L));
+                }
+            }
+        }
+    }
+
+    public void testThrowOnManySegments() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < atLeast(2); i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
+                    indexWriter.addDocument(doc);
+                    indexWriter.commit();
+                }
+                try (IndexReader reader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .order(BucketOrder.count(false)); // Order by count descending
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        searcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    // Execute the aggregator
+                    aggregator.preCollection();
+                    assertThrows(IllegalStateException.class, () -> { searcher.search(new MatchAllDocsQuery(), aggregator); });
                 }
             }
         }
