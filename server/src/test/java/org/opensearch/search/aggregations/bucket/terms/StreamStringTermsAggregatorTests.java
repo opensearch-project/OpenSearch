@@ -255,8 +255,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
 
                     assertThat(result, notNullValue());
-                    // For streaming aggregator, size limitation may not be applied at buildAggregations level
-                    // but rather handled during the reduce phase. Test that we get all terms for this batch.
+                    // Streaming aggregator returns all terms; size applied during reduce
                     assertThat(result.getBuckets().size(), equalTo(10));
 
                     // Verify each term appears exactly twice (20 docs / 10 unique terms)

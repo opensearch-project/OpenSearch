@@ -71,10 +71,8 @@ public class StreamSearchChannelListener<Response extends TransportResponse, Req
     public void onFailure(Exception e) {
         try {
             channel.sendResponse(e);
-            // Per TransportChannel documentation:
-            // For errors, use sendResponse(Exception) and do not call completeStream()
+            // Error responses don't require completeStream()
         } catch (IOException exc) {
-            // Log warning and rethrow - do not attempt to complete stream on error
             logger.warn("Failed to send error response on streaming channel", exc);
             throw new RuntimeException(exc);
         }

@@ -135,6 +135,7 @@ import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
  * @opensearch.internal
  */
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
+    // Streaming search integrated via streamingSearchMode in SearchRequest
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
