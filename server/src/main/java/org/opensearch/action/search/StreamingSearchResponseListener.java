@@ -58,9 +58,7 @@ public class StreamingSearchResponseListener implements ActionListener<SearchRes
         // Track TTFB - first partial result delivery time
         if (count == 1 && partialResponse.getHits() != null) {
             int numHits = partialResponse.getHits().getHits().length;
-            logger.info("TTFB ACHIEVED: First partial result delivered with {} hits", numHits);
-            // This is where TTFB happens in streaming mode
-            // Store this timestamp if needed for benchmarking
+            logger.info("First partial result delivered with {} hits", numHits);
         }
     }
 

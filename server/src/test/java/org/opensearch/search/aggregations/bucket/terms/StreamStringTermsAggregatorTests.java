@@ -297,6 +297,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
 
                     assertThat(result, notNullValue());
+                    // Streaming aggregator returns all terms; size applied during reduce
                     assertThat(result.getBuckets().size(), equalTo(10));
 
                     for (StringTerms.Bucket bucket : result.getBuckets()) {
