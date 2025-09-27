@@ -14,12 +14,14 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.junit.Before;
@@ -217,6 +219,41 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         );
 
         assertEquals("createComponents must be called first to initialize server provided resources.", exception.getMessage());
+    }
+
+    public void testGetAuxTransportsWithServiceFactories() {
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        List<GrpcServiceFactory> mockServiceFacs = new ArrayList<>();
+        mockServiceFacs.add(Mockito.mock(GrpcServiceFactory.class));
+        mockServiceFacs.add(Mockito.mock(GrpcServiceFactory.class));
+        when(mockLoader.loadExtensions(GrpcServiceFactory.class)).thenReturn(mockServiceFacs);
+        Map<String, Supplier<AuxTransport>> transports = plugin.getAuxTransports(
+            Settings.EMPTY,
+            threadPool,
+            circuitBreakerService,
+            networkService,
+            clusterSettings,
+            tracer
+        );
+        assertTrue("Should contain GRPC_TRANSPORT_SETTING_KEY", transports.containsKey(GRPC_TRANSPORT_SETTING_KEY));
+    }
+
+    public void testGetSecureAuxTransportsWithServiceFactories() {
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        List<GrpcServiceFactory> mockServiceFacs = new ArrayList<>();
+        mockServiceFacs.add(Mockito.mock(GrpcServiceFactory.class));
+        mockServiceFacs.add(Mockito.mock(GrpcServiceFactory.class));
+        when(mockLoader.loadExtensions(GrpcServiceFactory.class)).thenReturn(mockServiceFacs);
+        Map<String, Supplier<AuxTransport>> transports = plugin.getSecureAuxTransports(
+            Settings.EMPTY,
+            threadPool,
+            circuitBreakerService,
+            networkService,
+            clusterSettings,
+            Mockito.mock(SecureAuxTransportSettingsProvider.class),
+            tracer
+        );
+        assertTrue("Should contain GRPC_SECURE_TRANSPORT_SETTING_KEY", transports.containsKey(GRPC_SECURE_TRANSPORT_SETTING_KEY));
     }
 
     public void testLoadExtensions() {
