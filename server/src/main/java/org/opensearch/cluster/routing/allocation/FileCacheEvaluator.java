@@ -24,29 +24,23 @@ public class FileCacheEvaluator {
     }
 
     public boolean isNodeExceedingIndexingThreshold(AggregateFileCacheStats aggregateFileCacheStats) {
-        if (fileCacheThresholdSettings.isEnabled()) {
-            if (!fileCacheThresholdSettings.getFileCacheIndexThresholdPercentage().equals(0.0)) {
-                return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings
-                    .getFileCacheIndexThresholdPercentage();
-            }
-            if (!fileCacheThresholdSettings.getFileCacheIndexThresholdBytes().equals(ByteSizeValue.ZERO)) {
-                return aggregateFileCacheStats.getActive().getBytes() >= fileCacheThresholdSettings.getFileCacheIndexThresholdBytes()
-                    .getBytes();
-            }
+        if (fileCacheThresholdSettings.isEnabled() == false) return false;
+        else if (fileCacheThresholdSettings.getFileCacheIndexThresholdPercentage().equals(0.0) == false) {
+            return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFileCacheIndexThresholdPercentage();
+        } else if (fileCacheThresholdSettings.getFileCacheIndexThresholdBytes().equals(ByteSizeValue.ZERO) == false) {
+            return aggregateFileCacheStats.getActive().getBytes() >= fileCacheThresholdSettings.getFileCacheIndexThresholdBytes()
+                .getBytes();
         }
         return false;
     }
 
     public boolean isNodeExceedingSearchThreshold(AggregateFileCacheStats aggregateFileCacheStats) {
-        if (fileCacheThresholdSettings.isEnabled()) {
-            if (!fileCacheThresholdSettings.getFileCacheSearchThresholdPercentage().equals(0.0)) {
-                return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings
-                    .getFileCacheSearchThresholdPercentage();
-            }
-            if (!fileCacheThresholdSettings.getFileCacheSearchThresholdBytes().equals(ByteSizeValue.ZERO)) {
-                return aggregateFileCacheStats.getActive().getBytes() >= fileCacheThresholdSettings.getFileCacheSearchThresholdBytes()
-                    .getBytes();
-            }
+        if (fileCacheThresholdSettings.isEnabled() == false) return false;
+        else if (fileCacheThresholdSettings.getFileCacheSearchThresholdPercentage().equals(0.0) == false) {
+            return aggregateFileCacheStats.getOverallActivePercent() >= fileCacheThresholdSettings.getFileCacheSearchThresholdPercentage();
+        } else if (fileCacheThresholdSettings.getFileCacheSearchThresholdBytes().equals(ByteSizeValue.ZERO) == false) {
+            return aggregateFileCacheStats.getActive().getBytes() >= fileCacheThresholdSettings.getFileCacheSearchThresholdBytes()
+                .getBytes();
         }
         return false;
     }
