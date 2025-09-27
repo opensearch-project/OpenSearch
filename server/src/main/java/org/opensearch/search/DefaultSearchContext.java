@@ -104,7 +104,6 @@ import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.streaming.StreamingSearchSettings;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -224,9 +223,6 @@ final class DefaultSearchContext extends SearchContext {
     private final boolean isStreamSearch;
     private StreamSearchChannelListener listener;
     private StreamingSearchMode streamingMode;
-
-    // Streaming settings cache (simple read-through to cluster settings for now)
-    private volatile Integer streamingBatchSizeOverride;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -1307,18 +1303,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public int getStreamingBatchSize() {
-        // If we have cluster service available, prefer the dynamic setting when present
-        try {
-            if (streamingBatchSizeOverride != null) {
-                return streamingBatchSizeOverride;
-            }
-            if (clusterService != null) {
-                // Use dynamic cluster setting if available; otherwise falls back to default
-                return clusterService.getClusterSettings().get(StreamingSearchSettings.STREAMING_BATCH_SIZE);
-            }
-        } catch (Exception ignore) {
-            // Fall through to default
-        }
+        // Return fixed default for streaming batch size
         return 10;
     }
 }

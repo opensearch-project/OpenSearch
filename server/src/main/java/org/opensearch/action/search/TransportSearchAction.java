@@ -1282,8 +1282,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest,
                 shardIterators.size(),
                 exc -> cancelTask(task, exc),
-                task::isCancelled,
-                clusterService.getClusterSettings()
+                task::isCancelled
             );
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {

@@ -48,7 +48,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -784,7 +783,7 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
-        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, () -> false, null);
+        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, () -> false);
     }
 
     /**
@@ -798,22 +797,6 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure,
         BooleanSupplier isTaskCancelled
-    ) {
-        return newSearchPhaseResults(executor, circuitBreaker, listener, request, numShards, onPartialMergeFailure, isTaskCancelled, null);
-    }
-
-    /**
-     * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
-     */
-    QueryPhaseResultConsumer newSearchPhaseResults(
-        Executor executor,
-        CircuitBreaker circuitBreaker,
-        SearchProgressListener listener,
-        SearchRequest request,
-        int numShards,
-        Consumer<Exception> onPartialMergeFailure,
-        BooleanSupplier isTaskCancelled,
-        ClusterSettings clusterSettings
     ) {
         // Check if this is a streaming search request
         String streamingMode = request.getStreamingSearchMode();
@@ -829,8 +812,7 @@ public final class SearchPhaseController {
                 listener,
                 namedWriteableRegistry,
                 numShards,
-                onPartialMergeFailure,
-                clusterSettings
+                onPartialMergeFailure
             );
         } else {
             // Regular QueryPhaseResultConsumer

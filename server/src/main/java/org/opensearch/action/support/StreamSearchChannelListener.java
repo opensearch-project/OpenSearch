@@ -8,6 +8,8 @@
 
 package org.opensearch.action.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.transport.TransportResponse;
@@ -28,6 +30,7 @@ public class StreamSearchChannelListener<Response extends TransportResponse, Req
     implements
         ActionListener<Response> {
 
+    private static final Logger logger = LogManager.getLogger(StreamSearchChannelListener.class);
     private final TransportChannel channel;
     private final Request request;
     private final String actionName;
@@ -68,14 +71,11 @@ public class StreamSearchChannelListener<Response extends TransportResponse, Req
     public void onFailure(Exception e) {
         try {
             channel.sendResponse(e);
-            // Don't call completeStream() here as sendResponse() already releases the channel
+            // Per TransportChannel documentation:
+            // For errors, use sendResponse(Exception) and do not call completeStream()
         } catch (IOException exc) {
-            // If sendResponse fails, try to complete the stream
-            try {
-                channel.completeStream();
-            } catch (Exception ignored) {
-                // Stream might already be closed
-            }
+            // Log warning and rethrow - do not attempt to complete stream on error
+            logger.warn("Failed to send error response on streaming channel", exc);
             throw new RuntimeException(exc);
         }
     }
