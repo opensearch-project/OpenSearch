@@ -107,7 +107,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
         threadPool.schedule(
             new ReplicationMonitor(target.getId(), target.lastAccessTime(), activityTimeout),
             activityTimeout,
-            ThreadPool.Names.GENERIC
+            ThreadPool.Names.REPLICATION
         );
     }
 
@@ -350,7 +350,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
             }
             lastSeenAccessTime = accessTime;
             logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", id, lastSeenAccessTime);
-            threadPool.schedule(this, checkInterval, ThreadPool.Names.GENERIC);
+            threadPool.schedule(this, checkInterval, ThreadPool.Names.REPLICATION);
         }
     }
 

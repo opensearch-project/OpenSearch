@@ -73,7 +73,7 @@ public class PublishCheckpointAction extends AbstractPublishCheckpointAction<Pub
             actionFilters,
             PublishCheckpointRequest::new,
             PublishCheckpointRequest::new,
-            ThreadPool.Names.REFRESH,
+            ThreadPool.Names.REPLICATION,
             logger
         );
         this.replicationService = targetService;
