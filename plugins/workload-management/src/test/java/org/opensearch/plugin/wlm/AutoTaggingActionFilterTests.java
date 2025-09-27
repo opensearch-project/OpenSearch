@@ -28,8 +28,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.mock;
@@ -51,8 +53,14 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
             WLMFeatureType.WLM,
             DefaultAttributeValueStore::new
         );
-        ruleProcessingService = spy(new InMemoryRuleProcessingService(attributeValueStoreFactory));
-        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
+        ruleProcessingService = spy(new InMemoryRuleProcessingService(attributeValueStoreFactory, null));
+        autoTaggingActionFilter = new AutoTaggingActionFilter(
+            ruleProcessingService,
+            threadPool,
+            new HashMap<>(),
+            mock(WlmClusterSettingValuesProvider.class),
+            WLMFeatureType.WLM
+        );
     }
 
     public void tearDown() throws Exception {
@@ -112,6 +120,11 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         @Override
         public String getName() {
             return name;
+        }
+
+        @Override
+        public TreeMap<Integer, String> getPrioritizedSubfields() {
+            return new TreeMap<>();
         }
 
         @Override

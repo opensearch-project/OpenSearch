@@ -141,7 +141,10 @@ public class WorkloadManagementPlugin extends Plugin
             featureType,
             DefaultAttributeValueStore::new
         );
-        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(attributeValueStoreFactory);
+        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
+            attributeValueStoreFactory,
+            featureType.getOrderedAttributes()
+        );
         rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
@@ -161,7 +164,13 @@ public class WorkloadManagementPlugin extends Plugin
             wlmClusterSettingValuesProvider
         );
 
-        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
+        autoTaggingActionFilter = new AutoTaggingActionFilter(
+            ruleProcessingService,
+            threadPool,
+            attributeExtractorExtensions,
+            wlmClusterSettingValuesProvider,
+            featureType
+        );
         return List.of(refreshMechanism);
     }
 
