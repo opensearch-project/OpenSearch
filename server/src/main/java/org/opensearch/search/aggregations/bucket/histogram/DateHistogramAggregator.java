@@ -225,12 +225,13 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
 
-        // If no subaggregations and index sorted on given field, we can use skip list based collector
+        // If index sorted on given field, we can use skip list based collector
         logger.trace("Index sort field found: {}, skipper: {}", fieldIndexSort, skipper);
         if (fieldIndexSort && skipper != null && singleton != null) {
             // TODO: add hard bounds support
-            if (hardBounds != null || sub == null || sub == LeafBucketCollector.NO_OP_COLLECTOR) {
-                return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, this::incrementBucketDocCount);
+            // TODO: current assumes this is the top level
+            if (hardBounds == null && parent == null) {
+                return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
             }
         }
 
@@ -426,7 +427,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         private final DocValuesSkipper skipper;
         private final Rounding.Prepared preparedRounding;
         private final LongKeyedBucketOrds bucketOrds;
-        private final BiConsumer<Long, Long> incrementDocCount;
+        private final LeafBucketCollector sub;
+        private final BucketsAggregator aggregator;
 
         /**
          * Max doc ID (inclusive) up to which all docs values may map to the same bucket.
@@ -448,17 +450,23 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             DocValuesSkipper skipper,
             Rounding.Prepared preparedRounding,
             LongKeyedBucketOrds bucketOrds,
-            BiConsumer<Long, Long> incrementDocCount
+            LeafBucketCollector sub,
+            BucketsAggregator aggregator
         ) {
             this.values = values;
             this.skipper = skipper;
             this.preparedRounding = preparedRounding;
             this.bucketOrds = bucketOrds;
-            this.incrementDocCount = incrementDocCount;
+            this.sub = sub;
+            this.aggregator = aggregator;
         }
 
         @Override
-        public void setScorer(Scorable scorer) throws IOException {}
+        public void setScorer(Scorable scorer) throws IOException {
+            if (sub != null) {
+                sub.setScorer(scorer);
+            }
+        }
 
         private void advanceSkipper(int doc) throws IOException {
             if (doc > skipper.maxDocID(0)) {
@@ -485,6 +493,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     // All docs at this level have a value, and all values map to the same bucket.
                     upToInclusive = skipper.maxDocID(level);
                     upToSameBucket = true;
+                    // Use owningBucketOrd = 0 for top-level aggregation
                     upToBucketIndex = bucketOrds.add(0, maxBucket);
                     if (upToBucketIndex < 0) {
                         upToBucketIndex = -1 - upToBucketIndex;
@@ -497,25 +506,28 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         @Override
         public void collect(int doc, long owningBucketOrd) throws IOException {
-            collect(doc);
-        }
-
-        @Override
-        public void collect(int doc) throws IOException {
             if (doc > upToInclusive) {
                 advanceSkipper(doc);
             }
 
             if (upToSameBucket) {
-                incrementDocCount.accept(upToBucketIndex, 1L);
+                aggregator.incrementBucketDocCount(upToBucketIndex, 1L);
+                sub.collect(doc, upToBucketIndex);
             } else if (values.advanceExact(doc)) {
                 final long value = values.longValue();
-                long bucketIndex = bucketOrds.add(0, preparedRounding.round(value));
+                long bucketIndex = bucketOrds.add(owningBucketOrd, preparedRounding.round(value));
                 if (bucketIndex < 0) {
                     bucketIndex = -1 - bucketIndex;
+                    aggregator.collectExistingBucket(sub, doc, bucketIndex);
+                } else {
+                    aggregator.collectBucket(sub, doc, bucketIndex);
                 }
-                incrementDocCount.accept(bucketIndex, 1L);
             }
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            collect(doc, 0);
         }
 
         @Override
@@ -526,9 +538,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     upToExclusive = Integer.MAX_VALUE;
                 }
 
-                if (upToSameBucket) {
+                if (upToSameBucket && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
                     long count = stream.count(upToExclusive);
-                    incrementDocCount.accept(upToBucketIndex, count);
+                    aggregator.incrementBucketDocCount(upToBucketIndex, count);
                 } else {
                     stream.forEach(upToExclusive, this::collect);
                 }
@@ -540,5 +552,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 }
             }
         }
+
     }
 }
