@@ -215,7 +215,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
 
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(CacheManagerConfig::default()
-            //.with_list_files_cache(Some(list_file_cache)) TODO: //Fix this
+                                .with_list_files_cache(Some(list_file_cache.clone()))
         ).build().unwrap();
 
     // TODO: get config from CSV DataFormat
