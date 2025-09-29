@@ -6,9 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 3.x]
 ### Added
 - Expand fetch phase profiling to support inner hits and top hits aggregation phases  ([##18936](https://github.com/opensearch-project/OpenSearch/pull/18936))
+- [Rule-based Auto-tagging] add the schema for security attributes ([##19345](https://github.com/opensearch-project/OpenSearch/pull/19345))
 - Add temporal routing processors for time-based document routing ([#18920](https://github.com/opensearch-project/OpenSearch/issues/18920))
 - Implement Query Rewriting Infrastructure ([#19060](https://github.com/opensearch-project/OpenSearch/pull/19060))
 - The dynamic mapping parameter supports false_allow_templates ([#19065](https://github.com/opensearch-project/OpenSearch/pull/19065) ([#19097](https://github.com/opensearch-project/OpenSearch/pull/19097)))
+- [Rule-based Auto-tagging] restructure the in-memory trie to store values as a set ([#19344](https://github.com/opensearch-project/OpenSearch/pull/19344))
 - Add a toBuilder method in EngineConfig to support easy modification of configs([#19054](https://github.com/opensearch-project/OpenSearch/pull/19054))
 - Add StoreFactory plugin interface for custom Store implementations([#19091](https://github.com/opensearch-project/OpenSearch/pull/19091))
 - Use S3CrtClient for higher throughput while uploading files to S3 ([#18800](https://github.com/opensearch-project/OpenSearch/pull/18800))
@@ -25,6 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add new extensible method to DocRequest to specify type ([#19313](https://github.com/opensearch-project/OpenSearch/pull/19313))
 - [Rule based auto-tagging] Add Rule based auto-tagging IT ([#18550](https://github.com/opensearch-project/OpenSearch/pull/18550))
 - Add all-active ingestion as docrep equivalent in pull-based ingestion ([#19316](https://github.com/opensearch-project/OpenSearch/pull/19316))
+- Adding logic for histogram aggregation using skiplist ([#19130](https://github.com/opensearch-project/OpenSearch/pull/19130))
+- Add skip_list param for date, scaled float and token count fields ([#19142](https://github.com/opensearch-project/OpenSearch/pull/19142))
 - Optimize gRPC transport thread management for improved throughput ([#19278](https://github.com/opensearch-project/OpenSearch/pull/19278))
 
 ### Changed
@@ -32,14 +36,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add CompletionStage variants to methods in the Client Interface and default to ActionListener impl ([#18998](https://github.com/opensearch-project/OpenSearch/pull/18998))
 - IllegalArgumentException when scroll ID references a node not found in Cluster ([#19031](https://github.com/opensearch-project/OpenSearch/pull/19031))
 - Adding ScriptedAvg class to painless spi to allowlist usage from plugins ([#19006](https://github.com/opensearch-project/OpenSearch/pull/19006))
+- Make field data cache size setting dynamic and add a default limit ([#19152](https://github.com/opensearch-project/OpenSearch/pull/19152))
 - Replace centos:8 with almalinux:8 since centos docker images are deprecated ([#19154](https://github.com/opensearch-project/OpenSearch/pull/19154))
 - Add CompletionStage variants to IndicesAdminClient as an alternative to ActionListener ([#19161](https://github.com/opensearch-project/OpenSearch/pull/19161))
 - Remove cap on Java version used by forbidden APIs ([#19163](https://github.com/opensearch-project/OpenSearch/pull/19163))
+- Omit maxScoreCollector for field collapsing when sort by score descending ([#19181](https://github.com/opensearch-project/OpenSearch/pull/19181))
 - Disable pruning for `doc_values` for the wildcard field mapper ([#18568](https://github.com/opensearch-project/OpenSearch/pull/18568))
 - Make all methods in Engine.Result public ([#19276](https://github.com/opensearch-project/OpenSearch/pull/19275))
 - Create and attach interclusterTest and yamlRestTest code coverage reports to gradle check task([#19165](https://github.com/opensearch-project/OpenSearch/pull/19165))
 - Optimized date histogram aggregations by preventing unnecessary object allocations in date rounding utils ([19088](https://github.com/opensearch-project/OpenSearch/pull/19088))
 - Optimize source conversion in gRPC search hits using zero-copy BytesRef ([#19280](https://github.com/opensearch-project/OpenSearch/pull/19280))
+- Allow plugins to copy folders into their config dir during installation ([#19343](https://github.com/opensearch-project/OpenSearch/pull/19343))
+- Add failureaccess as runtime dependency to transport-grpc module  ([#19339](https://github.com/opensearch-project/OpenSearch/pull/19339))
+- Migrate usages of deprecated `Operations#union` from Lucene ([#19397](https://github.com/opensearch-project/OpenSearch/pull/19397))
+- Delegate primitive write methods with ByteSizeCachingDirectory wrapped IndexOutput ([#19432](https://github.com/opensearch-project/OpenSearch/pull/19432))
+- Bump opensearch-protobufs dependency to 0.18.0 and update transport-grpc module compatibility ([#19447](https://github.com/opensearch-project/OpenSearch/issues/19447))
 
 ### Fixed
 - Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
@@ -51,21 +62,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Grant access to testclusters dir for tests ([#19085](https://github.com/opensearch-project/OpenSearch/issues/19085))
 - Fix assertion error when collapsing search results with concurrent segment search enabled ([#19053](https://github.com/opensearch-project/OpenSearch/pull/19053))
 - Fix skip_unavailable setting changing to default during node drop issue ([#18766](https://github.com/opensearch-project/OpenSearch/pull/18766))
+- Fix issue with s3-compatible repositories due to missing checksum trailing headers ([#19220](https://github.com/opensearch-project/OpenSearch/pull/19220))
 - Add reference count control in NRTReplicationEngine#acquireLastIndexCommit ([#19214](https://github.com/opensearch-project/OpenSearch/pull/19214))
 - Fix pull-based ingestion pause state initialization during replica promotion ([#19212](https://github.com/opensearch-project/OpenSearch/pull/19212))
 - Fix QueryPhaseResultConsumer incomplete callback loops ([#19231](https://github.com/opensearch-project/OpenSearch/pull/19231))
 - Fix the `scaled_float` precision issue ([#19188](https://github.com/opensearch-project/OpenSearch/pull/19188))
 - Fix Using an excessively large reindex slice can lead to a JVM OutOfMemoryError on coordinator.([#18964](https://github.com/opensearch-project/OpenSearch/pull/18964))
+- Add alias write index policy to control writeIndex during restore([#1511](https://github.com/opensearch-project/OpenSearch/pull/19368))
 - [Flaky Test] Fix flaky test in SecureReactorNetty4HttpServerTransportTests with reproducible seed ([#19327](https://github.com/opensearch-project/OpenSearch/pull/19327))
 - Remove unnecessary looping in field data cache clear ([#19116](https://github.com/opensearch-project/OpenSearch/pull/19116))
-
+- [Flaky Test] Fix flaky test IngestFromKinesisIT.testAllActiveIngestion ([#19380](https://github.com/opensearch-project/OpenSearch/pull/19380))
+- Fix lag metric for pull-based ingestion when streaming source is empty ([#19393](https://github.com/opensearch-project/OpenSearch/pull/19393))
+- Fix ingestion state xcontent serialization in IndexMetadata and fail fast on mapping errors([#19320](https://github.com/opensearch-project/OpenSearch/pull/19320))
+- Fix updated keyword field params leading to stale responses from request cache ([#19385](https://github.com/opensearch-project/OpenSearch/pull/19385))
 
 ### Dependencies
+- Bump `com.gradleup.shadow:shadow-gradle-plugin` from 8.3.5 to 8.3.9 ([#19400](https://github.com/opensearch-project/OpenSearch/pull/19400))
 - Bump `com.netflix.nebula.ospackage-base` from 12.0.0 to 12.1.0 ([#19019](https://github.com/opensearch-project/OpenSearch/pull/19019))
 - Bump `actions/checkout` from 4 to 5 ([#19023](https://github.com/opensearch-project/OpenSearch/pull/19023))
 - Bump `commons-cli:commons-cli` from 1.9.0 to 1.10.0 ([#19021](https://github.com/opensearch-project/OpenSearch/pull/19021))
 - Bump `org.jline:jline` from 3.30.4 to 3.30.5 ([#19013](https://github.com/opensearch-project/OpenSearch/pull/19013))
-- Bump `com.github.spotbugs:spotbugs-annotations` from 4.9.3 to 4.9.5 ([#19015](https://github.com/opensearch-project/OpenSearch/pull/19015), [#19294](https://github.com/opensearch-project/OpenSearch/pull/19294))
+- Bump `com.github.spotbugs:spotbugs-annotations` from 4.9.3 to 4.9.6 ([#19015](https://github.com/opensearch-project/OpenSearch/pull/19015), [#19294](https://github.com/opensearch-project/OpenSearch/pull/19294), [#19358](https://github.com/opensearch-project/OpenSearch/pull/19358))
 - Bump `com.azure:azure-storage-common` from 12.29.1 to 12.30.2 ([#19016](https://github.com/opensearch-project/OpenSearch/pull/19016), [#19145](https://github.com/opensearch-project/OpenSearch/pull/19145))
 - Update OpenTelemetry to 1.53.0 and OpenTelemetry SemConv to 1.34.0 ([#19068](https://github.com/opensearch-project/OpenSearch/pull/19068))
 - Bump `1password/load-secrets-action` from 2 to 3 ([#19100](https://github.com/opensearch-project/OpenSearch/pull/19100))
@@ -93,8 +110,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.code.gson:gson` from 2.13.1 to 2.13.2 ([#19290](https://github.com/opensearch-project/OpenSearch/pull/19290)) ([#19293](https://github.com/opensearch-project/OpenSearch/pull/19293))
 - Bump `actions/stale` from 9 to 10 ([#19292](https://github.com/opensearch-project/OpenSearch/pull/19292))
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.25 to 11.28 ([#19291](https://github.com/opensearch-project/OpenSearch/pull/19291))
-- Bump `log4j2` from 2.21.0 to 2.25.1 ([#19184](https://github.com/opensearch-project/OpenSearch/pull/19184))
 - Bump Apache Lucene from 10.2.2 to 10.3.0 ([#19296](https://github.com/opensearch-project/OpenSearch/pull/19296))
+- Add com.google.code.gson:gson to the gradle version catalog ([#19328](https://github.com/opensearch-project/OpenSearch/pull/19328))
+- Bump `org.apache.logging.log4j:log4j-core` from 2.25.1 to 2.25.2 ([#19360](https://github.com/opensearch-project/OpenSearch/pull/19360))
+- Bump `aws-actions/configure-aws-credentials` from 4 to 5 ([#19363](https://github.com/opensearch-project/OpenSearch/pull/19363))
+- Bump `com.azure:azure-identity` from 1.14.2 to 1.18.0 ([#19361](https://github.com/opensearch-project/OpenSearch/pull/19361))
+- Bump `net.bytebuddy:byte-buddy` from 1.17.5 to 1.17.7 ([#19371](https://github.com/opensearch-project/OpenSearch/pull/19371))
 
 ### Deprecated
 

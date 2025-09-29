@@ -133,38 +133,6 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Profile should be true", searchRequest.source().profile());
     }
 
-    public void testParseSearchSourceWithQueryAndSort() throws IOException {
-        // Create a protobuf SearchRequest with query and sort
-        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setQ("field:value")
-            .addSort(
-                org.opensearch.protobufs.SearchRequest.SortOrder.newBuilder()
-                    .setField("field1")
-                    .setDirection(org.opensearch.protobufs.SearchRequest.SortOrder.Direction.DIRECTION_ASC)
-                    .build()
-            )
-            .addSort(
-                org.opensearch.protobufs.SearchRequest.SortOrder.newBuilder()
-                    .setField("field2")
-                    .setDirection(org.opensearch.protobufs.SearchRequest.SortOrder.Direction.DIRECTION_DESC)
-                    .build()
-            )
-            .addSort(org.opensearch.protobufs.SearchRequest.SortOrder.newBuilder().setField("field3").build())
-            .build();
-
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-
-        // Call the method under test
-        SearchRequestProtoUtils.parseSearchSource(searchSourceBuilder, protoRequest, size -> {});
-
-        // Verify the result
-        assertNotNull("SearchSourceBuilder should not be null", searchSourceBuilder);
-        assertNotNull("Query should not be null", searchSourceBuilder.query());
-        assertNotNull("Sorts should not be null", searchSourceBuilder.sorts());
-        assertEquals("Should have 3 sorts", 3, searchSourceBuilder.sorts().size());
-    }
-
     public void testParseSearchSourceWithStoredFields() throws IOException {
         // Create a protobuf SearchRequest with stored fields
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
@@ -211,7 +179,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     public void testParseSearchSourceWithSource() throws IOException {
         // Create a protobuf SearchRequest with source context
         org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .setXSource(org.opensearch.protobufs.SourceConfigParam.newBuilder().setBoolValue(true).build())
+            .setXSource(org.opensearch.protobufs.SourceConfigParam.newBuilder().setBool(true).build())
             .addXSourceIncludes("include1")
             .addXSourceIncludes("include2")
             .addXSourceExcludes("exclude1")
@@ -398,29 +366,4 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         );
     }
 
-    public void testParseSearchSourceWithInvalidSortDirection() throws IOException {
-        // Create a protobuf SearchRequest with invalid sort direction
-        org.opensearch.protobufs.SearchRequest protoRequest = org.opensearch.protobufs.SearchRequest.newBuilder()
-            .addSort(
-                org.opensearch.protobufs.SearchRequest.SortOrder.newBuilder()
-                    .setField("field1")
-                    .setDirection(org.opensearch.protobufs.SearchRequest.SortOrder.Direction.DIRECTION_UNSPECIFIED)
-                    .build()
-            )
-            .build();
-
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-
-        // Call the method under test, should throw IllegalArgumentException
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> SearchRequestProtoUtils.parseSearchSource(searchSourceBuilder, protoRequest, size -> {})
-        );
-
-        assertTrue(
-            "Exception message should mention unsupported sort direction",
-            exception.getMessage().contains("Unsupported sort direction")
-        );
-    }
 }
