@@ -60,11 +60,7 @@ public class SubdirectoryStorePluginTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
             .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
             .build();
-
-        Path path = createTempDir().resolve("indices")
-            .resolve(shardId.getIndex().getUUID())
-            .resolve(String.valueOf(shardId.id()));
-
+        Path path = createTempDir().resolve("indices").resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
         SubdirectoryAwareStore store = new SubdirectoryAwareStore(
             shardId,
             IndexSettingsModule.newIndexSettings("index", settings),
