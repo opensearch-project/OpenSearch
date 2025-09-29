@@ -10,7 +10,6 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.IdsQuery;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.RegexpQuery;
@@ -181,27 +180,5 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
             "org.opensearch.index.query.WildcardQueryBuilder",
             queryBuilder.getClass().getName()
         );
-    }
-
-    public void testIdsQueryConversion() {
-        // Create an Ids query container
-        QueryContainer queryContainer = QueryContainer.newBuilder()
-            .setIds(
-                IdsQuery.newBuilder()
-                    .addValues("id1")
-                    .addValues("id2")
-                    .addValues("id3")
-                    .setBoost(1.2f)
-                    .setXName("test_ids_query")
-                    .build()
-            )
-            .build();
-
-        // Convert using the registry
-        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
-
-        // Verify the result
-        assertNotNull("QueryBuilder should not be null", queryBuilder);
-        assertEquals("Should be an IdsQueryBuilder", "org.opensearch.index.query.IdsQueryBuilder", queryBuilder.getClass().getName());
     }
 }

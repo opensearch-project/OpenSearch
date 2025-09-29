@@ -49,7 +49,6 @@ public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProto
         delegate.registerConverter(new TermQueryBuilderProtoConverter());
         delegate.registerConverter(new TermsQueryBuilderProtoConverter());
         delegate.registerConverter(new ExistsQueryBuilderProtoConverter());
-        delegate.registerConverter(new IdsQueryBuilderProtoConverter());
         delegate.registerConverter(new RegexpQueryBuilderProtoConverter());
         delegate.registerConverter(new WildcardQueryBuilderProtoConverter());
 

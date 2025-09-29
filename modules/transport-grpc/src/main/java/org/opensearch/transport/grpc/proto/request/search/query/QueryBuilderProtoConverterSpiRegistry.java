@@ -14,7 +14,6 @@ import org.opensearch.common.inject.Singleton;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
-import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -70,19 +69,6 @@ public class QueryBuilderProtoConverterSpiRegistry {
      */
     public int size() {
         return converterMap.size();
-    }
-
-    /**
-     * Sets the registry on all registered converters.
-     * This is used to inject the complete registry into converters that need it (like BoolQueryBuilderProtoConverter).
-     *
-     * @param registry The registry to inject into all converters
-     */
-    public void setRegistryOnAllConverters(QueryBuilderProtoConverterRegistry registry) {
-        for (QueryBuilderProtoConverter converter : converterMap.values()) {
-            converter.setRegistry(registry);
-        }
-        logger.info("Set registry on {} converters", converterMap.size());
     }
 
     /**
