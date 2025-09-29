@@ -17,7 +17,7 @@ import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
  * This class handles the conversion of Protocol Buffer representations to their
  * corresponding OpenSearch query builder objects.
  */
-public class ScriptQueryBuilderProtoUtils {
+class ScriptQueryBuilderProtoUtils {
 
     private ScriptQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -31,7 +31,7 @@ public class ScriptQueryBuilderProtoUtils {
      * @return the converted ScriptQueryBuilder object
      * @throws IllegalArgumentException if the script query proto is null or invalid
      */
-    public static ScriptQueryBuilder fromProto(ScriptQuery scriptQueryProto) {
+    static ScriptQueryBuilder fromProto(ScriptQuery scriptQueryProto) {
         if (scriptQueryProto == null) {
             throw new IllegalArgumentException("ScriptQuery cannot be null");
         }
