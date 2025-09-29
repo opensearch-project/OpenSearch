@@ -156,7 +156,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
-        if (client == null || queryRegistry == null || queryUtils == null) {
+        if (client == null || queryRegistry == null) {
             throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
 
@@ -208,7 +208,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider,
         Tracer tracer
     ) {
-        if (client == null || queryRegistry == null || queryUtils == null) {
+        if (client == null || queryRegistry == null) {
             throw new RuntimeException("createComponents must be called first to initialize server provided resources.");
         }
 
