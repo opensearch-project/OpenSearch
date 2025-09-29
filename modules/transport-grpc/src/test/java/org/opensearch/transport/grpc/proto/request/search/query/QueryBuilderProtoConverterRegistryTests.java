@@ -11,10 +11,14 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
+import org.opensearch.protobufs.MatchPhraseQuery;
+import org.opensearch.protobufs.MinimumShouldMatch;
+import org.opensearch.protobufs.MultiMatchQuery;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.ScriptQuery;
 import org.opensearch.protobufs.TermQuery;
+import org.opensearch.protobufs.TextQueryType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 
@@ -150,5 +154,60 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         };
 
         expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
+    }
+
+    public void testMultiMatchQueryConversion() {
+        // Create a MultiMatch query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setMultiMatch(
+                MultiMatchQuery.newBuilder()
+                    .setQuery("search term")
+                    .addFields("title")
+                    .addFields("content")
+                    .setType(TextQueryType.TEXT_QUERY_TYPE_BEST_FIELDS)
+                    .setMinimumShouldMatch(MinimumShouldMatch.newBuilder().setString("75%").build())
+                    .setBoost(2.0f)
+                    .setXName("test_multimatch_query")
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a MultiMatchQueryBuilder",
+            "org.opensearch.index.query.MultiMatchQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testMatchPhraseQueryConversion() {
+        // Create a MatchPhrase query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setMatchPhrase(
+                MatchPhraseQuery.newBuilder()
+                    .setField("title")
+                    .setQuery("hello world")
+                    .setAnalyzer("standard")
+                    .setSlop(2)
+                    .setBoost(1.5f)
+                    .setXName("test_matchphrase_query")
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a MatchPhraseQueryBuilder",
+            "org.opensearch.index.query.MatchPhraseQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
     }
 }
