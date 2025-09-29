@@ -117,10 +117,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
 
         public void addGroupingCriteriaParams(final String fieldName, final Object value) {
-            if (groupingCriteriaParams == null) {
-                groupingCriteriaParams = new HashMap<>();
+            if (groupingCriteriaParams != null) {
+                throw new IllegalArgumentException("grouping criteria params already set");
             }
-            groupingCriteriaParams.put(fieldName, value);
+            groupingCriteriaParams = Map.of(fieldName, value);
         }
 
         public Map<String, Object> getGroupingCriteriaParams() {
