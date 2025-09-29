@@ -29,7 +29,8 @@ setting 'aux.transport.secure-transport-grpc.port',    '9400-9500' //optional
 | **grpc.host**                                   | List of addresses the gRPC server will bind to.                                                                | `["0.0.0.0"]`         | `[]`                 |
 | **grpc.bind_host**                              | List of addresses to bind the gRPC server to. Can be distinct from publish hosts.                              | `["0.0.0.0", "::"]`   | Value of `grpc.host` |
 | **grpc.publish_host**                           | List of hostnames or IPs published to peers for client connections.                                            | `["thisnode.example.com"]` | Value of `grpc.host` |
-| **grpc.netty.worker_count**                     | Number of Netty worker threads for the gRPC server. Controls concurrency and parallelism.                      | `2`                   | Number of processors |
+| **grpc.netty.worker_count**                     | Number of Netty worker threads for the gRPC server. Controls network I/O concurrency.                          | `2`                   | Number of processors |
+| **grpc.netty.executor_count**                   | Number of threads in the ForkJoinPool for processing gRPC service calls. Controls request processing parallelism. | `32`                  | 2 × Number of processors |
 | **grpc.netty.max_concurrent_connection_calls**  | Maximum number of simultaneous in-flight requests allowed per client connection.                               | `200`                 | `100`                |
 | **grpc.netty.max_connection_age**               | Maximum age a connection is allowed before being gracefully closed. Supports time units like `ms`, `s`, `m`.   | `500ms`               | Not set (no limit)   |
 | **grpc.netty.max_connection_idle**              | Maximum duration a connection can be idle before being closed. Supports time units like `ms`, `s`, `m`.        | `2m`                  | Not set (no limit)   |
@@ -50,11 +51,22 @@ setting 'grpc.host',                                    '["0.0.0.0"]'
 setting 'grpc.bind_host',                               '["0.0.0.0", "::", "10.0.0.1"]'
 setting 'grpc.publish_host',                            '["thisnode.example.com"]'
 setting 'grpc.netty.worker_count',                      '2'
+setting 'grpc.netty.executor_count',                    '32'
 setting 'grpc.netty.max_concurrent_connection_calls',   '200'
 setting 'grpc.netty.max_connection_age',                '500ms'
 setting 'grpc.netty.max_connection_idle',               '2m'
 setting 'grpc.netty.max_msg_size',                      '10mb'
 setting 'grpc.netty.keepalive_timeout',                 '1s'
+```
+
+## Thread Pool Monitoring
+
+The dedicated thread pool used for gRPC request processing is registered as a standard OpenSearch thread pool named `grpc`, controlled by the `grpc.netty.executor_count` setting.
+
+The gRPC thread pool stats can be monitored using:
+
+```bash
+curl -X GET "localhost:9200/_nodes/stats/thread_pool?filter_path=nodes.*.thread_pool.grpc"
 ```
 
 ## Testing
