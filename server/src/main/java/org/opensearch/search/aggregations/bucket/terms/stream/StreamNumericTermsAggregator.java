@@ -54,6 +54,11 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
+/**
+ * Aggregate all docs that contain numeric terms through streaming
+ *
+ * @opensearch.internal
+ */
 public class StreamNumericTermsAggregator extends TermsAggregator {
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
@@ -277,6 +282,11 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         public final void close() {}
     }
 
+    /**
+     * LongTermsResults for numeric terms
+     *
+     * @opensearch.internal
+     */
     public class LongTermsResults extends StandardTermsResultStrategy<LongTerms, LongTerms.Bucket> {
         public LongTermsResults(boolean showTermDocCountError) {
             super(showTermDocCountError);
@@ -352,6 +362,11 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         }
     }
 
+    /**
+     * DoubleTermsResults for numeric terms
+     *
+     * @opensearch.internal
+     */
     public class DoubleTermsResults extends StandardTermsResultStrategy<DoubleTerms, DoubleTerms.Bucket> {
 
         public DoubleTermsResults(boolean showTermDocCountError) {
@@ -435,6 +450,11 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         }
     }
 
+    /**
+     * UnsignedLongTermsResults for numeric terms
+     *
+     * @opensearch.internal
+     */
     public class UnsignedLongTermsResults extends StandardTermsResultStrategy<UnsignedLongTerms, UnsignedLongTerms.Bucket> {
         public UnsignedLongTermsResults(boolean showTermDocCountError) {
             super(showTermDocCountError);

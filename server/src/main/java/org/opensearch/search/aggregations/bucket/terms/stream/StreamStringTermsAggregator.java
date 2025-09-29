@@ -243,6 +243,11 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         abstract B buildFinalBucket(long ordinal, long docCount) throws IOException;
     }
 
+    /**
+     * StandardTermsResults for string terms
+     *
+     * @opensearch.internal
+     */
     public class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket> {
         @Override
         String describe() {
