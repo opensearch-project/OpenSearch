@@ -825,15 +825,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         );
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            //SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
-
             // Get engine-specific executor and context
             // TODO : move this logic to work with Lucene
 
-            SearchContext context = searchExecEngine.createContext(readerContext, request, shardTarget, task);
+            SearchContext context = createContext(readerContext, request, task, true, isStreamSearch, searchExecEngine);
+
             //SearchContext context = createContext(readerContext, request, task, true)
         ) {
-
+            // TODO : this is not correct - need to tie source to plugin context above
+            //context.aggregations(context1.aggregations());
             // TODO Execute plan here
             // TODO : figure out how to tie this
             byte[] substraitQuery = request.source().queryPlanIR();
@@ -1270,7 +1270,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         boolean includeAggregations
     ) throws IOException {
-        return createContext(readerContext, request, task, includeAggregations, false);
+        return createContext(readerContext, request, task, includeAggregations, false, null);
     }
 
     private SearchContext createContext(
@@ -1278,9 +1278,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ShardSearchRequest request,
         SearchShardTask task,
         boolean includeAggregations,
-        boolean isStreamSearch
+        boolean isStreamSearch,
+        SearchExecEngine searchExecEngine
     ) throws IOException {
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, false, isStreamSearch);
+        //final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, false, isStreamSearch);
+
+        SearchShardTarget shardTarget = new SearchShardTarget(
+            clusterService.localNode().getId(),
+            readerContext.indexShard().shardId(),
+            request.getClusterAlias(),
+            OriginalIndices.NONE
+        );
+        SearchContext context = searchExecEngine.createContext(readerContext, request, shardTarget, task);
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -1546,10 +1555,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) {
+    private void parseSource(SearchContext context, SearchSourceBuilder source, boolean includeAggregations) {
         // nothing to parse...
         if (source == null) {
-            context.evaluateRequestShouldUseConcurrentSearch();
+           // context.evaluateRequestShouldUseConcurrentSearch(); // TODO : specific to default search context
             return;
         }
 
@@ -1706,7 +1715,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.scrollContext() == null && !(context.readerContext() instanceof PitReaderContext)) {
                 throw new SearchException(shardTarget, "`slice` cannot be used outside of a scroll context or PIT context");
             }
-            context.sliceBuilder(source.slice());
+            // context.sliceBuilder(source.slice());  // TODO : specific to default search context
         }
 
         if (source.storedFields() != null) {
@@ -1740,13 +1749,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final CollapseContext collapseContext = source.collapse().build(queryShardContext);
             context.collapse(collapseContext);
         }
-        context.evaluateRequestShouldUseConcurrentSearch();
+        // context.evaluateRequestShouldUseConcurrentSearch();  // TODO : specific to default search context
         if (source.profile()) {
             final Function<Query, Collection<Supplier<ProfileMetric>>> pluginProfileMetricsSupplier = (query) -> pluginProfilers.stream()
                 .flatMap(p -> p.getQueryProfileMetrics(context, query).stream())
                 .toList();
             Profilers profilers = new Profilers(context.searcher(), context.shouldUseConcurrentSearch(), pluginProfileMetricsSupplier);
-            context.setProfilers(profilers);
+            // context.setProfilers(profilers); // TODO : specific to default search context
         }
 
         if (context.getStarTreeIndexEnabled() && StarTreeQueryHelper.isStarTreeSupported(context)) {

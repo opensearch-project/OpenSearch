@@ -76,6 +76,8 @@ public class DatafusionContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private DatafusionQuery datafusionQuery;
     private Map<String, Object[]> dfResults;
+    private SearchContextAggregations aggregations;
+
     /**
      * Constructor
      * @param readerContext The reader context
@@ -224,7 +226,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public SearchContextAggregations aggregations() {
-        return null;
+        return aggregations;
     }
 
     /**
@@ -233,7 +235,8 @@ public class DatafusionContext extends SearchContext {
      */
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
-        return null;
+        this.aggregations = aggregations;
+        return this;
     }
 
     /**
@@ -790,4 +793,5 @@ public class DatafusionContext extends SearchContext {
     public Map<String, Object[]> getDFResults() {
         return dfResults;
     }
+
 }
