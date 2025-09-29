@@ -20,6 +20,7 @@ import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
+import org.opensearch.transport.grpc.proto.request.search.sort.NestedSortProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.suggest.SuggestBuilderProtoUtils;
 
@@ -54,6 +55,10 @@ public class SearchSourceBuilderProtoUtils {
         SearchRequestBody protoRequest,
         AbstractQueryBuilderProtoUtils queryUtils
     ) throws IOException {
+        // Set registry for utilities that need it
+        HighlightBuilderProtoUtils.setRegistry(queryUtils.getRegistry());
+        NestedSortProtoUtils.setRegistry(queryUtils.getRegistry());
+
         // Parse all non-query fields
         parseNonQueryFields(searchSourceBuilder, protoRequest);
 
@@ -63,6 +68,10 @@ public class SearchSourceBuilderProtoUtils {
         }
         if (protoRequest.hasPostFilter()) {
             searchSourceBuilder.postFilter(queryUtils.parseInnerQueryBuilderProto(protoRequest.getPostFilter()));
+        }
+
+        if (protoRequest.hasHighlight()) {
+            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight()));
         }
     }
 
@@ -153,9 +162,6 @@ public class SearchSourceBuilderProtoUtils {
         if(protoRequest.hasAggs()){}
         */
 
-        if (protoRequest.hasHighlight()) {
-            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight()));
-        }
         if (protoRequest.hasSuggest()) {
             searchSourceBuilder.suggest(SuggestBuilderProtoUtils.fromProto(protoRequest.getSuggest()));
         }

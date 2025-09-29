@@ -7,106 +7,136 @@
  */
 package org.opensearch.transport.grpc.proto.request.search.sort;
 
-import org.opensearch.protobufs.FieldWithOrderMap;
-import org.opensearch.protobufs.ScoreSort;
+import org.opensearch.protobufs.FieldSort;
+import org.opensearch.protobufs.FieldSortNumericType;
+import org.opensearch.protobufs.FieldType;
+import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.NestedSortValue;
+import org.opensearch.protobufs.SortMode;
+import org.opensearch.protobufs.SortOrder;
 import org.opensearch.search.sort.FieldSortBuilder;
-import org.opensearch.search.sort.ScoreSortBuilder;
-import org.opensearch.search.sort.SortBuilder;
-import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.ArrayList;
-import java.util.List;
-
+/**
+ * Tests for {@link FieldSortBuilderProtoUtils}.
+ */
 public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
 
-    public void testFromProtoWithEmptyMap() {
-        // Create an empty FieldWithOrderMap
-        FieldWithOrderMap fieldWithOrderMap = FieldWithOrderMap.newBuilder().build();
+    public void testFromProto_BasicFieldSort() {
+        FieldSort fieldSort = FieldSort.newBuilder().setOrder(SortOrder.SORT_ORDER_DESC).build();
 
-        // Create a list to populate
-        List<SortBuilder<?>> sortBuilders = new ArrayList<>();
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("price", fieldSort);
 
-        // Call the method under test
-        FieldSortBuilderProtoUtils.fromProto(sortBuilders, fieldWithOrderMap);
-
-        // Verify the result
-        assertTrue("SortBuilders list should be empty", sortBuilders.isEmpty());
+        assertNotNull(result);
+        assertEquals("price", result.getFieldName());
+        assertEquals(org.opensearch.search.sort.SortOrder.DESC, result.order());
     }
 
-    public void testFromProtoWithSingleField() {
-        // Create a FieldWithOrderMap with a single field
-        FieldWithOrderMap.Builder builder = FieldWithOrderMap.newBuilder();
-        builder.putFieldWithOrderMap("field1", ScoreSort.newBuilder().setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_ASC).build());
-        FieldWithOrderMap fieldWithOrderMap = builder.build();
+    public void testFromProto_WithMissingValue() {
+        FieldValue missingValue = FieldValue.newBuilder().setString("_last").build();
 
-        // Create a list to populate
-        List<SortBuilder<?>> sortBuilders = new ArrayList<>();
+        FieldSort fieldSort = FieldSort.newBuilder().setOrder(SortOrder.SORT_ORDER_ASC).setMissing(missingValue).build();
 
-        // Call the method under test
-        FieldSortBuilderProtoUtils.fromProto(sortBuilders, fieldWithOrderMap);
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("timestamp", fieldSort);
 
-        // Verify the result
-        assertEquals("SortBuilders list should have 1 element", 1, sortBuilders.size());
-        assertTrue("SortBuilder should be a FieldSortBuilder", sortBuilders.get(0) instanceof FieldSortBuilder);
-        FieldSortBuilder fieldSortBuilder = (FieldSortBuilder) sortBuilders.get(0);
-        assertEquals("Field name should match", "field1", fieldSortBuilder.getFieldName());
-        assertEquals("Sort order should be ASC", SortOrder.ASC, fieldSortBuilder.order());
+        assertNotNull(result);
+        assertEquals("timestamp", result.getFieldName());
+        assertEquals(org.opensearch.search.sort.SortOrder.ASC, result.order());
+        assertEquals("_last", result.missing());
     }
 
-    public void testFromProtoWithMultipleFields() {
-        // Create a FieldWithOrderMap with multiple fields
-        FieldWithOrderMap.Builder builder = FieldWithOrderMap.newBuilder();
-        builder.putFieldWithOrderMap("field1", ScoreSort.newBuilder().setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_ASC).build());
-        builder.putFieldWithOrderMap("field2", ScoreSort.newBuilder().setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_DESC).build());
-        FieldWithOrderMap fieldWithOrderMap = builder.build();
+    public void testFromProto_WithSortMode() {
+        FieldSort fieldSort = FieldSort.newBuilder().setMode(SortMode.SORT_MODE_MAX).build();
 
-        // Create a list to populate
-        List<SortBuilder<?>> sortBuilders = new ArrayList<>();
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("ratings", fieldSort);
 
-        // Call the method under test
-        FieldSortBuilderProtoUtils.fromProto(sortBuilders, fieldWithOrderMap);
-
-        // Verify the result
-        assertEquals("SortBuilders list should have 2 elements", 2, sortBuilders.size());
-
-        // Since the order of entries in a map is not guaranteed, we need to check both fields
-        boolean foundField1 = false;
-        boolean foundField2 = false;
-
-        for (SortBuilder<?> sortBuilder : sortBuilders) {
-            assertTrue("SortBuilder should be a FieldSortBuilder", sortBuilder instanceof FieldSortBuilder);
-            FieldSortBuilder fieldSortBuilder = (FieldSortBuilder) sortBuilder;
-
-            if (fieldSortBuilder.getFieldName().equals("field1")) {
-                foundField1 = true;
-                assertEquals("Sort order for field1 should be ASC", SortOrder.ASC, fieldSortBuilder.order());
-            } else if (fieldSortBuilder.getFieldName().equals("field2")) {
-                foundField2 = true;
-                assertEquals("Sort order for field2 should be DESC", SortOrder.DESC, fieldSortBuilder.order());
-            }
-        }
-
-        assertTrue("Should have found field1", foundField1);
-        assertTrue("Should have found field2", foundField2);
+        assertNotNull(result);
+        assertEquals("ratings", result.getFieldName());
+        assertEquals(org.opensearch.search.sort.SortMode.MAX, result.sortMode());
     }
 
-    public void testFromProtoWithScoreField() {
-        // Create a FieldWithOrderMap with the special "score" field
-        FieldWithOrderMap.Builder builder = FieldWithOrderMap.newBuilder();
-        builder.putFieldWithOrderMap("score", ScoreSort.newBuilder().setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_DESC).build());
-        FieldWithOrderMap fieldWithOrderMap = builder.build();
+    public void testFromProto_WithNumericType() {
+        FieldSort fieldSort = FieldSort.newBuilder().setNumericType(FieldSortNumericType.FIELD_SORT_NUMERIC_TYPE_LONG).build();
 
-        // Create a list to populate
-        List<SortBuilder<?>> sortBuilders = new ArrayList<>();
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("id", fieldSort);
 
-        // Call the method under test
-        FieldSortBuilderProtoUtils.fromProto(sortBuilders, fieldWithOrderMap);
+        assertNotNull(result);
+        assertEquals("id", result.getFieldName());
+        assertEquals("long", result.getNumericType());
+    }
 
-        // Verify the result
-        assertEquals("SortBuilders list should have 1 element", 1, sortBuilders.size());
-        assertTrue("SortBuilder should be a ScoreSortBuilder", sortBuilders.get(0) instanceof ScoreSortBuilder);
-        ScoreSortBuilder scoreSortBuilder = (ScoreSortBuilder) sortBuilders.get(0);
-        assertEquals("Sort order should be DESC", SortOrder.DESC, scoreSortBuilder.order());
+    public void testFromProto_WithUnmappedType() {
+        FieldSort fieldSort = FieldSort.newBuilder().setUnmappedType(FieldType.FIELD_TYPE_KEYWORD).build();
+
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("category", fieldSort);
+
+        assertNotNull(result);
+        assertEquals("category", result.getFieldName());
+        assertEquals("keyword", result.unmappedType());
+    }
+
+    public void testFromProto_WithNestedSort() {
+        NestedSortValue nestedSort = NestedSortValue.newBuilder().setPath("products").build();
+
+        FieldSort fieldSort = FieldSort.newBuilder().setNested(nestedSort).build();
+
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("products.price", fieldSort);
+
+        assertNotNull(result);
+        assertEquals("products.price", result.getFieldName());
+        assertNotNull(result.getNestedSort());
+        assertEquals("products", result.getNestedSort().getPath());
+    }
+
+    public void testFromProto_ComplexFieldSort() {
+        FieldValue missingValue = FieldValue.newBuilder().setString("0").build();
+
+        NestedSortValue nestedSort = NestedSortValue.newBuilder().setPath("nested.field").build();
+
+        FieldSort fieldSort = FieldSort.newBuilder()
+            .setOrder(SortOrder.SORT_ORDER_DESC)
+            .setMissing(missingValue)
+            .setMode(SortMode.SORT_MODE_AVG)
+            .setNumericType(FieldSortNumericType.FIELD_SORT_NUMERIC_TYPE_DOUBLE)
+            .setUnmappedType(FieldType.FIELD_TYPE_DOUBLE)
+            .setNested(nestedSort)
+            .build();
+
+        FieldSortBuilder result = FieldSortBuilderProtoUtils.fromProto("score", fieldSort);
+
+        assertNotNull(result);
+        assertEquals("score", result.getFieldName());
+        assertEquals(org.opensearch.search.sort.SortOrder.DESC, result.order());
+        assertEquals("0", result.missing());
+        assertEquals(org.opensearch.search.sort.SortMode.AVG, result.sortMode());
+        assertEquals("double", result.getNumericType());
+        assertEquals("double", result.unmappedType());
+        assertNotNull(result.getNestedSort());
+        assertEquals("nested.field", result.getNestedSort().getPath());
+    }
+
+    public void testFromProto_NullFieldName() {
+        FieldSort fieldSort = FieldSort.newBuilder().build();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            FieldSortBuilderProtoUtils.fromProto(null, fieldSort);
+        });
+        assertEquals("Field name is required and cannot be '_score'. Use ScoreSort for score-based sorting.", exception.getMessage());
+    }
+
+    public void testFromProto_EmptyFieldName() {
+        FieldSort fieldSort = FieldSort.newBuilder().build();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            FieldSortBuilderProtoUtils.fromProto("", fieldSort);
+        });
+        assertEquals("Field name is required and cannot be '_score'. Use ScoreSort for score-based sorting.", exception.getMessage());
+    }
+
+    public void testFromProto_NullFieldSort() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            FieldSortBuilderProtoUtils.fromProto("field", null);
+        });
+        assertEquals("FieldSort cannot be null", exception.getMessage());
     }
 }
