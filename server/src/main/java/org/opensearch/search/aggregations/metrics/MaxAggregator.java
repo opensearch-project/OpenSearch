@@ -51,6 +51,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -61,7 +62,9 @@ import org.opensearch.search.streaming.Streamable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -73,7 +76,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  *
  * @opensearch.internal
  */
-class MaxAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector, Streamable {
+class MaxAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector, ShardResultConvertor, Streamable {
 
     final ValuesSource.Numeric valuesSource;
     final DocValueFormat formatter;
@@ -286,5 +289,15 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
     @Override
     public StreamingCostMetrics getStreamingCostMetrics() {
         return new StreamingCostMetrics(true, 1, 1, 1, 1);
+    }
+
+    @Override
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult) {
+            Object[] values = shardResult.get(name);
+            List<InternalAggregation> results = new ArrayList<>(values.length);
+            for (Object value : values) {
+                results.add(new InternalMax(name, (Long) value, formatter, metadata()));
+            }
+            return results;
     }
 }

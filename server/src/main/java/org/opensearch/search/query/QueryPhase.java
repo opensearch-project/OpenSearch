@@ -60,9 +60,7 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.AggregationProcessor;
 import org.opensearch.search.aggregations.DefaultAggregationProcessor;
 import org.opensearch.search.aggregations.GlobalAggCollectorManager;
-import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
-import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
@@ -75,7 +73,6 @@ import org.opensearch.search.suggest.SuggestProcessor;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -168,28 +165,16 @@ public class QueryPhase {
 
         // boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
 
+        // Post process
+        final InternalAggregations internalAggregations = SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
+        LOGGER.info("InternalAggregation created is {}", internalAggregations.asList());
+        searchContext.queryResult().aggregations(internalAggregations);
+
         // if (rescore) { // only if we do a regular search
         // rescoreProcessor.process(searchContext);
         // }
         // suggestProcessor.process(searchContext);
-        // aggregationProcessor.postProcess(searchContext);
-
-        // Post process
-        // Create a list to store the InternalValueCount objects
-        // Can we map from the preprocess
-        List<InternalAggregation> internalAggList = new ArrayList<>();
-        Map<String, Object[]> map = searchContext.getDFResults();
-        for (Map.Entry<String, Object[]> entry : map.entrySet()) {
-            String key = entry.getKey();
-            Object[] value = entry.getValue();
-            // SUM, Count will work with integer casting, but (Integer) value casting may not work well for avg
-            InternalValueCount ivc = new InternalValueCount(key, (long) value[0], null);
-            internalAggList.add(ivc);
-        }
-
-        final InternalAggregations internalAggregations = InternalAggregations.from(internalAggList);
-        QuerySearchResult querySearchResult = searchContext.queryResult();
-        querySearchResult.aggregations(internalAggregations);
+         aggregationProcessor.postProcess(searchContext);
 
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
