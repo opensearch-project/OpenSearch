@@ -22,7 +22,7 @@ import java.util.List;
  * This class provides methods to transform Protocol Buffer representations of bool queries
  * into their corresponding OpenSearch BoolQueryBuilder implementations for search operations.
  */
-public class BoolQueryBuilderProtoUtils {
+class BoolQueryBuilderProtoUtils {
 
     // Registry for query conversion - injected by the gRPC plugin
     private static QueryBuilderProtoConverterRegistry REGISTRY;
@@ -37,9 +37,10 @@ public class BoolQueryBuilderProtoUtils {
      *
      * @param registry The registry to use
      */
-    public static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
+    static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
         REGISTRY = registry;
     }
+
 
     /**
      * Converts a Protocol Buffer BoolQuery to an OpenSearch BoolQueryBuilder.
@@ -51,7 +52,7 @@ public class BoolQueryBuilderProtoUtils {
      * @param boolQueryProto The Protocol Buffer BoolQuery object
      * @return A configured BoolQueryBuilder instance
      */
-    public static BoolQueryBuilder fromProto(BoolQuery boolQueryProto) {
+    static BoolQueryBuilder fromProto(BoolQuery boolQueryProto) {
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String minimumShouldMatch = null;
