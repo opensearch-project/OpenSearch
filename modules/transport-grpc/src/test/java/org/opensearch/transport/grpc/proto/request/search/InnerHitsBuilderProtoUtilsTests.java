@@ -246,4 +246,71 @@ public class InnerHitsBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("InnerHitBuilder list should not be null", innerHitBuilders);
         assertEquals("Should have 0 InnerHitBuilders", 0, innerHitBuilders.size());
     }
+
+    public void testFromProtoWithNullInnerHits() {
+        // Test null input validation for single InnerHits
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> InnerHitsBuilderProtoUtils.fromProto((InnerHits) null)
+        );
+
+        assertEquals("InnerHits cannot be null", exception.getMessage());
+    }
+
+    public void testFromProtoWithNullList() {
+        // Test null input validation for InnerHits list
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> InnerHitsBuilderProtoUtils.fromProto((List<InnerHits>) null)
+        );
+
+        assertEquals("InnerHits list cannot be null", exception.getMessage());
+    }
+
+    public void testFromProtoWithSort() throws IOException {
+        // Create a protobuf InnerHits with sort (this will throw UnsupportedOperationException due to SortBuilderProtoUtils)
+        InnerHits innerHits = InnerHits.newBuilder()
+            .setName("test_inner_hits")
+            .addSort(org.opensearch.protobufs.SortCombinations.newBuilder().build())
+            .build();
+
+        // This should throw UnsupportedOperationException from SortBuilderProtoUtils.fromProto
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> InnerHitsBuilderProtoUtils.fromProto(innerHits)
+        );
+
+        assertEquals("sort not supported yet", exception.getMessage());
+    }
+
+    public void testFromProtoWithHighlight() throws IOException {
+        // Create a protobuf InnerHits with highlight
+        org.opensearch.protobufs.Highlight highlightProto = org.opensearch.protobufs.Highlight.newBuilder().build();
+
+        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setHighlight(highlightProto).build();
+
+        // This should throw UnsupportedOperationException from HighlightBuilderProtoUtils.fromProto
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> InnerHitsBuilderProtoUtils.fromProto(innerHits)
+        );
+
+        assertEquals("highlight not supported yet", exception.getMessage());
+    }
+
+    public void testFromProtoWithCollapse() throws IOException {
+        // Create a protobuf InnerHits with collapse
+        org.opensearch.protobufs.FieldCollapse collapseProto = org.opensearch.protobufs.FieldCollapse.newBuilder()
+            .setField("category")
+            .build();
+
+        InnerHits innerHits = InnerHits.newBuilder().setName("test_inner_hits").setCollapse(collapseProto).build();
+
+        // This should work and create the InnerHitBuilder with collapse
+        InnerHitBuilder innerHitBuilder = InnerHitsBuilderProtoUtils.fromProto(innerHits);
+
+        // Verify the result
+        assertNotNull("InnerHitBuilder should not be null", innerHitBuilder);
+        assertNotNull("InnerCollapseBuilder should not be null", innerHitBuilder.getInnerCollapseBuilder());
+    }
 }
