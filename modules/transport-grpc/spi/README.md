@@ -8,6 +8,7 @@ The `transport-grpc-spi` module enables plugin developers to:
 - Implement custom query converters for gRPC transport
 - Extend gRPC protocol buffer handling
 - Register custom query types that can be processed via gRPC
+- Register `BindableService` implementation to the gRPC transport
 
 ## Key Components
 
@@ -26,6 +27,10 @@ public interface QueryBuilderProtoConverter {
 
 Interface for accessing the query converter registry. This provides a clean abstraction for plugins that need to convert nested queries without exposing internal implementation details.
 
+### GrpcServiceFactory
+
+Interface for providing a `BindableService` factory to be registered on the grpc transport.
+
 ## Usage for Plugin Developers
 
 ### 1. Add Dependency
@@ -36,10 +41,45 @@ Add the SPI dependency to your plugin's `build.gradle`:
 dependencies {
     compileOnly 'org.opensearch.plugin:transport-grpc-spi:${opensearch.version}'
     compileOnly 'org.opensearch:protobufs:${protobufs.version}'
+    compileOnly 'io.grpc:grpc-api:${versions.grpc}'
 }
 ```
 
-### 2. Implement Custom Query Converter
+### 2. Declare Extension in Plugin Descriptor
+
+In your `plugin-descriptor.properties`, declare that your plugin extends transport-grpc:
+
+```properties
+extended.plugins=transport-grpc
+```
+
+### 2. Create SPI Registration File(s)
+
+Create a service file denoting your plugin's implementation of a service interface.
+
+For QueryBuilderProtoConverter implementations:
+`src/main/resources/META-INF/services/org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter`:
+
+```
+org.opensearch.mypackage.MyCustomQueryConverter
+```
+
+For GrpcServiceFactory implementations:
+`src/main/resources/META-INF/services/org.opensearch.transport.grpc.spi.GrpcServiceFactory`:
+
+```
+org.opensearch.mypackage.MyCustomGrpcServiceFactory
+```
+
+### 3. Run SPI unit tests
+
+```bash
+./gradlew :modules:transport-grpc:spi:test
+```
+
+## QueryBuilderProtoConverter
+
+### 1. Implement Custom Query Converter
 
 ```java
 public class MyCustomQueryConverter implements QueryBuilderProtoConverter {
@@ -58,7 +98,7 @@ public class MyCustomQueryConverter implements QueryBuilderProtoConverter {
 }
 ```
 
-### 3. Register Your Converter
+### 2. Register Your Converter
 
 In your plugin's main class, return the converter from createComponents:
 
@@ -80,23 +120,7 @@ public class MyPlugin extends Plugin {
 }
 ```
 
-**Step 3b: Create SPI Registration File**
-
-Create a file at `src/main/resources/META-INF/services/org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter`:
-
-```
-org.opensearch.mypackage.MyCustomQueryConverter
-```
-
-**Step 3c: Declare Extension in Plugin Descriptor**
-
-In your `plugin-descriptor.properties`, declare that your plugin extends transport-grpc:
-
-```properties
-extended.plugins=transport-grpc
-```
-
-### 4. Accessing the Registry (For Complex Queries)
+### 3. Accessing the Registry (For Complex Queries)
 
 If your converter needs to handle nested queries (like k-NN's filter clause), you'll need access to the registry to convert other query types. The transport-grpc plugin will inject the registry into your converter.
 
@@ -179,16 +203,7 @@ public class KNNQueryBuilderProtoConverter implements QueryBuilderProtoConverter
 }
 ```
 
-
-## Testing
-
-### Unit Tests
-
-```bash
-./gradlew :modules:transport-grpc:spi:test
-```
-
-### Testing Your Custom Converter
+### 4. Testing Your Custom Converter
 
 ```java
 @Test
@@ -213,13 +228,14 @@ public void testCustomQueryConverter() {
 }
 ```
 
-## Real-World Example: k-NN Plugin
+### 5. Real-World Example: k-NN Plugin
 See the k-NN plugin https://github.com/opensearch-project/k-NN/pull/2833/files for an example on how to use this SPI, including handling nested queries.
 
 **1. Dependency in build.gradle:**
 ```gradle
 compileOnly "org.opensearch.plugin:transport-grpc-spi:${opensearch.version}"
 compileOnly "org.opensearch:protobufs:0.8.0"
+compileOnly "io.grpc:grpc-api:${versions.grpc}"
 ```
 
 **2. Converter Implementation with Registry Access:**
@@ -275,3 +291,25 @@ org.opensearch.knn.grpc.proto.request.search.query.KNNQueryBuilderProtoConverter
 
 **Why k-NN needs the registry:**
 The k-NN query's `filter` field is a `QueryContainer` protobuf type that can contain any query type (MatchAll, Term, Terms, etc.). The k-NN converter needs access to the registry to convert these nested queries to their corresponding QueryBuilder objects.
+
+## GrpcServiceFactory
+
+### 1. Implement Custom Query Converter
+
+Several node resources are exposed to a `GrpcServiceFactory` for use within services such as client, settings, and thread pools.
+A plugin's `GrpcServiceFactory` implementation will be discovered through the SPI registration file and registered on the gRPC transport.
+
+```java
+public static class MockServiceProvider implements GrpcServiceFactory {
+
+    @Override
+    public String plugin() {
+        return "MockExtendingPlugin";
+    }
+
+    @Override
+    public List<BindableService> build() {
+        return List.of(new MockChannelzService());
+    }
+}
+```
