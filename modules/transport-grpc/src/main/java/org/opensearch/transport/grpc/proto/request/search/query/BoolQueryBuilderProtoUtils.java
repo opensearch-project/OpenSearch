@@ -41,7 +41,6 @@ class BoolQueryBuilderProtoUtils {
         REGISTRY = registry;
     }
 
-
     /**
      * Converts a Protocol Buffer BoolQuery to an OpenSearch BoolQueryBuilder.
      * Similar to {@link BoolQueryBuilder#fromXContent(org.opensearch.core.xcontent.XContentParser)}, this method
@@ -77,11 +76,11 @@ class BoolQueryBuilderProtoUtils {
         if (boolQueryProto.hasMinimumShouldMatch()) {
             MinimumShouldMatch minimumShouldMatchProto = boolQueryProto.getMinimumShouldMatch();
             switch (minimumShouldMatchProto.getMinimumShouldMatchCase()) {
-                case INT32_VALUE:
-                    minimumShouldMatch = String.valueOf(minimumShouldMatchProto.getInt32Value());
+                case INT32:
+                    minimumShouldMatch = String.valueOf(minimumShouldMatchProto.getInt32());
                     break;
-                case STRING_VALUE:
-                    minimumShouldMatch = minimumShouldMatchProto.getStringValue();
+                case STRING:
+                    minimumShouldMatch = minimumShouldMatchProto.getString();
                     break;
                 default:
                     // No minimum_should_match specified

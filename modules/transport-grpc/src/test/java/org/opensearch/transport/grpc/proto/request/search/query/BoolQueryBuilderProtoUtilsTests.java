@@ -36,7 +36,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         BoolQuery boolQuery = BoolQuery.newBuilder()
             .setXName("test_query")
             .setBoost(2.0f)
-            .setMinimumShouldMatch(MinimumShouldMatch.newBuilder().setInt32Value(2).build())
+            .setMinimumShouldMatch(MinimumShouldMatch.newBuilder().setInt32(2).build())
             .addMust(createTermQueryContainer("field1", "value1"))
             .addMustNot(createTermQueryContainer("field2", "value2"))
             .addShould(createTermQueryContainer("field3", "value3"))
@@ -103,7 +103,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithStringMinimumShouldMatch() {
         // Create a protobuf BoolQuery with string minimum_should_match
         BoolQuery boolQuery = BoolQuery.newBuilder()
-            .setMinimumShouldMatch(MinimumShouldMatch.newBuilder().setStringValue("75%").build())
+            .setMinimumShouldMatch(MinimumShouldMatch.newBuilder().setString("75%").build())
             .build();
 
         // Call the method under test
