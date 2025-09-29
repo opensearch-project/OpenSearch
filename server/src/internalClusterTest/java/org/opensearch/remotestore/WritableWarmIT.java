@@ -206,7 +206,6 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
         // ensuring cluster is green
         ensureGreen();
-
         NodesStatsResponse nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         assertFalse(nodesStatsResponse.toString().contains("Exception"));
 
