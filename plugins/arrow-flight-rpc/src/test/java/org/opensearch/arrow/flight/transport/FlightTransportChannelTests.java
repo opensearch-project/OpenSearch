@@ -19,11 +19,14 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -74,18 +77,26 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
 
         channel.sendResponse(exception);
 
-        verify(mockOutboundHandler).sendErrorResponse(any(), any(), any(), eq(123L), eq("test-action"), eq(exception));
+        verify(mockOutboundHandler).sendErrorResponse(any(), any(), any(), any(), eq(123L), eq("test-action"), eq(exception));
     }
 
-    public void testSendResponseBatchSuccess() throws IOException {
+    public void testSendResponseBatchSuccess() throws IOException, InterruptedException {
         TransportResponse response = mock(TransportResponse.class);
+        CountDownLatch latch = new CountDownLatch(1);
+
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(mockOutboundHandler).sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
 
         channel.sendResponseBatch(response);
 
+        assertTrue("sendResponseBatch should be called", latch.await(1, TimeUnit.SECONDS));
         verify(mockOutboundHandler).sendResponseBatch(
             eq(Version.CURRENT),
             eq(Collections.emptySet()),
             eq(mockTcpChannel),
+            eq(channel),
             eq(123L),
             eq("test-action"),
             eq(response),
@@ -109,7 +120,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         StreamException cancellationException = new StreamException(StreamErrorCode.CANCELLED, "cancelled");
 
         doThrow(cancellationException).when(mockOutboundHandler)
-            .sendResponseBatch(any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
+            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
 
         StreamException thrown = assertThrows(StreamException.class, () -> channel.sendResponseBatch(response));
         assertEquals(StreamErrorCode.CANCELLED, thrown.getErrorCode());
@@ -122,7 +133,7 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         RuntimeException genericException = new RuntimeException("generic error");
 
         doThrow(genericException).when(mockOutboundHandler)
-            .sendResponseBatch(any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
+            .sendResponseBatch(any(), any(), any(), any(), anyLong(), any(), any(), anyBoolean(), anyBoolean());
 
         StreamException thrown = assertThrows(StreamException.class, () -> channel.sendResponseBatch(response));
         assertEquals(StreamErrorCode.INTERNAL, thrown.getErrorCode());
@@ -139,9 +150,29 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
             eq(Version.CURRENT),
             eq(Collections.emptySet()),
             eq(mockTcpChannel),
+            eq(channel),
             eq(123L),
             eq("test-action")
         );
+
+        // Simulate async completion by manually creating and closing a BatchTask
+        FlightOutboundHandler.BatchTask completeTask = new FlightOutboundHandler.BatchTask(
+            Version.CURRENT,
+            Collections.emptySet(),
+            mockTcpChannel,
+            channel,
+            123L,
+            "test-action",
+            TransportResponse.Empty.INSTANCE,
+            false,
+            false,
+            true,
+            false,
+            null,
+            null
+        );
+        completeTask.close();
+
         verify(mockTcpChannel).close();
         verify(mockReleasable).close();
     }
@@ -152,13 +183,13 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         StreamException exception = assertThrows(StreamException.class, () -> channel.completeStream());
         assertEquals(StreamErrorCode.UNAVAILABLE, exception.getErrorCode());
         assertEquals("FlightTransportChannel stream already closed.", exception.getMessage());
-        verify(mockTcpChannel, times(2)).close();
+        verify(mockTcpChannel, times(1)).close();
         verify(mockReleasable, times(1)).close();
     }
 
     public void testCompleteStreamWithException() {
         RuntimeException outboundException = new RuntimeException("outbound error");
-        doThrow(outboundException).when(mockOutboundHandler).completeStream(any(), any(), any(), anyLong(), any());
+        doThrow(outboundException).when(mockOutboundHandler).completeStream(any(), any(), any(), any(), anyLong(), any());
 
         StreamException thrown = assertThrows(StreamException.class, () -> channel.completeStream());
         assertEquals(StreamErrorCode.INTERNAL, thrown.getErrorCode());

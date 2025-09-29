@@ -1902,6 +1902,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         private final NumberType type;
         private final boolean coerce;
         private final Number nullValue;
+        private final boolean skiplist;
 
         public NumberFieldType(
             String name,
@@ -1909,11 +1910,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             boolean isSearchable,
             boolean isStored,
             boolean hasDocValues,
+            boolean skiplist,
             boolean coerce,
             Number nullValue,
             Map<String, String> meta
         ) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.skiplist = skiplist;
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
@@ -1927,6 +1930,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 builder.indexed.getValue(),
                 builder.stored.getValue(),
                 builder.hasDocValues.getValue(),
+                builder.skiplist.getValue(),
                 builder.coerce.getValue().value(),
                 builder.nullValue.getValue(),
                 builder.meta.getValue()
@@ -1934,7 +1938,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, true, true, null, Collections.emptyMap());
+            this(name, type, true, false, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
