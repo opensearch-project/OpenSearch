@@ -9,8 +9,11 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.Script;
+import org.opensearch.protobufs.ScriptQuery;
 import org.opensearch.protobufs.TermQuery;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
@@ -58,6 +61,22 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertEquals("Should be a TermQueryBuilder", "org.opensearch.index.query.TermQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testScriptQueryConversion() {
+        // Create a Script query container with inline script
+        Script script = Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value > 100").build()).build();
+
+        ScriptQuery scriptQuery = ScriptQuery.newBuilder().setScript(script).setBoost(1.5f).setXName("test_script_query").build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setScript(scriptQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a ScriptQueryBuilder", "org.opensearch.index.query.ScriptQueryBuilder", queryBuilder.getClass().getName());
     }
 
     public void testNullQueryContainer() {
