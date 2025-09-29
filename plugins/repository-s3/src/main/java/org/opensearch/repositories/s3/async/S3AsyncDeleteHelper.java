@@ -77,7 +77,14 @@ public class S3AsyncDeleteHelper {
     static CompletableFuture<Void> executeSingleDeleteBatch(S3AsyncClient s3AsyncClient, S3BlobStore blobStore, List<String> batch) {
         logger.debug("Executing delete batch of {} objects", batch.size());
         DeleteObjectsRequest deleteRequest = bulkDelete(blobStore.bucket(), batch, blobStore);
-        return s3AsyncClient.deleteObjects(deleteRequest).thenApply(response -> {
+        CompletableFuture<DeleteObjectsResponse> deleteFuture = s3AsyncClient.deleteObjects(deleteRequest);
+
+        if (deleteFuture == null) {
+            logger.error("S3AsyncClient.deleteObjects returned null - client may not be properly initialized");
+            return CompletableFuture.failedFuture(new IllegalStateException("S3AsyncClient returned null future"));
+        }
+
+        return deleteFuture.thenApply(response -> {
             logger.debug("Received delete response for batch of {} objects", batch.size());
             return processDeleteResponse(response);
         });

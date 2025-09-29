@@ -193,7 +193,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1960,6 +1960,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
             // when tests are run with concurrent segment search enabled
             .put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, 2)
+            // Set the field data cache clean interval setting to 1s so assertBusy() can ensure cache is cleared post-test within its
+            // default 10s limit.
+            .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s")
             .put(featureFlagSettings());
 
         // Enable tracer only when Telemetry Setting is enabled
@@ -2017,9 +2020,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
         for (String stringAddress : stringAddresses) {
-            URL url = new URL("http://" + stringAddress);
-            InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+            URI uri = URI.create("http://" + stringAddress);
+            InetAddress inetAddress = InetAddress.getByName(uri.getHost());
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, uri.getPort()));
         }
         return new ExternalTestCluster(
             createTempDir(),

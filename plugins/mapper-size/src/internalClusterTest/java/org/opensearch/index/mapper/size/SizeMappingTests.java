@@ -60,7 +60,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testSizeEnabled() throws Exception {
-        IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
+        IndexService service = createIndexWithSimpleMappings("test", Settings.EMPTY, "_size", "enabled=true");
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
@@ -77,7 +77,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testSizeDisabled() throws Exception {
-        IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=false");
+        IndexService service = createIndexWithSimpleMappings("test", Settings.EMPTY, "_size", "enabled=false");
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
@@ -87,7 +87,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testSizeNotSet() throws Exception {
-        IndexService service = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME);
+        IndexService service = createIndexWithSimpleMappings("test", Settings.EMPTY);
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
@@ -97,7 +97,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testThatDisablingWorksWhenMerging() throws Exception {
-        IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
+        IndexService service = createIndexWithSimpleMappings("test", Settings.EMPTY, "_size", "enabled=true");
         DocumentMapper docMapper = service.mapperService().documentMapper();
         assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(true));
 

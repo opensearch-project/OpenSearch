@@ -78,7 +78,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         fakeConsumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
         processor = mock(MessageProcessorRunnable.MessageProcessor.class);
         errorStrategy = new DropIngestionErrorStrategy("ingestion_source");
-        processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor, errorStrategy);
+        processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor, errorStrategy, "test_index", 0);
         persistedPointers = new HashSet<>();
         partitionedBlockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         engine = mock(IngestionEngine.class);
@@ -322,7 +322,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         IngestionErrorStrategy errorStrategy = spy(new DropIngestionErrorStrategy("ingestion_source"));
         ArrayBlockingQueue mockQueue = mock(ArrayBlockingQueue.class);
         doThrow(new RuntimeException()).doNothing().when(mockQueue).put(any());
-        processorRunnable = new MessageProcessorRunnable(mockQueue, processor, errorStrategy);
+        processorRunnable = new MessageProcessorRunnable(mockQueue, processor, errorStrategy, "test_index", 0);
         PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         blockingQueueContainer.startProcessorThreads();
 
@@ -385,7 +385,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         IngestionErrorStrategy errorStrategy = spy(new BlockIngestionErrorStrategy("ingestion_source"));
         ArrayBlockingQueue mockQueue = mock(ArrayBlockingQueue.class);
         doThrow(new RuntimeException()).doNothing().when(mockQueue).put(any());
-        processorRunnable = new MessageProcessorRunnable(mockQueue, processor, errorStrategy);
+        processorRunnable = new MessageProcessorRunnable(mockQueue, processor, errorStrategy, "test_index", 0);
         PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         blockingQueueContainer.startProcessorThreads();
         IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
@@ -423,7 +423,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         doThrow(new RuntimeException("Error processing update")).when(processor).process(any(), any());
         BlockIngestionErrorStrategy mockErrorStrategy = spy(new BlockIngestionErrorStrategy("ingestion_source"));
-        processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor, mockErrorStrategy);
+        processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor, mockErrorStrategy, "test_index", 0);
         PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         blockingQueueContainer.startProcessorThreads();
 
@@ -488,7 +488,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // for validation.
         IngestionErrorStrategy errorStrategy = spy(new BlockIngestionErrorStrategy("ingestion_source"));
         doThrow(new RuntimeException()).when(processor).process(any(), any());
-        processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(3), processor, errorStrategy);
+        processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(3), processor, errorStrategy, "test_index", 0);
         PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         blockingQueueContainer.startProcessorThreads();
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);

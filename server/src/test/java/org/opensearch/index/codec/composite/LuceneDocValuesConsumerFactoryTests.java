@@ -8,8 +8,8 @@
 
 package org.opensearch.index.codec.composite;
 
+import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.DocValuesConsumer;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
@@ -17,7 +17,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
-import org.opensearch.index.codec.composite.composite101.Composite101Codec;
+import org.opensearch.index.codec.composite.backward_codecs.composite101.Composite101Codec;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;

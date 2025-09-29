@@ -163,6 +163,7 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -319,6 +320,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
+                RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
@@ -424,6 +426,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IngestService.SYSTEM_INGEST_PIPELINE_ENABLED,
                 SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
+                SearchPipelineService.ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
@@ -804,6 +807,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
+                SearchService.QUERY_REWRITING_ENABLED_SETTING,
+                SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,

@@ -233,7 +233,7 @@ public final class SearchPhaseController {
         } else if (topDocs instanceof CollapseTopFieldDocs) {
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
             final Sort sort = createSort(shardTopDocs);
-            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
+            mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
         } else if (topDocs instanceof TopFieldDocs) {
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             final Sort sort = createSort(shardTopDocs);

@@ -40,35 +40,11 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-test'
 
 dependencies {
-  testImplementation 'com.google.jimfs:jimfs:1.3.1'
   testImplementation(project(':distribution:tools:plugin-cli')) {
     exclude group: 'org.bouncycastle'
   }
 }
 
-// TODO: give each evil test its own fresh JVM for more isolation.
-
 test {
   systemProperty 'tests.security.manager', 'false'
-}
-
-thirdPartyAudit {
-  ignoreMissingClasses(
-    'com.ibm.icu.lang.UCharacter'
-  )
-
-  ignoreViolations(
-    // uses internal java api: sun.misc.Unsafe
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper'
-  )
-}
-
-tasks.test {
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.lang=ALL-UNNAMED"]
-    }
 }

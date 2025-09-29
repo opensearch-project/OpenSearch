@@ -175,7 +175,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, false, true, null, Collections.emptyMap());
+        return new NumberFieldType("field", NumberType.LONG, false, false, false, false, true, null, Collections.emptyMap());
     }
 
     public void testTermQuery() {
@@ -1004,10 +1004,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ft.bitmapQuery(bitmap)
         );
 
-        ft = new NumberFieldType("field", NumberType.INTEGER, false, false, true, true, null, Collections.emptyMap());
+        ft = new NumberFieldType("field", NumberType.INTEGER, false, false, true, true, true, null, Collections.emptyMap());
         assertEquals(new BitmapDocValuesQuery("field", r), ft.bitmapQuery(bitmap));
 
-        ft = new NumberFieldType("field", NumberType.INTEGER, true, false, false, true, null, Collections.emptyMap());
+        ft = new NumberFieldType("field", NumberType.INTEGER, true, false, false, false, true, null, Collections.emptyMap());
         assertEquals(new BitmapIndexQuery("field", r), ft.bitmapQuery(bitmap));
 
         Directory dir = newDirectory();

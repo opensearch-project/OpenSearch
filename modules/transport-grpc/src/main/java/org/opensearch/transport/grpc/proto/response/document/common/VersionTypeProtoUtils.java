@@ -34,6 +34,9 @@ public class VersionTypeProtoUtils {
                 return VersionType.EXTERNAL;
             case VERSION_TYPE_EXTERNAL_GTE:
                 return VersionType.EXTERNAL_GTE;
+            case VERSION_TYPE_INTERNAL:
+                return VersionType.INTERNAL;
+            case VERSION_TYPE_UNSPECIFIED:
             default:
                 return VersionType.INTERNAL;
         }

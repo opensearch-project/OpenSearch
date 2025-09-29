@@ -907,6 +907,57 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.Property.Final
     );
 
+    /**
+     * Defines if all-active pull-based ingestion is enabled. In this mode, replicas will directly consume from the
+     * streaming source and process the updates. In the default document replication mode, this setting must be enabled.
+     * This mode is currently not supported with segment replication.
+     */
+    public static final String SETTING_INGESTION_SOURCE_ALL_ACTIVE_INGESTION = "index.ingestion_source.all_active";
+    public static final Setting<Boolean> INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING = Setting.boolSetting(
+        SETTING_INGESTION_SOURCE_ALL_ACTIVE_INGESTION,
+        false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {}
+
+            @Override
+            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                final Object replicationType = settings.get(INDEX_REPLICATION_TYPE_SETTING);
+                final Object ingestionSourceType = settings.get(INGESTION_SOURCE_TYPE_SETTING);
+                boolean isPullBasedIngestionEnabled = NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType) == false;
+
+                if (isPullBasedIngestionEnabled && ReplicationType.SEGMENT.equals(replicationType) && value) {
+                    throw new IllegalArgumentException(
+                        "Replication type "
+                            + ReplicationType.SEGMENT
+                            + " is not supported in pull-based ingestion when "
+                            + INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey()
+                            + " is enabled"
+                    );
+                }
+
+                if (isPullBasedIngestionEnabled && ReplicationType.DOCUMENT.equals(replicationType) && value == false) {
+                    throw new IllegalArgumentException(
+                        "Replication type "
+                            + ReplicationType.DOCUMENT
+                            + " is not supported in pull-based ingestion when "
+                            + INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.getKey()
+                            + " is not enabled"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(INDEX_REPLICATION_TYPE_SETTING, INGESTION_SOURCE_TYPE_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Setting.Property.Final
+    );
+
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
         "index.ingestion_source.param.",
         key -> new Setting<>(key, "", (value) -> {
@@ -943,6 +994,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
     public static final String CONTEXT_KEY = "context";
     public static final String INGESTION_SOURCE_KEY = "ingestion_source";
+    public static final String INGESTION_STATUS_KEY = "ingestion_status";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -1151,6 +1203,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.get(settings);
             final int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.get(settings);
             final int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.get(settings);
+            final boolean allActiveIngestionEnabled = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
@@ -1159,6 +1212,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setPollTimeout(pollTimeout)
                 .setNumProcessorThreads(numProcessorThreads)
                 .setBlockingQueueSize(blockingQueueSize)
+                .setAllActiveIngestion(allActiveIngestionEnabled)
                 .build();
         }
         return null;
@@ -1167,6 +1221,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public boolean useIngestionSource() {
         final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
         return ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType));
+    }
+
+    public boolean isAllActiveIngestionEnabled() {
+        return INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
     }
 
     public IngestionStatus getIngestionStatus() {
@@ -2264,6 +2322,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexMetadata.context.toXContent(builder, params);
             }
 
+            if (indexMetadata.getCreationVersion().onOrAfter(Version.V_3_3_0) && indexMetadata.ingestionStatus != null) {
+                // ingestionStatus field is introduced from OS 3.x. But this field is included in XContent serialization only from OS 3.3
+                // onwards.
+                builder.field(INGESTION_STATUS_KEY);
+                indexMetadata.ingestionStatus.toXContent(builder, params);
+            }
+
             builder.endObject();
         }
 
@@ -2347,6 +2412,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         parser.skipChildren();
                     } else if (CONTEXT_KEY.equals(currentFieldName)) {
                         builder.context(Context.fromXContent(parser));
+                    } else if (INGESTION_STATUS_KEY.equals(currentFieldName)) {
+                        builder.ingestionStatus(IngestionStatus.fromXContent(parser));
                     } else {
                         // assume it's custom index metadata
                         builder.putCustom(currentFieldName, parser.mapStrings());

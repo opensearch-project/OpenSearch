@@ -19,6 +19,7 @@ import org.opensearch.transport.reactor.netty4.Netty4Utils;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultHttpContent;
@@ -121,6 +122,11 @@ class ReactorNetty4StreamingHttpChannel implements StreamingHttpChannel {
     @Override
     public void subscribe(Subscriber<? super HttpChunk> subscriber) {
         receiver.subscribe(subscriber);
+    }
+
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        return ReactorNetty4BaseHttpChannel.get(request, name, clazz);
     }
 
     private static HttpContent createContent(HttpResponse response) {

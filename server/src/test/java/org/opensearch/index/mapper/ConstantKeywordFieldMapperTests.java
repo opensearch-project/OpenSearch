@@ -156,7 +156,7 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
     }
 
     private ConstantKeywordFieldMapper getMapper(FieldMapper.CopyTo copyTo) {
-        indexService = createIndex("test-index", Settings.EMPTY, "constant_keyword", "field", "type=constant_keyword,value=default_value");
+        indexService = createIndexWithSimpleMappings("test-index", Settings.EMPTY, "field", "type=constant_keyword,value=default_value");
         ConstantKeywordFieldMapper mapper = (ConstantKeywordFieldMapper) indexService.mapperService()
             .documentMapper()
             .mappers()

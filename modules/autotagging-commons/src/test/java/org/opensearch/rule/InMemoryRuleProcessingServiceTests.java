@@ -149,8 +149,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return Map.of(TestAttribute.TEST_ATTRIBUTE, 1);
         }
     }
 

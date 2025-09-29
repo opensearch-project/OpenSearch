@@ -29,6 +29,7 @@
 
 package org.opensearch.gradle
 
+import groovy.ant.AntBuilder
 import org.apache.tools.ant.BuildListener
 import org.apache.tools.ant.BuildLogger
 import org.apache.tools.ant.DefaultLogger

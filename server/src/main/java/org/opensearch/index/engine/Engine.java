@@ -561,7 +561,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             return operationType;
         }
 
-        void setTranslogLocation(Translog.Location translogLocation) {
+        public void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze.get() == null) {
                 this.translogLocation = translogLocation;
             } else {
@@ -569,7 +569,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
 
-        void setTook(long took) {
+        public void setTook(long took) {
             if (freeze.get() == null) {
                 this.took = took;
             } else {
@@ -577,7 +577,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
 
-        void freeze() {
+        public void freeze() {
             freeze.set(true);
         }
 

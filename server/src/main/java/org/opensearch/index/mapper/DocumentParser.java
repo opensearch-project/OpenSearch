@@ -913,7 +913,6 @@ final class DocumentParser {
             if (builder != null) {
                 return builder;
             }
-            return handleNoTemplateFound(dynamic, () -> null);
         }
         // TODO how do we identify dynamically that its a binary value?
         throw new IllegalStateException(

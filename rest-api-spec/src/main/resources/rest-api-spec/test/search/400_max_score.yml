@@ -91,3 +91,71 @@ teardown:
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
   - match: { hits.max_score: null }
+
+
+# related issue: https://github.com/opensearch-project/OpenSearch/issues/19179
+---
+"Test max score with sorting on score primarily for field collapsing":
+  - skip:
+      version: " - 3.2.99"
+      reason: Fixed in 3.3.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query: { term: { foo: bar} }
+          collapse: { field: foo }
+          sort: [{ _score: desc }, { _doc: desc }]
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 1 }
+  - match: { hits.max_score: 1.0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query: { term: { foo: bar} }
+          collapse: { field: foo }
+          sort: [{ _score: asc }, { _doc: desc }]
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 1 }
+  - match: { hits.max_score: null }
+
+---
+"Test max score with sorting on score firstly primarily for field collapsing with concurrent segment search enabled":
+  - skip:
+      version: " - 3.2.99"
+      reason: Fixed in 3.3.0
+
+  - do:
+      indices.put_settings:
+        index: test_1
+        body:
+          index.search.concurrent_segment_search.mode: 'all'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query: { term: { foo: bar} }
+          collapse: { field: foo }
+          sort: [{ _score: desc }, { _doc: desc }]
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 1 }
+  - match: { hits.max_score: 1.0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query: { term: { foo: bar} }
+          collapse: { field: foo }
+          sort: [{ _score: asc }, { _doc: desc }]
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 1 }
+  - match: { hits.max_score: null }

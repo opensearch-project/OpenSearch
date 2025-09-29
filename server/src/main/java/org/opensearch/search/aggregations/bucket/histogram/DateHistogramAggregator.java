@@ -31,10 +31,15 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdStream;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
@@ -88,6 +93,8 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  * @opensearch.internal
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator, StarTreePreComputeCollector {
+    private static final Logger logger = LogManager.getLogger(DateHistogramAggregator.class);
+
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
@@ -105,7 +112,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private boolean starTreeDateRoundingRequired = true;
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
-    public final String fieldName;
+    private final String fieldName;
+    private final boolean fieldIndexSort;
 
     DateHistogramAggregator(
         String name,
@@ -173,6 +181,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
             ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.fieldIndexSort = this.fieldName == null ? false : context.getQueryShardContext().indexSortedOnField(fieldName);
         this.starTreeDateDimension = (context.getQueryShardContext().getStarTreeQueryContext() != null)
             ? fetchStarTreeCalendarUnit()
             : null;
@@ -209,8 +218,21 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
+        DocValuesSkipper skipper = null;
+        if (this.fieldName != null) {
+            skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
+        }
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+
+        // If no subaggregations and index sorted on given field, we can use skip list based collector
+        logger.trace("Index sort field found: {}, skipper: {}", fieldIndexSort, skipper);
+        if (fieldIndexSort && skipper != null && singleton != null) {
+            // TODO: add hard bounds support
+            if (hardBounds != null || sub == null || sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+                return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, this::incrementBucketDocCount);
+            }
+        }
 
         if (singleton != null) {
             // Optimized path for single-valued fields
@@ -395,6 +417,128 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return preparedRounding.roundingSize(bucketOrds.get(bucket), unitSize);
         } else {
             return 1.0;
+        }
+    }
+
+    private static class HistogramSkiplistLeafCollector extends LeafBucketCollector {
+
+        private final NumericDocValues values;
+        private final DocValuesSkipper skipper;
+        private final Rounding.Prepared preparedRounding;
+        private final LongKeyedBucketOrds bucketOrds;
+        private final BiConsumer<Long, Long> incrementDocCount;
+
+        /**
+         * Max doc ID (inclusive) up to which all docs values may map to the same bucket.
+         */
+        private int upToInclusive = -1;
+
+        /**
+         * Whether all docs up to {@link #upToInclusive} values map to the same bucket.
+         */
+        private boolean upToSameBucket;
+
+        /**
+         * Index in bucketOrds for docs up to {@link #upToInclusive}.
+         */
+        private long upToBucketIndex;
+
+        HistogramSkiplistLeafCollector(
+            NumericDocValues values,
+            DocValuesSkipper skipper,
+            Rounding.Prepared preparedRounding,
+            LongKeyedBucketOrds bucketOrds,
+            BiConsumer<Long, Long> incrementDocCount
+        ) {
+            this.values = values;
+            this.skipper = skipper;
+            this.preparedRounding = preparedRounding;
+            this.bucketOrds = bucketOrds;
+            this.incrementDocCount = incrementDocCount;
+        }
+
+        @Override
+        public void setScorer(Scorable scorer) throws IOException {}
+
+        private void advanceSkipper(int doc) throws IOException {
+            if (doc > skipper.maxDocID(0)) {
+                skipper.advance(doc);
+            }
+            upToSameBucket = false;
+
+            if (skipper.minDocID(0) > doc) {
+                // Corner case which happens if `doc` doesn't have a value and is between two intervals of
+                // the doc-value skip index.
+                upToInclusive = skipper.minDocID(0) - 1;
+                return;
+            }
+
+            upToInclusive = skipper.maxDocID(0);
+
+            // Now find the highest level where all docs map to the same bucket.
+            for (int level = 0; level < skipper.numLevels(); ++level) {
+                int totalDocsAtLevel = skipper.maxDocID(level) - skipper.minDocID(level) + 1;
+                long minBucket = preparedRounding.round(skipper.minValue(level));
+                long maxBucket = preparedRounding.round(skipper.maxValue(level));
+
+                if (skipper.docCount(level) == totalDocsAtLevel && minBucket == maxBucket) {
+                    // All docs at this level have a value, and all values map to the same bucket.
+                    upToInclusive = skipper.maxDocID(level);
+                    upToSameBucket = true;
+                    upToBucketIndex = bucketOrds.add(0, maxBucket);
+                    if (upToBucketIndex < 0) {
+                        upToBucketIndex = -1 - upToBucketIndex;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            collect(doc);
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            if (doc > upToInclusive) {
+                advanceSkipper(doc);
+            }
+
+            if (upToSameBucket) {
+                incrementDocCount.accept(upToBucketIndex, 1L);
+            } else if (values.advanceExact(doc)) {
+                final long value = values.longValue();
+                long bucketIndex = bucketOrds.add(0, preparedRounding.round(value));
+                if (bucketIndex < 0) {
+                    bucketIndex = -1 - bucketIndex;
+                }
+                incrementDocCount.accept(bucketIndex, 1L);
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            for (;;) {
+                int upToExclusive = upToInclusive + 1;
+                if (upToExclusive < 0) { // overflow
+                    upToExclusive = Integer.MAX_VALUE;
+                }
+
+                if (upToSameBucket) {
+                    long count = stream.count(upToExclusive);
+                    incrementDocCount.accept(upToBucketIndex, count);
+                } else {
+                    stream.forEach(upToExclusive, this::collect);
+                }
+
+                if (stream.mayHaveRemaining()) {
+                    advanceSkipper(upToExclusive);
+                } else {
+                    break;
+                }
+            }
         }
     }
 }

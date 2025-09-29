@@ -277,7 +277,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
         MapperService mapperService = indexService.mapperService();
 
         XContentBuilder source = XContentFactory.jsonBuilder()
@@ -307,7 +307,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
         MapperService mapperService = indexService.mapperService();
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
@@ -341,7 +341,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
         MapperService mapperService = indexService.mapperService();
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", 42).endObject();
@@ -374,7 +374,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
         MapperService mapperService = indexService.mapperService();
 
         XContentBuilder source = XContentFactory.jsonBuilder()
@@ -420,7 +420,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
         MapperService mapperService = indexService.mapperService();
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().array("field", "some text").endObject();
@@ -484,7 +484,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
         return indexService.mapperService();
     }
 

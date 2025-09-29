@@ -178,6 +178,21 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
             }
 
             @Override
+            public void writeInt(int i) throws IOException {
+                out.writeInt(i);
+            }
+
+            @Override
+            public void writeShort(short i) throws IOException {
+                out.writeShort(i);
+            }
+
+            @Override
+            public void writeLong(long i) throws IOException {
+                out.writeLong(i);
+            }
+
+            @Override
             public void close() throws IOException {
                 // Close might cause some data to be flushed from in-memory buffers, so
                 // increment the modification counter too.

@@ -183,8 +183,8 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
             assertThat(chain, notNullValue());
             assertThat(chain, arrayWithSize(1));
             final X509Certificate certificate = chain[0];
-            assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
-            assertThat(certificate.getSubjectDN().getName(), is("CN=" + name));
+            assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
+            assertThat(certificate.getSubjectX500Principal().getName(), is("CN=" + name));
             assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
             assertThat(
                 certificate.getSubjectAlternativeNames(),

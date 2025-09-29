@@ -46,7 +46,9 @@ public class PartitionedBlockingQueueContainerTests extends OpenSearchTestCase {
         processorRunnable = new MessageProcessorRunnable(
             new ArrayBlockingQueue<>(5),
             processor,
-            new DropIngestionErrorStrategy("ingestion_source")
+            new DropIngestionErrorStrategy("ingestion_source"),
+            "test_index",
+            0
         );
         this.blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
     }

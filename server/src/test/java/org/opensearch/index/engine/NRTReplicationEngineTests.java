@@ -53,6 +53,61 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
     );
 
+    public void testAcquireLastIndexCommit() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        try (
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS)
+        ) {
+            // only index 2 docs here, this will create segments _0 and _1 and after forcemerge into _2.
+            final int docCount = 2;
+            List<Engine.Operation> operations = generateHistoryOnReplica(docCount, randomBoolean(), randomBoolean(), randomBoolean());
+            for (Engine.Operation op : operations) {
+                applyOperation(engine, op);
+                applyOperation(nrtEngine, op);
+                // refresh to create a lot of segments.
+                engine.refresh("test");
+            }
+            assertEquals(2, engine.segmentsStats(false, false).getCount());
+            // wipe the nrt directory initially so we can sync with primary.
+            Lucene.cleanLuceneIndex(nrtEngineStore.directory());
+            for (String file : engine.getLatestSegmentInfos().files(true)) {
+                nrtEngineStore.directory().copyFrom(store.directory(), file, file, IOContext.DEFAULT);
+            }
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+            nrtEngine.flush(false, true);
+
+            // acquire latest commit
+            GatedCloseable<IndexCommit> indexCommitGatedCloseable = nrtEngine.acquireLastIndexCommit(false);
+            List<String> replicaFiles = List.of(nrtEngine.store.directory().listAll());
+
+            // merge primary down to 1 segment
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
+
+            final Collection<String> latestPrimaryFiles = engine.getLatestSegmentInfos().files(false);
+            // copy new segments in and load reader.
+            for (String file : latestPrimaryFiles) {
+                if (replicaFiles.contains(file) == false) {
+                    nrtEngineStore.directory().copyFrom(store.directory(), file, file, IOContext.DEFAULT);
+                }
+            }
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
+            nrtEngine.flush(false, true);
+
+            // Verify that the files contained in indexCommitGatedCloseable will not be deleted.
+            replicaFiles = List.of(nrtEngine.store.directory().listAll());
+            assertTrue(replicaFiles.containsAll(indexCommitGatedCloseable.get().getFileNames()));
+
+            // After closing, the files in indexCommitGatedCloseable will be deleted.
+            indexCommitGatedCloseable.close();
+            replicaFiles = List.of(nrtEngine.store.directory().listAll());
+            for (String fileName : indexCommitGatedCloseable.get().getFileNames()) {
+                assertFalse(replicaFiles.contains(fileName));
+            }
+        }
+    }
+
     public void testCreateEngine() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (

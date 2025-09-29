@@ -52,7 +52,7 @@ import java.util.Map;
 public class NeedsScoreTests extends OpenSearchSingleNodeTestCase {
 
     public void testNeedsScores() {
-        IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
+        IndexService index = createIndexWithSimpleMappings("test", Settings.EMPTY, "d", "type=double");
 
         Map<ScriptContext<?>, List<Allowlist>> contexts = new HashMap<>();
         contexts.put(NumberSortScript.CONTEXT, Allowlist.BASE_ALLOWLISTS);

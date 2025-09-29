@@ -67,7 +67,7 @@ public class SearchHitsProtoUtils {
      * @param hitsMetaData The builder to populate with the total hits data
      */
     private static void processTotalHits(SearchHits hits, org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData) {
-        org.opensearch.protobufs.HitsMetadata.Total.Builder totalBuilder = org.opensearch.protobufs.HitsMetadata.Total.newBuilder();
+        org.opensearch.protobufs.HitsMetadataTotal.Builder totalBuilder = org.opensearch.protobufs.HitsMetadataTotal.newBuilder();
 
         // TODO need to pass parameters
         // boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
@@ -75,15 +75,15 @@ public class SearchHitsProtoUtils {
 
         if (totalHitAsInt) {
             long total = hits.getTotalHits() == null ? -1 : hits.getTotalHits().value();
-            totalBuilder.setDoubleValue(total);
+            totalBuilder.setInt64(total);
         } else if (hits.getTotalHits() != null) {
             org.opensearch.protobufs.TotalHits.Builder totalHitsBuilder = org.opensearch.protobufs.TotalHits.newBuilder();
             totalHitsBuilder.setValue(hits.getTotalHits().value());
 
             // Set relation based on the TotalHits relation
-            org.opensearch.protobufs.TotalHits.TotalHitsRelation relation = hits.getTotalHits().relation() == TotalHits.Relation.EQUAL_TO
-                ? org.opensearch.protobufs.TotalHits.TotalHitsRelation.TOTAL_HITS_RELATION_EQ
-                : org.opensearch.protobufs.TotalHits.TotalHitsRelation.TOTAL_HITS_RELATION_GTE;
+            org.opensearch.protobufs.TotalHitsRelation relation = hits.getTotalHits().relation() == TotalHits.Relation.EQUAL_TO
+                ? org.opensearch.protobufs.TotalHitsRelation.TOTAL_HITS_RELATION_EQ
+                : org.opensearch.protobufs.TotalHitsRelation.TOTAL_HITS_RELATION_GTE;
             totalHitsBuilder.setRelation(relation);
 
             totalBuilder.setTotalHits(totalHitsBuilder.build());
@@ -99,13 +99,12 @@ public class SearchHitsProtoUtils {
      * @param hitsMetaData The builder to populate with the max score data
      */
     private static void processMaxScore(SearchHits hits, org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData) {
-        org.opensearch.protobufs.HitsMetadata.MaxScore.Builder maxScoreBuilder = org.opensearch.protobufs.HitsMetadata.MaxScore
-            .newBuilder();
+        org.opensearch.protobufs.HitsMetadataMaxScore.Builder maxScoreBuilder = org.opensearch.protobufs.HitsMetadataMaxScore.newBuilder();
 
         if (Float.isNaN(hits.getMaxScore())) {
             maxScoreBuilder.setNullValue(NullValue.NULL_VALUE_NULL);
         } else {
-            maxScoreBuilder.setFloatValue(hits.getMaxScore());
+            maxScoreBuilder.setFloat(hits.getMaxScore());
         }
 
         hitsMetaData.setMaxScore(maxScoreBuilder.build());
@@ -121,7 +120,7 @@ public class SearchHitsProtoUtils {
     private static void processHits(SearchHits hits, org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData) throws IOException {
         // Process each hit
         for (SearchHit hit : hits) {
-            org.opensearch.protobufs.Hit.Builder hitBuilder = org.opensearch.protobufs.Hit.newBuilder();
+            org.opensearch.protobufs.HitsMetadataHitsInner.Builder hitBuilder = org.opensearch.protobufs.HitsMetadataHitsInner.newBuilder();
             SearchHitProtoUtils.toProto(hit, hitBuilder);
             hitsMetaData.addHits(hitBuilder.build());
         }

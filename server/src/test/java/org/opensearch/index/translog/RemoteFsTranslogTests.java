@@ -201,7 +201,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10),
             DefaultRemoteStoreSettings.INSTANCE,
-            TranslogOperationHelper.DEFAULT
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 
@@ -475,13 +476,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
-                TranslogOperationHelper.DEFAULT
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                TranslogOperationHelper.DEFAULT,
+                null
+            )
         ) {
             addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
 
@@ -1525,13 +1522,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
-                TranslogOperationHelper.DEFAULT
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             int initialWriteCalls = writeCalls.get();
@@ -1636,13 +1629,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
                 DefaultRemoteStoreSettings.INSTANCE,
-                TranslogOperationHelper.DEFAULT
-            ) {
-                @Override
-                ChannelFactory getChannelFactory() {
-                    return channelFactory;
-                }
-            }
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
         ) {
             TranslogWriter writer = translog.getCurrent();
             byte[] bytes = new byte[256];
