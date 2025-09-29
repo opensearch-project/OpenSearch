@@ -16,7 +16,7 @@ import org.opensearch.protobufs.IdsQuery;
  * This class provides methods to transform Protocol Buffer representations of ids queries
  * into their corresponding OpenSearch IdsQueryBuilder implementations for search operations.
  */
-public class IdsQueryBuilderProtoUtils {
+class IdsQueryBuilderProtoUtils {
 
     private IdsQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -31,7 +31,7 @@ public class IdsQueryBuilderProtoUtils {
      * @param idsQueryProto The Protocol Buffer IdsQuery object
      * @return A configured IdsQueryBuilder instance
      */
-    public static IdsQueryBuilder fromProto(IdsQuery idsQueryProto) {
+    static IdsQueryBuilder fromProto(IdsQuery idsQueryProto) {
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 

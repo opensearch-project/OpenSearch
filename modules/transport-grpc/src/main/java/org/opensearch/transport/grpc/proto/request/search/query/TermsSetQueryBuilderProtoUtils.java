@@ -21,7 +21,7 @@ import java.util.List;
  * This class provides methods to transform Protocol Buffer representations of terms_set queries
  * into their corresponding OpenSearch TermsSetQueryBuilder implementations for search operations.
  */
-public class TermsSetQueryBuilderProtoUtils {
+class TermsSetQueryBuilderProtoUtils {
 
     private TermsSetQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -38,7 +38,7 @@ public class TermsSetQueryBuilderProtoUtils {
      * @return A configured TermsSetQueryBuilder instance
      * @throws IllegalArgumentException if the terms_set query is invalid or missing required fields
      */
-    public static TermsSetQueryBuilder fromProto(org.opensearch.protobufs.TermsSetQuery termsSetQueryProto) {
+    static TermsSetQueryBuilder fromProto(org.opensearch.protobufs.TermsSetQuery termsSetQueryProto) {
         if (termsSetQueryProto == null) {
             throw new IllegalArgumentException("TermsSetQuery must not be null");
         }

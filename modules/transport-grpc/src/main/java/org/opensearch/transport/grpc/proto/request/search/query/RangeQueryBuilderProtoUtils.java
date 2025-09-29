@@ -23,7 +23,7 @@ import org.opensearch.protobufs.RangeRelation;
  * This class provides methods to transform Protocol Buffer representations of range queries
  * into their corresponding OpenSearch RangeQueryBuilder implementations for search operations.
  */
-public class RangeQueryBuilderProtoUtils {
+class RangeQueryBuilderProtoUtils {
 
     private RangeQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -40,7 +40,7 @@ public class RangeQueryBuilderProtoUtils {
      * @return A configured RangeQueryBuilder instance
      * @throws IllegalArgumentException if no valid range query is found
      */
-    public static RangeQueryBuilder fromProto(RangeQuery rangeQueryProto) {
+    static RangeQueryBuilder fromProto(RangeQuery rangeQueryProto) {
         if (rangeQueryProto == null) {
             throw new IllegalArgumentException("RangeQuery cannot be null");
         }
