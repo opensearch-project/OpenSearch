@@ -596,7 +596,9 @@ public abstract class SearchContext implements Releasable {
     }
 
 
-    public void setDFResults(Map<String, Object[]> dfResults) {}
+    public void setDFResults(Map<String, Object[]> dfResults) {
+
+    }
 
     public Map<String, Object[]> getDFResults() {
         return Collections.emptyMap();

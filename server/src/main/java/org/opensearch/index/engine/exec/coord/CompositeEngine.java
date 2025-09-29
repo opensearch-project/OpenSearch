@@ -55,17 +55,21 @@ public class CompositeEngine {
         // Create read specific engines for each format which is associated with shard
         for(SearchEnginePlugin searchEnginePlugin : searchEnginePlugins) {
             for(org.opensearch.vectorized.execution.search.DataFormat dataFormat : searchEnginePlugin.getSupportedFormats()) {
-                SearchExecEngine<?,?,?,?> searchExecEngine = searchEnginePlugin.createEngine(dataFormat,
+                List<SearchExecEngine<?, ?, ?, ?>> currentSearchEngines = readEngines.getOrDefault(dataFormat, new ArrayList<>());
+                SearchExecEngine<?,?,?,?> newSearchEngine = searchEnginePlugin.createEngine(dataFormat,
                     catalogSnapshot.getSearchableFiles(dataFormat.toString()));
-                readEngines.getOrDefault(dataFormat, new ArrayList<>()).add(searchExecEngine);
+
+                currentSearchEngines.add(newSearchEngine);
+                readEngines.put(dataFormat, currentSearchEngines);
+
                 // TODO : figure out how to do internal and external refresh listeners
                 // Maybe external refresh should be managed in opensearch core and plugins should always give
                 // internal refresh managers
                 // 60s as refresh interval -> ExternalReaderManager acquires a view every 60 seconds
                 // InternalReaderManager -> IndexingMemoryController , it keeps on refreshing internal maanger
                 //
-                if(searchExecEngine.getRefreshListener(Engine.SearcherScope.INTERNAL) != null) {
-                    catalogSnapshotAwareRefreshListeners.add(searchExecEngine.getRefreshListener(Engine.SearcherScope.INTERNAL));
+                if(newSearchEngine.getRefreshListener(Engine.SearcherScope.INTERNAL) != null) {
+                    catalogSnapshotAwareRefreshListeners.add(newSearchEngine.getRefreshListener(Engine.SearcherScope.INTERNAL));
                 }
             }
         }

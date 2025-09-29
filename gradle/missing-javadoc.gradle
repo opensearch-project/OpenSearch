@@ -160,7 +160,9 @@ configure([
   project(":test:fixtures:hdfs-fixture"),
   project(":test:fixtures:s3-fixture"),
   project(":test:framework"),
-  project(":test:logger-usage")
+  project(":test:logger-usage"),
+  project(":libs:opensearch-vectorized-exec-spi"), // TODO
+  project(":plugins:engine-datafusion"), //TODO
 ]) {
   project.tasks.withType(MissingJavadocTask) {
     isExcluded = true
