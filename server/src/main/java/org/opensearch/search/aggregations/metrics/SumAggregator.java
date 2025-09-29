@@ -45,6 +45,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -53,6 +54,8 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
@@ -62,7 +65,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  *
  * @opensearch.internal
  */
-public class SumAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
+public class SumAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector, ShardResultConvertor {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
@@ -214,5 +217,15 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     @Override
     public void doClose() {
         Releasables.close(sums, compensations);
+    }
+
+    @Override
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult) {
+            Object[] values = shardResult.get(name);
+            List<InternalAggregation> results = new ArrayList<>(values.length);
+            for (Object value : values) {
+                results.add(new InternalSum(name, (Long) value, format, metadata()));
+            }
+            return results;
     }
 }
