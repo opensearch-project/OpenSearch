@@ -10,6 +10,7 @@ package org.opensearch.index.engine;
 
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -43,7 +44,7 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
     /**
      * Create a search context for this engine
      */
-    public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTask task) throws IOException;
+    public abstract C createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget,  SearchShardTask task) throws IOException;
 
     /**
      * execute

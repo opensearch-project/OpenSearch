@@ -101,7 +101,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         Map<String, Object[]> finalRes = new HashMap<>();
         DatafusionSearcher datafusionSearcher = null;
         try {
-            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(new TextDF(), "generation-1-optimized.parquet")), service);
+            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(new TextDF(), "hits_data.parquet")), service);
             datafusionSearcher = engine.acquireSearcher("Search");
 
 

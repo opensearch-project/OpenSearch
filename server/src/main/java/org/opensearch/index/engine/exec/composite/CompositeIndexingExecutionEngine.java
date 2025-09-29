@@ -54,7 +54,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     public CompositeIndexingExecutionEngine(PluginsService pluginsService) {
      try {
         DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream()
-            .findFirst()
+            .findAny()
             .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
          delegates.add(plugin.indexingEngine());
      } catch (NullPointerException e) {

@@ -817,14 +817,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchExecEngine searchExecEngine = readerContext.indexShard()
             .getIndexingExecutionCoordinator()
             .getPrimaryReadEngine();
-
+        SearchShardTarget shardTarget = new SearchShardTarget(
+            clusterService.localNode().getId(),
+            readerContext.indexShard().shardId(),
+            request.getClusterAlias(),
+            OriginalIndices.NONE
+        );
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             //SearchContext context = createContext(readerContext, request, task, true, isStreamSearch)
 
             // Get engine-specific executor and context
             // TODO : move this logic to work with Lucene
-            SearchContext context = searchExecEngine.createContext(readerContext, request, task);
+
+            SearchContext context = searchExecEngine.createContext(readerContext, request, shardTarget, task);
             //SearchContext context = createContext(readerContext, request, task, true)
         ) {
 
@@ -850,7 +856,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 //QueryPhaseExecutor<?> queryPhaseExecutor = readEngine.getQueryPhaseExecutor();
 //                boolean success = queryPhaseExecutor.execute(context);
                 loadOrExecuteQueryPhase(request, context);
-                queryPhase.execute(context);
+                //queryPhase.execute(context);
                 // loadOrExecuteQueryPhase(request, context);
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     freeReaderContext(readerContext.id());

@@ -30,6 +30,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.SearchResultsCollector;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -56,7 +57,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService) throws IOException {
         this.dataFormat = dataFormat;
-        this.datafusionReaderManager = new DatafusionReaderManager("TODO://FigureOutPath", formatCatalogSnapshot);
+        this.datafusionReaderManager = new DatafusionReaderManager("/Users/gbh/Downloads/res", formatCatalogSnapshot);
         this.datafusionService = dataFusionService;
     }
 
@@ -71,8 +72,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     }
 
     @Override
-    public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTask task) throws IOException {
-        DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, task, this);
+    public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget,  SearchShardTask task) throws IOException {
+        DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this);
         // Parse source
         datafusionContext.datafusionQuery(new DatafusionQuery(request.source().queryPlanIR(), new ArrayList<>()));
         return datafusionContext;
