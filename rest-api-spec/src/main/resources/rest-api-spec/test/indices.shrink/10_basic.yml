@@ -33,6 +33,20 @@ setup:
   - skip:
       features: allowed_warnings
 
+ # try shrink without making it read only
+  - do:
+      catch: /action_request_validation_exception/
+      indices.shrink:
+        index: source
+        target: "new_shrunken_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.blocks.read_only: true
+
   # make it read-only
   - do:
       indices.put_settings:
@@ -45,7 +59,6 @@ setup:
       cluster.health:
         wait_for_status: green
         index: source
-
   # now we do the actual shrink
   - do:
       allowed_warnings:
