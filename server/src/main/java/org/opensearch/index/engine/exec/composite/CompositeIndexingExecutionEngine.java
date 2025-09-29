@@ -37,8 +37,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.dataFormat = dataformat;
         try {
             for (DataFormat dataFormat : dataformat.getDataFormats()) {
+
                 DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream()
-                    .filter(curr -> curr.getDataFormat().equals(dataFormat))
+                    .filter(curr -> curr.getDataFormat().equals(dataFormat.name()))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("dataformat [" + dataFormat + "] is not registered."));
                 delegates.add(plugin.indexingEngine());
@@ -48,6 +49,18 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             delegates.add(new TextEngine());
         }
         this.pool = new DocumentWriterPool(() -> new CompositeDataFormatWriter(this));
+    }
+
+    public CompositeIndexingExecutionEngine(PluginsService pluginsService) {
+     try {
+        DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream()
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
+         delegates.add(plugin.indexingEngine());
+     } catch (NullPointerException e) {
+         delegates.add(new TextEngine());
+     }
+     this.pool = new DocumentWriterPool(() -> new CompositeDataFormatWriter(this));
     }
 
     @Override
@@ -79,10 +92,10 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             }
 
             // make indexing engines aware of everything
-            for (IndexingExecutionEngine<?> delegate : delegates) {
-                RefreshResult result = delegate.refresh(refreshInputs.get(delegate.getDataFormat()));
-                finalResult.add(delegate.getDataFormat(), result.getRefreshedFiles().get(delegate.getDataFormat()));
-            }
+//            for (IndexingExecutionEngine<?> delegate : delegates) {
+//                RefreshResult result = delegate.refresh(refreshInputs.get(delegate.getDataFormat()));
+//                finalResult.add(delegate.getDataFormat(), result.getRefreshedFiles().get(delegate.getDataFormat()));
+//            }
 
             // provide a view to the upper layer
             return finalResult;
