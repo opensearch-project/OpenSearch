@@ -9,9 +9,15 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.IdsQuery;
 import org.opensearch.protobufs.MatchAllQuery;
+import org.opensearch.protobufs.NumberRangeQuery;
+import org.opensearch.protobufs.NumberRangeQueryAllOfFrom;
+import org.opensearch.protobufs.NumberRangeQueryAllOfTo;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.RangeQuery;
 import org.opensearch.protobufs.TermQuery;
+import org.opensearch.protobufs.TermsSetQuery;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 
@@ -131,5 +137,63 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         };
 
         expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
+    }
+
+    public void testIdsQueryConversion() {
+        // Create an Ids query container
+        IdsQuery idsQuery = IdsQuery.newBuilder().addValues("doc1").addValues("doc2").setBoost(1.5f).setXName("test_ids_query").build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setIds(idsQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be an IdsQueryBuilder", "org.opensearch.index.query.IdsQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testRangeQueryConversion() {
+        // Create a Range query container with NumberRangeQuery
+        NumberRangeQueryAllOfFrom fromValue = NumberRangeQueryAllOfFrom.newBuilder().setDouble(10.0).build();
+        NumberRangeQueryAllOfTo toValue = NumberRangeQueryAllOfTo.newBuilder().setDouble(100.0).build();
+
+        NumberRangeQuery numberRangeQuery = NumberRangeQuery.newBuilder().setField("age").setFrom(fromValue).setTo(toValue).build();
+
+        RangeQuery rangeQuery = RangeQuery.newBuilder().setNumberRangeQuery(numberRangeQuery).build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setRange(rangeQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a RangeQueryBuilder", "org.opensearch.index.query.RangeQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testTermsSetQueryConversion() {
+        // Create a TermsSet query container
+        TermsSetQuery termsSetQuery = TermsSetQuery.newBuilder()
+            .setField("tags")
+            .addTerms("urgent")
+            .addTerms("important")
+            .setMinimumShouldMatchField("tag_count")
+            .setBoost(2.0f)
+            .setXName("test_terms_set_query")
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTermsSet(termsSetQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a TermsSetQueryBuilder",
+            "org.opensearch.index.query.TermsSetQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
     }
 }
