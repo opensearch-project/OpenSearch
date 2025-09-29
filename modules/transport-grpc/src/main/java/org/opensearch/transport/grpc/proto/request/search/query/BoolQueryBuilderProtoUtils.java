@@ -24,21 +24,8 @@ import java.util.List;
  */
 class BoolQueryBuilderProtoUtils {
 
-    // Registry for query conversion - injected by the gRPC plugin
-    private static QueryBuilderProtoConverterRegistry REGISTRY;
-
     private BoolQueryBuilderProtoUtils() {
         // Utility class, no instances
-    }
-
-    /**
-     * Sets the registry injected by the gRPC plugin.
-     * This method is called when the Bool converter receives the populated registry.
-     *
-     * @param registry The registry to use
-     */
-    static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
-        REGISTRY = registry;
     }
 
     /**
@@ -49,9 +36,10 @@ class BoolQueryBuilderProtoUtils {
      * boost, query name, and minimum_should_match.
      *
      * @param boolQueryProto The Protocol Buffer BoolQuery object
+     * @param registry The registry to use for converting nested queries
      * @return A configured BoolQueryBuilder instance
      */
-    static BoolQueryBuilder fromProto(BoolQuery boolQueryProto) {
+    static BoolQueryBuilder fromProto(BoolQuery boolQueryProto, QueryBuilderProtoConverterRegistry registry) {
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String minimumShouldMatch = null;
@@ -95,7 +83,7 @@ class BoolQueryBuilderProtoUtils {
         // Process must clauses
         List<QueryContainer> mustClauses = boolQueryProto.getMustList();
         for (QueryContainer queryContainer : mustClauses) {
-            QueryBuilder queryBuilder = REGISTRY.fromProto(queryContainer);
+            QueryBuilder queryBuilder = registry.fromProto(queryContainer);
             if (queryBuilder != null) {
                 boolQuery.must(queryBuilder);
             }
@@ -104,7 +92,7 @@ class BoolQueryBuilderProtoUtils {
         // Process must_not clauses
         List<QueryContainer> mustNotClauses = boolQueryProto.getMustNotList();
         for (QueryContainer queryContainer : mustNotClauses) {
-            QueryBuilder queryBuilder = REGISTRY.fromProto(queryContainer);
+            QueryBuilder queryBuilder = registry.fromProto(queryContainer);
             if (queryBuilder != null) {
                 boolQuery.mustNot(queryBuilder);
             }
@@ -113,7 +101,7 @@ class BoolQueryBuilderProtoUtils {
         // Process should clauses
         List<QueryContainer> shouldClauses = boolQueryProto.getShouldList();
         for (QueryContainer queryContainer : shouldClauses) {
-            QueryBuilder queryBuilder = REGISTRY.fromProto(queryContainer);
+            QueryBuilder queryBuilder = registry.fromProto(queryContainer);
             if (queryBuilder != null) {
                 boolQuery.should(queryBuilder);
             }
@@ -122,7 +110,7 @@ class BoolQueryBuilderProtoUtils {
         // Process filter clauses
         List<QueryContainer> filterClauses = boolQueryProto.getFilterList();
         for (QueryContainer queryContainer : filterClauses) {
-            QueryBuilder queryBuilder = REGISTRY.fromProto(queryContainer);
+            QueryBuilder queryBuilder = registry.fromProto(queryContainer);
             if (queryBuilder != null) {
                 boolQuery.filter(queryBuilder);
             }

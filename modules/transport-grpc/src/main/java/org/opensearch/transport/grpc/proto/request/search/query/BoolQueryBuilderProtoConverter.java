@@ -29,8 +29,6 @@ public class BoolQueryBuilderProtoConverter implements QueryBuilderProtoConverte
     @Override
     public void setRegistry(QueryBuilderProtoConverterRegistry registry) {
         this.registry = registry;
-        // Pass the registry to the utility class so it can convert nested queries
-        BoolQueryBuilderProtoUtils.setRegistry(registry);
     }
 
     @Override
@@ -44,6 +42,6 @@ public class BoolQueryBuilderProtoConverter implements QueryBuilderProtoConverte
             throw new IllegalArgumentException("QueryContainer does not contain a Bool query");
         }
 
-        return BoolQueryBuilderProtoUtils.fromProto(queryContainer.getBool());
+        return BoolQueryBuilderProtoUtils.fromProto(queryContainer.getBool(), registry);
     }
 }

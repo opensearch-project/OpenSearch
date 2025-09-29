@@ -23,12 +23,13 @@ import static org.opensearch.transport.grpc.proto.request.search.query.BoolQuery
 
 public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
+    private QueryBuilderProtoConverterRegistryImpl registry;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
         // Set up the registry with all built-in converters
-        QueryBuilderProtoConverterRegistryImpl registry = new QueryBuilderProtoConverterRegistryImpl();
-        BoolQueryBuilderProtoUtils.setRegistry(registry);
+        registry = new QueryBuilderProtoConverterRegistryImpl();
     }
 
     public void testFromProtoWithAllFields() {
@@ -45,7 +46,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result
         assertEquals("test_query", result.queryName());
@@ -88,7 +89,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         BoolQuery boolQuery = BoolQuery.newBuilder().build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result
         assertNull(result.queryName());
@@ -107,7 +108,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result
         assertEquals("75%", result.minimumShouldMatch());
@@ -121,7 +122,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result
         assertEquals(2, result.must().size());
@@ -146,7 +147,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result
         assertEquals(2, result.mustNot().size());
@@ -171,7 +172,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result
         assertEquals(2, result.should().size());
@@ -196,7 +197,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result
         assertEquals(2, result.filter().size());
@@ -229,7 +230,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         BoolQuery boolQuery = BoolQuery.newBuilder().setMinimumShouldMatch(minimumShouldMatch).build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result - should not have minimum_should_match set
         assertNull("Should not have minimum_should_match for default case", result.minimumShouldMatch());
@@ -240,7 +241,7 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         BoolQuery boolQuery = BoolQuery.newBuilder().setAdjustPureNegative(false).build();
 
         // Call the method under test
-        BoolQueryBuilder result = fromProto(boolQuery);
+        BoolQueryBuilder result = fromProto(boolQuery, registry);
 
         // Verify the result
         assertFalse("Adjust pure negative should be false", result.adjustPureNegative());
@@ -258,40 +259,32 @@ public class BoolQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
                 return super.fromProto(queryContainer);
             }
         };
-        BoolQueryBuilderProtoUtils.setRegistry(mockRegistry);
+        // Create empty query containers that will return null
+        QueryContainer emptyQueryContainer = QueryContainer.newBuilder().build();
 
-        try {
-            // Create empty query containers that will return null
-            QueryContainer emptyQueryContainer = QueryContainer.newBuilder().build();
+        // Create a BoolQuery with all clause types containing null-returning queries
+        BoolQuery boolQuery = BoolQuery.newBuilder()
+            .addMust(emptyQueryContainer)      // Should return null and be ignored
+            .addMustNot(emptyQueryContainer)   // Should return null and be ignored
+            .addShould(emptyQueryContainer)    // Should return null and be ignored
+            .addFilter(emptyQueryContainer)    // Should return null and be ignored
+            .addMust(createTermQueryContainer("valid_field", "valid_value"))  // Valid query
+            .build();
 
-            // Create a BoolQuery with all clause types containing null-returning queries
-            BoolQuery boolQuery = BoolQuery.newBuilder()
-                .addMust(emptyQueryContainer)      // Should return null and be ignored
-                .addMustNot(emptyQueryContainer)   // Should return null and be ignored
-                .addShould(emptyQueryContainer)    // Should return null and be ignored
-                .addFilter(emptyQueryContainer)    // Should return null and be ignored
-                .addMust(createTermQueryContainer("valid_field", "valid_value"))  // Valid query
-                .build();
+        // Call the method under test
+        BoolQueryBuilder result = fromProto(boolQuery, mockRegistry);
 
-            // Call the method under test
-            BoolQueryBuilder result = fromProto(boolQuery);
+        // Verify the result - only the valid query should be added
+        assertEquals("Should have 1 must clause (null ones ignored)", 1, result.must().size());
+        assertEquals("Should have 0 mustNot clauses (null ones ignored)", 0, result.mustNot().size());
+        assertEquals("Should have 0 should clauses (null ones ignored)", 0, result.should().size());
+        assertEquals("Should have 0 filter clauses (null ones ignored)", 0, result.filter().size());
 
-            // Verify the result - only the valid query should be added
-            assertEquals("Should have 1 must clause (null ones ignored)", 1, result.must().size());
-            assertEquals("Should have 0 mustNot clauses (null ones ignored)", 0, result.mustNot().size());
-            assertEquals("Should have 0 should clauses (null ones ignored)", 0, result.should().size());
-            assertEquals("Should have 0 filter clauses (null ones ignored)", 0, result.filter().size());
+        // Verify the valid must clause
+        assertTrue("Valid must clause should be TermQueryBuilder", result.must().get(0) instanceof TermQueryBuilder);
+        TermQueryBuilder termQuery = (TermQueryBuilder) result.must().get(0);
+        assertEquals("valid_field", termQuery.fieldName());
+        assertEquals("valid_value", termQuery.value());
 
-            // Verify the valid must clause
-            assertTrue("Valid must clause should be TermQueryBuilder", result.must().get(0) instanceof TermQueryBuilder);
-            TermQueryBuilder termQuery = (TermQueryBuilder) result.must().get(0);
-            assertEquals("valid_field", termQuery.fieldName());
-            assertEquals("valid_value", termQuery.value());
-
-        } finally {
-            // Restore the original registry
-            QueryBuilderProtoConverterRegistryImpl registry = new QueryBuilderProtoConverterRegistryImpl();
-            BoolQueryBuilderProtoUtils.setRegistry(registry);
-        }
     }
 }
