@@ -173,8 +173,8 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         // Verify the conversion
         assertNotNull("Entry should not be null", entry);
         assertEquals("Key should match", key, entry.getKey());
-        assertTrue("Should be a string value", entry.getValue().hasStringValue());
-        assertEquals("Value should match", "test-value", entry.getValue().getStringValue());
+        assertTrue("Should be a string value", entry.getValue().hasString());
+        assertEquals("Value should match", "test-value", entry.getValue().getString());
         assertFalse("Should not have a string array", entry.getValue().hasStringArray());
     }
 
@@ -189,7 +189,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         // Verify the conversion
         assertNotNull("Entry should not be null", entry);
         assertEquals("Key should match", key, entry.getKey());
-        assertFalse("Should not be a string value", entry.getValue().hasStringValue());
+        assertFalse("Should not be a string value", entry.getValue().hasString());
         assertTrue("Should have a string array", entry.getValue().hasStringArray());
         assertEquals("Array should have correct size", 3, entry.getValue().getStringArray().getStringArrayCount());
         assertEquals("First value should match", "value1", entry.getValue().getStringArray().getStringArray(0));

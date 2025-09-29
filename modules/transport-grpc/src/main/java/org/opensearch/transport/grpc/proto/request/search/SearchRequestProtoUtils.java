@@ -25,7 +25,6 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
@@ -268,28 +267,6 @@ public class SearchRequestProtoUtils {
                 searchSourceBuilder.trackTotalHits(request.getTrackTotalHits().getEnabled());
             } else if (request.getTrackTotalHits().getTrackHitsCase() == TrackHits.TrackHitsCase.COUNT) {
                 searchSourceBuilder.trackTotalHitsUpTo(request.getTrackTotalHits().getCount());
-            }
-        }
-
-        if (request.getSortCount() > 0) {
-            for (SearchRequest.SortOrder sort : request.getSortList()) {
-                String sortField = sort.getField();
-
-                if (sort.hasDirection()) {
-                    SearchRequest.SortOrder.Direction direction = sort.getDirection();
-                    switch (direction) {
-                        case DIRECTION_ASC:
-                            searchSourceBuilder.sort(sortField, SortOrder.ASC);
-                            break;
-                        case DIRECTION_DESC:
-                            searchSourceBuilder.sort(sortField, SortOrder.DESC);
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported sort direction " + direction.toString());
-                    }
-                } else {
-                    searchSourceBuilder.sort(sortField);
-                }
             }
         }
 
