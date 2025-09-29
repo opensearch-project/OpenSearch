@@ -140,7 +140,6 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
     }
 
-    
     public void testMultiMatchQueryConversion() {
         // Create a MultiMatch query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
