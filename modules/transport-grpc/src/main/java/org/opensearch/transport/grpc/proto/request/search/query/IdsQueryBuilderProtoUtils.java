@@ -7,7 +7,6 @@
  */
 package org.opensearch.transport.grpc.proto.request.search.query;
 
-import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.protobufs.IdsQuery;
 
@@ -32,22 +31,17 @@ class IdsQueryBuilderProtoUtils {
      * @return A configured IdsQueryBuilder instance
      */
     static IdsQueryBuilder fromProto(IdsQuery idsQueryProto) {
-        String queryName = null;
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-
         // Create IdsQueryBuilder
         IdsQueryBuilder idsQuery = new IdsQueryBuilder();
 
-        // Process name
+        // Process name (only set when present)
         if (idsQueryProto.hasXName()) {
-            queryName = idsQueryProto.getXName();
-            idsQuery.queryName(queryName);
+            idsQuery.queryName(idsQueryProto.getXName());
         }
 
-        // Process boost
+        // Process boost (only set when present)
         if (idsQueryProto.hasBoost()) {
-            boost = idsQueryProto.getBoost();
-            idsQuery.boost(boost);
+            idsQuery.boost(idsQueryProto.getBoost());
         }
 
         // Process values (ids)

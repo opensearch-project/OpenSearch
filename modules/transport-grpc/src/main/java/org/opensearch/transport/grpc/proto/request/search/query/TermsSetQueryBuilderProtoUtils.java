@@ -74,7 +74,10 @@ class TermsSetQueryBuilderProtoUtils {
             minimumShouldMatchScript = ScriptProtoUtils.parseFromProtoRequest(termsSetQueryProto.getMinimumShouldMatchScript());
         }
 
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values).queryName(queryName).boost(boost);
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values);
+
+        queryBuilder.boost(boost);
+        queryBuilder.queryName(queryName);
 
         if (minimumShouldMatchField != null) {
             queryBuilder.setMinimumShouldMatchField(minimumShouldMatchField);
