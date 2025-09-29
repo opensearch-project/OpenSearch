@@ -439,9 +439,8 @@ public class CompositeDirectory extends FilterDirectory {
 
     protected void cacheFile(String name) throws IOException {
         Path filePath = getFilePath(name);
-
-        fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
         fileCache.pin(filePath);
+        fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
         fileCache.decRef(filePath);
     }
 

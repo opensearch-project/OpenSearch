@@ -195,6 +195,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
             .build();
 
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_2).setSettings(settings).get());
@@ -205,6 +206,9 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
         // ensuring cluster is green
         ensureGreen();
+
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        assertFalse(nodesStatsResponse.toString().contains("Exception"));
 
         SearchResponse searchResponse = client().prepareSearch(INDEX_NAME_2).setQuery(QueryBuilders.matchAllQuery()).get();
         // Asserting that search returns same number of docs as ingested
@@ -218,7 +222,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
         // TODO: Make these validation more robust, when SwitchableIndexInput is implemented.
 
-        NodesStatsResponse nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
 
         AggregateFileCacheStats fileCacheStats = nodesStatsResponse.getNodes()
             .stream()
