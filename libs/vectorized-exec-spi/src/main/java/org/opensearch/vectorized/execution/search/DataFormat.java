@@ -10,8 +10,24 @@ package org.opensearch.vectorized.execution.search;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+/**
+ DataFormat supported by OpenSearch
+ */
 @ExperimentalApi
 public enum DataFormat {
-    CSV,
-    Text
+    /** CSV Format*/
+    CSV("csv"),
+
+    /** Text Format */
+    Text("text");
+
+    private final String name;
+
+    DataFormat(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
 }

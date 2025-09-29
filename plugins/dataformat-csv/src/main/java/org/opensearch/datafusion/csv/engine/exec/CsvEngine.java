@@ -30,12 +30,22 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * CSV indexing execution engine.
+ */
 public class CsvEngine implements IndexingExecutionEngine<CsvDataFormat> {
 
     private final AtomicLong counter = new AtomicLong();
     private final Set<CsvWriter> openWriters = new HashSet<>();
     private List<FileMetadata> openFiles = new ArrayList<>();
     static CsvDataFormat CSV = new CsvDataFormat();
+
+    /**
+     * Creates a new CSV indexing execution engine.
+     */
+    public CsvEngine() {
+        // Default constructor
+    }
 
     @Override
     public List<String> supportedFieldTypes() {
@@ -60,10 +70,18 @@ public class CsvEngine implements IndexingExecutionEngine<CsvDataFormat> {
         return refreshResult;
     }
 
+    /**
+     * CSV document input.
+     */
     public static class CsvInput implements DocumentInput<String> {
         private final List<String> values = new ArrayList<>();
         private final CsvWriter writer;
 
+        /**
+         * Creates a new CsvInput.
+         *
+         * @param writer the CSV writer
+         */
         public CsvInput(CsvWriter writer) {
             this.writer = writer;
         }
@@ -93,6 +111,9 @@ public class CsvEngine implements IndexingExecutionEngine<CsvDataFormat> {
         }
     }
 
+    /**
+     * CSV writer implementation.
+     */
     public static class CsvWriter implements Writer<CsvInput> {
         private final StringBuilder sb = new StringBuilder();
         private final File currentFile;
@@ -100,6 +121,13 @@ public class CsvEngine implements IndexingExecutionEngine<CsvDataFormat> {
         private final Runnable onClose;
         private boolean headerWritten = false;
 
+        /**
+         * Creates a new CsvWriter.
+         *
+         * @param currentFile the file name
+         * @param engine the CSV engine
+         * @throws IOException if an I/O error occurs
+         */
         public CsvWriter(String currentFile, CsvEngine engine) throws IOException {
             this.currentFile = new File("/Users/gbh/" + currentFile);
             this.currentFile.createNewFile();
@@ -149,6 +177,11 @@ public class CsvEngine implements IndexingExecutionEngine<CsvDataFormat> {
             return new CsvInput(this);
         }
 
+        /**
+         * Writes CSV headers.
+         *
+         * @param headers the header list
+         */
         public void writeHeaders(List<String> headers) {
             if (!headerWritten) {
                 String headerLine = String.join(",", headers) + "\n";

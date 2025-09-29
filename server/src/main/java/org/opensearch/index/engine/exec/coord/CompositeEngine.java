@@ -13,6 +13,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SearchExecEngine;
@@ -23,6 +24,7 @@ import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.PluginsService;
 
@@ -43,7 +45,8 @@ public class CompositeEngine {
 
     public CompositeEngine(MapperService mapperService, PluginsService pluginsService) throws IOException {
         List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
-        this.engine = new CompositeIndexingExecutionEngine(pluginsService, new Any(List.of(DataFormat.TEXT)));
+        // How to bring the Dataformat here? Currently this means only Text and LuceneFormat can be used
+        this.engine = new CompositeIndexingExecutionEngine(pluginsService);
 
         // Refresh here so that catalog snapshot gets initialized
         // TODO : any better way to do this ?
