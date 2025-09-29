@@ -16,7 +16,7 @@ import org.opensearch.protobufs.ExistsQuery;
  * This class provides methods to transform Protocol Buffer representations of exists queries
  * into their corresponding OpenSearch ExistsQueryBuilder implementations for search operations.
  */
-public class ExistsQueryBuilderProtoUtils {
+class ExistsQueryBuilderProtoUtils {
 
     private ExistsQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -32,7 +32,7 @@ public class ExistsQueryBuilderProtoUtils {
      * @return A configured ExistsQueryBuilder instance
      * @throws IllegalArgumentException if the exists query is null or missing required fields
      */
-    public static ExistsQueryBuilder fromProto(ExistsQuery existsQueryProto) {
+    static ExistsQueryBuilder fromProto(ExistsQuery existsQueryProto) {
         if (existsQueryProto == null) {
             throw new IllegalArgumentException("ExistsQuery cannot be null");
         }

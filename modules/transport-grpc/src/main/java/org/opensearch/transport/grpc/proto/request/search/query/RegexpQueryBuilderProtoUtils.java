@@ -18,7 +18,7 @@ import java.util.Locale;
  * This class provides methods to transform Protocol Buffer representations of regexp queries
  * into their corresponding OpenSearch RegexpQueryBuilder implementations for search operations.
  */
-public class RegexpQueryBuilderProtoUtils {
+class RegexpQueryBuilderProtoUtils {
 
     private RegexpQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -35,7 +35,7 @@ public class RegexpQueryBuilderProtoUtils {
      * @return A configured RegexpQueryBuilder instance
      * @throws IllegalArgumentException if the regexp query is null or missing required fields
      */
-    public static RegexpQueryBuilder fromProto(RegexpQuery regexpQueryProto) {
+    static RegexpQueryBuilder fromProto(RegexpQuery regexpQueryProto) {
         String field = regexpQueryProto.getField();
         String value = regexpQueryProto.getValue();
 

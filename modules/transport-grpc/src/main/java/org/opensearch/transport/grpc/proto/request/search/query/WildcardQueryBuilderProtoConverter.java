@@ -12,8 +12,8 @@ import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 
 /**
- * Converter for Bool queries.
- * This class implements the QueryBuilderProtoConverter interface to provide Bool query support
+ * Converter for Wildcard queries.
+ * This class implements the QueryBuilderProtoConverter interface to provide Wildcard query support
  * for the gRPC transport module.
  */
 public class WildcardQueryBuilderProtoConverter implements QueryBuilderProtoConverter {

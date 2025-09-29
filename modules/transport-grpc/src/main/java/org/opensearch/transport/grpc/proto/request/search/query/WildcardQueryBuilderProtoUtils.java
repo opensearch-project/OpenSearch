@@ -19,7 +19,7 @@ import java.util.Locale;
  * This class provides methods to transform Protocol Buffer representations of wildcard queries
  * into their corresponding OpenSearch WildcardQueryBuilder implementations for search operations.
  */
-public class WildcardQueryBuilderProtoUtils {
+class WildcardQueryBuilderProtoUtils {
 
     private WildcardQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -36,7 +36,7 @@ public class WildcardQueryBuilderProtoUtils {
      * @return A configured WildcardQueryBuilder instance
      * @throws IllegalArgumentException if neither value nor wildcard field is set
      */
-    public static WildcardQueryBuilder fromProto(WildcardQuery wildcardQueryProto) {
+    static WildcardQueryBuilder fromProto(WildcardQuery wildcardQueryProto) {
         String queryName = null;
         String fieldName = null;
         String value = null;
