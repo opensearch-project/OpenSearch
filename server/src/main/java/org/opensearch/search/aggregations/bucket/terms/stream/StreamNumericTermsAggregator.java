@@ -58,7 +58,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
     private final IncludeExclude.LongFilter longFilter;
-    private long valueCount;
     private LongKeyedBucketOrds bucketOrds;
     private final CardinalityUpperBound cardinality;
 
@@ -87,21 +86,17 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
     @Override
     public void doReset() {
         super.doReset();
-        // TODO: reset bucketOrds here
-        valueCount = 0;
+        Releasables.close(bucketOrds);
+        bucketOrds = null;
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        if (bucketOrds != null) {
+            bucketOrds.close();
+        }
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
         SortedNumericDocValues values = resultStrategy.getValues(ctx);
-        this.valueCount = values.docValueCount();
-        if (docCounts == null) {
-            this.docCounts = context.bigArrays().newLongArray(valueCount, true);
-        } else {
-            // TODO: check performance of grow vs creating a new one
-            this.docCounts = context.bigArrays().grow(docCounts, valueCount);
-        }
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -115,9 +110,10 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
                                 long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
                                 if (bucketOrdinal < 0) { // already seen
                                     bucketOrdinal = -1 - bucketOrdinal;
+                                    collectExistingBucket(sub, doc, bucketOrdinal);
+                                } else {
+                                    collectBucket(sub, doc, bucketOrdinal);
                                 }
-                                // TODO: do we need to call #collectBucket actually?
-                                collectExistingBucket(sub, doc, bucketOrdinal);
                             }
                             previous = val;
                         }
@@ -139,6 +135,13 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         implements
             Releasable {
         private InternalAggregation[] buildAggregationsBatch(long[] owningBucketOrds) throws IOException {
+            if (bucketOrds == null) { // no data collected
+                InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+                for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                    results[ordIdx] = buildEmptyResult();
+                }
+                return results;
+            }
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];
@@ -643,7 +646,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
-        add.accept("total_buckets", bucketOrds.size());
+        add.accept("total_buckets", bucketOrds == null ? 0 : bucketOrds.size());
     }
 
     @Override
