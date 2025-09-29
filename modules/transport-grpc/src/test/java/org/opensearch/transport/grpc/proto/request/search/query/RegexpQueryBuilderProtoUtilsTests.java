@@ -12,6 +12,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.RegexpFlag;
 import org.opensearch.index.query.RegexpQueryBuilder;
+import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.RegexpQuery;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -56,7 +57,7 @@ public class RegexpQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setFlags("INTERSECTION|COMPLEMENT")
             .setCaseInsensitive(true)
             .setMaxDeterminizedStates(20000)
-            .setRewrite(RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
             .build();
 
         // Convert to RegexpQueryBuilder
@@ -75,13 +76,13 @@ public class RegexpQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithDifferentRewriteMethods() {
         // Test all possible rewrite methods
-        RegexpQuery.MultiTermQueryRewrite[] rewriteMethods = {
-            RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE,
-            RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN,
-            RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN,
-            RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N,
-            RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N,
-            RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N };
+        MultiTermQueryRewrite[] rewriteMethods = {
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N };
 
         String[] expectedRewriteMethods = {
             "constant_score",
@@ -132,7 +133,7 @@ public class RegexpQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setFlags("INTERSECTION")
             .setCaseInsensitive(true)
             .setMaxDeterminizedStates(20000)
-            .setRewrite(RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
             .setBoost(2.0f)
             .setXName("test_query")
             .build();

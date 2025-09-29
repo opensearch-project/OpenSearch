@@ -11,6 +11,7 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.WildcardQueryBuilder;
+import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.WildcardQuery;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -51,7 +52,7 @@ public class WildcardQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setBoost(2.0f)
             .setXName("test_query")
             .setCaseInsensitive(true)
-            .setRewrite(WildcardQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
             .build();
 
         // Convert to WildcardQueryBuilder
@@ -80,13 +81,13 @@ public class WildcardQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithDifferentRewriteMethods() {
         // Test all possible rewrite methods
-        WildcardQuery.MultiTermQueryRewrite[] rewriteMethods = {
-            WildcardQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE,
-            WildcardQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN,
-            WildcardQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN,
-            WildcardQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N,
-            WildcardQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N,
-            WildcardQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N };
+        MultiTermQueryRewrite[] rewriteMethods = {
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N,
+            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N };
 
         String[] expectedRewriteMethods = {
             "constant_score",
@@ -133,7 +134,7 @@ public class WildcardQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setField("test_field")
             .setValue("test*value")
             .setCaseInsensitive(true)
-            .setRewrite(WildcardQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
             .setBoost(2.0f)
             .setXName("test_query")
             .build();

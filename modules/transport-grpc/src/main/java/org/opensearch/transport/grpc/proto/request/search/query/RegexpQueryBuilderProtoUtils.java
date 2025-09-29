@@ -8,10 +8,11 @@
 package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.RegexpQueryBuilder;
+import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.RegexpQuery;
-
-import java.util.Locale;
+import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 /**
  * Utility class for converting RegexpQuery Protocol Buffers to OpenSearch objects.
@@ -36,45 +37,50 @@ class RegexpQueryBuilderProtoUtils {
      * @throws IllegalArgumentException if the regexp query is null or missing required fields
      */
     static RegexpQueryBuilder fromProto(RegexpQuery regexpQueryProto) {
-        String field = regexpQueryProto.getField();
+        String fieldName = regexpQueryProto.getField();
+        String rewrite = null;
         String value = regexpQueryProto.getValue();
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        int flagsValue = RegexpQueryBuilder.DEFAULT_FLAGS_VALUE;
+        boolean caseInsensitive = RegexpQueryBuilder.DEFAULT_CASE_INSENSITIVITY;
+        int maxDeterminizedStates = RegexpQueryBuilder.DEFAULT_DETERMINIZE_WORK_LIMIT;
+        String queryName = null;
 
-        RegexpQueryBuilder regexpQueryBuilder = new RegexpQueryBuilder(field, value);
-
-        // Set optional parameters
         if (regexpQueryProto.hasBoost()) {
-            regexpQueryBuilder.boost(regexpQueryProto.getBoost());
+            boost = regexpQueryProto.getBoost();
         }
 
-        if (regexpQueryProto.hasXName()) {
-            regexpQueryBuilder.queryName(regexpQueryProto.getXName());
+        if (regexpQueryProto.hasRewrite()) {
+            MultiTermQueryRewrite rewriteEnum = regexpQueryProto.getRewrite();
+            // Skip setting rewrite method if it's UNSPECIFIED
+            if (rewriteEnum != MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
+                rewrite = ProtobufEnumUtils.convertToString(rewriteEnum);
+            }
         }
 
         if (regexpQueryProto.hasFlags()) {
             // Convert string flags to integer value using RegexpFlag.resolveValue
-            regexpQueryBuilder.flags(org.opensearch.index.query.RegexpFlag.resolveValue(regexpQueryProto.getFlags()));
-        }
-
-        if (regexpQueryProto.hasCaseInsensitive()) {
-            regexpQueryBuilder.caseInsensitive(regexpQueryProto.getCaseInsensitive());
+            flagsValue = org.opensearch.index.query.RegexpFlag.resolveValue(regexpQueryProto.getFlags());
         }
 
         if (regexpQueryProto.hasMaxDeterminizedStates()) {
-            regexpQueryBuilder.maxDeterminizedStates(regexpQueryProto.getMaxDeterminizedStates());
+            maxDeterminizedStates = regexpQueryProto.getMaxDeterminizedStates();
         }
 
-        if (regexpQueryProto.hasRewrite()) {
-            RegexpQuery.MultiTermQueryRewrite rewriteEnum = regexpQueryProto.getRewrite();
-
-            // Skip setting rewrite method if it's UNSPECIFIED
-            if (rewriteEnum != RegexpQuery.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
-                String rewriteMethod = rewriteEnum.name();
-                // Remove the prefix and convert to lowercase to match expected format
-                rewriteMethod = rewriteMethod.replace("MULTI_TERM_QUERY_REWRITE_", "").toLowerCase(Locale.ROOT);
-                regexpQueryBuilder.rewrite(rewriteMethod);
-            }
+        if (regexpQueryProto.hasCaseInsensitive()) {
+            caseInsensitive = regexpQueryProto.getCaseInsensitive();
         }
 
-        return regexpQueryBuilder;
+        if (regexpQueryProto.hasXName()) {
+            queryName = regexpQueryProto.getXName();
+        }
+
+        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value).flags(flagsValue)
+            .maxDeterminizedStates(maxDeterminizedStates)
+            .rewrite(rewrite)
+            .boost(boost)
+            .queryName(queryName);
+        result.caseInsensitive(caseInsensitive);
+        return result;
     }
 }
