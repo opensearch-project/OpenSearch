@@ -13,6 +13,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 public class AttributeValueStoreTests extends OpenSearchTestCase {
 
@@ -26,27 +28,33 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
 
     public void testPut() {
         subjectUnderTest.put("foo", "bar");
-        assertEquals("bar", subjectUnderTest.get("foo").get());
+        assertEquals("bar", subjectUnderTest.getAll("foo").getFirst().iterator().next());
+        subjectUnderTest.put("foo", "sing");
+        assertEquals(1, subjectUnderTest.getAll("foo").size());
+        assertEquals(2, subjectUnderTest.getAll("foo").get(0).size());
+        assertTrue(subjectUnderTest.getAll("foo").get(0).contains("sing"));
     }
 
     public void testRemove() {
         subjectUnderTest.put("foo", "bar");
-        subjectUnderTest.remove("foo");
+        subjectUnderTest.remove("foo", "bar");
         assertEquals(0, subjectUnderTest.size());
     }
 
     public void tesGet() {
         subjectUnderTest.put("foo", "bar");
-        assertEquals("bar", subjectUnderTest.get("foo").get());
+        assertEquals("bar", subjectUnderTest.getAll("foo").getFirst());
+        subjectUnderTest.put("foo", "sing");
+        assertEquals(2, subjectUnderTest.getAll("foo").size());
     }
 
     public void testGetWhenNoProperPrefixIsPresent() {
         subjectUnderTest.put("foo", "bar");
         subjectUnderTest.put("foodip", "sing");
-        assertTrue(subjectUnderTest.get("foxtail").isEmpty());
+        assertTrue(subjectUnderTest.getAll("foxtail").isEmpty());
         subjectUnderTest.put("fox", "lucy");
 
-        assertFalse(subjectUnderTest.get("foxtail").isEmpty());
+        assertFalse(subjectUnderTest.getAll("foxtail").isEmpty());
     }
 
     public void testClear() {
@@ -97,7 +105,7 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
             try {
                 Thread.sleep(random().nextInt(100));
                 for (String key : toReadKeys) {
-                    subjectUnderTest.get(key);
+                    subjectUnderTest.getAll(key);
                 }
             } catch (InterruptedException e) {}
         }
@@ -122,5 +130,39 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
                 }
             } catch (InterruptedException e) {}
         }
+    }
+
+    public void testDefaultMethods() {
+        class DummyStore implements AttributeValueStore<String, String> {
+            boolean removeCalled = false;
+
+            @Override
+            public void put(String key, String value) {}
+
+            @Override
+            public void remove(String key) {
+                removeCalled = true;
+            }
+
+            @Override
+            public Optional<String> get(String key) {
+                return Optional.empty();
+            }
+
+            @Override
+            public void clear() {}
+
+            @Override
+            public int size() {
+                return 0;
+            }
+        }
+
+        DummyStore store = new DummyStore();
+        store.remove("foo", "bar");
+        assertTrue(store.removeCalled);
+        List<Set<String>> result = store.getAll("foo");
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
     }
 }
