@@ -48,6 +48,8 @@ public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProto
         delegate.registerConverter(new MatchNoneQueryBuilderProtoConverter());
         delegate.registerConverter(new TermQueryBuilderProtoConverter());
         delegate.registerConverter(new TermsQueryBuilderProtoConverter());
+        delegate.registerConverter(new GeoBoundingBoxQueryBuilderProtoConverter());
+        delegate.registerConverter(new GeoDistanceQueryBuilderProtoConverter());
 
         logger.info("Registered {} built-in query converters", delegate.size());
     }
