@@ -33,7 +33,7 @@ import java.util.Locale;
  * into their corresponding OpenSearch GeoBoundingBoxQueryBuilder implementations for search operations.
  *
  */
-public class GeoBoundingBoxQueryBuilderProtoUtils {
+class GeoBoundingBoxQueryBuilderProtoUtils {
 
     private static final Logger logger = LogManager.getLogger(GeoBoundingBoxQueryBuilderProtoUtils.class);
 
@@ -50,7 +50,7 @@ public class GeoBoundingBoxQueryBuilderProtoUtils {
      * @param geoBoundingBoxQueryProto The Protocol Buffer GeoBoundingBoxQuery to convert
      * @return A configured GeoBoundingBoxQueryBuilder instance
      */
-    public static GeoBoundingBoxQueryBuilder fromProto(GeoBoundingBoxQuery geoBoundingBoxQueryProto) {
+    static GeoBoundingBoxQueryBuilder fromProto(GeoBoundingBoxQuery geoBoundingBoxQueryProto) {
         if (geoBoundingBoxQueryProto == null) {
             throw new IllegalArgumentException("GeoBoundingBoxQuery cannot be null");
         }

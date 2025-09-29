@@ -24,7 +24,7 @@ import org.opensearch.transport.grpc.proto.request.common.GeoPointProtoUtils;
  * This class provides methods to transform Protocol Buffer representations of geo distance queries
  * into their corresponding OpenSearch GeoDistanceQueryBuilder implementations for search operations.
  */
-public class GeoDistanceQueryBuilderProtoUtils {
+class GeoDistanceQueryBuilderProtoUtils {
 
     private GeoDistanceQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -39,7 +39,7 @@ public class GeoDistanceQueryBuilderProtoUtils {
      * @param geoDistanceQueryProto The Protocol Buffer GeoDistanceQuery to convert
      * @return A configured GeoDistanceQueryBuilder instance
      */
-    public static GeoDistanceQueryBuilder fromProto(GeoDistanceQuery geoDistanceQueryProto) {
+    static GeoDistanceQueryBuilder fromProto(GeoDistanceQuery geoDistanceQueryProto) {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         GeoPoint point = new GeoPoint(Double.NaN, Double.NaN);
