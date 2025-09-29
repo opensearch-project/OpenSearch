@@ -270,7 +270,7 @@ public class SubdirectoryAwareStore extends Store {
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException e) throws IOException {
                     if (e instanceof NoSuchFileException) {
-                        logger.debug("Skipping inaccessible file during size estimation: {}", file, e);
+                        logger.debug("Skipping inaccessible file during size estimation: {}", file);
                         return FileVisitResult.CONTINUE;
                     }
                     throw e;
