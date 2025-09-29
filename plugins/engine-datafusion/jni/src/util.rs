@@ -168,7 +168,7 @@ pub fn create_object_meta_from_filenames(base_path: &str, filenames: Vec<String>
             .unwrap_or_else(|_| Utc::now());
 
         ObjectMeta {
-            location: ObjectPath::from(filename),
+            location: ObjectPath::from(full_path),
             last_modified: modified,
             size: file_size,
             e_tag: None,
