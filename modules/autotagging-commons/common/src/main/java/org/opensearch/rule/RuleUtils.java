@@ -31,6 +31,8 @@ import java.util.UUID;
  */
 @ExperimentalApi
 public class RuleUtils {
+    private static final String PIPE_DELIMITER = "\\|";
+    private static final String DOT_DELIMITER = ".";
 
     /**
      * constructor for RuleUtils
@@ -130,10 +132,10 @@ public class RuleUtils {
         for (Map.Entry<Attribute, Set<String>> entry : rule.getAttributeMap().entrySet()) {
             Attribute attribute = entry.getKey();
             Set<String> values = entry.getValue();
-            if (!attribute.getPrioritizedSubfields().isEmpty()) {
+            if (hasSubfields(attribute)) {
                 for (String value : values) {
-                    String[] parts = value.split("\\|");
-                    String topLevelAttribute = attribute.getName() + "." + parts[0];
+                    String[] parts = value.split(PIPE_DELIMITER);
+                    String topLevelAttribute = attribute.getName() + DOT_DELIMITER + parts[0];
                     attributeFilters.computeIfAbsent(topLevelAttribute, k -> new HashSet<>()).add(parts[1]);
                 }
             } else {
@@ -141,5 +143,9 @@ public class RuleUtils {
             }
         }
         return attributeFilters;
+    }
+
+    private static boolean hasSubfields(Attribute attribute) {
+        return !attribute.getPrioritizedSubfields().isEmpty();
     }
 }

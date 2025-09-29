@@ -231,6 +231,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
             handleGetRuleResponse(hits, listener);
         } catch (Exception e) {
             if (e instanceof IndexNotFoundException) {
+                logger.debug("Failed to get rule from index [{}]: index doesn't exist.", indexName);
                 handleGetRuleResponse(new ArrayList<>(), listener);
                 return;
             }
