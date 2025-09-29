@@ -8,10 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.BindableService;
-import io.grpc.ServerServiceDefinition;
-import io.grpc.ServiceDescriptor;
-import io.grpc.protobuf.services.HealthStatusManager;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -36,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import io.grpc.BindableService;
+import io.grpc.protobuf.services.HealthStatusManager;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -242,19 +240,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
     public void testGetAuxTransportsWithServiceFactories() {
         GrpcPlugin newPlugin = new GrpcPlugin();
-        newPlugin.createComponents(
-            Mockito.mock(Client.class),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        newPlugin.createComponents(Mockito.mock(Client.class), null, null, null, null, null, null, null, null, null, null);
         ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
         when(mockLoader.loadExtensions(GrpcServiceFactory.class)).thenReturn(List.of(new LoadableMockServiceFactory()));
         plugin.loadExtensions(mockLoader);
@@ -273,19 +259,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
     public void testGetSecureAuxTransportsWithServiceFactories() {
         GrpcPlugin newPlugin = new GrpcPlugin();
-        newPlugin.createComponents(
-            Mockito.mock(Client.class),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        newPlugin.createComponents(Mockito.mock(Client.class), null, null, null, null, null, null, null, null, null, null);
         ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
         when(mockLoader.loadExtensions(GrpcServiceFactory.class)).thenReturn(List.of(new LoadableMockServiceFactory()));
         plugin.loadExtensions(mockLoader);
