@@ -21,7 +21,7 @@ import org.opensearch.protobufs.ZeroTermsQuery;
  *
  * @opensearch.internal
  */
-public class MatchPhraseQueryBuilderProtoUtils {
+class MatchPhraseQueryBuilderProtoUtils {
     /**
      * Private constructor to prevent instantiation of utility class.
      */
@@ -39,7 +39,7 @@ public class MatchPhraseQueryBuilderProtoUtils {
      * @return A properly configured MatchPhraseQueryBuilder
      * @throws IllegalArgumentException if the MatchPhraseQuery is null or if required fields are missing
      */
-    public static MatchPhraseQueryBuilder fromProto(MatchPhraseQuery matchPhraseQueryProto) {
+    static MatchPhraseQueryBuilder fromProto(MatchPhraseQuery matchPhraseQueryProto) {
         if (matchPhraseQueryProto == null) {
             throw new IllegalArgumentException("MatchPhraseQuery cannot be null");
         }

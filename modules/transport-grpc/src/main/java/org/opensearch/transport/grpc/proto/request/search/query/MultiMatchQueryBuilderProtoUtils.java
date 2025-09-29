@@ -21,7 +21,7 @@ import java.util.Map;
  * This class provides methods to transform Protocol Buffer representations of bool queries
  * into their corresponding OpenSearch MultiMatchQueryBuilder implementations for search operations.
  */
-public class MultiMatchQueryBuilderProtoUtils {
+class MultiMatchQueryBuilderProtoUtils {
 
     private MultiMatchQueryBuilderProtoUtils() {
         // Utility class, no instances
@@ -37,7 +37,7 @@ public class MultiMatchQueryBuilderProtoUtils {
      * @return A configured MultiMatchQueryBuilder instance
      * @throws IllegalArgumentException if the query is null or missing required fields
      */
-    public static MultiMatchQueryBuilder fromProto(MultiMatchQuery multiMatchQueryProto) {
+    static MultiMatchQueryBuilder fromProto(MultiMatchQuery multiMatchQueryProto) {
         Object value = multiMatchQueryProto.getQuery();
         Map<String, Float> fieldsBoosts = new HashMap<>();
         MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.DEFAULT_TYPE;
