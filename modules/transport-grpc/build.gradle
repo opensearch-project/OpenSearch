@@ -21,7 +21,7 @@ testClusters {
 }
 
 dependencies {
-  api project('transport-grpc-spi')
+  api project('spi')
 
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
