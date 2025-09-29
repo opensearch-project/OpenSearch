@@ -265,22 +265,43 @@ public abstract class TransportWriteAction<
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
     ) {
         final String executor = executorFunction.apply(primary);
-        threadPool.executor(executor).execute(new ActionRunnable<PrimaryResult<ReplicaRequest, Response>>(listener) {
-            @Override
-            protected void doRun() {
-                Span span = tracer.startSpan(
-                    SpanBuilder.from("dispatchedShardOperationOnPrimary", clusterService.localNode().getId(), request)
-                );
-                try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-                    dispatchedShardOperationOnPrimary(request, primary, TraceableActionListener.create(listener, span, tracer));
-                }
-            }
+        Span queueTimeSpan = tracer.startSpan(
+            SpanBuilder.from("dispatchedShardOperationOnPrimaryQueued", clusterService.localNode().getId(), request)
+        );
 
-            @Override
-            public boolean isForceExecution() {
-                return force(request);
-            }
-        });
+        try (SpanScope spanScope = tracer.withSpanInScope(queueTimeSpan)) {
+            threadPool.executor(executor).execute(new ActionRunnable<PrimaryResult<ReplicaRequest, Response>>(listener) {
+                @Override
+                public void onFailure(Exception e) {
+                    queueTimeSpan.setError(e);
+                    queueTimeSpan.endSpan();
+                    super.onFailure(e);
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    queueTimeSpan.setError(e);
+                    queueTimeSpan.endSpan();
+                    super.onRejection(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    queueTimeSpan.endSpan();
+                    Span span = tracer.startSpan(
+                        SpanBuilder.from("dispatchedShardOperationOnPrimary", clusterService.localNode().getId(), request)
+                    );
+                    try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                        dispatchedShardOperationOnPrimary(request, primary, TraceableActionListener.create(listener, span, tracer));
+                    }
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return force(request);
+                }
+            });
+        }
     }
 
     protected abstract void dispatchedShardOperationOnPrimary(
@@ -298,22 +319,42 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<ReplicaResult>(listener) {
-            @Override
-            protected void doRun() {
-                Span span = tracer.startSpan(
-                    SpanBuilder.from("dispatchedShardOperationOnReplica", clusterService.localNode().getId(), request)
-                );
-                try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-                    dispatchedShardOperationOnReplica(request, replica, TraceableActionListener.create(listener, span, tracer));
+        Span queueTimeSpan = tracer.startSpan(
+            SpanBuilder.from("dispatchedShardOperationOnReplicaQueued", clusterService.localNode().getId(), request)
+        );
+        try (SpanScope spanScope = tracer.withSpanInScope(queueTimeSpan)) {
+            threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<ReplicaResult>(listener) {
+                @Override
+                public void onFailure(Exception e) {
+                    queueTimeSpan.setError(e);
+                    queueTimeSpan.endSpan();
+                    super.onFailure(e);
                 }
-            }
 
-            @Override
-            public boolean isForceExecution() {
-                return true;
-            }
-        });
+                @Override
+                public void onRejection(Exception e) {
+                    queueTimeSpan.setError(e);
+                    queueTimeSpan.endSpan();
+                    super.onRejection(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    queueTimeSpan.endSpan();
+                    Span span = tracer.startSpan(
+                        SpanBuilder.from("dispatchedShardOperationOnReplica", clusterService.localNode().getId(), request)
+                    );
+                    try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                        dispatchedShardOperationOnReplica(request, replica, TraceableActionListener.create(listener, span, tracer));
+                    }
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+            });
+        }
     }
 
     protected abstract void dispatchedShardOperationOnReplica(
