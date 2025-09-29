@@ -42,15 +42,6 @@ public class BoolQueryBuilderProtoUtils {
     }
 
     /**
-     * Gets the current registry.
-     *
-     * @return The current registry
-     */
-    static QueryBuilderProtoConverterRegistry getRegistry() {
-        return REGISTRY;
-    }
-
-    /**
      * Converts a Protocol Buffer BoolQuery to an OpenSearch BoolQueryBuilder.
      * Similar to {@link BoolQueryBuilder#fromXContent(org.opensearch.core.xcontent.XContentParser)}, this method
      * parses the Protocol Buffer representation and creates a properly configured
