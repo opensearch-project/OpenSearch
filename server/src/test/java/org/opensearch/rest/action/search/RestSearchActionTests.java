@@ -12,7 +12,6 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
@@ -92,14 +91,14 @@ public class RestSearchActionTests extends OpenSearchTestCase {
             FeatureFlags.TestUtils.FlagWriteLock searchStreamLock = new FeatureFlags.TestUtils.FlagWriteLock(STREAM_SEARCH);
             FeatureFlags.TestUtils.FlagWriteLock streamTransportLock = new FeatureFlags.TestUtils.FlagWriteLock(STREAM_TRANSPORT)
         ) {
-            testActionExecution(StreamSearchAction.INSTANCE);
+            testActionExecution(SearchAction.INSTANCE);
         }
     }
 
     // Tests for canUseStreamSearch method
     public void testCanUseStreamSearchWithNullSource() {
         SearchRequest searchRequest = new SearchRequest();
-        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }
 
     public void testCanUseStreamSearchWithNoAggregations() {
@@ -107,7 +106,7 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(QueryBuilders.matchAllQuery());
         searchRequest.source(source);
-        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }
 
     public void testCanUseStreamSearchWithSingleTermsAggregation() {

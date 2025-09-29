@@ -452,7 +452,7 @@ public class RestSearchAction extends BaseRestHandler {
      */
     static boolean canUseStreamSearch(SearchRequest searchRequest) {
         if (searchRequest.source() == null || searchRequest.source().aggregations() == null) {
-            return true; // No aggregations, stream search is allowed
+            return false; // No aggregations, stream search is allowed
         }
 
         AggregatorFactories.Builder aggregations = searchRequest.source().aggregations();
