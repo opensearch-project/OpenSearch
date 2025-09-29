@@ -78,9 +78,11 @@ public class CollapseBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("CollapseBuilder should not be null", collapseBuilder);
         assertEquals("Field name should match", "user_id", collapseBuilder.getField());
         assertNotNull("InnerHits should not be null", collapseBuilder.getInnerHits());
-        // The last inner hit in the list should be used
-        assertEquals("InnerHits name should match the last inner hit", "second_inner_hit", collapseBuilder.getInnerHits().get(0).getName());
-        assertEquals("InnerHits size should match the last inner hit", 10, collapseBuilder.getInnerHits().get(0).getSize());
+        assertEquals("InnerHits size should match", 2, collapseBuilder.getInnerHits().size());
+        assertEquals("InnerHits name should match", "first_inner_hit", collapseBuilder.getInnerHits().get(0).getName());
+        assertEquals("InnerHits size should match", 5, collapseBuilder.getInnerHits().get(0).getSize());
+        assertEquals("InnerHits name should match", "second_inner_hit", collapseBuilder.getInnerHits().get(1).getName());
+        assertEquals("InnerHits size should match", 10, collapseBuilder.getInnerHits().get(1).getSize());
     }
 
     public void testFromProtoWithAllFields() throws IOException {
