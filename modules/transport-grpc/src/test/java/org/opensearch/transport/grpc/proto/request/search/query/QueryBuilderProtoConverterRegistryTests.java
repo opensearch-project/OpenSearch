@@ -319,4 +319,108 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertEquals("Should be a BoolQueryBuilder", "org.opensearch.index.query.BoolQueryBuilder", queryBuilder.getClass().getName());
     }
+
+    public void testRegisterConverter() {
+        // Create a custom converter for testing
+        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
+            @Override
+            public void setRegistry(org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry registry) {
+                // No-op for test
+            }
+
+            @Override
+            public QueryContainer.QueryContainerCase getHandledQueryCase() {
+                return QueryContainer.QueryContainerCase.MATCH_ALL; // Use existing case for simplicity
+            }
+
+            @Override
+            public org.opensearch.index.query.QueryBuilder fromProto(QueryContainer queryContainer) {
+                // Return a simple match all query for testing
+                return new org.opensearch.index.query.MatchAllQueryBuilder();
+            }
+        };
+
+        // Test that registerConverter method can be called without throwing exceptions
+        try {
+            registry.registerConverter(customConverter);
+            // If we reach here, no exception was thrown
+        } catch (Exception e) {
+            fail("registerConverter should not throw an exception: " + e.getMessage());
+        }
+
+        // Verify that the registry still works after adding a converter
+        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build();
+
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+        assertNotNull("QueryBuilder should not be null after registering custom converter", queryBuilder);
+    }
+
+    public void testUpdateRegistryOnAllConverters() {
+        // Test that updateRegistryOnAllConverters method can be called without throwing exceptions
+        try {
+            registry.updateRegistryOnAllConverters();
+            // If we reach here, no exception was thrown
+        } catch (Exception e) {
+            fail("updateRegistryOnAllConverters should not throw an exception: " + e.getMessage());
+        }
+
+        // Verify that the registry still works after updating all converters
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setTerm(
+                TermQuery.newBuilder().setField("test_field").setValue(FieldValue.newBuilder().setString("test_value").build()).build()
+            )
+            .build();
+
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+        assertNotNull("QueryBuilder should not be null after updating registry on all converters", queryBuilder);
+        assertEquals("Should be a TermQueryBuilder", "org.opensearch.index.query.TermQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testRegisterConverterAndUpdateRegistry() {
+        // Test the combination of registering a converter and then updating the registry
+        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
+            private org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry registryRef;
+
+            @Override
+            public void setRegistry(org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry registry) {
+                this.registryRef = registry;
+            }
+
+            @Override
+            public QueryContainer.QueryContainerCase getHandledQueryCase() {
+                return QueryContainer.QueryContainerCase.EXISTS; // Use existing case
+            }
+
+            @Override
+            public org.opensearch.index.query.QueryBuilder fromProto(QueryContainer queryContainer) {
+                // Return an exists query for testing
+                return new org.opensearch.index.query.ExistsQueryBuilder("test_field");
+            }
+        };
+
+        // Register the custom converter
+        try {
+            registry.registerConverter(customConverter);
+            // If we reach here, no exception was thrown
+        } catch (Exception e) {
+            fail("registerConverter should not throw an exception: " + e.getMessage());
+        }
+
+        // Update registry on all converters
+        try {
+            registry.updateRegistryOnAllConverters();
+            // If we reach here, no exception was thrown
+        } catch (Exception e) {
+            fail("updateRegistryOnAllConverters should not throw an exception: " + e.getMessage());
+        }
+
+        // Verify that the registry still works after both operations
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setExists(ExistsQuery.newBuilder().setField("test_field").build())
+            .build();
+
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+        assertNotNull("QueryBuilder should not be null after register and update operations", queryBuilder);
+        assertEquals("Should be an ExistsQueryBuilder", "org.opensearch.index.query.ExistsQueryBuilder", queryBuilder.getClass().getName());
+    }
 }
