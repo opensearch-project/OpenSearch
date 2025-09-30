@@ -8,6 +8,7 @@
 package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.protobufs.BoolQuery;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.IdsQuery;
 import org.opensearch.protobufs.MatchAllQuery;
@@ -254,5 +255,51 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
             "org.opensearch.index.query.MatchPhraseQueryBuilder",
             queryBuilder.getClass().getName()
         );
+    }
+
+    public void testNotSetHandledQueryCase() {
+        // Create a custom converter that returns QUERYCONTAINER_NOT_SET for getHandledQueryCase
+        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
+            @Override
+            public QueryContainer.QueryContainerCase getHandledQueryCase() {
+                return QueryContainer.QueryContainerCase.QUERYCONTAINER_NOT_SET;
+            }
+
+            @Override
+            public QueryBuilder fromProto(QueryContainer queryContainer) {
+                return new org.opensearch.index.query.MatchAllQueryBuilder();
+            }
+        };
+
+        expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
+    }
+
+    public void testBoolQueryConversion() {
+        // Create a Bool query container with nested queries
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setBool(
+                BoolQuery.newBuilder()
+                    .addMust(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
+                    .addShould(
+                        QueryContainer.newBuilder()
+                            .setTerm(
+                                TermQuery.newBuilder()
+                                    .setField("status")
+                                    .setValue(FieldValue.newBuilder().setString("active").build())
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .setBoost(1.0f)
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a BoolQueryBuilder", "org.opensearch.index.query.BoolQueryBuilder", queryBuilder.getClass().getName());
     }
 }
