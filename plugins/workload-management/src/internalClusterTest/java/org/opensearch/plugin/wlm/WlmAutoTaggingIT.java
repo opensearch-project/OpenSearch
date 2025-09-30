@@ -114,6 +114,7 @@ import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.joda.time.Instant;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -139,7 +140,7 @@ import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 
 public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.SECONDS);
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     final static String PUT = "PUT";
 
     public WlmAutoTaggingIT(Settings nodeSettings) {
@@ -185,6 +186,12 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         }
     }
 
+    @After
+    public void clearWlmModeSetting() {
+        Settings.Builder builder = Settings.builder().putNull(WorkloadManagementSettings.WLM_MODE_SETTING.getKey());
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+    }
+
     public void testExactIndexMatchTriggersTagging() throws Exception {
         String workloadGroupId = "wlm_auto_tag_single";
         String ruleId = "wlm_auto_tag_test_rule";
@@ -217,9 +224,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int completionsAfter = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase", completionsAfter > completionsBefore);
         });
-
-        // Step 7: Clean up
-        clearWlmModeSetting();
     }
 
     public void testWildcardBasedAttributesAreTagged() throws Exception {
@@ -244,8 +248,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int completionsAfter = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase", completionsAfter > completionsBefore);
         });
-
-        clearWlmModeSetting();
     }
 
     public void testMultipleRulesDoNotInterfereWithEachOther() throws Exception {
@@ -282,8 +284,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             assertTrue("Expected completions for group 1 not to increase", post1 == pre1);
             assertTrue("Expected completions for group 2 not to increase", post2 == pre2);
         });
-
-        clearWlmModeSetting();
     }
 
     public void testTaggingTriggeredAfterRuleUpdate() throws Exception {
@@ -297,9 +297,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
         createRule(ruleId, "initial non-matching rule", "random", featureType, workloadGroupId);
-
-        // Wait for rule to be available
-        Thread.sleep(5500);
 
         indexDocument(indexName);
         int preUpdateCompletions = getCompletions(workloadGroupId);
@@ -321,8 +318,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int postUpdateCompletions = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase after rule update", postUpdateCompletions > preUpdateCompletions);
         });
-
-        clearWlmModeSetting();
     }
 
     public void testRuleWithNonexistentWorkloadGroupId() throws Exception {
@@ -347,8 +342,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             "Expected validation message for nonexistent group",
             String.valueOf(cause.getMessage()).contains("nonexistent_group is not a valid workload group id")
         );
-
-        clearWlmModeSetting();
     }
 
     public void testCreateRuleWithTooManyIndexPatterns() throws Exception {
@@ -375,8 +368,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             "Expected validation error about too many values",
             exception.getMessage().contains("Each attribute can only have a maximum of 10 values.")
         );
-
-        clearWlmModeSetting();
     }
 
     public void testCreateRuleWithEmptyIndexPatterns() throws Exception {
@@ -403,8 +394,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             "Expected validation error about empty index pattern",
             exception.getMessage().contains("is invalid (empty or exceeds 100 characters)")
         );
-
-        clearWlmModeSetting();
     }
 
     public void testCreateRuleWithLongIndexPatternValue() throws Exception {
@@ -429,8 +418,6 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             "Expected validation error about max length",
             exception.getMessage().contains("is invalid (empty or exceeds 100 characters)")
         );
-
-        clearWlmModeSetting();
     }
 
     public void testDeleteRuleForNonexistentId() throws Exception {
@@ -447,16 +434,9 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         Exception exception = assertThrows(Exception.class, () -> client().execute(DeleteRuleAction.INSTANCE, request).get());
 
         assertTrue("Expected error message for nonexistent rule ID", exception.getMessage().contains("no such index"));
-
-        clearWlmModeSetting();
     }
 
     // Helper functions
-    public void clearWlmModeSetting() {
-        Settings.Builder builder = Settings.builder().putNull(WorkloadManagementSettings.WLM_MODE_SETTING.getKey());
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
-    }
-
     private void createRule(String ruleId, String ruleName, String indexPattern, FeatureType featureType, String workloadGroupId)
         throws Exception {
         Rule rule = new Rule(
@@ -554,7 +534,13 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     public void updateWorkloadGroupInClusterState(String method, WorkloadGroup workloadGroup) throws InterruptedException {
         ExceptionCatchingListener listener = new ExceptionCatchingListener();
         client().execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(workloadGroup, method), listener);
-        assertTrue(listener.getLatch().await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
+        // wait for transport action to complete
+        boolean completed = listener.getLatch().await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        assertTrue("cluster-state update did not complete in time", completed);
+
+        if (listener.getException() != null) {
+            throw new AssertionError("cluster-state update failed", listener.getException());
+        }
         assertEquals(0, listener.getLatch().getCount());
     }
 

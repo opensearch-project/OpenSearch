@@ -8,10 +8,28 @@
 package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.protobufs.BoolQuery;
+import org.opensearch.protobufs.CoordsGeoBounds;
+import org.opensearch.protobufs.DoubleArray;
+import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.GeoBoundingBoxQuery;
+import org.opensearch.protobufs.GeoBounds;
+import org.opensearch.protobufs.GeoDistanceQuery;
+import org.opensearch.protobufs.GeoLocation;
+import org.opensearch.protobufs.InlineScript;
+import org.opensearch.protobufs.LatLonGeoLocation;
 import org.opensearch.protobufs.MatchAllQuery;
+import org.opensearch.protobufs.MatchPhraseQuery;
+import org.opensearch.protobufs.MinimumShouldMatch;
+import org.opensearch.protobufs.MultiMatchQuery;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.RegexpQuery;
+import org.opensearch.protobufs.Script;
+import org.opensearch.protobufs.ScriptQuery;
 import org.opensearch.protobufs.TermQuery;
+import org.opensearch.protobufs.TextQueryType;
+import org.opensearch.protobufs.WildcardQuery;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 
@@ -58,6 +76,22 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertEquals("Should be a TermQueryBuilder", "org.opensearch.index.query.TermQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testScriptQueryConversion() {
+        // Create a Script query container with inline script
+        Script script = Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['field'].value > 100").build()).build();
+
+        ScriptQuery scriptQuery = ScriptQuery.newBuilder().setScript(script).setBoost(1.5f).setXName("test_script_query").build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setScript(scriptQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a ScriptQueryBuilder", "org.opensearch.index.query.ScriptQueryBuilder", queryBuilder.getClass().getName());
     }
 
     public void testNullQueryContainer() {
@@ -131,5 +165,212 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         };
 
         expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
+    }
+
+    public void testGeoDistanceQueryConversion() {
+        // Create a GeoDistance query container
+        LatLonGeoLocation latLonLocation = LatLonGeoLocation.newBuilder().setLat(40.7589).setLon(-73.9851).build();
+
+        GeoLocation geoLocation = GeoLocation.newBuilder().setLatlon(latLonLocation).build();
+
+        GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
+            .setXName("location")
+            .setDistance("10km")
+            .putLocation("location", geoLocation)
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoDistance(geoDistanceQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoDistanceQueryBuilder",
+            "org.opensearch.index.query.GeoDistanceQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testGeoBoundingBoxQueryConversion() {
+        // Create a GeoBoundingBox query container
+        CoordsGeoBounds coords = CoordsGeoBounds.newBuilder().setTop(40.7).setLeft(-74.0).setBottom(40.6).setRight(-73.9).build();
+
+        GeoBounds geoBounds = GeoBounds.newBuilder().setCoords(coords).build();
+
+        GeoBoundingBoxQuery geoBoundingBoxQuery = GeoBoundingBoxQuery.newBuilder().putBoundingBox("location", geoBounds).build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoBoundingBox(geoBoundingBoxQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoBoundingBoxQueryBuilder",
+            "org.opensearch.index.query.GeoBoundingBoxQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testGeoDistanceQueryConversionWithDoubleArray() {
+        // Create a GeoDistance query with DoubleArray format
+        DoubleArray doubleArray = DoubleArray.newBuilder()
+            .addDoubleArray(-73.9851) // lon
+            .addDoubleArray(40.7589)  // lat
+            .build();
+
+        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+
+        GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
+            .setXName("location")
+            .setDistance("5mi")
+            .putLocation("location", geoLocation)
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoDistance(geoDistanceQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoDistanceQueryBuilder",
+            "org.opensearch.index.query.GeoDistanceQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testMultiMatchQueryConversion() {
+        // Create a MultiMatch query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setMultiMatch(
+                MultiMatchQuery.newBuilder()
+                    .setQuery("search term")
+                    .addFields("title")
+                    .addFields("content")
+                    .setType(TextQueryType.TEXT_QUERY_TYPE_BEST_FIELDS)
+                    .setMinimumShouldMatch(MinimumShouldMatch.newBuilder().setString("75%").build())
+                    .setBoost(2.0f)
+                    .setXName("test_multimatch_query")
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a MultiMatchQueryBuilder",
+            "org.opensearch.index.query.MultiMatchQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testMatchPhraseQueryConversion() {
+        // Create a MatchPhrase query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setMatchPhrase(
+                MatchPhraseQuery.newBuilder()
+                    .setField("title")
+                    .setQuery("hello world")
+                    .setAnalyzer("standard")
+                    .setSlop(2)
+                    .setBoost(1.5f)
+                    .setXName("test_matchphrase_query")
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a MatchPhraseQueryBuilder",
+            "org.opensearch.index.query.MatchPhraseQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testExistsQueryConversion() {
+        // Create an Exists query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setExists(ExistsQuery.newBuilder().setField("test_field").setBoost(2.0f).setXName("test_exists").build())
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be an ExistsQueryBuilder", "org.opensearch.index.query.ExistsQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testRegexpQueryConversion() {
+        // Create a Regexp query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setRegexp(RegexpQuery.newBuilder().setField("test_field").setValue("test.*pattern").setBoost(1.2f).build())
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a RegexpQueryBuilder", "org.opensearch.index.query.RegexpQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testWildcardQueryConversion() {
+        // Create a Wildcard query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setWildcard(WildcardQuery.newBuilder().setField("test_field").setValue("test*pattern").setBoost(0.8f).build())
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a WildcardQueryBuilder",
+            "org.opensearch.index.query.WildcardQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testBoolQueryConversion() {
+        // Create a Bool query container with nested queries
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setBool(
+                BoolQuery.newBuilder()
+                    .addMust(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
+                    .addShould(
+                        QueryContainer.newBuilder()
+                            .setTerm(
+                                TermQuery.newBuilder()
+                                    .setField("status")
+                                    .setValue(FieldValue.newBuilder().setString("active").build())
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .setBoost(1.0f)
+                    .build()
+            )
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a BoolQueryBuilder", "org.opensearch.index.query.BoolQueryBuilder", queryBuilder.getClass().getName());
     }
 }

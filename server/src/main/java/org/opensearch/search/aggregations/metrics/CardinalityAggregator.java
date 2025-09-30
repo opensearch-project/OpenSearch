@@ -40,7 +40,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
@@ -227,12 +226,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private boolean tryScoreWithPruningCollector(LeafReaderContext ctx, Collector pruningCollector) throws IOException {
         try {
             Weight weight = context.query().rewrite(context.searcher()).createWeight(context.searcher(), ScoreMode.TOP_DOCS, 1f);
-            BulkScorer scorer = weight.bulkScorer(ctx);
+            Scorer scorer = weight.scorer(ctx);
             if (scorer == null) {
                 return false;
             }
-            Bits liveDocs = ctx.reader().getLiveDocs();
-            scorer.score(pruningCollector, liveDocs, 0, DocIdSetIterator.NO_MORE_DOCS);
+            pruningCollector.setScorer(scorer);
+            DocIdSetIterator iterator = scorer.iterator();
+            bulkCollect(ctx.reader().getLiveDocs(), iterator, pruningCollector);
+
             pruningCollector.postCollect();
             Releasables.close(pruningCollector);
         } catch (Exception e) {
@@ -245,6 +246,26 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             );
         }
         return true;
+    }
+
+    private void bulkCollect(Bits acceptDocs, DocIdSetIterator iterator, Collector pruningCollector) throws IOException {
+        DocIdSetIterator competitiveIterator = pruningCollector.competitiveIterator();
+
+        int doc = iterator.nextDoc();
+        while (doc < DocIdSetIterator.NO_MORE_DOCS) {
+            assert competitiveIterator.docID() <= doc; // invariant
+            if (competitiveIterator.docID() < doc) {
+                int competitiveNext = competitiveIterator.advance(doc);
+                if (competitiveNext != doc) {
+                    doc = iterator.advance(competitiveNext);
+                    continue;
+                }
+            }
+            if ((acceptDocs == null || acceptDocs.get(doc))) {
+                pruningCollector.collect(doc);
+            }
+            doc = iterator.nextDoc();
+        }
     }
 
     private Collector getNoOpCollector() {
