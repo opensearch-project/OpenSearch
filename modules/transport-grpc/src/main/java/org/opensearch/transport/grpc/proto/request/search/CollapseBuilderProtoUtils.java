@@ -13,6 +13,7 @@ import org.opensearch.protobufs.FieldCollapse;
 import org.opensearch.search.collapse.CollapseBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,7 +46,10 @@ public class CollapseBuilderProtoUtils {
             collapseBuilder.setMaxConcurrentGroupRequests(collapseProto.getMaxConcurrentGroupSearches());
         }
         if (collapseProto.getInnerHitsCount() > 0) {
-            List<InnerHitBuilder> innerHitBuilders = InnerHitsBuilderProtoUtils.fromProto(collapseProto.getInnerHitsList());
+            List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
+            for (org.opensearch.protobufs.InnerHits innerHits : collapseProto.getInnerHitsList()) {
+                innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits));
+            }
             collapseBuilder.setInnerHits(innerHitBuilders);
         }
 
