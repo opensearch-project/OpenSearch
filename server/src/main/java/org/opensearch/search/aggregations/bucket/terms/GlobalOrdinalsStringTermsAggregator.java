@@ -370,7 +370,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (valuesIterator.advanceExact(starTreeEntry) == false) {
                     return;
                 }
-                for (int i = 0, count = valuesIterator.docValueCount(); i < count; i++) {
+                for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
                     long dimensionValue = valuesIterator.value();
                     long ord = globalOperator.applyAsLong(dimensionValue);
                     if (docCountsIterator.advanceExact(starTreeEntry)) {

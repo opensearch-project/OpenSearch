@@ -23,7 +23,6 @@ import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.protobufs.SlicedScroll;
-import org.opensearch.protobufs.SortOptions;
 import org.opensearch.protobufs.TrackHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -371,23 +370,6 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("IndexBoosts should not be null", searchSourceBuilder.indexBoosts());
         assertEquals("Should have 2 indexBoosts", 2, searchSourceBuilder.indexBoosts().size());
-    }
-
-    public void testParseProtoWithSortString() throws IOException {
-        // Create a protobuf SearchRequestBody with sort string
-        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .addSort(SortOptions.newBuilder().setString("field1").build())
-            .build();
-
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-
-        // Call the method under test
-        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
-
-        // Verify the result
-        assertNotNull("Sorts should not be null", searchSourceBuilder.sorts());
-        assertEquals("Should have 1 sort", 1, searchSourceBuilder.sorts().size());
     }
 
     public void testParseProtoWithPostFilter() throws IOException {

@@ -48,6 +48,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     private final Aggregator.SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
+    private final List<String> requestFields;
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(REGISTRY_KEY, List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP), config -> {
@@ -116,6 +117,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
                 )
             )
             .collect(Collectors.toList());
+        this.requestFields = multiTermConfigs.stream().map(MultiTermsValuesSourceConfig::getFieldName).toList();
         this.formats = this.configs.stream().map(c -> c.v1().format()).collect(Collectors.toList());
         this.order = order;
         this.collectMode = collectMode;
@@ -138,14 +140,17 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
+        // TODO: Optimize passing too many value source config derived objects to aggregator
         bucketCountThresholds.ensureValidity();
         return new MultiTermsAggregator(
             name,
             factories,
             showTermDocCountError,
+            configs.stream().map(config -> config.v1().getValuesSource()).toList(),
             configs.stream()
                 .map(config -> queryShardContext.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config.v1()).build(config))
                 .collect(Collectors.toList()),
+            this.getRequestFields(),
             configs.stream().map(c -> c.v1().format()).collect(Collectors.toList()),
             order,
             collectMode,
@@ -155,6 +160,10 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             cardinality,
             metadata
         );
+    }
+
+    public List<String> getRequestFields() {
+        return requestFields;
     }
 
     @Override
