@@ -10,32 +10,28 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.secure_sm.AccessController;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.util.function.Supplier;
 
 /**
  * This class wraps the {@link ThreadContext} operations requiring access in
- * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
+ * {@link AccessController#doPrivileged} blocks.
  *
  * @opensearch.internal
  */
-@SuppressWarnings("removal")
 @InternalApi
 public final class ThreadContextAccess {
 
     private ThreadContextAccess() {}
 
-    public static <T> T doPrivileged(PrivilegedAction<T> operation) {
+    public static <T> T doPrivileged(Supplier<T> operation) {
         SpecialPermission.check();
         return AccessController.doPrivileged(operation);
     }
 
     public static void doPrivilegedVoid(Runnable action) {
         SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            action.run();
-            return null;
-        });
+        AccessController.doPrivileged(action);
     }
 }

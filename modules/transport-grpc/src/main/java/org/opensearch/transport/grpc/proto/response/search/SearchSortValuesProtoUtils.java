@@ -9,7 +9,7 @@ package org.opensearch.transport.grpc.proto.response.search;
 
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.protobufs.Hit;
+import org.opensearch.protobufs.HitsMetadataHitsInner;
 import org.opensearch.search.SearchSortValues;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
@@ -32,7 +32,7 @@ public class SearchSortValuesProtoUtils {
      * @param sortValues the array of sort values to convert
      */
 
-    protected static void toProto(Hit.Builder hitBuilder, Object[] sortValues) {
+    protected static void toProto(HitsMetadataHitsInner.Builder hitBuilder, Object[] sortValues) {
         for (Object sortValue : sortValues) {
             hitBuilder.addSort(FieldValueProtoUtils.toProto(sortValue));
         }

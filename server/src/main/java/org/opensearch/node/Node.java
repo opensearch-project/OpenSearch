@@ -161,6 +161,7 @@ import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.autoforcemerge.AutoForceMergeManager;
+import org.opensearch.index.autoforcemerge.AutoForceMergeMetrics;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
@@ -1208,7 +1209,14 @@ public class Node implements Closeable {
                 workloadGroupService
             );
 
-            this.autoForceMergeManager = new AutoForceMergeManager(threadPool, monitorService, indicesService, clusterService);
+            final AutoForceMergeMetrics autoForceMergeMetrics = new AutoForceMergeMetrics(metricsRegistry);
+            this.autoForceMergeManager = new AutoForceMergeManager(
+                threadPool,
+                monitorService,
+                indicesService,
+                clusterService,
+                autoForceMergeMetrics
+            );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()

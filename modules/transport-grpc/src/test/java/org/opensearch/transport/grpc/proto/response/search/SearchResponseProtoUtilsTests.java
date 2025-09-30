@@ -45,12 +45,12 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
-        assertEquals("Took should match", 100, protoResponse.getResponseBody().getTook());
-        assertFalse("Timed out should be false", protoResponse.getResponseBody().getTimedOut());
-        assertEquals("Total shards should match", 5, protoResponse.getResponseBody().getShards().getTotal());
-        assertEquals("Successful shards should match", 5, protoResponse.getResponseBody().getShards().getSuccessful());
-        assertEquals("Skipped shards should match", 0, protoResponse.getResponseBody().getShards().getSkipped());
-        assertEquals("Failed shards should match", 0, protoResponse.getResponseBody().getShards().getFailed());
+        assertEquals("Took should match", 100, protoResponse.getTook());
+        assertFalse("Timed out should be false", protoResponse.getTimedOut());
+        assertEquals("Total shards should match", 5, protoResponse.getXShards().getTotal());
+        assertEquals("Successful shards should match", 5, protoResponse.getXShards().getSuccessful());
+        assertEquals("Skipped shards should match", 0, protoResponse.getXShards().getSkipped());
+        assertEquals("Failed shards should match", 0, protoResponse.getXShards().getFailed());
     }
 
     public void testToProtoWithScrollId() throws IOException {
@@ -73,7 +73,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
-        assertEquals("Scroll ID should match", "test_scroll_id", protoResponse.getResponseBody().getScrollId());
+        assertEquals("Scroll ID should match", "test_scroll_id", protoResponse.getXScrollId());
     }
 
     public void testToProtoWithPointInTimeId() throws IOException {
@@ -96,7 +96,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
-        assertEquals("Point in time ID should match", "test_pit_id", protoResponse.getResponseBody().getPitId());
+        assertEquals("Point in time ID should match", "test_pit_id", protoResponse.getPitId());
     }
 
     public void testToProtoWithPhaseTook() throws IOException {
@@ -130,13 +130,13 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
-        assertTrue("Phase took should be present", protoResponse.getResponseBody().hasPhaseTook());
-        assertEquals("Query phase took should match", 50L, protoResponse.getResponseBody().getPhaseTook().getQuery());
-        assertEquals("Fetch phase took should match", 30L, protoResponse.getResponseBody().getPhaseTook().getFetch());
-        assertEquals("DFS query phase took should match", 20L, protoResponse.getResponseBody().getPhaseTook().getDfsQuery());
-        assertEquals("DFS pre-query phase took should match", 10L, protoResponse.getResponseBody().getPhaseTook().getDfsPreQuery());
-        assertEquals("Expand phase took should match", 5L, protoResponse.getResponseBody().getPhaseTook().getExpand());
-        assertEquals("Can match phase took should match", 5L, protoResponse.getResponseBody().getPhaseTook().getCanMatch());
+        assertTrue("Phase took should be present", protoResponse.hasPhaseTook());
+        assertEquals("Query phase took should match", 50L, protoResponse.getPhaseTook().getQuery());
+        assertEquals("Fetch phase took should match", 30L, protoResponse.getPhaseTook().getFetch());
+        assertEquals("DFS query phase took should match", 20L, protoResponse.getPhaseTook().getDfsQuery());
+        assertEquals("DFS pre-query phase took should match", 10L, protoResponse.getPhaseTook().getDfsPreQuery());
+        assertEquals("Expand phase took should match", 5L, protoResponse.getPhaseTook().getExpand());
+        assertEquals("Can match phase took should match", 5L, protoResponse.getPhaseTook().getCanMatch());
     }
 
     public void testToProtoWithTerminatedEarly() throws IOException {
@@ -159,7 +159,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
-        assertTrue("Terminated early should be true", protoResponse.getResponseBody().getTerminatedEarly());
+        assertTrue("Terminated early should be true", protoResponse.getTerminatedEarly());
     }
 
     public void testToProtoWithNumReducePhases() throws IOException {
@@ -182,7 +182,7 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
-        assertEquals("Num reduce phases should match", 3, protoResponse.getResponseBody().getNumReducePhases());
+        assertEquals("Num reduce phases should match", 3, protoResponse.getNumReducePhases());
     }
 
     public void testToProtoWithClusters() throws IOException {
@@ -204,10 +204,10 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Proto response should not be null", protoResponse);
-        assertTrue("Clusters should be present", protoResponse.getResponseBody().hasClusters());
-        assertEquals("Total clusters should match", 3, protoResponse.getResponseBody().getClusters().getTotal());
-        assertEquals("Successful clusters should match", 2, protoResponse.getResponseBody().getClusters().getSuccessful());
-        assertEquals("Skipped clusters should match", 1, protoResponse.getResponseBody().getClusters().getSkipped());
+        assertTrue("Clusters should be present", protoResponse.hasXClusters());
+        assertEquals("Total clusters should match", 3, protoResponse.getXClusters().getTotal());
+        assertEquals("Successful clusters should match", 2, protoResponse.getXClusters().getSuccessful());
+        assertEquals("Skipped clusters should match", 1, protoResponse.getXClusters().getSkipped());
     }
 
     public void testPhaseTookProtoUtilsToProto() {
@@ -258,16 +258,16 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(3, 2, 1);
 
         // Create a builder to populate
-        org.opensearch.protobufs.ResponseBody.Builder builder = org.opensearch.protobufs.ResponseBody.newBuilder();
+        org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
 
         // Call the method under test
         SearchResponseProtoUtils.ClustersProtoUtils.toProto(builder, clusters);
 
         // Verify the result
-        assertTrue("Clusters should be present", builder.hasClusters());
-        assertEquals("Total clusters should match", 3, builder.getClusters().getTotal());
-        assertEquals("Successful clusters should match", 2, builder.getClusters().getSuccessful());
-        assertEquals("Skipped clusters should match", 1, builder.getClusters().getSkipped());
+        assertTrue("Clusters should be present", builder.hasXClusters());
+        assertEquals("Total clusters should match", 3, builder.getXClusters().getTotal());
+        assertEquals("Successful clusters should match", 2, builder.getXClusters().getSuccessful());
+        assertEquals("Skipped clusters should match", 1, builder.getXClusters().getSkipped());
     }
 
     public void testClustersProtoUtilsToProtoWithZeroClusters() throws IOException {
@@ -275,12 +275,12 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(0, 0, 0);
 
         // Create a builder to populate
-        org.opensearch.protobufs.ResponseBody.Builder builder = org.opensearch.protobufs.ResponseBody.newBuilder();
+        org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
 
         // Call the method under test
         SearchResponseProtoUtils.ClustersProtoUtils.toProto(builder, clusters);
 
         // Verify the result
-        assertFalse("Clusters should not be present", builder.hasClusters());
+        assertFalse("Clusters should not be present", builder.hasXClusters());
     }
 }

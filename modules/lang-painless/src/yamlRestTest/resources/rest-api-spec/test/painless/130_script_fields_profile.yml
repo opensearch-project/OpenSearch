@@ -45,6 +45,11 @@ setup:
       features: "contains"
 
   - do:
+      indices.forcemerge:
+        index: test_fetch_profile
+        max_num_segments: 1
+
+  - do:
       search:
         index: test_fetch_profile
         body:

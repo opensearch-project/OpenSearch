@@ -653,6 +653,13 @@ public class RestIndicesAction extends AbstractListAction {
             "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops"
         );
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
+
+        table.addCell(
+            "search.query_failed",
+            "sibling:pri;alias:sqf,searchQueryFailed;default:false;text-align:right;desc:failed query phase ops"
+        );
+        table.addCell("pri.search.query_failed", "default:false;text-align:right;desc:failed query phase ops");
+
         table.addCell(
             "search.concurrent_query_current",
             "sibling:pri;alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
@@ -681,19 +688,25 @@ public class RestIndicesAction extends AbstractListAction {
             "search.startree_query_current",
             "sibling:pri;alias:stqc,startreeQueryCurrent;default:false;text-align:right;desc:current star tree query ops"
         );
-        table.addCell("pri.startree.query_current", "default:false;text-align:right;desc:current star tree query ops");
-
-        table.addCell(
-            "search.startree_query_total",
-            "sibling:pri;alias:stqto,startreeQueryCurrent;default:false;text-align:right;desc:total star tree resolved queries"
-        );
-        table.addCell("pri.startree.query_total", "default:false;text-align:right;desc:total star tree resolved queries");
+        table.addCell("pri.search.startree.query_current", "default:false;text-align:right;desc:current star tree query ops");
 
         table.addCell(
             "search.startree_query_time",
             "sibling:pri;alias:stqti,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
         );
-        table.addCell("pri.startree.query_time", "default:false;text-align:right;desc:time spent in star tree queries");
+        table.addCell("pri.search.startree.query_time", "default:false;text-align:right;desc:time spent in star tree queries");
+
+        table.addCell(
+            "search.startree_query_failed",
+            "sibling:pri;alias:stqf,startreeQueryFailed;default:false;text-align:right;desc:failed star tree query phase ops"
+        );
+        table.addCell("pri.search.startree_query_failed", "default:false;text-align:right;desc:failed star tree query phase ops");
+
+        table.addCell(
+            "search.startree_query_total",
+            "sibling:pri;alias:stqto,startreeQueryCurrent;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell("pri.search.startree.query_total", "default:false;text-align:right;desc:total star tree resolved queries");
 
         table.addCell(
             "search.scroll_current",
@@ -1017,6 +1030,9 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());
 
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryFailedCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryFailedCount());
+
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCurrent());
 
@@ -1029,14 +1045,17 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentAvgSliceCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentAvgSliceCount());
 
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCount());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCount());
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCurrent());
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryTime());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryTime());
 
-            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCurrent());
-            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCurrent());
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryFailed());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryFailed());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCount());
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());

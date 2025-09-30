@@ -21,6 +21,7 @@ testClusters {
 }
 
 dependencies {
+  api project('spi')
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   implementation "com.google.errorprone:error_prone_annotations:2.24.1"
@@ -34,7 +35,7 @@ dependencies {
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-util:${versions.grpc}"
   implementation "io.perfmark:perfmark-api:0.27.0"
-  implementation "org.opensearch:protobufs:0.6.0"
+  implementation "org.opensearch:protobufs:${versions.opensearchprotobufs}"
   testImplementation project(':test:framework')
 }
 
