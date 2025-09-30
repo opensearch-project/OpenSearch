@@ -466,6 +466,8 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
             "org.opensearch.index.query.GeoDistanceQueryBuilder",
             queryBuilder.getClass().getName()
         );
+    }
+
     public void testRegisterConverter() {
         // Create a custom converter for testing
         QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
