@@ -78,7 +78,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         } catch (Exception e) {
             logger.warn(
                 () -> new ParameterizedMessage(
-                    "throw exception during merged segment warmer, skip merged segment {} warmer",
+                    "Throw exception during merged segment warmer, skip merged segment {} warmer",
                     ((SegmentReader) leafReader).getSegmentName()
                 ),
                 e
