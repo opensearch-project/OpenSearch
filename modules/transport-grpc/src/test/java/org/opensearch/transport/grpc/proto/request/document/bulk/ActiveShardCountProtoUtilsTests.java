@@ -59,19 +59,25 @@ public class ActiveShardCountProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Should have DEFAULT active shard count", ActiveShardCount.DEFAULT, result);
     }
 
-    // TODO: WaitForActiveShards structure changed in protobufs 0.8.0
-    /*
     public void testGetActiveShardCountWithWaitForActiveShardsInt32() {
-
         // Create a protobuf BulkRequest with wait_for_active_shards = 2
-        WaitForActiveShards waitForActiveShards = WaitForActiveShards.newBuilder().setCount(2).build();
+        WaitForActiveShards waitForActiveShards = WaitForActiveShards.newBuilder().setInt32(2).build();
 
         ActiveShardCount result = ActiveShardCountProtoUtils.parseProto(waitForActiveShards);
 
         // Verify the result
         assertEquals("Should have active shard count of 2", ActiveShardCount.from(2), result);
     }
-    */
+
+    public void testGetActiveShardCountWithWaitForActiveShardsInt32Zero() {
+        // Create a protobuf BulkRequest with wait_for_active_shards = 0
+        WaitForActiveShards waitForActiveShards = WaitForActiveShards.newBuilder().setInt32(0).build();
+
+        ActiveShardCount result = ActiveShardCountProtoUtils.parseProto(waitForActiveShards);
+
+        // Verify the result
+        assertEquals("Should have active shard count of 0", ActiveShardCount.from(0), result);
+    }
 
     public void testGetActiveShardCountWithWaitForActiveShardsNoCase() {
         // Create a protobuf BulkRequest with wait_for_active_shards but no case set

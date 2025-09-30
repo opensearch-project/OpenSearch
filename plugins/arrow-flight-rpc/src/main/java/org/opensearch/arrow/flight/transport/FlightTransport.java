@@ -63,7 +63,9 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -92,6 +94,8 @@ class FlightTransport extends TcpTransport {
     private final EventLoopGroup workerEventLoopGroup;
     private final ExecutorService serverExecutor;
     private final ExecutorService clientExecutor;
+    private final ExecutorService[] flightEventLoopGroup;
+    private final AtomicInteger nextExecutorIndex = new AtomicInteger(0);
 
     private final ThreadPool threadPool;
     private RootAllocator rootAllocator;
@@ -133,6 +137,14 @@ class FlightTransport extends TcpTransport {
         this.clientExecutor = threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME);
         this.threadPool = threadPool;
         this.namedWriteableRegistry = namedWriteableRegistry;
+
+        // Create Flight event loop group for request processing
+        int eventLoopCount = ServerConfig.getEventLoopThreads();
+        this.flightEventLoopGroup = new ExecutorService[eventLoopCount];
+        for (int i = 0; i < eventLoopCount; i++) {
+            int finalI = i;
+            flightEventLoopGroup[i] = Executors.newSingleThreadExecutor(r -> new Thread(r, "flight-eventloop-" + finalI));
+        }
     }
 
     @Override
@@ -270,6 +282,18 @@ class FlightTransport extends TcpTransport {
             rootAllocator.close();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
             gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
+
+            for (ExecutorService executor : flightEventLoopGroup) {
+                executor.shutdown();
+                try {
+                    if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                        executor.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
+                    executor.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+            }
             if (statsCollector != null) {
                 statsCollector.decrementServerChannelsActive();
             }
@@ -392,5 +416,12 @@ class FlightTransport extends TcpTransport {
         if (group != null) {
             group.shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
         }
+    }
+
+    /**
+     * Gets the next executor for round-robin distribution
+     */
+    public ExecutorService getNextFlightExecutor() {
+        return flightEventLoopGroup[nextExecutorIndex.getAndIncrement() % flightEventLoopGroup.length];
     }
 }

@@ -537,6 +537,7 @@ thirdPartyAudit {
     'org.jboss.marshalling.MarshallingConfiguration',
     'org.jboss.marshalling.Unmarshaller',
 
+    'org.slf4j.ext.EventData',
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
 

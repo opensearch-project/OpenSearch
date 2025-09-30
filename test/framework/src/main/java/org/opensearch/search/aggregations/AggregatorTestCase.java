@@ -704,7 +704,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             maxBucket,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
+        C root = createAggregator(query, builder, searcher, indexSettings, bucketConsumer, fieldTypes);
 
         if (shardFanOut && searcher.getIndexReader().leaves().size() > 0) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
