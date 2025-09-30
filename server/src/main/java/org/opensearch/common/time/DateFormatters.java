@@ -2119,6 +2119,8 @@ public class DateFormatters {
         } else if (FormatNames.EPOCH_MILLIS.matches(input)) {
             return EpochTime.MILLIS_FORMATTER;
             // strict date formats here, must be at least 4 digits for year and two for months and two for day
+        } else if (FormatNames.EPOCH_MICROS.matches(input)) {
+            return EpochTime.MICROS_FORMATTER;
         } else if (FormatNames.STRICT_BASIC_WEEK_DATE.matches(input)) {
             return STRICT_BASIC_WEEK_DATE;
         } else if (FormatNames.STRICT_BASIC_WEEK_DATE_TIME.matches(input)) {

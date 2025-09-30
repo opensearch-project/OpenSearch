@@ -11,7 +11,7 @@ package org.opensearch.transport.grpc.proto.response.search;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.protobufs.ResponseBody;
+import org.opensearch.protobufs.SearchResponse;
 import org.opensearch.rest.action.RestActions;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public class ProtoActionsProtoUtils {
     /**
      * Similar to {@link RestActions#buildBroadcastShardsHeader(XContentBuilder, ToXContent.Params, int, int, int, int, ShardOperationFailedException[])}
      *
-     * @param searchResponseBodyProtoBuilder the response body builder to populate with shard statistics
+     * @param searchResponseProtoBuilder the response builder to populate with shard statistics
      * @param total the total number of shards
      * @param successful the number of successful shards
      * @param skipped the number of skipped shards
@@ -39,15 +39,13 @@ public class ProtoActionsProtoUtils {
      * @throws IOException if there's an error during conversion
      */
     protected static void buildBroadcastShardsHeader(
-        ResponseBody.Builder searchResponseBodyProtoBuilder,
+        SearchResponse.Builder searchResponseProtoBuilder,
         int total,
         int successful,
         int skipped,
         int failed,
         ShardOperationFailedException[] shardFailures
     ) throws IOException {
-        searchResponseBodyProtoBuilder.setShards(
-            ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures)
-        );
+        searchResponseProtoBuilder.setXShards(ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures));
     }
 }

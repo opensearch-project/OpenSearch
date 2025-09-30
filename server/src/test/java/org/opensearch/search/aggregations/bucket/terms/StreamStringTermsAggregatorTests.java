@@ -11,7 +11,10 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
@@ -49,12 +52,14 @@ import java.util.List;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
     public void testBuildAggregationsBatchDirectBucketCreation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("field", new BytesRef("apple")));
                 document.add(new SortedSetDocValuesField("field", new BytesRef("banana")));
@@ -69,7 +74,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedSetDocValuesField("field", new BytesRef("banana")));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
@@ -89,6 +94,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -137,6 +143,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertThat("strictly single segment", indexSearcher.getIndexReader().leaves().size(), lessThanOrEqualTo(1));
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -151,14 +158,14 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithSingleValuedOrds() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 for (int i = 0; i < 10; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("term_" + (i % 3))));
                     indexWriter.addDocument(document);
                 }
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
@@ -178,6 +185,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -222,7 +230,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithSize() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Create fewer unique terms to test size parameter more meaningfully
                 for (int i = 0; i < 20; i++) {
                     Document document = new Document();
@@ -230,7 +238,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(document);
                 }
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
@@ -249,6 +257,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -271,7 +280,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testBuildAggregationsBatchWithCountOrder() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 for (int i = 0; i < 3; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("common")));
@@ -288,7 +297,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedSetDocValuesField("field", new BytesRef("rare")));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
@@ -308,6 +317,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -354,6 +364,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -363,6 +374,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     aggregator.doReset();
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -400,6 +412,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -451,6 +464,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -485,7 +499,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithSum() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 document.add(new NumericDocValuesField("sales", 1000));
@@ -501,7 +515,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("sales", 500));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
                     MappedFieldType salesFieldType = new NumberFieldMapper.NumberFieldType("sales", NumberFieldMapper.NumberType.LONG);
@@ -523,6 +537,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -555,7 +570,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithAvg() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("product", new BytesRef("laptop")));
                 document.add(new NumericDocValuesField("rating", 4));
@@ -571,7 +586,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("rating", 3));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType productFieldType = new KeywordFieldMapper.KeywordFieldType("product");
                     MappedFieldType ratingFieldType = new NumberFieldMapper.NumberFieldType("rating", NumberFieldMapper.NumberType.LONG);
@@ -593,6 +608,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -625,7 +641,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregationWithMinAndCount() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("store", new BytesRef("store_a")));
                 document.add(new NumericDocValuesField("inventory", 100));
@@ -641,7 +657,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("inventory", 200));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType storeFieldType = new KeywordFieldMapper.KeywordFieldType("store");
                     MappedFieldType inventoryFieldType = new NumberFieldMapper.NumberFieldType(
@@ -667,6 +683,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -709,7 +726,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMultipleSubAggregations() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField("region", new BytesRef("north")));
                 document.add(new NumericDocValuesField("temperature", 25));
@@ -728,7 +745,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new NumericDocValuesField("humidity", 80));
                 indexWriter.addDocument(document);
 
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType regionFieldType = new KeywordFieldMapper.KeywordFieldType("region");
                     MappedFieldType tempFieldType = new NumberFieldMapper.NumberFieldType("temperature", NumberFieldMapper.NumberType.LONG);
@@ -758,6 +775,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
 
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -815,7 +833,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             // Create first aggregation with some data
             List<InternalAggregation> aggs = new ArrayList<>();
 
-            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random(), directory1)) {
+            try (IndexWriter indexWriter1 = new IndexWriter(directory1, new IndexWriterConfig())) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 indexWriter1.addDocument(doc);
@@ -824,7 +842,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("books")));
                 indexWriter1.addDocument(doc);
 
-                try (IndexReader reader1 = maybeWrapReaderEs(indexWriter1.getReader())) {
+                try (IndexReader reader1 = maybeWrapReaderEs(DirectoryReader.open(indexWriter1))) {
                     IndexSearcher searcher1 = newIndexSearcher(reader1);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
                     aggs.add(
@@ -834,7 +852,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Create second aggregation with overlapping data
-            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random(), directory2)) {
+            try (IndexWriter indexWriter2 = new IndexWriter(directory2, new IndexWriterConfig())) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 indexWriter2.addDocument(doc);
@@ -843,7 +861,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("clothing")));
                 indexWriter2.addDocument(doc);
 
-                try (IndexReader reader2 = maybeWrapReaderEs(indexWriter2.getReader())) {
+                try (IndexReader reader2 = maybeWrapReaderEs(DirectoryReader.open(indexWriter2))) {
                     IndexSearcher searcher2 = newIndexSearcher(reader2);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
                     aggs.add(
@@ -899,7 +917,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             List<InternalAggregation> aggs = new ArrayList<>();
 
             // First aggregation
-            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random(), directory1)) {
+            try (IndexWriter indexWriter1 = new IndexWriter(directory1, new IndexWriterConfig())) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 doc.add(new NumericDocValuesField("price", 100));
@@ -910,7 +928,14 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 doc.add(new NumericDocValuesField("price", 200));
                 indexWriter1.addDocument(doc);
 
-                try (IndexReader reader1 = maybeWrapReaderEs(indexWriter1.getReader())) {
+                doc = new Document();
+                String anotherCategory = "clashing value to break on segments";
+                assertThat(anotherCategory, lessThan("electronics"));
+                doc.add(new SortedSetDocValuesField("category", new BytesRef(anotherCategory)));
+                doc.add(new NumericDocValuesField("price", Long.MAX_VALUE));
+                indexWriter1.addDocument(doc);
+
+                try (IndexReader reader1 = maybeWrapReaderEs(DirectoryReader.open(indexWriter1))) {
                     IndexSearcher searcher1 = newIndexSearcher(reader1);
                     MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
                     MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG);
@@ -923,18 +948,19 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Second aggregation
-            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random(), directory2)) {
+            try (IndexWriter indexWriter2 = new IndexWriter(directory2, new IndexWriterConfig())) {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
                 doc.add(new NumericDocValuesField("price", 150));
                 indexWriter2.addDocument(doc);
 
-                try (IndexReader reader2 = maybeWrapReaderEs(indexWriter2.getReader())) {
+                try (IndexReader reader2 = maybeWrapReaderEs(DirectoryReader.open(indexWriter2))) {
                     IndexSearcher searcher2 = newIndexSearcher(reader2);
                     MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
                     MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .order(BucketOrder.key(false))
                         .subAggregation(new SumAggregationBuilder("total_price").field("price"));
 
                     aggs.add(buildInternalStreamingAggregation(aggregationBuilder, categoryFieldType, priceFieldType, searcher2));
@@ -953,7 +979,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             assertThat(reduced, instanceOf(StringTerms.class));
 
             StringTerms terms = (StringTerms) reduced;
-            assertThat(terms.getBuckets().size(), equalTo(1));
+            assertThat(terms.getBuckets().size(), equalTo(1 + 1));
 
             StringTerms.Bucket electronicsBucket = terms.getBuckets().get(0);
             assertThat(electronicsBucket.getKeyAsString(), equalTo("electronics"));
@@ -970,14 +996,14 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             List<InternalAggregation> aggs = new ArrayList<>();
 
             // First aggregation with multiple terms
-            try (RandomIndexWriter indexWriter1 = new RandomIndexWriter(random(), directory1)) {
+            try (IndexWriter indexWriter1 = new IndexWriter(directory1, new IndexWriterConfig())) {
                 for (int i = 0; i < 5; i++) {
                     Document doc = new Document();
                     doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
                     indexWriter1.addDocument(doc);
                 }
 
-                try (IndexReader reader1 = maybeWrapReaderEs(indexWriter1.getReader())) {
+                try (IndexReader reader1 = maybeWrapReaderEs(DirectoryReader.open(indexWriter1))) {
                     IndexSearcher searcher1 = newIndexSearcher(reader1);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
 
@@ -988,14 +1014,14 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Second aggregation with different terms
-            try (RandomIndexWriter indexWriter2 = new RandomIndexWriter(random(), directory2)) {
+            try (IndexWriter indexWriter2 = new IndexWriter(directory2, new IndexWriterConfig())) {
                 for (int i = 3; i < 8; i++) {
                     Document doc = new Document();
                     doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
                     indexWriter2.addDocument(doc);
                 }
 
-                try (IndexReader reader2 = maybeWrapReaderEs(indexWriter2.getReader())) {
+                try (IndexReader reader2 = maybeWrapReaderEs(DirectoryReader.open(indexWriter2))) {
                     IndexSearcher searcher2 = newIndexSearcher(reader2);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
 
@@ -1034,7 +1060,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
     public void testReduceSingleAggregation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Add multiple documents with different categories to test reduce logic properly
                 Document doc1 = new Document();
                 doc1.add(new SortedSetDocValuesField("category", new BytesRef("electronics")));
@@ -1058,7 +1084,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
                 indexWriter.commit(); // Ensure data is committed before reading
 
-                try (IndexReader reader = maybeWrapReaderEs(indexWriter.getReader())) {
+                try (IndexReader reader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
 
@@ -1079,6 +1105,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
                     // Execute the aggregator
                     aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, searcher.getIndexReader().leaves().size());
                     searcher.search(new MatchAllDocsQuery(), aggregator);
                     aggregator.postCollection();
 
@@ -1178,6 +1205,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         }
 
         aggregator.preCollection();
+        assertEquals("strictly single segment", 1, searcher.getIndexReader().leaves().size());
         searcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
         return aggregator.buildTopLevel();

@@ -393,3 +393,23 @@ setup:
             terms: { my_field: [ "\\*" ] }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "9" }
+
+---
+"sort on doc value enabled wildcard":
+  - skip:
+      version: " - 3.2.99"
+      reason: "sorting on doc value enabled wildcard has bug before 3.3.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*"
+          sort:
+            - my_field.doc_values:
+                order: asc
+          size: 4
+  - match: { hits.total.value: 8 }
+  - match: { hits.hits.0._id: "8" }

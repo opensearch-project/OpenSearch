@@ -127,6 +127,7 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
                     "ingestion_source.param.endpoint_override",
                     localstack.getEndpointOverride(LocalStackContainer.Service.KINESIS).toString()
                 )
+                .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );
@@ -137,6 +138,46 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
             SearchResponse response = client().prepareSearch("test_rewind_by_offset").setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(2L));
         });
+    }
+
+    public void testAllActiveIngestion() throws Exception {
+        // Create pull-based index in default replication mode (docrep) and publish some messages
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kinesis")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.stream", "test")
+                .put("ingestion_source.param.region", localstack.getRegion())
+                .put("ingestion_source.param.access_key", localstack.getAccessKey())
+                .put("ingestion_source.param.secret_key", localstack.getSecretKey())
+                .put("ingestion_source.all_active", true)
+                .put(
+                    "ingestion_source.param.endpoint_override",
+                    localstack.getEndpointOverride(LocalStackContainer.Service.KINESIS).toString()
+                )
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        try {
+            ensureGreen(indexName);
+            waitForSearchableDocs(10, List.of(nodeA, nodeB));
+        } finally {
+            // Ensure index is deleted even if the assertion throws.
+            try {
+                client().admin().indices().prepareDelete(indexName).get();
+            } catch (Exception ignored) {}
+        }
     }
 
     private boolean isRewinded(String sequenceNumber) {

@@ -174,6 +174,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 false,
                 false,
                 false,
+                false,
                 null,
                 Collections.emptyMap()
             );
@@ -186,6 +187,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 NumberFieldMapper.NumberType.LONG,
                 false,
                 false,
+                true,
                 true,
                 false,
                 null,

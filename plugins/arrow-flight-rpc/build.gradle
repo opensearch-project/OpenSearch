@@ -56,7 +56,7 @@ dependencies {
   implementation "io.grpc:grpc-netty:${versions.grpc}"
   implementation "com.google.errorprone:error_prone_annotations:2.31.0"
 
-  runtimeOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
+  runtimeOnly "com.google.code.findbugs:jsr305:3.0.2"
   annotationProcessor 'org.immutables:value:2.10.1'
 
   runtimeOnly 'io.perfmark:perfmark-api:0.27.0'
@@ -246,12 +246,6 @@ tasks.named('thirdPartyAudit').configure {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
 
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
