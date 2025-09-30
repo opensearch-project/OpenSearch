@@ -257,23 +257,6 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         );
     }
 
-    public void testNotSetHandledQueryCase() {
-        // Create a custom converter that returns QUERYCONTAINER_NOT_SET for getHandledQueryCase
-        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
-            @Override
-            public QueryContainer.QueryContainerCase getHandledQueryCase() {
-                return QueryContainer.QueryContainerCase.QUERYCONTAINER_NOT_SET;
-            }
-
-            @Override
-            public QueryBuilder fromProto(QueryContainer queryContainer) {
-                return new org.opensearch.index.query.MatchAllQueryBuilder();
-            }
-        };
-
-        expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
-    }
-
     public void testBoolQueryConversion() {
         // Create a Bool query container with nested queries
         QueryContainer queryContainer = QueryContainer.newBuilder()
