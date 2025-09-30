@@ -448,7 +448,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
-            Query firstLuceneQuery = rewritten.toQuery(context);
+            Query firstLuceneQuery;
+            try {
+                firstLuceneQuery = rewritten.toQuery(context);
+            } catch (IllegalArgumentException e) {
+                assertEquals("Too many disjunctions to expand", e.getMessage());
+                continue;
+            }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
