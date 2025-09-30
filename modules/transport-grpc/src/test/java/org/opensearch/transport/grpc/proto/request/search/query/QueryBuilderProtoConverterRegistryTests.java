@@ -9,6 +9,7 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.BoolQuery;
+import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
@@ -16,10 +17,12 @@ import org.opensearch.protobufs.MatchPhraseQuery;
 import org.opensearch.protobufs.MinimumShouldMatch;
 import org.opensearch.protobufs.MultiMatchQuery;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.RegexpQuery;
 import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.ScriptQuery;
 import org.opensearch.protobufs.TermQuery;
 import org.opensearch.protobufs.TextQueryType;
+import org.opensearch.protobufs.WildcardQuery;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 
@@ -191,6 +194,52 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         assertEquals(
             "Should be a MatchPhraseQueryBuilder",
             "org.opensearch.index.query.MatchPhraseQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testExistsQueryConversion() {
+        // Create an Exists query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setExists(ExistsQuery.newBuilder().setField("test_field").setBoost(2.0f).setXName("test_exists").build())
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be an ExistsQueryBuilder", "org.opensearch.index.query.ExistsQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testRegexpQueryConversion() {
+        // Create a Regexp query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setRegexp(RegexpQuery.newBuilder().setField("test_field").setValue("test.*pattern").setBoost(1.2f).build())
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a RegexpQueryBuilder", "org.opensearch.index.query.RegexpQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testWildcardQueryConversion() {
+        // Create a Wildcard query container
+        QueryContainer queryContainer = QueryContainer.newBuilder()
+            .setWildcard(WildcardQuery.newBuilder().setField("test_field").setValue("test*pattern").setBoost(0.8f).build())
+            .build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a WildcardQueryBuilder",
+            "org.opensearch.index.query.WildcardQueryBuilder",
             queryBuilder.getClass().getName()
         );
     }
