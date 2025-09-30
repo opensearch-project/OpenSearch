@@ -225,11 +225,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
 
-        // If index sorted on given field, we can use skip list based collector
-        logger.trace("Index sort field found: {}, skipper: {}", fieldIndexSort, skipper);
-        if (fieldIndexSort && skipper != null && singleton != null) {
+        if (skipper != null && singleton != null) {
             // TODO: add hard bounds support
-            // TODO: current assumes this is the top level
             if (hardBounds == null && parent == null) {
                 return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
             }
@@ -407,6 +404,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
         filterRewriteOptimizationContext.populateDebugInfo(add);
+        // TODO: add skiplist, single and multi-value usage
     }
 
     /**
@@ -468,7 +466,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
         }
 
-        private void advanceSkipper(int doc) throws IOException {
+        private void advanceSkipper(int doc, long owningBucketOrd) throws IOException {
             if (doc > skipper.maxDocID(0)) {
                 skipper.advance(doc);
             }
@@ -493,8 +491,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     // All docs at this level have a value, and all values map to the same bucket.
                     upToInclusive = skipper.maxDocID(level);
                     upToSameBucket = true;
-                    // Use owningBucketOrd = 0 for top-level aggregation
-                    upToBucketIndex = bucketOrds.add(0, maxBucket);
+                    upToBucketIndex = bucketOrds.add(owningBucketOrd, maxBucket);
                     if (upToBucketIndex < 0) {
                         upToBucketIndex = -1 - upToBucketIndex;
                     }
@@ -507,7 +504,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Override
         public void collect(int doc, long owningBucketOrd) throws IOException {
             if (doc > upToInclusive) {
-                advanceSkipper(doc);
+                advanceSkipper(doc, owningBucketOrd);
             }
 
             if (upToSameBucket) {
@@ -532,21 +529,33 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         @Override
         public void collect(DocIdStream stream) throws IOException {
+            // This will only be called if its the top agg
             for (;;) {
                 int upToExclusive = upToInclusive + 1;
                 if (upToExclusive < 0) { // overflow
                     upToExclusive = Integer.MAX_VALUE;
                 }
 
-                if (upToSameBucket && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
-                    long count = stream.count(upToExclusive);
-                    aggregator.incrementBucketDocCount(upToBucketIndex, count);
+                if (upToSameBucket) {
+                    if (sub == NO_OP_COLLECTOR) {
+                        // stream.count maybe faster when we don't need to handle sub-aggs
+                        long count = stream.count(upToExclusive);
+                        aggregator.incrementBucketDocCount(upToBucketIndex, count);
+                    } else {
+                        final int[] count = { 0 };
+                        stream.forEach(upToExclusive, doc -> {
+                            sub.collect(doc, upToBucketIndex);
+                            count[0]++;
+                        });
+                        aggregator.incrementBucketDocCount(upToBucketIndex, count[0]);
+                    }
+
                 } else {
                     stream.forEach(upToExclusive, this::collect);
                 }
 
                 if (stream.mayHaveRemaining()) {
-                    advanceSkipper(upToExclusive);
+                    advanceSkipper(upToExclusive, 0);
                 } else {
                     break;
                 }

@@ -274,44 +274,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             config.setMergePolicy(NoMergePolicy.INSTANCE);
             config.setIndexSort(new Sort(sortField));
             String filterField = "type";
-            try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
-
-                // First commit - 5 dates with type 1
-                for (int i = 0; i < 5; i++) {
-                    Document doc = new Document();
-                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
-                        .toInstant()
-                        .toEpochMilli();
-                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
-                    doc.add(new LongPoint(filterField, 1));
-                    indexWriter.addDocument(doc);
-                }
-                indexWriter.commit();
-
-                // Second commit - 3 more dates with type 2, skiplist
-                for (int i = 5; i < 8; i++) {
-                    Document doc = new Document();
-                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
-                        .toInstant()
-                        .toEpochMilli();
-                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
-                    doc.add(new LongPoint(filterField, 2));
-                    indexWriter.addDocument(doc);
-                }
-                indexWriter.commit();
-
-                // Third commit - 3 more dates with type 2
-                for (int i = 8; i < 10; i++) {
-                    Document doc = new Document();
-                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
-                        .toInstant()
-                        .toEpochMilli();
-                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
-                    doc.add(new LongPoint(filterField, 2));
-                    indexWriter.addDocument(doc);
-                }
-                indexWriter.commit();
-            }
+            indexDocsForSkiplist(directory, config, filterField, null);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
@@ -330,7 +293,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     false,
                     fieldType
                 );
-
+                System.out.println(histogram.getBuckets());
                 assertEquals(3, histogram.getBuckets().size()); // 2015, 2016, 2017 (only type 2 docs)
 
                 assertEquals("2015-01-01T00:00:00.000Z", histogram.getBuckets().get(0).getKeyAsString());
@@ -369,47 +332,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             config.setMergePolicy(NoMergePolicy.INSTANCE);
             config.setIndexSort(new Sort(sortField));
             String filterField = "type";
-            try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
-
-                // First commit - 5 dates with type 1
-                for (int i = 0; i < 5; i++) {
-                    Document doc = new Document();
-                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
-                        .toInstant()
-                        .toEpochMilli();
-                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
-                    doc.add(new LongPoint(filterField, 1));
-                    doc.add(new NumericDocValuesField(categoryField, i % 2)); // alternating categories
-                    indexWriter.addDocument(doc);
-                }
-                indexWriter.commit();
-
-                // Second commit - 3 more dates with type 2, skiplist
-                for (int i = 5; i < 8; i++) {
-                    Document doc = new Document();
-                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
-                        .toInstant()
-                        .toEpochMilli();
-                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
-                    doc.add(new LongPoint(filterField, 2));
-                    doc.add(new NumericDocValuesField(categoryField, i % 2));
-                    indexWriter.addDocument(doc);
-                }
-                indexWriter.commit();
-
-                // Third commit - 2 more dates with type 2
-                for (int i = 8; i < 10; i++) {
-                    Document doc = new Document();
-                    long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
-                        .toInstant()
-                        .toEpochMilli();
-                    doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
-                    doc.add(new LongPoint(filterField, 2));
-                    doc.add(new NumericDocValuesField(categoryField, i % 2));
-                    indexWriter.addDocument(doc);
-                }
-                indexWriter.commit();
-            }
+            indexDocsForSkiplist(directory, config, filterField, categoryField);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
@@ -467,6 +390,57 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 assertNotNull("Max sub-agg should exist", maxAgg2017);
                 assertEquals("Max category value for 2017 bucket should be 1", 1.0, maxAgg2017.getValue(), 0.0);
             }
+        }
+    }
+
+    private static void indexDocsForSkiplist(Directory directory, IndexWriterConfig config, String filterField, String categoryField)
+        throws IOException {
+        try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
+
+            // First commit - 5 dates with type 1
+            for (int i = 0; i < 5; i++) {
+                Document doc = new Document();
+                long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                    .toInstant()
+                    .toEpochMilli();
+                doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                doc.add(new LongPoint(filterField, 1));
+                if (categoryField != null) {
+                    doc.add(new NumericDocValuesField(categoryField, i % 2));
+                }
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
+
+            // Second commit - 3 more dates with type 2, skiplist
+            for (int i = 5; i < 8; i++) {
+                Document doc = new Document();
+                long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                    .toInstant()
+                    .toEpochMilli();
+                doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                doc.add(new LongPoint(filterField, 2));
+                if (categoryField != null) {
+                    doc.add(new NumericDocValuesField(categoryField, i % 2));
+                }
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
+
+            // Third commit - 2 more dates with type 2
+            for (int i = 8; i < 10; i++) {
+                Document doc = new Document();
+                long timestamp = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(DATASET.get(i)))
+                    .toInstant()
+                    .toEpochMilli();
+                doc.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, timestamp));
+                doc.add(new LongPoint(filterField, 2));
+                if (categoryField != null) {
+                    doc.add(new NumericDocValuesField(categoryField, i % 2));
+                }
+                indexWriter.addDocument(doc);
+            }
+            indexWriter.commit();
         }
     }
 
