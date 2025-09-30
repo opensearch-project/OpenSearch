@@ -26,6 +26,7 @@ import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.threadpool.ThreadPool;
@@ -188,6 +189,7 @@ public class CompositeDirectory extends FilterDirectory {
                         logger.debug("The file [{}] exists in local but not part of FileCache, deleting it from local", blockFile);
                         localDirectory.deleteFile(blockFile);
                     } else {
+                        fileCache.unpin(getFilePath(blockFile));
                         fileCache.remove(getFilePath(blockFile));
                     }
                 }
@@ -275,6 +277,7 @@ public class CompositeDirectory extends FilterDirectory {
         ensureOpen();
         logger.trace("Composite Directory[{}]: rename() called : source-{}, dest-{}", this::toString, () -> source, () -> dest);
         localDirectory.rename(source, dest);
+        fileCache.unpin(getFilePath(source));
         fileCache.remove(getFilePath(source));
         cacheFile(dest);
     }
@@ -439,9 +442,9 @@ public class CompositeDirectory extends FilterDirectory {
 
     protected void cacheFile(String name) throws IOException {
         Path filePath = getFilePath(name);
-        fileCache.pin(filePath);
         fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
         fileCache.decRef(filePath);
+        fileCache.pin(filePath);
     }
 
 }
