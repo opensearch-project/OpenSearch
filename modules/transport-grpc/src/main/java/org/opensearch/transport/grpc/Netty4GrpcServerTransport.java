@@ -21,6 +21,7 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.BindTransportException;
 
@@ -32,6 +33,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -119,6 +121,16 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     );
 
     /**
+     * Configure size of executor thread pool for handling gRPC calls.
+     */
+    public static final Setting<Integer> SETTING_GRPC_EXECUTOR_COUNT = new Setting<>(
+        "grpc.netty.executor_count",
+        (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s) * 2),
+        (s) -> Setting.parseInt(s, 1, "grpc.netty.executor_count"),
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Controls the number of allowed simultaneous in flight requests a single client connection may send.
      */
     public static final Setting<Integer> SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS = Setting.intSetting(
@@ -189,10 +201,12 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     protected final Settings settings;
 
     private final NetworkService networkService;
+    private final ThreadPool threadPool;
     private final List<BindableService> services;
     private final String[] bindHosts;
     private final String[] publishHosts;
     private final int nettyEventLoopThreads;
+    private final int executorThreads;
     private final long maxInboundMessageSize;
     private final long maxConcurrentConnectionCalls;
     private final TimeValue maxConnectionAge;
@@ -202,19 +216,28 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     private final List<UnaryOperator<NettyServerBuilder>> serverBuilderConfigs = new ArrayList<>();
 
     private volatile BoundTransportAddress boundAddress;
-    private volatile EventLoopGroup eventLoopGroup;
+    private volatile EventLoopGroup bossEventLoopGroup;
+    private volatile EventLoopGroup workerEventLoopGroup;
+    private volatile ExecutorService grpcExecutor;
 
     /**
      * Creates a new Netty4GrpcServerTransport instance.
      * @param settings the configured settings.
      * @param services the gRPC compatible services to be registered with the server.
      * @param networkService the bind/publish addresses.
+     * @param threadPool the thread pool for gRPC request processing.
      */
-    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService) {
+    public Netty4GrpcServerTransport(
+        Settings settings,
+        List<BindableService> services,
+        NetworkService networkService,
+        ThreadPool threadPool
+    ) {
         logger.debug("Initializing Netty4GrpcServerTransport with settings = {}", settings);
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
         this.networkService = Objects.requireNonNull(networkService);
+        this.threadPool = Objects.requireNonNull(threadPool);
         final List<String> grpcBindHost = SETTING_GRPC_BIND_HOST.get(settings);
         this.bindHosts = (grpcBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : grpcBindHost).toArray(
             Strings.EMPTY_ARRAY
@@ -224,6 +247,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
             .toArray(Strings.EMPTY_ARRAY);
         this.port = SETTING_GRPC_PORT.get(settings);
         this.nettyEventLoopThreads = SETTING_GRPC_WORKER_COUNT.get(settings);
+        this.executorThreads = SETTING_GRPC_EXECUTOR_COUNT.get(settings);
         this.maxInboundMessageSize = SETTING_GRPC_MAX_MSG_SIZE.get(settings).getBytes();
         this.maxConcurrentConnectionCalls = SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS.get(settings);
         this.maxConnectionAge = SETTING_GRPC_MAX_CONNECTION_AGE.get(settings);
@@ -232,12 +256,22 @@ public class Netty4GrpcServerTransport extends AuxTransport {
         this.portSettingKey = SETTING_GRPC_PORT.getKey();
     }
 
+    /**
+     * Returns the setting key used to identify this transport type.
+     *
+     * @return the gRPC transport setting key
+     */
     @Override
     public String settingKey() {
         return GRPC_TRANSPORT_SETTING_KEY;
     }
 
-    // public for tests
+    /**
+     * Returns the bound transport addresses for this gRPC server.
+     * This method is public for testing purposes.
+     *
+     * @return the bound transport address containing all bound addresses and publish address
+     */
     @Override
     public BoundTransportAddress getBoundAddress() {
         return this.boundAddress;
@@ -259,10 +293,16 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            this.eventLoopGroup = new NioEventLoopGroup(nettyEventLoopThreads, daemonThreadFactory(settings, "grpc_event_loop"));
+            // Create separate boss and worker event loop groups for better isolation
+            this.bossEventLoopGroup = new NioEventLoopGroup(1, daemonThreadFactory(settings, "grpc_boss"));
+            this.workerEventLoopGroup = new NioEventLoopGroup(nettyEventLoopThreads, daemonThreadFactory(settings, "grpc_worker"));
+
+            // Use OpenSearch's managed thread pool for gRPC request processing
+            this.grpcExecutor = threadPool.executor("grpc");
+
             bindServer();
             success = true;
-            logger.info("Started gRPC server on port {}", port);
+            logger.info("Started gRPC server on port {} with {} executor threads", port, executorThreads);
         } finally {
             if (!success) {
                 doStop();
@@ -289,12 +329,25 @@ public class Netty4GrpcServerTransport extends AuxTransport {
                 }
             }
         }
-        if (eventLoopGroup != null) {
+
+        // Note: grpcExecutor is managed by OpenSearch's ThreadPool, so we don't shut it down here
+
+        // Shutdown event loop groups
+        if (bossEventLoopGroup != null) {
             try {
-                eventLoopGroup.shutdownGracefully(0, 10, TimeUnit.SECONDS).await();
+                bossEventLoopGroup.shutdownGracefully(0, 10, TimeUnit.SECONDS).await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                logger.warn("Failed to shut down event loop group");
+                logger.warn("Failed to shut down boss event loop group");
+            }
+        }
+
+        if (workerEventLoopGroup != null) {
+            try {
+                workerEventLoopGroup.shutdownGracefully(0, 10, TimeUnit.SECONDS).await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("Failed to shut down worker event loop group");
             }
         }
     }
@@ -305,7 +358,12 @@ public class Netty4GrpcServerTransport extends AuxTransport {
      */
     @Override
     protected void doClose() {
-        eventLoopGroup.close();
+        if (bossEventLoopGroup != null) {
+            bossEventLoopGroup.close();
+        }
+        if (workerEventLoopGroup != null) {
+            workerEventLoopGroup.close();
+        }
     }
 
     private void bindServer() {
@@ -356,9 +414,9 @@ public class Netty4GrpcServerTransport extends AuxTransport {
             try {
                 final InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
                 final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(address)
-                    .directExecutor()
-                    .bossEventLoopGroup(eventLoopGroup)
-                    .workerEventLoopGroup(eventLoopGroup)
+                    .executor(grpcExecutor)
+                    .bossEventLoopGroup(bossEventLoopGroup)
+                    .workerEventLoopGroup(workerEventLoopGroup)
                     .maxInboundMessageSize((int) maxInboundMessageSize)
                     .maxConcurrentCallsPerConnection((int) maxConcurrentConnectionCalls)
                     .maxConnectionAge(maxConnectionAge.duration(), maxConnectionAge.timeUnit())
@@ -390,5 +448,18 @@ public class Netty4GrpcServerTransport extends AuxTransport {
         }
 
         return addr.get();
+    }
+
+    // Package-private methods for testing
+    ExecutorService getGrpcExecutorForTesting() {
+        return grpcExecutor;
+    }
+
+    EventLoopGroup getBossEventLoopGroupForTesting() {
+        return bossEventLoopGroup;
+    }
+
+    EventLoopGroup getWorkerEventLoopGroupForTesting() {
+        return workerEventLoopGroup;
     }
 }

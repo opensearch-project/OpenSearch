@@ -13,6 +13,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 
 import javax.net.ssl.SSLContext;
@@ -73,15 +74,17 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
      * @param settings the configured settings.
      * @param services the gRPC compatible services to be registered with the server.
      * @param networkService the bind/publish addresses.
+     * @param threadPool the thread pool for managing gRPC executor and monitoring.
      * @param secureTransportSettingsProvider TLS configuration settings.
      */
     public SecureNetty4GrpcServerTransport(
         Settings settings,
         List<BindableService> services,
         NetworkService networkService,
+        ThreadPool threadPool,
         SecureAuxTransportSettingsProvider secureTransportSettingsProvider
     ) {
-        super(settings, services, networkService);
+        super(settings, services, networkService, threadPool);
         this.port = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.get(settings);
         this.portSettingKey = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.getKey();
         try {
