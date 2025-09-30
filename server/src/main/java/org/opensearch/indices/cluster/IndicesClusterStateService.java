@@ -782,7 +782,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      */
     private void updateShardIngestionState(Shard shard, IndexMetadata indexMetadata, ShardRouting shardRouting) {
         try {
-            if (indexMetadata.useIngestionSource() && shardRouting.primary()) {
+            boolean isPrimaryOrAllActiveShard = shardRouting.primary() || indexMetadata.isAllActiveIngestionEnabled();
+            if (indexMetadata.useIngestionSource() && isPrimaryOrAllActiveShard) {
                 shard.updateShardIngestionState(indexMetadata);
             }
         } catch (Exception e) {

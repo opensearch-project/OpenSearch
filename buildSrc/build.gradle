@@ -111,7 +111,7 @@ dependencies {
   api 'org.apache.rat:apache-rat:0.15'
   api "commons-io:commons-io:${props.getProperty('commonsio')}"
   api "net.java.dev.jna:jna:5.16.0"
-  api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.5'
+  api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.9'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
   api 'de.thetaphi:forbiddenapis:3.9'
@@ -130,7 +130,7 @@ dependencies {
   testFixturesApi gradleTestKit()
   testImplementation 'org.wiremock:wiremock-standalone:3.6.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
-  integTestImplementation('org.spockframework:spock-core:2.4-M6-groovy-4.0') {
+  integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
     exclude module: "groovy"
   }
 }
