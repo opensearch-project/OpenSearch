@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.mock;
@@ -120,11 +119,6 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         @Override
         public String getName() {
             return name;
-        }
-
-        @Override
-        public TreeMap<Integer, String> getPrioritizedSubfields() {
-            return new TreeMap<>();
         }
 
         @Override

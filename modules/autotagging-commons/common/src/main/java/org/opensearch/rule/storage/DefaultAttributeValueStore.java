@@ -9,8 +9,10 @@
 package org.opensearch.rule.storage;
 
 import org.apache.commons.collections4.trie.PatriciaTrie;
+import org.opensearch.rule.MatchLabel;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -78,23 +80,35 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     }
 
     @Override
-    public List<Set<V>> getAll(String key) {
+    public Set<V> getExactMatch(K key) {
         readLock.lock();
         try {
-            List<Set<V>> results = new ArrayList<>();
+            return trie.getOrDefault(key, Collections.emptySet());
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public List<MatchLabel<V>> getMatches(String key) {
+        readLock.lock();
+        try {
+            List<MatchLabel<V>> results = new ArrayList<>();
             StringBuilder prefixBuilder = new StringBuilder(key);
 
             for (int i = key.length(); i >= 0; i--) {
                 String prefix = prefixBuilder.toString();
                 Set<V> value = trie.get(prefix);
                 if (value != null && !value.isEmpty()) {
-                    results.add(value);
+                    float matchScore = (float) prefixBuilder.length() / key.length();
+                    for (V label : value) {
+                        results.add(new MatchLabel<>(label, matchScore));
+                    }
                 }
                 if (!prefixBuilder.isEmpty()) {
                     prefixBuilder.deleteCharAt(prefixBuilder.length() - 1);
                 }
             }
-
             return results;
         } finally {
             readLock.unlock();

@@ -103,7 +103,7 @@ public class InMemoryRuleProcessingService {
         attributeExtractors.sort(
             Comparator.comparingInt(extractor -> prioritizedAttributes.getOrDefault(extractor.getAttribute(), Integer.MAX_VALUE))
         );
-        FeatureValueResolver featureValueResolver = new FeatureValueResolver(attributeValueStoreFactory);
-        return featureValueResolver.resolve(attributeExtractors).resolveLabel();
+        FeatureValueResolver featureValueResolver = new FeatureValueResolver(attributeValueStoreFactory, attributeExtractors);
+        return featureValueResolver.resolve();
     }
 }

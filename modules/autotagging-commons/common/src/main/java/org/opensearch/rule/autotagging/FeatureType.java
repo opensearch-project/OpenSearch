@@ -44,7 +44,7 @@ public interface FeatureType extends Writeable {
 
     /**
      * Returns a map of top-level attributes sorted by priority, with 1 representing the highest priority.
-     * Subfields within each attribute are managed separately here {@link org.opensearch.rule.autotagging.Attribute#getPrioritizedSubfields()}.
+     * Subfields within each attribute are managed separately here {@link Attribute#getWeightedSubfields()}.
      */
     Map<Attribute, Integer> getOrderedAttributes();
 

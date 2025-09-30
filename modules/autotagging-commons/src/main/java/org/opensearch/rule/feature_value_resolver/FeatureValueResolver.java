@@ -8,160 +8,131 @@
 
 package org.opensearch.rule.feature_value_resolver;
 
+import org.opensearch.rule.MatchLabel;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.storage.AttributeValueStore;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
- * This class is responsible for collecting candidate feature values
+ * This class is responsible for collecting feature values matches
  * from multiple {@link AttributeExtractor}s and determining the final feature value
- * by computing the intersection of candidate feature values across all extractors.
+ * by computing the intersection of feature values matches across all extractors.
  * The workflow is as follows:
  *   Each AttributeExtractor is used to fetch candidate feature values for its attribute.
- *   Candidate feature values are collected for all extractors.
+ *   A list of feature values matches are collected for each attribute.
  *   An intersection of all candidate feature values is computed.
  *   The intersection is then reduced to a final feature value using tie-breaking logic.
  */
 public class FeatureValueResolver {
     private final AttributeValueStoreFactory storeFactory;
+    private final List<AttributeExtractor<String>> orderedExtractors;
+    private final Map<Attribute, List<MatchLabel<String>>> matchLabelMap = new HashMap<>();
+    private Set<String> intersection = null;
+    final float EPSILON = 1e-6f;
 
     /**
      * Constructor for FeatureValueAggregator
      * @param storeFactory
+     * @param orderedExtractors
      */
-    public FeatureValueResolver(AttributeValueStoreFactory storeFactory) {
+    public FeatureValueResolver(AttributeValueStoreFactory storeFactory, List<AttributeExtractor<String>> orderedExtractors) {
         this.storeFactory = storeFactory;
+        this.orderedExtractors = orderedExtractors;
     }
 
     /**
      * Key entry function for the class.
-     * This function collects candidate feature values from the given list of attribute extractors,
-     * returning the FeatureValueResolutionResult including all candidate values and
-     * their intersection.
-     * @param extractors list of attribute extractors to collect values from
+     * This function collects feature value matches from the given list of attribute extractors,
+     * returning the final label for the request.
      */
-    public FeatureValueResolutionResult resolve(List<AttributeExtractor<String>> extractors) {
-        List<CandidateFeatureValues> candidateFeatureValueList = new ArrayList<>();
-        Set<String> intersection = null;
-
-        for (AttributeExtractor<String> extractor : extractors) {
-            Set<String> values = collectValuesForAttribute(extractor, candidateFeatureValueList);
-
+    public Optional<String> resolve() {
+        for (AttributeExtractor<String> extractor : orderedExtractors) {
+            Attribute attr = extractor.getAttribute();
+            AttributeValueStore<String, String> store = storeFactory.getAttributeValueStore(attr);
+            List<MatchLabel<String>> matchLabeles = attr.findAttributeMatches(extractor, store);
+            matchLabelMap.put(attr, matchLabeles);
+            Set<String> flattenedValues = matchLabeles.stream().map(MatchLabel::getFeatureValue).collect(Collectors.toSet());
             if (intersection == null) {
-                intersection = values;
+                intersection = flattenedValues;
             } else {
-                intersection.retainAll(values);
+                intersection.retainAll(flattenedValues);
             }
             if (intersection.isEmpty()) {
+                return Optional.empty();
+            }
+        }
+
+        if (intersection.size() == 1) {
+            String res = intersection.iterator().next();
+            return Optional.of(res);
+        }
+
+        return breakTie();
+    }
+
+    /**
+     * Resolves ties when multiple feature values match for all attributes.
+     * Iterates through the ordered extractors and selects the value with the highest match score.
+     */
+    private Optional<String> breakTie() {
+        for (AttributeExtractor<String> extractor : orderedExtractors) {
+            Set<String> nextIntersection = getTopScoringMatches(extractor.getAttribute());
+
+            if (nextIntersection.size() == 1) {
+                return Optional.of(nextIntersection.iterator().next());
+            } else {
+                intersection = nextIntersection;
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Finds all values from the given extractor that are in the current intersection
+     * and have the top match score.
+     */
+    private Set<String> getTopScoringMatches(Attribute attribute) {
+        Set<String> topValues = new HashSet<>();
+        List<MatchLabel<String>> matches = matchLabelMap.get(attribute);
+        if (matches == null || matches.isEmpty()) {
+            return topValues;
+        }
+
+        for (int i = 0; i < matches.size(); i++) {
+            MatchLabel<String> curr = matches.get(i);
+            if (!intersection.contains(curr.getFeatureValue())) {
+                continue;
+            }
+            float topScore = curr.getMatchScore();
+            topValues.addAll(collectAllTopScoringValues(matches, i, topScore));
+            break; // only consider top score group
+        }
+        return topValues;
+    }
+
+    private Set<String> collectAllTopScoringValues(List<MatchLabel<String>> matches, int startIndex, float topScore) {
+        Set<String> values = new HashSet<>();
+        for (int j = startIndex; j < matches.size(); j++) {
+            MatchLabel<String> m = matches.get(j);
+            if (belongsToTopScoringGroup(m, topScore)) {
+                values.add(m.getFeatureValue());
+            } else {
                 break;
             }
         }
-
-        return new FeatureValueResolutionResult(candidateFeatureValueList, intersection);
+        return values;
     }
 
-    /**
-     * Collects candidate feature values for a single attribute extractor.
-     * @param extractor The attribute extractor to collect values for.
-     * @param candidateFeatureValueList List to which candidate values are added.
-     */
-    private Set<String> collectValuesForAttribute(
-        AttributeExtractor<String> extractor,
-        List<CandidateFeatureValues> candidateFeatureValueList
-    ) {
-        Attribute attr = extractor.getAttribute();
-        AttributeValueStore<String, String> store = storeFactory.getAttributeValueStore(attr);
-        TreeMap<Integer, String> subfields = attr.getPrioritizedSubfields();
-        if (subfields.isEmpty()) {
-            subfields = new TreeMap<>(Map.of(1, ""));
-        }
-
-        // Iterate through all the subfield attributes of the attribute extractor, and take the union of the collected
-        // feature values for each subfield attribute because the relationship between subfields is "OR".
-        // e.g. An request comes from username_a, who has role_b. Let's say rule A matches the request because it has
-        // attribute username_a, and Rule B matches because it has attribute role_b, then both rule A and rule B are
-        // qualified (OR relationship between feature values from different attribute)
-        Set<String> res = new HashSet<>();
-        for (Map.Entry<Integer, String> subfield : subfields.entrySet()) {
-            FeatureValueCollector featureValueCollector = new FeatureValueCollector(store, extractor, subfield.getValue());
-            CandidateFeatureValues valuesForSubfieldAttribute = featureValueCollector.collect();
-            if (valuesForSubfieldAttribute != null) {
-                candidateFeatureValueList.add(valuesForSubfieldAttribute);
-                res.addAll(valuesForSubfieldAttribute.getFlattenedValues());
-            }
-        }
-        return res;
-    }
-
-    /**
-     * Encapsulates the result of feature value aggregation, including
-     * all candidate feature values and their intersection.
-     */
-    public static class FeatureValueResolutionResult {
-        private final List<CandidateFeatureValues> candidateFeatureValuesList;
-        private final Set<String> intersectedFeatureValues;
-
-        /**
-         * Constructs an FeatureValueResolutionResult.
-         * @param candidateFeatureValuesList List of all candidate feature values collected.
-         * @param intersectedFeatureValues Set of values that are common to all candidates (intersection).
-         */
-        public FeatureValueResolutionResult(List<CandidateFeatureValues> candidateFeatureValuesList, Set<String> intersectedFeatureValues) {
-            this.candidateFeatureValuesList = candidateFeatureValuesList;
-            this.intersectedFeatureValues = intersectedFeatureValues;
-        }
-
-        /**
-         * Resolves the final label (feature value), or empty if no label can be determined.
-         */
-        public Optional<String> resolveLabel() {
-            if (intersectedFeatureValues == null || intersectedFeatureValues.isEmpty()) {
-                return Optional.empty();
-            }
-            if (intersectedFeatureValues.size() == 1) {
-                String res = intersectedFeatureValues.iterator().next();
-                return Optional.of(res);
-            }
-            return breakTie();
-        }
-
-        /**
-         * Breaks ties among multiple candidate labels by examining the priorities and
-         * positions in the CandidateFeatureValues list.
-         */
-        private Optional<String> breakTie() {
-            Set<String> remaining = new HashSet<>(intersectedFeatureValues);
-            for (CandidateFeatureValues values : candidateFeatureValuesList) {
-                String best = null;
-                int bestIndex = Integer.MAX_VALUE;
-                Set<String> tied = new HashSet<>();
-                for (String val : remaining) {
-                    int index = values.getFirstOccurrenceIndex(val);
-                    if (index < bestIndex) {
-                        tied.clear();
-                        tied.add(val);
-                        best = val;
-                        bestIndex = index;
-                    } else if (index == bestIndex) {
-                        tied.add(val);
-                    }
-                }
-                if (tied.size() == 1 && best != null) {
-                    return Optional.of(best);
-                }
-                remaining = tied;
-            }
-
-            return Optional.empty();
-        }
+    private boolean belongsToTopScoringGroup(MatchLabel<String> match, float topScore) {
+        return intersection.contains(match.getFeatureValue()) && Math.abs(match.getMatchScore() - topScore) < EPSILON;
     }
 }
