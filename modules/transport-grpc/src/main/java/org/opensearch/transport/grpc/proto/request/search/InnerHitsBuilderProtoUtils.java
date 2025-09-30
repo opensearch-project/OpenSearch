@@ -75,19 +75,18 @@ public class InnerHitsBuilderProtoUtils {
             innerHitBuilder.setStoredFieldNames(innerHits.getStoredFieldsList());
         }
         if (innerHits.getDocvalueFieldsCount() > 0) {
-            List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
+            List<FieldAndFormat> docvalueFieldsList = new ArrayList<>();
             for (org.opensearch.protobufs.FieldAndFormat fieldAndFormat : innerHits.getDocvalueFieldsList()) {
-                fieldAndFormatList.add(FieldAndFormatProtoUtils.fromProto(fieldAndFormat));
+                docvalueFieldsList.add(FieldAndFormatProtoUtils.fromProto(fieldAndFormat));
             }
-            innerHitBuilder.setDocValueFields(fieldAndFormatList);
+            innerHitBuilder.setDocValueFields(docvalueFieldsList);
         }
         if (innerHits.getFieldsCount() > 0) {
-            List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-            // TODO: this is not correct, we need to use FieldAndFormatProtoUtils.fromProto() and fix the protobufs in 0.11.0
-            for (String fieldName : innerHits.getFieldsList()) {
-                fieldAndFormatList.add(new FieldAndFormat(fieldName, null));
+            List<FieldAndFormat> fieldsList = new ArrayList<>();
+            for (org.opensearch.protobufs.FieldAndFormat fieldAndFormat : innerHits.getFieldsList()) {
+                fieldsList.add(FieldAndFormatProtoUtils.fromProto(fieldAndFormat));
             }
-            innerHitBuilder.setFetchFields(fieldAndFormatList);
+            innerHitBuilder.setFetchFields(fieldsList);
         }
         if (innerHits.getScriptFieldsCount() > 0) {
             Set<SearchSourceBuilder.ScriptField> scriptFields = new HashSet<>();
@@ -116,26 +115,6 @@ public class InnerHitsBuilderProtoUtils {
         }
 
         return innerHitBuilder;
-    }
-
-    /**
-     * Converts a list of protobuf InnerHits to a list of OpenSearch InnerHitBuilder objects.
-     * Each InnerHits protobuf message represents ONE inner hit definition.
-     *
-     * @param innerHitsList the list of protobuf InnerHits to convert
-     * @return the list of converted OpenSearch InnerHitBuilder objects
-     * @throws IOException if there's an error during parsing
-     */
-    public static List<InnerHitBuilder> fromProto(List<InnerHits> innerHitsList) throws IOException {
-        if (innerHitsList == null) {
-            throw new IllegalArgumentException("InnerHits list cannot be null");
-        }
-
-        List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
-        for (InnerHits innerHits : innerHitsList) {
-            innerHitBuilders.add(fromProto(innerHits));
-        }
-        return innerHitBuilders;
     }
 
 }
