@@ -78,6 +78,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix IntervalQuery flaky test ([#19332](https://github.com/opensearch-project/OpenSearch/pull/19332))
 - Fix ingestion state xcontent serialization in IndexMetadata and fail fast on mapping errors([#19320](https://github.com/opensearch-project/OpenSearch/pull/19320))
 - Fix updated keyword field params leading to stale responses from request cache ([#19385](https://github.com/opensearch-project/OpenSearch/pull/19385))
+- Fix cardinality agg pruning optimization by self collecting ([#19473](https://github.com/opensearch-project/OpenSearch/pull/19473))
 - Implement SslHandler retrieval logic for transport-reactor-netty4 plugin ([#19458](https://github.com/opensearch-project/OpenSearch/pull/19458))
 
 ### Dependencies
