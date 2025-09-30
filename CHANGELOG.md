@@ -59,6 +59,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Migrate usages of deprecated `Operations#union` from Lucene ([#19397](https://github.com/opensearch-project/OpenSearch/pull/19397))
 - Delegate primitive write methods with ByteSizeCachingDirectory wrapped IndexOutput ([#19432](https://github.com/opensearch-project/OpenSearch/pull/19432))
 - Bump opensearch-protobufs dependency to 0.18.0 and update transport-grpc module compatibility ([#19447](https://github.com/opensearch-project/OpenSearch/issues/19447))
+- Refactor the ThreadPoolStats.Stats class to use the Builder pattern instead of constructors ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
 
 ### Fixed
 - Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
@@ -134,6 +135,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `lycheeverse/lychee-action` from 2.4.1 to 2.6.1 ([#19463](https://github.com/opensearch-project/OpenSearch/pull/19463))
 
 ### Deprecated
+- Deprecated existing constructors in ThreadPoolStats.Stats in favor of the new Builder ([#19306](https://github.com/opensearch-project/OpenSearch/pull/19306))
 
 ### Removed
 - Enable backward compatibility tests on Mac ([#18983](https://github.com/opensearch-project/OpenSearch/pull/18983))
