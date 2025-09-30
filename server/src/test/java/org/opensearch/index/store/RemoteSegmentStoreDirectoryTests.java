@@ -641,7 +641,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
                 storeDirectory,
                 34L,
                 indexShard.getLatestReplicationCheckpoint(),
-                ""
+                "",
+                indexShard.isRefreshSegmentUploadDecouplingEnabled()
             )
         );
     }
@@ -688,7 +689,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             storeDirectory,
             generation,
             indexShard.getLatestReplicationCheckpoint(),
-            ""
+            "",
+            indexShard.isRefreshSegmentUploadDecouplingEnabled()
         );
 
         verify(remoteMetadataDirectory).copyFrom(
@@ -737,7 +739,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
                 storeDirectory,
                 12L,
                 indexShard.getLatestReplicationCheckpoint(),
-                ""
+                "",
+                indexShard.isRefreshSegmentUploadDecouplingEnabled()
             )
         );
         verify(indexOutput).close();
