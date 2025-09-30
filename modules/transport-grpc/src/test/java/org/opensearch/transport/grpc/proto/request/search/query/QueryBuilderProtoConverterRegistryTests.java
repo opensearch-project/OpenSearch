@@ -360,7 +360,8 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertEquals("Should be a BoolQueryBuilder", "org.opensearch.index.query.BoolQueryBuilder", queryBuilder.getClass().getName());
     }
-  public void testGeoDistanceQueryConversion() {
+
+    public void testGeoDistanceQueryConversion() {
         // Create a GeoDistance query container
         LatLonGeoLocation latLonLocation = LatLonGeoLocation.newBuilder().setLat(40.7589).setLon(-73.9851).build();
 
