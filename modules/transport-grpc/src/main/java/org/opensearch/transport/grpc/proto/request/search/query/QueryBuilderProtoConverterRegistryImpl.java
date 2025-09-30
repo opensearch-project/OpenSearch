@@ -57,6 +57,7 @@ public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProto
         delegate.registerConverter(new WildcardQueryBuilderProtoConverter());
         delegate.registerConverter(new GeoBoundingBoxQueryBuilderProtoConverter());
         delegate.registerConverter(new GeoDistanceQueryBuilderProtoConverter());
+        delegate.registerConverter(new NestedQueryBuilderProtoConverter());
         delegate.registerConverter(new IdsQueryBuilderProtoConverter());
         delegate.registerConverter(new RangeQueryBuilderProtoConverter());
         delegate.registerConverter(new TermsSetQueryBuilderProtoConverter());
