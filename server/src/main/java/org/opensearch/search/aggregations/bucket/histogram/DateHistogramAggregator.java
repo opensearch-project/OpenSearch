@@ -115,6 +115,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final String fieldName;
     private final boolean fieldIndexSort;
 
+    // Collector usage tracking fields
+    private int noOpCollectorsUsed;
+    private int singleValuedCollectorsUsed;
+    private int multiValuedCollectorsUsed;
+    private int skipListCollectorsUsed;
+
     DateHistogramAggregator(
         String name,
         AggregatorFactories factories,
@@ -215,6 +221,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
+            noOpCollectorsUsed++;
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
@@ -228,12 +235,14 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (skipper != null && singleton != null) {
             // TODO: add hard bounds support
             if (hardBounds == null && parent == null) {
+                skipListCollectorsUsed++;
                 return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
             }
         }
 
         if (singleton != null) {
             // Optimized path for single-valued fields
+            singleValuedCollectorsUsed++;
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -246,6 +255,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
 
         // Original path for multi-valued fields
+        multiValuedCollectorsUsed++;
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -402,9 +412,13 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
         add.accept("total_buckets", bucketOrds.size());
         filterRewriteOptimizationContext.populateDebugInfo(add);
-        // TODO: add skiplist, single and multi-value usage
+        add.accept("no_op_collectors_used", noOpCollectorsUsed);
+        add.accept("single_valued_collectors_used", singleValuedCollectorsUsed);
+        add.accept("multi_valued_collectors_used", multiValuedCollectorsUsed);
+        add.accept("skip_list_collectors_used", skipListCollectorsUsed);
     }
 
     /**

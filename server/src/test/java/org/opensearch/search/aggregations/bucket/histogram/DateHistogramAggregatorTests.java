@@ -293,7 +293,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     false,
                     fieldType
                 );
-                System.out.println(histogram.getBuckets());
                 assertEquals(3, histogram.getBuckets().size()); // 2015, 2016, 2017 (only type 2 docs)
 
                 assertEquals("2015-01-01T00:00:00.000Z", histogram.getBuckets().get(0).getKeyAsString());
