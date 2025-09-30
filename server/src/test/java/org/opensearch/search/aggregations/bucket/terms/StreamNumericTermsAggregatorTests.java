@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -18,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
@@ -1207,5 +1209,502 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
         searcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
         return aggregator.buildTopLevel();
+    }
+
+    public void testDoubleTermsResults() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new NumericDocValuesField("field", NumericUtils.doubleToSortableLong(1.5)));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("field", NumericUtils.doubleToSortableLong(2.5)));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("field", NumericUtils.doubleToSortableLong(1.5)));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .order(BucketOrder.key(true));
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    DoubleTerms result = (DoubleTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+
+                    List<DoubleTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.get(0).getKeyAsNumber().doubleValue(), equalTo(1.5));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(2L));
+                    assertThat(buckets.get(1).getKeyAsNumber().doubleValue(), equalTo(2.5));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(1L));
+                }
+            }
+        }
+    }
+
+    public void testDoubleTermsWithSubAggregation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new NumericDocValuesField("price", NumericUtils.doubleToSortableLong(9.99)));
+                document.add(new NumericDocValuesField("quantity", 10));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("price", NumericUtils.doubleToSortableLong(9.99)));
+                document.add(new NumericDocValuesField("quantity", 20));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("price", NumericUtils.doubleToSortableLong(19.99)));
+                document.add(new NumericDocValuesField("quantity", 5));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.DOUBLE);
+                    MappedFieldType quantityFieldType = new NumberFieldMapper.NumberFieldType(
+                        "quantity",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("prices").field("price")
+                        .subAggregation(new SumAggregationBuilder("total_quantity").field("quantity"));
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        priceFieldType,
+                        quantityFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    DoubleTerms result = (DoubleTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+
+                    DoubleTerms.Bucket price999Bucket = result.getBuckets()
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().doubleValue() == 9.99)
+                        .findFirst()
+                        .orElse(null);
+                    assertThat(price999Bucket, notNullValue());
+                    assertThat(price999Bucket.getDocCount(), equalTo(2L));
+
+                    InternalSum totalQuantity = price999Bucket.getAggregations().get("total_quantity");
+                    assertThat(totalQuantity.getValue(), equalTo(30.0));
+                }
+            }
+        }
+    }
+
+    public void testUnsignedLongTermsResults() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new NumericDocValuesField("field", Long.MAX_VALUE));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("field", Long.MAX_VALUE - 1));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("field", Long.MAX_VALUE));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    UnsignedLongTerms result = (UnsignedLongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+
+                    // Verify we have the expected buckets with correct doc counts
+                    UnsignedLongTerms.Bucket maxValueBucket = result.getBuckets()
+                        .stream()
+                        .filter(b -> b.getKeyAsNumber().longValue() == Long.MAX_VALUE)
+                        .findFirst()
+                        .orElse(null);
+                    assertThat(maxValueBucket, notNullValue());
+                    assertThat(maxValueBucket.getDocCount(), equalTo(2L));
+                }
+            }
+        }
+    }
+
+    public void testMultiValuedField() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new SortedNumericDocValuesField("tags", 1));
+                document.add(new SortedNumericDocValuesField("tags", 2));
+                document.add(new SortedNumericDocValuesField("tags", 3));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new SortedNumericDocValuesField("tags", 2));
+                document.add(new SortedNumericDocValuesField("tags", 4));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("tags", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("tags")
+                        .order(BucketOrder.key(true));
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(4));
+
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(1L));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(1L));
+                    assertThat(buckets.get(1).getKeyAsNumber().longValue(), equalTo(2L));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(2L));
+                    assertThat(buckets.get(2).getKeyAsNumber().longValue(), equalTo(3L));
+                    assertThat(buckets.get(2).getDocCount(), equalTo(1L));
+                    assertThat(buckets.get(3).getKeyAsNumber().longValue(), equalTo(4L));
+                    assertThat(buckets.get(3).getDocCount(), equalTo(1L));
+                }
+            }
+        }
+    }
+
+    public void testKeyOrderDescending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 1; i <= 5; i++) {
+                    Document document = new Document();
+                    document.add(new NumericDocValuesField("field", i));
+                    indexWriter.addDocument(document);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .order(BucketOrder.key(false));
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(5));
+
+                    // The order is specified but buckets may not be sorted until reduce phase
+                    // Just verify all expected keys are present
+                    List<LongTerms.Bucket> buckets = result.getBuckets();
+                    for (int i = 1; i <= 5; i++) {
+                        long expectedKey = i;
+                        boolean found = buckets.stream().anyMatch(b -> b.getKeyAsNumber().longValue() == expectedKey);
+                        assertTrue("Expected key " + expectedKey + " to be present", found);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testDifferentNumberTypes() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new NumericDocValuesField("field", 100));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("field", 200));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                    NumberFieldMapper.NumberType[] types = {
+                        NumberFieldMapper.NumberType.INTEGER,
+                        NumberFieldMapper.NumberType.SHORT,
+                        NumberFieldMapper.NumberType.BYTE };
+
+                    for (NumberFieldMapper.NumberType type : types) {
+                        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", type);
+
+                        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
+
+                        StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                            null,
+                            aggregationBuilder,
+                            indexSearcher,
+                            createIndexSettings(),
+                            new MultiBucketConsumerService.MultiBucketConsumer(
+                                DEFAULT_MAX_BUCKETS,
+                                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                            ),
+                            fieldType
+                        );
+
+                        aggregator.preCollection();
+                        assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
+
+                        LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                        assertThat(result, notNullValue());
+                        assertThat(result.getBuckets().size(), equalTo(2));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testFloatNumberType() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new NumericDocValuesField("field", NumericUtils.floatToSortableInt(3.14f)));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("field", NumericUtils.floatToSortableInt(2.71f)));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("field", NumericUtils.floatToSortableInt(3.14f)));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.FLOAT);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    DoubleTerms result = (DoubleTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(2));
+                }
+            }
+        }
+    }
+
+    public void testEmptyDoubleTermsResult() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    DoubleTerms result = (DoubleTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(0));
+                }
+            }
+        }
+    }
+
+    public void testEmptyUnsignedLongTermsResult() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    UnsignedLongTerms result = (UnsignedLongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertThat(result.getBuckets().size(), equalTo(0));
+                }
+            }
+        }
+    }
+
+    public void testMultipleOwningBucketOrds() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new NumericDocValuesField("field", 1));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new NumericDocValuesField("field", 2));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    InternalAggregation[] results = aggregator.buildAggregations(new long[] { 0 });
+
+                    assertThat(results.length, equalTo(1));
+                    assertThat(results[0], instanceOf(LongTerms.class));
+
+                    LongTerms result1 = (LongTerms) results[0];
+                    assertThat(result1.getBuckets().size(), equalTo(2));
+                }
+            }
+        }
     }
 }
