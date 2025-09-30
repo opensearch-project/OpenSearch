@@ -53,6 +53,12 @@ public class ExistsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("test_query", builder.queryName());
     }
 
+    public void testFromProtoWithNullInput() {
+        // Test null input should throw IllegalArgumentException
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> fromProto(null));
+        assertEquals("ExistsQuery cannot be null", exception.getMessage());
+    }
+
     /**
      * Test that compares the results of fromXContent and fromProto to ensure they produce equivalent results.
      */

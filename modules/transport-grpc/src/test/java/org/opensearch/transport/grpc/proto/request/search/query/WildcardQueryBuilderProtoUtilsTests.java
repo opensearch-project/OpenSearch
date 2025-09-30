@@ -79,6 +79,26 @@ public class WildcardQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("test*value", builder.value());
     }
 
+    public void testFromProtoWithNeitherValueNorWildcard() {
+        // Test exception when neither value nor wildcard field is set
+        WildcardQuery proto = WildcardQuery.newBuilder().setField("test_field").build();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> fromProto(proto));
+        assertEquals("Either value or wildcard field must be set in wildcardQueryProto", exception.getMessage());
+    }
+
+    public void testFromProtoWithUnspecifiedRewrite() {
+        // Test that UNSPECIFIED rewrite method results in null rewrite
+        WildcardQuery proto = WildcardQuery.newBuilder()
+            .setField("test_field")
+            .setValue("test*value")
+            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED)
+            .build();
+
+        WildcardQueryBuilder builder = fromProto(proto);
+        assertNull("UNSPECIFIED rewrite should result in null", builder.rewrite());
+    }
+
     public void testFromProtoWithDifferentRewriteMethods() {
         // Test all possible rewrite methods
         MultiTermQueryRewrite[] rewriteMethods = {

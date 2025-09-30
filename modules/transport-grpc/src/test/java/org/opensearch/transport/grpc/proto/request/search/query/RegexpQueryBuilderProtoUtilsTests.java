@@ -74,6 +74,18 @@ public class RegexpQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("test_query", builder.queryName());
     }
 
+    public void testFromProtoWithUnspecifiedRewrite() {
+        // Test that UNSPECIFIED rewrite method results in null rewrite
+        RegexpQuery proto = RegexpQuery.newBuilder()
+            .setField("test_field")
+            .setValue("test.*value")
+            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED)
+            .build();
+
+        RegexpQueryBuilder builder = fromProto(proto);
+        assertNull("UNSPECIFIED rewrite should result in null", builder.rewrite());
+    }
+
     public void testFromProtoWithDifferentRewriteMethods() {
         // Test all possible rewrite methods
         MultiTermQueryRewrite[] rewriteMethods = {
