@@ -254,5 +254,5 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
             "org.opensearch.index.query.MatchPhraseQueryBuilder",
             queryBuilder.getClass().getName()
         );
-    }  
+    }
 }
