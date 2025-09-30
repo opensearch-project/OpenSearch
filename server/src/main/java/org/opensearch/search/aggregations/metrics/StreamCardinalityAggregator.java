@@ -19,6 +19,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * A streaming aggregator that computes approximate counts of unique values.
+ *
+ * @opensearch.internal
+ */
 public class StreamCardinalityAggregator extends CardinalityAggregator {
 
     private Collector streamCollector;
