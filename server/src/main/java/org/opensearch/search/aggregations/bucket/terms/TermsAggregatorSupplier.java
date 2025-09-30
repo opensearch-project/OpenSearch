@@ -37,6 +37,7 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -62,6 +63,7 @@ interface TermsAggregatorSupplier {
         Aggregator.SubAggCollectionMode subAggCollectMode,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        ValuesSourceConfig config
     ) throws IOException;
 }

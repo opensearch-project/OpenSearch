@@ -324,14 +324,15 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      * This test case utilizes the MapStringTermsAggregator.
      */
     public void testSimpleMapStringAggregation() throws Exception {
-        testSimple(
-            ADD_SORTED_SET_FIELD_INDEXED,
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            TermsAggregatorFactory.ExecutionMode.MAP,
-            4
-        );
+        /* Currently, we can precompute the aggregation if we do not include deleted documents in segment and do not include the docCountField. */
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, false, false, TermsAggregatorFactory.ExecutionMode.MAP, 0);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, true, false, TermsAggregatorFactory.ExecutionMode.MAP, 4);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, false, true, TermsAggregatorFactory.ExecutionMode.MAP, 0);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, true, true, TermsAggregatorFactory.ExecutionMode.MAP, 4);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, false, false, TermsAggregatorFactory.ExecutionMode.MAP, 4);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, true, false, TermsAggregatorFactory.ExecutionMode.MAP, 4);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, false, true, TermsAggregatorFactory.ExecutionMode.MAP, 4);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, true, true, TermsAggregatorFactory.ExecutionMode.MAP, 4);
     }
 
     /**
