@@ -50,8 +50,13 @@ public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProto
         delegate.registerConverter(new TermsQueryBuilderProtoConverter());
         delegate.registerConverter(new MatchPhraseQueryBuilderProtoConverter());
         delegate.registerConverter(new MultiMatchQueryBuilderProtoConverter());
+        delegate.registerConverter(new BoolQueryBuilderProtoConverter());
         delegate.registerConverter(new GeoBoundingBoxQueryBuilderProtoConverter());
         delegate.registerConverter(new GeoDistanceQueryBuilderProtoConverter());
+
+        // Set the registry on all converters so they can access each other
+        delegate.setRegistryOnAllConverters(this);
+
         logger.info("Registered {} built-in query converters", delegate.size());
     }
 
@@ -73,5 +78,14 @@ public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProto
      */
     public void registerConverter(QueryBuilderProtoConverter converter) {
         delegate.registerConverter(converter);
+    }
+
+    /**
+     * Updates the registry on all registered converters.
+     * This should be called after all external converters have been registered
+     * to ensure converters like BoolQueryBuilderProtoConverter can access the complete registry.
+     */
+    public void updateRegistryOnAllConverters() {
+        delegate.setRegistryOnAllConverters(this);
     }
 }
