@@ -23,42 +23,24 @@ import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
  * Utility class for converting protobuf NestedQuery to OpenSearch NestedQueryBuilder.
  * Handles the conversion of nested query protobuf messages to OpenSearch NestedQueryBuilder objects.
  */
-public class NestedQueryBuilderProtoUtils {
-
-    // Registry for query conversion - injected by the gRPC plugin
-    private static QueryBuilderProtoConverterRegistry REGISTRY;
+class NestedQueryBuilderProtoUtils {
 
     private NestedQueryBuilderProtoUtils() {
         // Utility class, no instances
     }
 
     /**
-     * Sets the registry injected by the gRPC plugin.
-     * This method is called when the Nested converter receives the populated registry.
-     *
-     * @param registry The registry to use
-     */
-    public static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
-        REGISTRY = registry;
-    }
-
-    /**
-     * Gets the current registry.
-     *
-     * @return The current registry
-     */
-    static QueryBuilderProtoConverterRegistry getRegistry() {
-        return REGISTRY;
-    }
-
-    /**
      * Converts a protobuf NestedQuery to an OpenSearch NestedQueryBuilder.
+     * Similar to {@link NestedQueryBuilder#fromXContent(org.opensearch.core.xcontent.XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates a properly configured
+     * NestedQueryBuilder with the appropriate path, query, score mode, inner hits, boost, and query name.
      *
      * @param nestedQueryProto the protobuf NestedQuery to convert
+     * @param registry The registry to use for converting nested queries
      * @return the converted OpenSearch NestedQueryBuilder
      * @throws IllegalArgumentException if the protobuf query is invalid
      */
-    public static NestedQueryBuilder fromProto(NestedQuery nestedQueryProto) {
+    static NestedQueryBuilder fromProto(NestedQuery nestedQueryProto, QueryBuilderProtoConverterRegistry registry) {
         if (nestedQueryProto == null) {
             throw new IllegalArgumentException("NestedQuery cannot be null");
         }
@@ -80,7 +62,7 @@ public class NestedQueryBuilderProtoUtils {
         }
         try {
             QueryContainer queryContainer = nestedQueryProto.getQuery();
-            query = REGISTRY.fromProto(queryContainer);
+            query = registry.fromProto(queryContainer);
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to convert inner query for NestedQuery: " + e.getMessage(), e);
         }

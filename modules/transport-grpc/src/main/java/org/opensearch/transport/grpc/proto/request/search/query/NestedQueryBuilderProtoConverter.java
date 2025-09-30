@@ -29,8 +29,7 @@ public class NestedQueryBuilderProtoConverter implements QueryBuilderProtoConver
     @Override
     public void setRegistry(QueryBuilderProtoConverterRegistry registry) {
         this.registry = registry;
-        // Pass the registry to the utility class so it can convert nested queries
-        NestedQueryBuilderProtoUtils.setRegistry(registry);
+        // The utility class no longer stores the registry statically, it's passed directly to fromProto
     }
 
     @Override
@@ -43,6 +42,6 @@ public class NestedQueryBuilderProtoConverter implements QueryBuilderProtoConver
         if (queryContainer == null || queryContainer.getQueryContainerCase() != QueryContainer.QueryContainerCase.NESTED) {
             throw new IllegalArgumentException("QueryContainer must contain a NestedQuery");
         }
-        return NestedQueryBuilderProtoUtils.fromProto(queryContainer.getNested());
+        return NestedQueryBuilderProtoUtils.fromProto(queryContainer.getNested(), registry);
     }
 }

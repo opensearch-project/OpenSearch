@@ -8,8 +8,11 @@
 package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.protobufs.ChildScoreMode;
+import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.MatchAllQuery;
+import org.opensearch.protobufs.NestedQuery;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.TermQuery;
 import org.opensearch.test.OpenSearchTestCase;
@@ -58,6 +61,34 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertEquals("Should be a TermQueryBuilder", "org.opensearch.index.query.TermQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testNestedQueryConversion() {
+        // Create a Term query as inner query for the nested query
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setField("user.name")
+            .setValue(FieldValue.newBuilder().setString("john").build())
+            .build();
+
+        QueryContainer innerQueryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
+
+        // Create a Nested query container
+        NestedQuery nestedQuery = NestedQuery.newBuilder()
+            .setPath("user")
+            .setQuery(innerQueryContainer)
+            .setScoreMode(ChildScoreMode.CHILD_SCORE_MODE_AVG)
+            .setBoost(1.5f)
+            .setXName("test_nested_query")
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setNested(nestedQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals("Should be a NestedQueryBuilder", "org.opensearch.index.query.NestedQueryBuilder", queryBuilder.getClass().getName());
     }
 
     public void testNullQueryContainer() {
