@@ -76,6 +76,7 @@ import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfoTests;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.junit.Assert;
@@ -157,6 +158,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    @TestLogging(reason = "Getting trace logs from MergedSegmentWarmer", value = "org.opensearch.index.engine.MergedSegmentWarmer:TRACE")
     public void testMergedSegmentReplication() throws Exception {
         // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 1 replica shard.
         final RecoverySettings recoverySettings = new RecoverySettings(
