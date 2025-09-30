@@ -51,11 +51,11 @@ import static java.util.Collections.emptyList;
  *
  * @opensearch.internal
  */
-public abstract class AbstractStringTermsAggregator extends TermsAggregator {
+abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
     protected final boolean showTermDocCountError;
 
-    protected AbstractStringTermsAggregator(
+    AbstractStringTermsAggregator(
         String name,
         AggregatorFactories factories,
         SearchContext context,

@@ -409,7 +409,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      *
      * @opensearch.internal
      */
-    public static class OrdBucket extends InternalTerms.Bucket<OrdBucket> {
+    static class OrdBucket extends InternalTerms.Bucket<OrdBucket> {
         long globalOrd;
 
         OrdBucket(boolean showDocCountError, DocValueFormat format) {

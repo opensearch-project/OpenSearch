@@ -82,13 +82,13 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             B read(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) throws IOException;
         }
 
-        public long subsetDf;
+        long subsetDf;
         long subsetSize;
-        public long supersetDf;
+        long supersetDf;
         long supersetSize;
-        public long bucketOrd;
+        long bucketOrd;
         double score;
-        public InternalAggregations aggregations;
+        InternalAggregations aggregations;
         final transient DocValueFormat format;
 
         protected Bucket(
@@ -139,7 +139,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         // TODO we should refactor to remove this, since buckets should be immutable after they are generated.
         // This can lead to confusing bugs if the bucket is re-created (via createBucket() or similar) without
         // the score
-        public void updateScore(SignificanceHeuristic significanceHeuristic) {
+        void updateScore(SignificanceHeuristic significanceHeuristic) {
             score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
         }
 

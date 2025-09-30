@@ -50,8 +50,6 @@ import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketUtils;
 import org.opensearch.search.aggregations.bucket.terms.NumericTermsAggregator.ResultStrategy;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.opensearch.search.aggregations.bucket.terms.stream.StreamNumericTermsAggregator;
-import org.opensearch.search.aggregations.bucket.terms.stream.StreamStringTermsAggregator;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;

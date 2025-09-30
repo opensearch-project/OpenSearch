@@ -59,7 +59,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
      * @opensearch.internal
      */
     public static class Bucket extends InternalTerms.Bucket<Bucket> {
-        public long term;
+        long term;
 
         public Bucket(
             long term,

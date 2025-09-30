@@ -56,11 +56,11 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
      *
      * @opensearch.internal
      */
-    public static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
+    static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
 
-        public long term;
+        long term;
 
-        public Bucket(
+        Bucket(
             long subsetDf,
             long subsetSize,
             long supersetDf,

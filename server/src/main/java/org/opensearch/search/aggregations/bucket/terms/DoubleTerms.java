@@ -58,10 +58,10 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
      *
      * @opensearch.internal
      */
-    public static class Bucket extends InternalTerms.Bucket<Bucket> {
-        public double term;
+    static class Bucket extends InternalTerms.Bucket<Bucket> {
+        double term;
 
-        public Bucket(
+        Bucket(
             double term,
             long docCount,
             InternalAggregations aggregations,

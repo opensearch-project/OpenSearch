@@ -104,11 +104,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             B read(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException;
         }
 
-        public long bucketOrd;
+        long bucketOrd;
 
-        public long docCount;
+        long docCount;
         protected long docCountError;
-        public InternalAggregations aggregations;
+        InternalAggregations aggregations;
         protected final boolean showDocCountError;
         protected final DocValueFormat format;
 
