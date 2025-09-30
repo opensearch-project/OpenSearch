@@ -140,13 +140,7 @@ public final class MergeSchedulerConfig {
         int maxMerge = indexSettings.getValue(MAX_MERGE_COUNT_SETTING);
         setMaxThreadAndMergeCount(maxThread, maxMerge);
         this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);
-
-        // Index setting takes precedence over cluster setting
-        if (MAX_FORCE_MERGE_MB_PER_SEC_SETTING.exists(indexSettings.getSettings())) {
-            this.maxForceMergeMBPerSec = indexSettings.getValue(MAX_FORCE_MERGE_MB_PER_SEC_SETTING);
-        } else {
-            this.maxForceMergeMBPerSec = CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING.get(indexSettings.getNodeSettings());
-        }
+        updateMaxForceMergeMBPerSec(indexSettings);
     }
 
     /**
@@ -213,5 +207,19 @@ public final class MergeSchedulerConfig {
      */
     void setMaxForceMergeMBPerSec(double maxForceMergeMBPerSec) {
         this.maxForceMergeMBPerSec = maxForceMergeMBPerSec;
+    }
+
+    /**
+     * Updates the maximum force merge rate based on index settings, with fallback to cluster settings.
+     * This method handles the case where an index-level setting is removed and should
+     * fall back to the cluster-level setting.
+     */
+    public void updateMaxForceMergeMBPerSec(IndexSettings indexSettings) {
+        boolean hasIndexSetting = MAX_FORCE_MERGE_MB_PER_SEC_SETTING.exists(indexSettings.getSettings());
+        if (hasIndexSetting) {
+            this.maxForceMergeMBPerSec = indexSettings.getValue(MAX_FORCE_MERGE_MB_PER_SEC_SETTING);
+        } else {
+            this.maxForceMergeMBPerSec = CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING.get(indexSettings.getNodeSettings());
+        }
     }
 }

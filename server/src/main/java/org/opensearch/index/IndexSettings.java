@@ -1180,7 +1180,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(
             MergeSchedulerConfig.MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
-            mergeSchedulerConfig::setMaxForceMergeMBPerSec
+            value -> mergeSchedulerConfig.updateMaxForceMergeMBPerSec(this)
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);

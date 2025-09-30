@@ -166,4 +166,53 @@ public class MergeRateLimitingTests extends OpenSearchTestCase {
             Loggers.setLevel(logger, (Level) null);
         }
     }
+
+    /**
+     * Test that when index-level setting is removed, scheduler falls back to cluster-level setting
+     */
+    public void testFallbackToClusterSettingWhenIndexSettingRemoved() throws Exception {
+        MockAppender mockAppender = new MockAppender("testFallbackToClusterSettingWhenIndexSettingRemoved");
+        mockAppender.start();
+        final Logger logger = LogManager.getLogger(OpenSearchConcurrentMergeScheduler.class);
+        Loggers.addAppender(logger, mockAppender);
+        Loggers.setLevel(logger, Level.INFO);
+
+        try {
+            Settings nodeSettings = Settings.builder().put(CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING.getKey(), "50.0").build();
+
+            // Start with index-level setting that overrides cluster setting
+            Settings.Builder builder = Settings.builder()
+                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(SETTING_NUMBER_OF_SHARDS, "1")
+                .put(SETTING_NUMBER_OF_REPLICAS, "0")
+                .put(MAX_FORCE_MERGE_MB_PER_SEC_SETTING.getKey(), "25.0");
+
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta("test_index", builder.build()), nodeSettings);
+            ShardId shardId = new ShardId("test_index", "test_uuid", 0);
+
+            OpenSearchConcurrentMergeScheduler scheduler = new OpenSearchConcurrentMergeScheduler(shardId, indexSettings);
+
+            // Should initially use index-level setting
+            assertThat(scheduler.getForceMergeMBPerSec(), equalTo(25.0));
+
+            // Remove the index-level setting by NOT setting MAX_FORCE_MERGE_MB_PER_SEC_SETTING - should trigger fallback to cluster setting
+            mockAppender.reset();
+            Settings.Builder newBuilder = Settings.builder()
+                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(SETTING_NUMBER_OF_SHARDS, "1")
+                .put(SETTING_NUMBER_OF_REPLICAS, "0");
+
+            indexSettings.updateIndexMetadata(newIndexMeta("test_index", newBuilder.build()));
+            scheduler.refreshConfig();
+
+            // Should now use cluster-level setting
+            assertThat(scheduler.getForceMergeMBPerSec(), equalTo(50.0));
+            assertTrue("Should log rate limit update when falling back to cluster setting", mockAppender.sawRateLimitUpdate);
+
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+            Loggers.setLevel(logger, (Level) null);
+        }
+    }
 }

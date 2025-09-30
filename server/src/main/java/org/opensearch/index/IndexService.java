@@ -1241,7 +1241,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      *
      * @param maxForceMergeMBPerSec the updated cluster max force merge MB per second rate.
      */
-    public void onMaxForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
+    public void onClusterLevelForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
         if (!MergeSchedulerConfig.MAX_FORCE_MERGE_MB_PER_SEC_SETTING.exists(indexSettings.getSettings())) {
             indexSettings.getMergeSchedulerConfig().setMaxForceMergeMBPerSec(maxForceMergeMBPerSec);
         }

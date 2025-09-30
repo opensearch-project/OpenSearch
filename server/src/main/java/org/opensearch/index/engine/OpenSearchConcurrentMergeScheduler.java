@@ -39,7 +39,6 @@ import org.apache.lucene.index.MergeScheduler;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -64,7 +63,7 @@ import java.util.Set;
 class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
     protected final Logger logger;
-    private final Settings indexSettings;
+    private final IndexSettings indexSettings;
     private final ShardId shardId;
 
     private final MeanMetric totalMerges = new MeanMetric();
@@ -83,7 +82,7 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     OpenSearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
-        this.indexSettings = indexSettings.getSettings();
+        this.indexSettings = indexSettings;
         this.logger = Loggers.getLogger(getClass(), shardId);
         refreshConfig();
     }
@@ -192,7 +191,10 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     protected MergeThread getMergeThread(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
         MergeThread thread = super.getMergeThread(mergeSource, merge);
         thread.setName(
-            OpenSearchExecutors.threadName(indexSettings, "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " + thread.getName())
+            OpenSearchExecutors.threadName(
+                indexSettings.getSettings(),
+                "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " + thread.getName()
+            )
         );
         return thread;
     }
@@ -215,6 +217,9 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     }
 
     void refreshConfig() {
+        // Update the config with current index settings before using it
+        config.updateMaxForceMergeMBPerSec(indexSettings);
+
         if (this.getMaxMergeCount() != config.getMaxMergeCount() || this.getMaxThreadCount() != config.getMaxThreadCount()) {
             this.setMaxMergesAndThreads(config.getMaxMergeCount(), config.getMaxThreadCount());
         }

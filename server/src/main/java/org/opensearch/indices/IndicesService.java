@@ -595,7 +595,7 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
-                this::onMaxForceMergeMBPerSecUpdate
+                this::onClusterLevelForceMergeMBPerSecUpdate
             );
     }
 
@@ -707,10 +707,10 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * @param maxForceMergeMBPerSec the updated cluster max force merge MB per second rate.
      */
-    private void onMaxForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
+    private void onClusterLevelForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
         for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
             IndexService indexService = entry.getValue();
-            indexService.onMaxForceMergeMBPerSecUpdate(maxForceMergeMBPerSec);
+            indexService.onClusterLevelForceMergeMBPerSecUpdate(maxForceMergeMBPerSec);
         }
     }
 
