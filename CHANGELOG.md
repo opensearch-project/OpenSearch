@@ -125,6 +125,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `aws-actions/configure-aws-credentials` from 4 to 5 ([#19363](https://github.com/opensearch-project/OpenSearch/pull/19363))
 - Bump `com.azure:azure-identity` from 1.14.2 to 1.18.0 ([#19361](https://github.com/opensearch-project/OpenSearch/pull/19361))
 - Bump `net.bytebuddy:byte-buddy` from 1.17.5 to 1.17.7 ([#19371](https://github.com/opensearch-project/OpenSearch/pull/19371))
+- Bump `lycheeverse/lychee-action` from 2.4.1 to 2.6.1 ([#19463](https://github.com/opensearch-project/OpenSearch/pull/19463))
 
 ### Deprecated
 
