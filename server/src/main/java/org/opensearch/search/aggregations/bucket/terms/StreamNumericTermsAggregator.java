@@ -277,6 +277,80 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
      *
      * @opensearch.internal
      */
+    public class LongTermsResults extends StandardTermsResultStrategy<LongTerms, LongTerms.Bucket> {
+        public LongTermsResults(boolean showTermDocCountError) {
+            super(showTermDocCountError);
+        }
+
+        @Override
+        String describe() {
+            return "stream_long_terms";
+        }
+
+        @Override
+        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+            return valuesSource.longValues(ctx);
+        }
+
+        @Override
+        LongTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
+            return new LongTerms.Bucket[size][];
+        }
+
+        @Override
+        LongTerms.Bucket[] buildBuckets(int size) {
+            return new LongTerms.Bucket[size];
+        }
+
+        @Override
+        LongTerms buildResult(long owningBucketOrd, long otherDocCount, LongTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
+            return new LongTerms(
+                name,
+                reduceOrder,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                List.of(topBuckets),
+                0,
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        LongTerms buildEmptyResult() {
+            return new LongTerms(
+                name,
+                order,
+                order,
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                0,
+                emptyList(),
+                0,
+                bucketCountThresholds
+            );
+        }
+
+        @Override
+        LongTerms.Bucket buildFinalBucket(LongKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount, long owningBucketOrd) {
+            LongTerms.Bucket result = new LongTerms.Bucket(ordsEnum.value(), docCount, null, showTermDocCountError, 0, format);
+            result.bucketOrd = ordsEnum.ord();
+            result.setDocCountError(0);
+            return result;
+        }
+    }
 
     /**
      * DoubleTermsResults for numeric terms
