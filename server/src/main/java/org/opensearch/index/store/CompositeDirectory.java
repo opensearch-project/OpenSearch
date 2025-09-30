@@ -26,7 +26,6 @@ import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.threadpool.ThreadPool;
