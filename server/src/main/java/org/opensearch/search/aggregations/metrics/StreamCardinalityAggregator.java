@@ -73,6 +73,22 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
     }
 
     @Override
+    public void doReset() {
+        super.doReset();
+        // Clean up the stream collector for the next batch
+        if (streamCollector != null) {
+            streamCollector.close();
+            streamCollector = null;
+        }
+        // Close and recreate the HyperLogLog counts for the next batch
+        // HyperLogLog doesn't have a public reset method, so we need to recreate it
+        if (counts != null) {
+            counts.close();
+            counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        }
+    }
+
+    @Override
     protected void doPostCollection() throws IOException {
         if (streamCollector != null) {
             try {
