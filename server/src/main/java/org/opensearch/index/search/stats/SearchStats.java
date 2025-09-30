@@ -32,6 +32,8 @@
 
 package org.opensearch.index.search.stats;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestStats;
@@ -67,7 +69,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
      */
     @PublicApi(since = "1.0.0")
     public static class PhaseStatsLongHolder implements Writeable {
-
+        private static final Logger logger = LogManager.getLogger(PhaseStatsLongHolder.class);
         long current;
         long total;
         long timeInMillis;
@@ -86,7 +88,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(current);
+            if (current < 0) {
+                out.writeVLong(0);
+            } else {
+                out.writeVLong(current);
+            }
             out.writeVLong(total);
             out.writeVLong(timeInMillis);
         }
@@ -179,7 +185,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return requestStatsLongHolder;
         }
 
-        private Stats() {
+        Stats() {
             // for internal use, initializes all counts to 0
         }
 
@@ -560,6 +566,15 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 if (requestStatsLongHolder == null) {
                     requestStatsLongHolder = new RequestStatsLongHolder();
                 }
+                requestStatsLongHolder.requestStatsHolder.forEach((phaseName, phaseStats) -> {
+                    if (phaseStats.current < 0) {
+                        PhaseStatsLongHolder.logger.warn(
+                            "SearchRequestStats 'current' is negative for phase '{}': {}",
+                            phaseName,
+                            phaseStats.current
+                        );
+                    }
+                });
                 out.writeMap(
                     requestStatsLongHolder.getRequestStatsHolder(),
                     StreamOutput::writeString,
