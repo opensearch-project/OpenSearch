@@ -44,10 +44,15 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.search.DocValueFormat;
@@ -831,6 +836,35 @@ public class DateFieldMapperTests extends MapperTestCase {
         MapperService mapperServiceNanos = createMapperService(fieldMapping(b -> b.field("type", "date_nanos").field("skip_list", true)));
         DateFieldMapper dateFieldMapperNanos = (DateFieldMapper) mapperServiceNanos.documentMapper().mappers().getMapper("field");
         assertTrue("skip_list should be true in date_nanos mapper", dateFieldMapperNanos.skiplist());
+    }
+
+    public void testIsSkiplistDefaultEnabled() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper.mappers().getMapper("field");
+
+        // Test with no index sort and non-timestamp field
+        IndexMetadata noSortindexMetadata = new IndexMetadata.Builder("index").settings(getIndexSettings()).build();
+        IndexSettings noSolrIndexSettings = new IndexSettings(noSortindexMetadata, getIndexSettings());
+        IndexSortConfig noSortConfig = new IndexSortConfig(new IndexSettings(noSortindexMetadata, getIndexSettings()));
+        assertFalse(dateFieldMapper.isSkiplistDefaultEnabled(noSortConfig, "field"));
+
+        // timestamp field
+        assertTrue(dateFieldMapper.isSkiplistDefaultEnabled(noSortConfig, "@timestamp"));
+
+        // Create index settings with an index sort.
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .putList("index.sort.field", "field")
+            .build();
+
+        // Test with timestamp field
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        IndexSortConfig sortConfig = new IndexSortConfig(indexSettings);
+        assertTrue(dateFieldMapper.isSkiplistDefaultEnabled(sortConfig, "field"));
+        assertTrue(dateFieldMapper.isSkiplistDefaultEnabled(sortConfig, "@timestamp"));
     }
 
     public void testSkipListIntegrationFieldBehaviorConsistency() throws IOException {

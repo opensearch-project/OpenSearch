@@ -18,6 +18,7 @@ import org.opensearch.protobufs.GeoBoundingBoxQuery;
 import org.opensearch.protobufs.GeoBounds;
 import org.opensearch.protobufs.GeoDistanceQuery;
 import org.opensearch.protobufs.GeoLocation;
+import org.opensearch.protobufs.IdsQuery;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.LatLonGeoLocation;
 import org.opensearch.protobufs.MatchAllQuery;
@@ -25,11 +26,16 @@ import org.opensearch.protobufs.MatchPhraseQuery;
 import org.opensearch.protobufs.MinimumShouldMatch;
 import org.opensearch.protobufs.MultiMatchQuery;
 import org.opensearch.protobufs.NestedQuery;
+import org.opensearch.protobufs.NumberRangeQuery;
+import org.opensearch.protobufs.NumberRangeQueryAllOfFrom;
+import org.opensearch.protobufs.NumberRangeQueryAllOfTo;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.RangeQuery;
 import org.opensearch.protobufs.RegexpQuery;
 import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.ScriptQuery;
 import org.opensearch.protobufs.TermQuery;
+import org.opensearch.protobufs.TermsSetQuery;
 import org.opensearch.protobufs.TextQueryType;
 import org.opensearch.protobufs.WildcardQuery;
 import org.opensearch.test.OpenSearchTestCase;
@@ -197,70 +203,51 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
     }
 
-    public void testGeoDistanceQueryConversion() {
-        // Create a GeoDistance query container
-        LatLonGeoLocation latLonLocation = LatLonGeoLocation.newBuilder().setLat(40.7589).setLon(-73.9851).build();
+    public void testIdsQueryConversion() {
+        // Create an Ids query container
+        IdsQuery idsQuery = IdsQuery.newBuilder().addValues("doc1").addValues("doc2").setBoost(1.5f).setXName("test_ids_query").build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setLatlon(latLonLocation).build();
-
-        GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
-            .setXName("location")
-            .setDistance("10km")
-            .putLocation("location", geoLocation)
-            .build();
-
-        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoDistance(geoDistanceQuery).build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setIds(idsQuery).build();
 
         // Convert using the registry
         QueryBuilder queryBuilder = registry.fromProto(queryContainer);
 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
-        assertEquals(
-            "Should be a GeoDistanceQueryBuilder",
-            "org.opensearch.index.query.GeoDistanceQueryBuilder",
-            queryBuilder.getClass().getName()
-        );
+        assertEquals("Should be an IdsQueryBuilder", "org.opensearch.index.query.IdsQueryBuilder", queryBuilder.getClass().getName());
     }
 
-    public void testGeoBoundingBoxQueryConversion() {
-        // Create a GeoBoundingBox query container
-        CoordsGeoBounds coords = CoordsGeoBounds.newBuilder().setTop(40.7).setLeft(-74.0).setBottom(40.6).setRight(-73.9).build();
+    public void testRangeQueryConversion() {
+        // Create a Range query container with NumberRangeQuery
+        NumberRangeQueryAllOfFrom fromValue = NumberRangeQueryAllOfFrom.newBuilder().setDouble(10.0).build();
+        NumberRangeQueryAllOfTo toValue = NumberRangeQueryAllOfTo.newBuilder().setDouble(100.0).build();
 
-        GeoBounds geoBounds = GeoBounds.newBuilder().setCoords(coords).build();
+        NumberRangeQuery numberRangeQuery = NumberRangeQuery.newBuilder().setField("age").setFrom(fromValue).setTo(toValue).build();
 
-        GeoBoundingBoxQuery geoBoundingBoxQuery = GeoBoundingBoxQuery.newBuilder().putBoundingBox("location", geoBounds).build();
+        RangeQuery rangeQuery = RangeQuery.newBuilder().setNumberRangeQuery(numberRangeQuery).build();
 
-        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoBoundingBox(geoBoundingBoxQuery).build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setRange(rangeQuery).build();
 
         // Convert using the registry
         QueryBuilder queryBuilder = registry.fromProto(queryContainer);
 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
-        assertEquals(
-            "Should be a GeoBoundingBoxQueryBuilder",
-            "org.opensearch.index.query.GeoBoundingBoxQueryBuilder",
-            queryBuilder.getClass().getName()
-        );
+        assertEquals("Should be a RangeQueryBuilder", "org.opensearch.index.query.RangeQueryBuilder", queryBuilder.getClass().getName());
     }
 
-    public void testGeoDistanceQueryConversionWithDoubleArray() {
-        // Create a GeoDistance query with DoubleArray format
-        DoubleArray doubleArray = DoubleArray.newBuilder()
-            .addDoubleArray(-73.9851) // lon
-            .addDoubleArray(40.7589)  // lat
+    public void testTermsSetQueryConversion() {
+        // Create a TermsSet query container
+        TermsSetQuery termsSetQuery = TermsSetQuery.newBuilder()
+            .setField("tags")
+            .addTerms("urgent")
+            .addTerms("important")
+            .setMinimumShouldMatchField("tag_count")
+            .setBoost(2.0f)
+            .setXName("test_terms_set_query")
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
-
-        GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
-            .setXName("location")
-            .setDistance("5mi")
-            .putLocation("location", geoLocation)
-            .build();
-
-        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoDistance(geoDistanceQuery).build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTermsSet(termsSetQuery).build();
 
         // Convert using the registry
         QueryBuilder queryBuilder = registry.fromProto(queryContainer);
@@ -268,8 +255,8 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertEquals(
-            "Should be a GeoDistanceQueryBuilder",
-            "org.opensearch.index.query.GeoDistanceQueryBuilder",
+            "Should be a TermsSetQueryBuilder",
+            "org.opensearch.index.query.TermsSetQueryBuilder",
             queryBuilder.getClass().getName()
         );
     }
@@ -402,6 +389,83 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Verify the result
         assertNotNull("QueryBuilder should not be null", queryBuilder);
         assertEquals("Should be a BoolQueryBuilder", "org.opensearch.index.query.BoolQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testGeoDistanceQueryConversion() {
+        // Create a GeoDistance query container
+        LatLonGeoLocation latLonLocation = LatLonGeoLocation.newBuilder().setLat(40.7589).setLon(-73.9851).build();
+
+        GeoLocation geoLocation = GeoLocation.newBuilder().setLatlon(latLonLocation).build();
+
+        GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
+            .setXName("location")
+            .setDistance("10km")
+            .putLocation("location", geoLocation)
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoDistance(geoDistanceQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoDistanceQueryBuilder",
+            "org.opensearch.index.query.GeoDistanceQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testGeoBoundingBoxQueryConversion() {
+        // Create a GeoBoundingBox query container
+        CoordsGeoBounds coords = CoordsGeoBounds.newBuilder().setTop(40.7).setLeft(-74.0).setBottom(40.6).setRight(-73.9).build();
+
+        GeoBounds geoBounds = GeoBounds.newBuilder().setCoords(coords).build();
+
+        GeoBoundingBoxQuery geoBoundingBoxQuery = GeoBoundingBoxQuery.newBuilder().putBoundingBox("location", geoBounds).build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoBoundingBox(geoBoundingBoxQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoBoundingBoxQueryBuilder",
+            "org.opensearch.index.query.GeoBoundingBoxQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testGeoDistanceQueryConversionWithDoubleArray() {
+        // Create a GeoDistance query with DoubleArray format
+        DoubleArray doubleArray = DoubleArray.newBuilder()
+            .addDoubleArray(-73.9851) // lon
+            .addDoubleArray(40.7589)  // lat
+            .build();
+
+        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+
+        GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
+            .setXName("location")
+            .setDistance("5mi")
+            .putLocation("location", geoLocation)
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoDistance(geoDistanceQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoDistanceQueryBuilder",
+            "org.opensearch.index.query.GeoDistanceQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
     }
 
     public void testRegisterConverter() {
