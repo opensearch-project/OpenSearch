@@ -9,9 +9,16 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.BoolQuery;
+import org.opensearch.protobufs.CoordsGeoBounds;
+import org.opensearch.protobufs.DoubleArray;
 import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.GeoBoundingBoxQuery;
+import org.opensearch.protobufs.GeoBounds;
+import org.opensearch.protobufs.GeoDistanceQuery;
+import org.opensearch.protobufs.GeoLocation;
 import org.opensearch.protobufs.InlineScript;
+import org.opensearch.protobufs.LatLonGeoLocation;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.MatchPhraseQuery;
 import org.opensearch.protobufs.MinimumShouldMatch;
@@ -143,6 +150,100 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
     }
 
+    public void testNotSetHandledQueryCase() {
+        // Create a custom converter that returns QUERYCONTAINER_NOT_SET for getHandledQueryCase
+        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
+            @Override
+            public QueryContainer.QueryContainerCase getHandledQueryCase() {
+                return QueryContainer.QueryContainerCase.QUERYCONTAINER_NOT_SET;
+            }
+
+            @Override
+            public QueryBuilder fromProto(QueryContainer queryContainer) {
+                return new org.opensearch.index.query.MatchAllQueryBuilder();
+            }
+        };
+
+        expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
+    }
+
+    public void testGeoDistanceQueryConversion() {
+        // Create a GeoDistance query container
+        LatLonGeoLocation latLonLocation = LatLonGeoLocation.newBuilder().setLat(40.7589).setLon(-73.9851).build();
+
+        GeoLocation geoLocation = GeoLocation.newBuilder().setLatlon(latLonLocation).build();
+
+        GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
+            .setXName("location")
+            .setDistance("10km")
+            .putLocation("location", geoLocation)
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoDistance(geoDistanceQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoDistanceQueryBuilder",
+            "org.opensearch.index.query.GeoDistanceQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testGeoBoundingBoxQueryConversion() {
+        // Create a GeoBoundingBox query container
+        CoordsGeoBounds coords = CoordsGeoBounds.newBuilder().setTop(40.7).setLeft(-74.0).setBottom(40.6).setRight(-73.9).build();
+
+        GeoBounds geoBounds = GeoBounds.newBuilder().setCoords(coords).build();
+
+        GeoBoundingBoxQuery geoBoundingBoxQuery = GeoBoundingBoxQuery.newBuilder().putBoundingBox("location", geoBounds).build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoBoundingBox(geoBoundingBoxQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoBoundingBoxQueryBuilder",
+            "org.opensearch.index.query.GeoBoundingBoxQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testGeoDistanceQueryConversionWithDoubleArray() {
+        // Create a GeoDistance query with DoubleArray format
+        DoubleArray doubleArray = DoubleArray.newBuilder()
+            .addDoubleArray(-73.9851) // lon
+            .addDoubleArray(40.7589)  // lat
+            .build();
+
+        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+
+        GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
+            .setXName("location")
+            .setDistance("5mi")
+            .putLocation("location", geoLocation)
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setGeoDistance(geoDistanceQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a GeoDistanceQueryBuilder",
+            "org.opensearch.index.query.GeoDistanceQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
     public void testMultiMatchQueryConversion() {
         // Create a MultiMatch query container
         QueryContainer queryContainer = QueryContainer.newBuilder()
@@ -242,23 +343,6 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
             "org.opensearch.index.query.WildcardQueryBuilder",
             queryBuilder.getClass().getName()
         );
-    }
-
-    public void testNotSetHandledQueryCase() {
-        // Create a custom converter that returns QUERYCONTAINER_NOT_SET for getHandledQueryCase
-        QueryBuilderProtoConverter customConverter = new QueryBuilderProtoConverter() {
-            @Override
-            public QueryContainer.QueryContainerCase getHandledQueryCase() {
-                return QueryContainer.QueryContainerCase.QUERYCONTAINER_NOT_SET;
-            }
-
-            @Override
-            public QueryBuilder fromProto(QueryContainer queryContainer) {
-                return new org.opensearch.index.query.MatchAllQueryBuilder();
-            }
-        };
-
-        expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(customConverter));
     }
 
     public void testBoolQueryConversion() {
