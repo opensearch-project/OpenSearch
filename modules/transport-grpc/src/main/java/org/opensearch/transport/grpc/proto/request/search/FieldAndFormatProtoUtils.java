@@ -30,10 +30,18 @@ public class FieldAndFormatProtoUtils {
      * @param fieldAndFormatProto The Protocol Buffer FieldAndFormat to convert
      * @return A configured FieldAndFormat instance
      */
-    protected static FieldAndFormat fromProto(org.opensearch.protobufs.FieldAndFormat fieldAndFormatProto) {
+    public static FieldAndFormat fromProto(org.opensearch.protobufs.FieldAndFormat fieldAndFormatProto) {
+        if (fieldAndFormatProto == null) {
+            throw new IllegalArgumentException("FieldAndFormat protobuf cannot be null");
+        }
 
-        // TODO how is this field used?
-        // fieldAndFormatProto.getIncludeUnmapped();
-        return new FieldAndFormat(fieldAndFormatProto.getField(), fieldAndFormatProto.getFormat());
+        String fieldName = fieldAndFormatProto.getField();
+        if (fieldName == null || fieldName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Field name cannot be null or empty");
+        }
+        String format = fieldAndFormatProto.hasFormat() ? fieldAndFormatProto.getFormat() : null;
+
+        return new FieldAndFormat(fieldName, format);
     }
+
 }
