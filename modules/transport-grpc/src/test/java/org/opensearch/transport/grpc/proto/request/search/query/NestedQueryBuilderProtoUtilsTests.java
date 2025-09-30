@@ -353,11 +353,7 @@ public class NestedQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         QueryContainer innerQueryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
-        NestedQuery nestedQuery = NestedQuery.newBuilder()
-            .setPath("user")
-            .setQuery(innerQueryContainer)
-            .setIgnoreUnmapped(true)
-            .build();
+        NestedQuery nestedQuery = NestedQuery.newBuilder().setPath("user").setQuery(innerQueryContainer).setIgnoreUnmapped(true).build();
 
         NestedQueryBuilder queryBuilder = NestedQueryBuilderProtoUtils.fromProto(nestedQuery, registry);
         assertTrue("Ignore unmapped should be true", queryBuilder.ignoreUnmapped());
@@ -372,11 +368,7 @@ public class NestedQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         QueryContainer innerQueryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
-        NestedQuery nestedQuery = NestedQuery.newBuilder()
-            .setPath("user")
-            .setQuery(innerQueryContainer)
-            .setIgnoreUnmapped(false)
-            .build();
+        NestedQuery nestedQuery = NestedQuery.newBuilder().setPath("user").setQuery(innerQueryContainer).setIgnoreUnmapped(false).build();
 
         NestedQueryBuilder queryBuilder = NestedQueryBuilderProtoUtils.fromProto(nestedQuery, registry);
         assertFalse("Ignore unmapped should be false", queryBuilder.ignoreUnmapped());
@@ -449,10 +441,7 @@ public class NestedQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         QueryContainer innerQueryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
 
-        NestedQuery nestedQuery = NestedQuery.newBuilder()
-            .setPath("user")
-            .setQuery(innerQueryContainer)
-            .build();
+        NestedQuery nestedQuery = NestedQuery.newBuilder().setPath("user").setQuery(innerQueryContainer).build();
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -462,10 +451,7 @@ public class NestedQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             "Exception message should contain 'Failed to convert inner query'",
             exception.getMessage().contains("Failed to convert inner query for NestedQuery")
         );
-        assertTrue(
-            "Exception message should contain the cause",
-            exception.getMessage().contains("Simulated conversion failure")
-        );
+        assertTrue("Exception message should contain the cause", exception.getMessage().contains("Simulated conversion failure"));
     }
 
     public void testFromProtoWithInvalidInnerHitsConversion() {

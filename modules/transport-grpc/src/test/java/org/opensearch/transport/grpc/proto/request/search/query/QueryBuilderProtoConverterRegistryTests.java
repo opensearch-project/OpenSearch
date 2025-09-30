@@ -9,7 +9,6 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.BoolQuery;
-import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.ChildScoreMode;
 import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
