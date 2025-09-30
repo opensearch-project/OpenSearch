@@ -8,14 +8,12 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.LongArray;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -28,9 +26,7 @@ import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
-import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
-import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -524,126 +520,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
             result.bucketOrd = ordsEnum.ord();
             result.setDocCountError(0);
             return result;
-        }
-    }
-
-    class SignificantLongTermsResults extends ResultStrategy<SignificantLongTerms, SignificantLongTerms.Bucket> {
-        private final SignificanceLookup.BackgroundFrequencyForLong backgroundFrequencies;
-        private final long supersetSize;
-        private final SignificanceHeuristic significanceHeuristic;
-        private LongArray subsetSizes;
-
-        SignificantLongTermsResults(
-            SignificanceLookup significanceLookup,
-            SignificanceHeuristic significanceHeuristic,
-            CardinalityUpperBound cardinality
-        ) {
-            backgroundFrequencies = significanceLookup.longLookup(context.bigArrays(), cardinality);
-            supersetSize = significanceLookup.supersetSize();
-            this.significanceHeuristic = significanceHeuristic;
-            subsetSizes = context.bigArrays().newLongArray(1, true);
-        }
-
-        @Override
-        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
-            return valuesSource.longValues(ctx);
-        }
-
-        @Override
-        String describe() {
-            return "stream_significant_terms";
-        }
-
-        @Override
-        LeafBucketCollector wrapCollector(LeafBucketCollector primary) {
-            return new LeafBucketCollectorBase(primary, null) {
-                @Override
-                public void collect(int doc, long owningBucketOrd) throws IOException {
-                    super.collect(doc, owningBucketOrd);
-                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
-                    subsetSizes.increment(owningBucketOrd, 1);
-                }
-            };
-        }
-
-        @Override
-        SignificantLongTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new SignificantLongTerms.Bucket[size][];
-        }
-
-        @Override
-        SignificantLongTerms.Bucket[] buildBuckets(int size) {
-            return new SignificantLongTerms.Bucket[size];
-        }
-
-        @Override
-        void buildSubAggs(SignificantLongTerms.Bucket[][] topBucketsPerOrd) throws IOException {
-            buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-        }
-
-        @Override
-        void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {}
-
-        @Override
-        SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCoun, SignificantLongTerms.Bucket[] topBuckets) {
-            SignificantLongTerms significantLongTerms = new SignificantLongTerms(
-                name,
-                metadata(),
-                format,
-                subsetSizes.get(owningBucketOrd),
-                supersetSize,
-                significanceHeuristic,
-                List.of(topBuckets),
-                bucketCountThresholds
-            );
-            return significantLongTerms;
-        }
-
-        @Override
-        SignificantLongTerms buildEmptyResult() {
-            // We need to account for the significance of a miss in our global stats - provide corpus size as context
-            ContextIndexSearcher searcher = context.searcher();
-            IndexReader topReader = searcher.getIndexReader();
-            int supersetSize = topReader.numDocs();
-            return new SignificantLongTerms(
-                name,
-                metadata(),
-                format,
-                0,
-                supersetSize,
-                significanceHeuristic,
-                emptyList(),
-                bucketCountThresholds
-            );
-        }
-
-        @Override
-        SignificantLongTerms.Bucket buildFinalBucket(LongKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount, long owningBucketOrd)
-            throws IOException {
-            long subsetSize = subsetSizes.get(owningBucketOrd);
-            double score = significanceHeuristic.getScore(
-                ordsEnum.value(),
-                subsetSize,
-                backgroundFrequencies.freq(ordsEnum.value()),
-                supersetSize
-            );
-            SignificantLongTerms.Bucket result = new SignificantLongTerms.Bucket(
-                docCount,
-                subsetSize,
-                backgroundFrequencies.freq(ordsEnum.value()),
-                supersetSize,
-                ordsEnum.value(),
-                null,
-                format,
-                score
-            );
-            result.bucketOrd = ordsEnum.ord();
-            return result;
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(backgroundFrequencies, subsetSizes);
         }
     }
 
