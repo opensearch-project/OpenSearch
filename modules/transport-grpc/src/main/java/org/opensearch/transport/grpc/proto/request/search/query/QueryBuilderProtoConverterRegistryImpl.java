@@ -54,7 +54,7 @@ public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProto
         delegate.registerConverter(new ExistsQueryBuilderProtoConverter());
         delegate.registerConverter(new RegexpQueryBuilderProtoConverter());
         delegate.registerConverter(new WildcardQueryBuilderProtoConverter());
-      
+
         // Set the registry on all converters so they can access each other
         delegate.setRegistryOnAllConverters(this);
         logger.info("Registered {} built-in query converters", delegate.size());
