@@ -124,14 +124,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1224,14 +1217,28 @@ public class InternalEngine extends Engine {
     }
 
     private void addStaleDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+        List<ParseContext.Document> filteredDocs = new ArrayList();
         for (ParseContext.Document doc : docs) {
-            doc.add(softDeletesField); // soft-deleted every document before adding to Lucene
+            ParseContext.Document filteredDoc = filterFields(doc);
+            filteredDoc.add(softDeletesField); // soft-deleted every document before adding to Lucene
+            filteredDocs.add(filteredDoc);
         }
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs);
         } else {
             indexWriter.addDocument(docs.get(0));
         }
+    }
+
+    // only copying _id, _seq_no, _primary_term, _version
+    private ParseContext.Document filterFields(ParseContext.Document doc) {
+        ParseContext.Document filtered = new ParseContext.Document();
+        filtered.add(doc.getField("_id"));
+        filtered.add(doc.getField("_seq_no"));
+        filtered.add(doc.getField("_primary_term"));
+        filtered.add(doc.getField("_version"));
+
+        return filtered;
     }
 
     /**
