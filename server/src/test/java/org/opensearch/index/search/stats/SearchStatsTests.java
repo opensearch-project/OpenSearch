@@ -37,10 +37,12 @@ import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestOperationsListenerSupport;
 import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -161,5 +163,46 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         assertEquals(equalTo, stats.getSearchIdleReactivateCount());
         // avg_concurrency is not summed up across stats
         assertEquals(1, stats.getConcurrentAvgSliceCount(), 0);
+    }
+
+    public void testNegativeRequestStats() throws Exception {
+        SearchStats searchStats = new SearchStats(new Stats(), 0, new HashMap<>());
+
+        long paramValue = randomIntBetween(2, 50);
+
+        // Testing for request stats
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            SearchPhase mockSearchPhase = mock(SearchPhase.class);
+            when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+            when(mockSearchPhase.getStartTimeInNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(paramValue));
+            when(mockSearchPhase.getSearchPhaseNameOptional()).thenReturn(Optional.ofNullable(searchPhaseName));
+            for (int iterator = 0; iterator < paramValue; iterator++) {
+                onPhaseStart(testRequestStats, ctx);
+                onPhaseEnd(testRequestStats, ctx);
+                onPhaseEnd(testRequestStats, ctx); // call onPhaseEnd() twice to make 'current' negative
+            }
+        }
+        searchStats.setSearchRequestStats(testRequestStats);
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            Assert.assertNotNull(searchStats.getTotal().getRequestStatsLongHolder());
+            assertEquals(
+                -1 * paramValue,    // current is negative, equals -1 * paramValue (num loop iterations)
+                searchStats.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).current
+            );
+            assertEquals(
+                2 * paramValue,
+                searchStats.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).total
+            );
+            assertThat(
+                searchStats.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).timeInMillis,
+                greaterThanOrEqualTo(paramValue)
+            );
+        }
+
+        // Ensure writeTo() does not throw error with negative 'current'
+        searchStats.writeTo(new BytesStreamOutput(10));
     }
 }
