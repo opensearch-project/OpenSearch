@@ -149,7 +149,7 @@ public class RestSearchAction extends BaseRestHandler {
                         cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
                     };
                 } else {
-                    logger.warn("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
+                    logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
                 }
             } else {
                 throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
@@ -452,7 +452,7 @@ public class RestSearchAction extends BaseRestHandler {
      */
     static boolean canUseStreamSearch(SearchRequest searchRequest) {
         if (searchRequest.source() == null || searchRequest.source().aggregations() == null) {
-            return false; // No aggregations, stream search is allowed
+            return false; // No aggregations, stream search is not allowed
         }
 
         AggregatorFactories.Builder aggregations = searchRequest.source().aggregations();
