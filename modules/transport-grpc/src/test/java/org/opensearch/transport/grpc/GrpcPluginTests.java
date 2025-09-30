@@ -334,6 +334,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         Mockito.verify(mockConverter, Mockito.times(3)).getHandledQueryCase();
 
         // Verify that setRegistry was called to inject the registry
-        Mockito.verify(mockConverter, Mockito.times(1)).setRegistry(Mockito.any());
+        // Note: setRegistry is called 2 times:
+        // 1. In createComponents() when processing external converters
+        // 2. In updateRegistryOnAllConverters() to ensure all converters have the complete registry
+        Mockito.verify(mockConverter, Mockito.times(2)).setRegistry(Mockito.any());
     }
 }
