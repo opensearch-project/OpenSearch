@@ -102,4 +102,21 @@ public class FieldStatsTests extends OpenSearchTestCase {
     private static Map<String, String> readableKeys() {
         return Map.of("memory_size_in_bytes", "memory_size");
     }
+
+    public static FieldStats randomFieldStats(
+        List<String> orderedStatNames,
+        Map<String, Boolean> isMemoryStat,
+        Map<String, String> memoryReadableKeys
+    ) {
+        Map<String, Map<String, Long>> data = new HashMap<>();
+        int keys = randomIntBetween(1, 1000);
+        for (int i = 0; i < keys; i++) {
+            Map<String, Long> perFieldData = new HashMap<>();
+            for (String stat : orderedStatNames) {
+                perFieldData.put(stat, randomNonNegativeLong());
+            }
+            data.put(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), perFieldData);
+        }
+        return new FieldStats(orderedStatNames, isMemoryStat, memoryReadableKeys, data);
+    }
 }

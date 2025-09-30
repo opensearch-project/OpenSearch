@@ -55,6 +55,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.FieldStats;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -110,6 +111,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.fielddata.FieldDataStats.ITEM_COUNT;
+import static org.opensearch.index.fielddata.FieldDataStats.MEMORY_SIZE_IN_BYTES;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -216,7 +219,8 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             assertTrue(totalStats.getMemorySizeInBytes() > 0);
             for (String fieldName : List.of("field", "field2")) {
                 assertTrue(totalStats.getFields().get(fieldName) > 0);
-                assertEquals(2, totalStats.getFieldItemCounts().get(fieldName));
+                assertTrue(totalStats.getFieldStats().get(fieldName, MEMORY_SIZE_IN_BYTES) > 0);
+                assertEquals(2, (long) totalStats.getFieldStats().get(fieldName, ITEM_COUNT));
                 assertTrue(totalStats.getFields().get(fieldName) < totalStats.getMemorySizeInBytes());
             }
         }
@@ -230,8 +234,10 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 for (long fieldMemorySize : postClearStats.getFields().getStats().values()) {
                     assertEquals(0, fieldMemorySize);
                 }
-                for (long fieldItemCount : postClearStats.getFieldItemCounts().getStats().values()) {
-                    assertEquals(0, fieldItemCount);
+                FieldStats fieldStats = postClearStats.getFieldStats();
+                for (String fieldName : fieldStats.getFieldNames()) {
+                    assertEquals(0, (long) fieldStats.get(fieldName, MEMORY_SIZE_IN_BYTES));
+                    assertEquals(0, (long) fieldStats.get(fieldName, ITEM_COUNT));
                 }
             }
         });

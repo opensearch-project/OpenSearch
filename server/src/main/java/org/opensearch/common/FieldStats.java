@@ -36,7 +36,7 @@ import java.util.Set;
 @PublicApi(since = "1.0.0")
 public final class FieldStats implements Writeable, Iterable<Map.Entry<String, Map<String, Long>>> {
 
-    /** Ordered list of stat names (determines XContent order and on-wire layout). */
+    /** Ordered list of stat names (determines XContent order). */
     private final List<String> orderedStatNames;
 
     /** For each stat name, whether it should be rendered as a {@link ByteSizeValue} (humanReadableField). */
@@ -88,7 +88,7 @@ public final class FieldStats implements Writeable, Iterable<Map.Entry<String, M
         int numEntries = in.readVInt();
         for (int i = 0; i < numEntries; i++) {
             String field = in.readString();
-            Map<String, Long> values = in.readMap(StreamInput::readString, StreamInput::readVLong);
+            Map<String, Long> values = in.readMap(StreamInput::readString, StreamInput::readLong);
             this.statsByField.put(field, values);
         }
     }
@@ -101,7 +101,7 @@ public final class FieldStats implements Writeable, Iterable<Map.Entry<String, M
         out.writeVInt(statsByField.size());
         for (Map.Entry<String, Map<String, Long>> entry : statsByField.entrySet()) {
             out.writeString(entry.getKey());
-            out.writeMap(entry.getValue(), StreamOutput::writeString, StreamOutput::writeVLong);
+            out.writeMap(entry.getValue(), StreamOutput::writeString, StreamOutput::writeLong);
         }
     }
 
@@ -124,6 +124,16 @@ public final class FieldStats implements Writeable, Iterable<Map.Entry<String, M
                 target.put(stat, target.get(stat) + src.get(stat));
             }
         }
+    }
+
+    public Long get(String fieldName, String statName) {
+        Map<String, Long> perFieldData = statsByField.get(fieldName);
+        if (perFieldData == null) return null;
+        return perFieldData.get(statName);
+    }
+
+    public Set<String> getFieldNames() {
+        return statsByField.keySet();
     }
 
     private void requireSameShape(FieldStats other) {
@@ -201,5 +211,56 @@ public final class FieldStats implements Writeable, Iterable<Map.Entry<String, M
     @Override
     public int hashCode() {
         return Objects.hash(orderedStatNames, isMemoryStat, memoryReadableKeys, statsByField);
+    }
+
+    /**
+     * Convenience method for converting one stat's values to FieldMemoryStats.
+     */
+    public FieldMemoryStats toFieldMemoryStats(String statName) {
+        if (!orderedStatNames.contains(statName)) {
+            throw new IllegalArgumentException("Unknown stat: " + statName);
+        }
+        final Map<String, Long> flat = new HashMap<>(statsByField.size());
+        for (Map.Entry<String, Map<String, Long>> e : statsByField.entrySet()) {
+            final Long v = e.getValue().get(statName);
+            assert v != null : "Missing value for stat '" + statName + "' in field '" + e.getKey() + "'";
+            flat.put(e.getKey(), v);
+        }
+        return new FieldMemoryStats(flat);
+    }
+
+    /**
+     * Build a FieldStats from a single FieldMemoryStats.
+     * All other stats in {@code orderedStatNames} are initialized to 0L.
+     */
+    public static FieldStats fromSingleStat(
+        final List<String> orderedStatNames,
+        final Map<String, Boolean> isMemoryStat,
+        final Map<String, String> memoryReadableKeys,
+        final FieldMemoryStats singleStat,
+        final String statName
+    ) {
+        Objects.requireNonNull(orderedStatNames, "orderedStatNames");
+        Objects.requireNonNull(isMemoryStat, "isMemoryStat");
+        Objects.requireNonNull(memoryReadableKeys, "memoryReadableKeys");
+        Objects.requireNonNull(singleStat, "singleStat");
+        Objects.requireNonNull(statName, "statName");
+
+        if (orderedStatNames.contains(statName) == false) {
+            throw new IllegalArgumentException("Unknown stat: " + statName);
+        }
+
+        final Map<String, Map<String, Long>> statsByField = new HashMap<>();
+        for (Map.Entry<String, Long> e : singleStat) { // FieldMemoryStats is Iterable<Entry<String,Long>>
+            final String field = e.getKey();
+            final long value = e.getValue();
+            final Map<String, Long> dataForField = new HashMap<>();
+            for (String s : orderedStatNames) {
+                dataForField.put(s, 0L);
+            }
+            dataForField.put(statName, value);
+            statsByField.put(field, dataForField);
+        }
+        return new FieldStats(orderedStatNames, isMemoryStat, memoryReadableKeys, statsByField);
     }
 }
