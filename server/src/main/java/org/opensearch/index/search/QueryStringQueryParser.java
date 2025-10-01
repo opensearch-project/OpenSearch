@@ -71,6 +71,7 @@ import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.SearchService;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -96,6 +97,8 @@ import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields
  */
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";
+    @SuppressWarnings("NonFinalStaticField")
+    private static int maxQueryStringLength;
 
     private final QueryShardContext context;
     private final Map<String, Float> fieldsAndWeights;
@@ -867,6 +870,23 @@ public class QueryStringQueryParser extends XQueryParser {
         if (query.trim().isEmpty()) {
             return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
         }
+        if (query.length() > maxQueryStringLength) {
+            throw new ParseException(
+                "Query string length exceeds max allowed length "
+                    + maxQueryStringLength
+                    + " ("
+                    + SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.getKey()
+                    + "); actual length: "
+                    + query.length()
+            );
+        }
         return super.parse(query);
+    }
+
+    /**
+     * Sets the maximum allowed length for query strings. This should be only called from SearchService on settings updates.
+     */
+    public static void setMaxQueryStringLength(int maxQueryStringLength) {
+        QueryStringQueryParser.maxQueryStringLength = maxQueryStringLength;
     }
 }
