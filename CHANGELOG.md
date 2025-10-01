@@ -18,7 +18,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add overload constructor for Translog to accept Channel Factory as a parameter ([#18918](https://github.com/opensearch-project/OpenSearch/pull/18918))
 - Add subdirectory-aware store module with recovery support ([#19132](https://github.com/opensearch-project/OpenSearch/pull/19132))
 - [Rule-based Auto-tagging] Modify get rule api to suit nested attributes ([#19429](https://github.com/opensearch-project/OpenSearch/pull/19429))
-- [Rule-based Auto-tagging] Add autotagging label resolving logic for multiple attributes ([#19424](https://github.com/opensearch-project/OpenSearch/pull/19424))
 - [Rule-based Auto-tagging] Add autotagging label resolving logic for multiple attributes ([#19486](https://github.com/opensearch-project/OpenSearch/pull/19486))
 - Field collapsing supports search_after ([#19261](https://github.com/opensearch-project/OpenSearch/pull/19261))
 - Add a dynamic cluster setting to control the enablement of the merged segment warmer ([#18929](https://github.com/opensearch-project/OpenSearch/pull/18929))

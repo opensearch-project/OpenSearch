@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.feature_value_resolver;
+package org.opensearch.rule.labelresolver;
 
 import org.opensearch.rule.MatchLabel;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
@@ -58,9 +58,9 @@ public class FeatureValueResolver {
         for (AttributeExtractor<String> extractor : orderedExtractors) {
             Attribute attr = extractor.getAttribute();
             AttributeValueStore<String, String> store = storeFactory.getAttributeValueStore(attr);
-            List<MatchLabel<String>> matchLabeles = attr.findAttributeMatches(extractor, store);
-            matchLabelMap.put(attr, matchLabeles);
-            Set<String> flattenedValues = matchLabeles.stream().map(MatchLabel::getFeatureValue).collect(Collectors.toSet());
+            List<MatchLabel<String>> matchLabels = attr.findAttributeMatches(extractor, store);
+            matchLabelMap.put(attr, matchLabels);
+            Set<String> flattenedValues = matchLabels.stream().map(MatchLabel::getFeatureValue).collect(Collectors.toSet());
             if (intersection == null) {
                 intersection = flattenedValues;
             } else {
@@ -71,6 +71,9 @@ public class FeatureValueResolver {
             }
         }
 
+        if (intersection == null || intersection.isEmpty()) {
+            return Optional.empty();
+        }
         if (intersection.size() == 1) {
             String res = intersection.iterator().next();
             return Optional.of(res);

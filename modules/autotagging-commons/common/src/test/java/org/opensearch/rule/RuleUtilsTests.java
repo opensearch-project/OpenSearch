@@ -134,11 +134,11 @@ public class RuleUtilsTests extends OpenSearchTestCase {
     public void testBuildAttributeFiltersWithMock() {
         Attribute indexPattern = mock(Attribute.class);
         when(indexPattern.getName()).thenReturn("index_pattern");
-        when(indexPattern.getPrioritizedSubfields()).thenReturn(new TreeMap<>());
+        when(indexPattern.getWeightedSubfields()).thenReturn(new TreeMap<>());
 
         Attribute principal = mock(Attribute.class);
         when(principal.getName()).thenReturn("principal");
-        when(principal.getPrioritizedSubfields()).thenReturn(new TreeMap<>(Map.of(1, "username", 2, "role")));
+        when(principal.getWeightedSubfields()).thenReturn(Map.of("username", 1f, "role", 0.09f));
 
         Set<String> indexValues = Set.of("my-index");
         Set<String> principalValues = Set.of("username|admin", "role|user");

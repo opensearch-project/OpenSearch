@@ -9,4 +9,4 @@
 /**
  * This package contains classes to resolve feature value
  */
-package org.opensearch.rule.feature_value_resolver;
+package org.opensearch.rule.labelresolver;

@@ -83,7 +83,10 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     public Set<V> getExactMatch(K key) {
         readLock.lock();
         try {
-            return trie.getOrDefault(key, Collections.emptySet());
+            Set<V> results = new HashSet<>();
+            results.addAll(trie.getOrDefault(key, Collections.emptySet()));
+            results.addAll(trie.getOrDefault("", Collections.emptySet()));
+            return results;
         } finally {
             readLock.unlock();
         }

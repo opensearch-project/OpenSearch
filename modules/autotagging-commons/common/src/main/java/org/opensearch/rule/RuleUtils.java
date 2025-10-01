@@ -146,6 +146,6 @@ public class RuleUtils {
     }
 
     private static boolean hasSubfields(Attribute attribute) {
-        return !attribute.getPrioritizedSubfields().isEmpty();
+        return !attribute.getWeightedSubfields().isEmpty();
     }
 }

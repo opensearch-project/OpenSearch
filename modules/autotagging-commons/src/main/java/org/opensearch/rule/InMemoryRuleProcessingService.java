@@ -11,7 +11,7 @@ package org.opensearch.rule;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.Rule;
-import org.opensearch.rule.feature_value_resolver.FeatureValueResolver;
+import org.opensearch.rule.labelresolver.FeatureValueResolver;
 import org.opensearch.rule.storage.AttributeValueStore;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
 

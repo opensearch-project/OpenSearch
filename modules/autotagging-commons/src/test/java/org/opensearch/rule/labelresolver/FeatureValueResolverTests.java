@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.feature_value_resolver;
+package org.opensearch.rule.labelresolver;
 
 import org.opensearch.rule.MatchLabel;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
