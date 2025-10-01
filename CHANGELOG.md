@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add a dynamic setting to change skip_cache_factor and min_frequency for querycache ([#18351](https://github.com/opensearch-project/OpenSearch/issues/18351))
 - Add overload constructor for Translog to accept Channel Factory as a parameter ([#18918](https://github.com/opensearch-project/OpenSearch/pull/18918))
 - Add subdirectory-aware store module with recovery support ([#19132](https://github.com/opensearch-project/OpenSearch/pull/19132))
+- [Rule-based Auto-tagging] Modify get rule api to suit nested attributes ([#19429](https://github.com/opensearch-project/OpenSearch/pull/19429))
+- [Rule-based Auto-tagging] Add autotagging label resolving logic for multiple attributes ([#19486](https://github.com/opensearch-project/OpenSearch/pull/19486))
 - Field collapsing supports search_after ([#19261](https://github.com/opensearch-project/OpenSearch/pull/19261))
 - Add a dynamic cluster setting to control the enablement of the merged segment warmer ([#18929](https://github.com/opensearch-project/OpenSearch/pull/18929))
 - Publish transport-grpc-spi exposing QueryBuilderProtoConverter and QueryBuilderProtoConverterRegistry ([#18949](https://github.com/opensearch-project/OpenSearch/pull/18949))
@@ -43,7 +45,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Implement GRPC GeoBoundingBox, GeoDistance queries ([#19451](https://github.com/opensearch-project/OpenSearch/pull/19451))
 - Implement GRPC Ids, Range, and Terms Set queries ([#19448](https://github.com/opensearch-project/OpenSearch/pull/19448))
 - Implement GRPC Nested query ([#19453](https://github.com/opensearch-project/OpenSearch/pull/19453))
+- Add sub aggregation support for histogram aggregation using skiplist ([19438](https://github.com/opensearch-project/OpenSearch/pull/19438))
 - Optimization in String Terms Aggregation query for Large Bucket Counts([#18732](https://github.com/opensearch-project/OpenSearch/pull/18732))
+- New cluster setting search.query.max_query_string_length ([#19491](https://github.com/opensearch-project/OpenSearch/pull/19491))
 - Add `StreamNumericTermsAggregator` to allow numeric term aggregation streaming ([#19335](https://github.com/opensearch-project/OpenSearch/pull/19335))
 
 ### Changed
@@ -97,6 +101,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Cache serialised cluster state based on cluster state version and node version.([#19307](https://github.com/opensearch-project/OpenSearch/pull/19307))
 - Fix stats API in store-subdirectory module's SubdirectoryAwareStore ([#19470](https://github.com/opensearch-project/OpenSearch/pull/19470))
 - Handle negative search request nodes stats ([#19340](https://github.com/opensearch-project/OpenSearch/pull/19340))
+- Remove unnecessary iteration per-shard in request cache cleanup ([#19263](https://github.com/opensearch-project/OpenSearch/pull/19263))
 
 ### Dependencies
 - Bump `com.gradleup.shadow:shadow-gradle-plugin` from 8.3.5 to 8.3.9 ([#19400](https://github.com/opensearch-project/OpenSearch/pull/19400))
@@ -108,7 +113,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-storage-common` from 12.29.1 to 12.30.2 ([#19016](https://github.com/opensearch-project/OpenSearch/pull/19016), [#19145](https://github.com/opensearch-project/OpenSearch/pull/19145))
 - Update OpenTelemetry to 1.53.0 and OpenTelemetry SemConv to 1.34.0 ([#19068](https://github.com/opensearch-project/OpenSearch/pull/19068))
 - Bump `1password/load-secrets-action` from 2 to 3 ([#19100](https://github.com/opensearch-project/OpenSearch/pull/19100))
-- Bump `com.nimbusds:nimbus-jose-jwt` from 10.3 to 10.5 ([#19099](https://github.com/opensearch-project/OpenSearch/pull/19099), [#19101](https://github.com/opensearch-project/OpenSearch/pull/19101), [#19254](https://github.com/opensearch-project/OpenSearch/pull/19254))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 10.3 to 10.5 ([#19099](https://github.com/opensearch-project/OpenSearch/pull/19099), [#19101](https://github.com/opensearch-project/OpenSearch/pull/19101), [#19254](https://github.com/opensearch-project/OpenSearch/pull/19254), [#19362](https://github.com/opensearch-project/OpenSearch/pull/19362))
 - Bump netty from 4.1.121.Final to 4.1.125.Final ([#19103](https://github.com/opensearch-project/OpenSearch/pull/19103)) ([#19269](https://github.com/opensearch-project/OpenSearch/pull/19269)
 - Bump Google Cloud Storage SDK from 1.113.1 to 2.55.0 ([#18922](https://github.com/opensearch-project/OpenSearch/pull/18922))
 - Bump `com.google.auth:google-auth-library-oauth2-http` from 1.37.1 to 1.38.0 ([#19144](https://github.com/opensearch-project/OpenSearch/pull/19144))
@@ -140,6 +145,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-identity` from 1.14.2 to 1.18.0 ([#19361](https://github.com/opensearch-project/OpenSearch/pull/19361))
 - Bump `net.bytebuddy:byte-buddy` from 1.17.5 to 1.17.7 ([#19371](https://github.com/opensearch-project/OpenSearch/pull/19371))
 - Bump `lycheeverse/lychee-action` from 2.4.1 to 2.6.1 ([#19463](https://github.com/opensearch-project/OpenSearch/pull/19463))
+- Bump `io.grpc` deps from 1.68.2 to 1.75.0 ([#19495](https://github.com/opensearch-project/OpenSearch/pull/19495))
 
 ### Deprecated
 
