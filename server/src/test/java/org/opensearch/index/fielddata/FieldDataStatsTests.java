@@ -33,24 +33,49 @@ package org.opensearch.index.fielddata;
 
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.FieldMemoryStatsTests;
+import org.opensearch.common.FieldStats;
+import org.opensearch.common.FieldStatsTests;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
+import static org.opensearch.common.FieldStatsTests.randomFieldStats;
+import static org.opensearch.index.fielddata.FieldDataStats.IS_MEMORY;
+import static org.opensearch.index.fielddata.FieldDataStats.ORDERED_STAT_NAMES;
+import static org.opensearch.index.fielddata.FieldDataStats.READABLE_KEYS;
+
 public class FieldDataStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
-        FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map);
-        BytesStreamOutput out = new BytesStreamOutput();
-        stats.writeTo(out);
-        StreamInput input = out.bytes().streamInput();
-        FieldDataStats read = new FieldDataStats(input);
-        assertEquals(-1, input.read());
-        assertEquals(stats.getEvictions(), read.getEvictions());
-        assertEquals(stats.getMemorySize(), read.getMemorySize());
-        assertEquals(stats.getFields(), read.getFields());
+        // Do several iterations
+        for (int i = 0; i < 10; i++) {
+            FieldMemoryStats memoryStats = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
+            FieldStats fieldStats = randomBoolean() ? null : FieldStatsTests.randomFieldStats(ORDERED_STAT_NAMES, IS_MEMORY, READABLE_KEYS);
+            // test both ctors
+            FieldDataStats stats = randomBoolean()
+                ? new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), memoryStats)
+                : new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), fieldStats);
+            BytesStreamOutput out = new BytesStreamOutput();
+            stats.writeTo(out);
+            StreamInput input = out.bytes().streamInput();
+            FieldDataStats read = new FieldDataStats(input);
+            assertEquals(-1, input.read());
+            assertEquals(stats.getEvictions(), read.getEvictions());
+            assertEquals(stats.getMemorySize(), read.getMemorySize());
+            assertEquals(stats.getFields(), read.getFields());
+            assertEquals(stats.getItemCount(), read.getItemCount());
+            assertEquals(stats.getFieldStats(), read.getFieldStats());
+        }
+    }
+
+    public static FieldDataStats randomFieldDataStats() {
+        return new FieldDataStats(
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100),
+            randomFieldStats(ORDERED_STAT_NAMES, IS_MEMORY, READABLE_KEYS)
+        );
     }
 }

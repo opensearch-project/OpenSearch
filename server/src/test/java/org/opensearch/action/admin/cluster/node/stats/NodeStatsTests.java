@@ -75,7 +75,6 @@ import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationRejectionStats;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
-import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
@@ -126,6 +125,7 @@ import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.index.fielddata.FieldDataStatsTests.randomFieldDataStats;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
@@ -1369,7 +1369,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
         commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));
-        commonStats.fieldData = new FieldDataStats(randomLongBetween(0, 100), randomLongBetween(0, 100), null);
+        commonStats.fieldData = randomFieldDataStats();
         commonStats.queryCache = new QueryCacheStats(
             randomLongBetween(0, 100),
             randomLongBetween(0, 100),

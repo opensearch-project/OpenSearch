@@ -33,7 +33,7 @@
 package org.opensearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
-import org.opensearch.common.FieldMemoryStats;
+import org.opensearch.common.FieldStats;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.regex.Regex;
@@ -45,6 +45,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
+import static org.opensearch.index.fielddata.FieldDataStats.IS_MEMORY;
+import static org.opensearch.index.fielddata.FieldDataStats.ORDERED_STAT_NAMES;
+import static org.opensearch.index.fielddata.FieldDataStats.READABLE_KEYS;
+
 /**
  * On heap field data for shards
  *
@@ -55,37 +59,41 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     private final CounterMetric evictionsMetric = new CounterMetric();
     private final CounterMetric totalMetric = new CounterMetric();
-    private final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<String, MutableFieldStats> perFieldStats = ConcurrentCollections.newConcurrentMap();
+    private final CounterMetric countMetric = new CounterMetric();
 
     public FieldDataStats stats(String... fields) {
-        Map<String, Long> fieldTotals = null;
+        FieldStats fieldStats = null;
+
         if (CollectionUtils.isEmpty(fields) == false) {
-            fieldTotals = new HashMap<>();
-            for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
+            Map<String, Map<String, Long>> data = new HashMap<>();
+            for (Map.Entry<String, MutableFieldStats> entry : perFieldStats.entrySet()) {
                 if (Regex.simpleMatch(fields, entry.getKey())) {
-                    fieldTotals.put(entry.getKey(), entry.getValue().count());
+                    Map<String, Long> perFieldData = new HashMap<>();
+                    perFieldData.put(FieldDataStats.MEMORY_SIZE_IN_BYTES, entry.getValue().getMemorySize());
+                    perFieldData.put(FieldDataStats.ITEM_COUNT, entry.getValue().getItems());
+                    data.put(entry.getKey(), perFieldData);
                 }
             }
+            fieldStats = new FieldStats(ORDERED_STAT_NAMES, IS_MEMORY, READABLE_KEYS, data);
         }
-        return new FieldDataStats(
-            totalMetric.count(),
-            evictionsMetric.count(),
-            fieldTotals == null ? null : new FieldMemoryStats(fieldTotals)
-        );
+        return new FieldDataStats(totalMetric.count(), evictionsMetric.count(), countMetric.count(), fieldStats);
     }
 
     @Override
     public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
         totalMetric.inc(ramUsage.ramBytesUsed());
-        CounterMetric total = perFieldTotals.get(fieldName);
-        if (total != null) {
-            total.inc(ramUsage.ramBytesUsed());
+        countMetric.inc();
+        long size = ramUsage.ramBytesUsed();
+        MutableFieldStats mutableFieldStats = perFieldStats.get(fieldName);
+        if (mutableFieldStats != null) {
+            mutableFieldStats.increment(size);
         } else {
-            total = new CounterMetric();
-            total.inc(ramUsage.ramBytesUsed());
-            CounterMetric prev = perFieldTotals.putIfAbsent(fieldName, total);
+            mutableFieldStats = new MutableFieldStats();
+            mutableFieldStats.increment(size);
+            MutableFieldStats prev = perFieldStats.putIfAbsent(fieldName, mutableFieldStats);
             if (prev != null) {
-                prev.inc(ramUsage.ramBytesUsed());
+                prev.increment(size);
             }
         }
     }
@@ -95,13 +103,42 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
         if (wasEvicted) {
             evictionsMetric.inc();
         }
+        MutableFieldStats mutableFieldStats = perFieldStats.get(fieldName);
         if (sizeInBytes != -1) {
             totalMetric.dec(sizeInBytes);
-
-            CounterMetric total = perFieldTotals.get(fieldName);
-            if (total != null) {
-                total.dec(sizeInBytes);
+            if (mutableFieldStats != null) {
+                mutableFieldStats.memorySizeMetric.dec(sizeInBytes);
             }
+        }
+        countMetric.dec();
+        if (mutableFieldStats != null) {
+            mutableFieldStats.itemsMetric.dec();
+        }
+    }
+
+    /**
+     * Memory + item stats counters for one field.
+     */
+    class MutableFieldStats {
+        final CounterMetric memorySizeMetric;
+        final CounterMetric itemsMetric;
+
+        MutableFieldStats() {
+            this.memorySizeMetric = new CounterMetric();
+            this.itemsMetric = new CounterMetric();
+        }
+
+        void increment(long sizeInBytes) {
+            memorySizeMetric.inc(sizeInBytes);
+            itemsMetric.inc();
+        }
+
+        long getMemorySize() {
+            return memorySizeMetric.count();
+        }
+
+        long getItems() {
+            return itemsMetric.count();
         }
     }
 }

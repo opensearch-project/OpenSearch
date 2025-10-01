@@ -31,7 +31,6 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
-import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.IndexingStats;
@@ -51,6 +50,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+
+import static org.opensearch.index.fielddata.FieldDataStatsTests.randomFieldDataStats;
 
 public class ClusterStatsResponseTests extends OpenSearchTestCase {
 
@@ -235,7 +236,7 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
         commonStats.indexing = new IndexingStats();
         commonStats.completion = new CompletionStats();
         commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));
-        commonStats.fieldData = new FieldDataStats(randomLongBetween(0, 100), randomLongBetween(0, 100), null);
+        commonStats.fieldData = randomFieldDataStats();
         commonStats.queryCache = new QueryCacheStats(
             randomLongBetween(0, 100),
             randomLongBetween(0, 100),
