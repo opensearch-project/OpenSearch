@@ -80,6 +80,7 @@ import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING;
+import static org.opensearch.search.SearchService.SEARCH_MAX_QUERY_STRING_HEAP_SIZE;
 import static org.opensearch.search.SearchService.SEARCH_MAX_QUERY_STRING_LENGTH;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -792,6 +793,44 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
                     .cluster()
                     .prepareUpdateSettings()
                     .setTransientSettings(Settings.builder().putNull(SEARCH_MAX_QUERY_STRING_LENGTH.getKey()))
+            );
+        }
+    }
+
+    public void testMaxQueryStringHeapSize() throws Exception {
+        try {
+            String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
+            assertAcked(prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON));
+            ensureGreen("test");
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(SEARCH_MAX_QUERY_STRING_HEAP_SIZE.getKey(), "50kb"))
+            );
+
+            SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("foo OR foo OR foo OR foo")).get();
+            assertHitCount(response, 0);
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(SEARCH_MAX_QUERY_STRING_HEAP_SIZE.getKey(), "5kb"))
+            );
+
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+                client().prepareSearch("test").setQuery(queryStringQuery("foo OR foo OR foo OR foo")).get();
+            });
+
+            assertThat(e.getDetailedMessage(), containsString("Processed query exceeds maximum heap size: 5kb"));
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SEARCH_MAX_QUERY_STRING_HEAP_SIZE.getKey()))
             );
         }
     }

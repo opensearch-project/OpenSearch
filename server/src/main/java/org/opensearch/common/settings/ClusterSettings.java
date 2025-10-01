@@ -570,6 +570,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_AGGREGATION_REWRITE_FILTERS,
                 SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD,
                 SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
+                SearchService.SEARCH_MAX_QUERY_STRING_HEAP_SIZE,
                 SearchService.SEARCH_MAX_QUERY_STRING_LENGTH,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
