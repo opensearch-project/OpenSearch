@@ -16,6 +16,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -68,36 +69,83 @@ public class DatafusionContext extends SearchContext {
     private final SearchShardTask task;
     private final DatafusionEngine readEngine;
     private final DatafusionSearcher engineSearcher;
+    private final IndexShard indexShard;
+    private final QuerySearchResult queryResult;
+    private final FetchSearchResult fetchResult;
+    private final IndexService indexService;
+    private final QueryShardContext queryShardContext;
     private DatafusionQuery datafusionQuery;
+    private Map<String, Object[]> dfResults;
+    private SearchContextAggregations aggregations;
 
+    /**
+     * Constructor
+     * @param readerContext The reader context
+     * @param request The shard search request
+     * @param task The search shard task
+     * @param engine The datafusion engine
+     */
     public DatafusionContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
+        SearchShardTarget searchShardTarget,
         SearchShardTask task,
         DatafusionEngine engine) {
         this.readerContext = readerContext;
+        this.indexShard = readerContext.indexShard();
         this.request = request;
         this.task = task;
         this.readEngine = engine;
         this.engineSearcher = engine.acquireSearcher("search");//null;//TODO readerContext.contextEngineSearcher();
+        this.queryResult = new QuerySearchResult(readerContext.id(), searchShardTarget, request);
+        this.fetchResult = new FetchSearchResult(readerContext.id(), searchShardTarget);
+        this.indexService = readerContext.indexService();
+        this.queryShardContext = indexService.newQueryShardContext(
+            request.shardId().id(),
+            null, // TOOD : index searcher is null
+            request::nowInMillis,
+            searchShardTarget.getClusterAlias(),
+            false, // reevaluate the usage
+            false // specific to lucene
+        );
     }
 
+    /**
+     * Gets the read engine
+     * @return The datafusion engine
+     */
     public DatafusionEngine readEngine() {
         return readEngine;
     }
 
+    /**
+     * Sets datafusion query
+     * @param datafusionQuery The datafusion query
+     */
     public DatafusionContext datafusionQuery(DatafusionQuery datafusionQuery) {
         this.datafusionQuery = datafusionQuery;
         return this;
     }
+    /**
+     * Gets the datafusion query
+     * @return The datafusion query
+     */
     public DatafusionQuery getDatafusionQuery() {
         return datafusionQuery;
     }
 
+    /**
+     * Gets the engine searcher
+     * @return The datafusion searcher
+     */
     public DatafusionSearcher getEngineSearcher() {
         return engineSearcher;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param task The search shard task
+     */
     @Override
     public void setTask(SearchShardTask task) {
 
@@ -118,11 +166,19 @@ public class DatafusionContext extends SearchContext {
 
     }
 
+    /**
+     * {@inheritDoc}
+     * @param rewrite Whether to rewrite
+     */
     @Override
     public void preProcess(boolean rewrite) {
 
     }
 
+    /**
+     * {@inheritDoc}
+     * @param query The query
+     */
     @Override
     public Query buildFilteredQuery(Query query) {
         return null;
@@ -140,7 +196,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public ShardSearchRequest request() {
-        return null;
+        return request;
     }
 
     @Override
@@ -170,19 +226,32 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public SearchContextAggregations aggregations() {
-        return null;
+        return aggregations;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param aggregations The search context aggregations
+     */
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
-        return null;
+        this.aggregations = aggregations;
+        return this;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param searchExtBuilder The search extension builder
+     */
     @Override
     public void addSearchExt(SearchExtBuilder searchExtBuilder) {
 
     }
 
+    /**
+     * {@inheritDoc}
+     * @param name The name
+     */
     @Override
     public SearchExtBuilder getSearchExt(String name) {
         return null;
@@ -193,6 +262,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param highlight The search highlight context
+     */
     @Override
     public void highlight(SearchHighlightContext highlight) {
 
@@ -203,6 +276,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param suggest The suggestion search context
+     */
     @Override
     public void suggest(SuggestionSearchContext suggest) {
 
@@ -213,6 +290,10 @@ public class DatafusionContext extends SearchContext {
         return List.of();
     }
 
+    /**
+     * {@inheritDoc}
+     * @param rescore The rescore context
+     */
     @Override
     public void addRescore(RescoreContext rescore) {
 
@@ -243,6 +324,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param fetchSourceContext The fetch source context
+     */
     @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
         return null;
@@ -253,6 +338,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param docValuesContext The fetch doc values context
+     */
     @Override
     public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
         return null;
@@ -263,6 +352,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param fetchFieldsContext The fetch fields context
+     */
     @Override
     public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
         return null;
@@ -275,7 +368,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public IndexShard indexShard() {
-        return null;
+        return this.indexShard;
     }
 
     @Override
@@ -303,6 +396,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param timeout The timeout value
+     */
     @Override
     public void timeout(TimeValue timeout) {
 
@@ -313,6 +410,10 @@ public class DatafusionContext extends SearchContext {
         return 0;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param terminateAfter The terminate after value
+     */
     @Override
     public void terminateAfter(int terminateAfter) {
 
@@ -323,6 +424,10 @@ public class DatafusionContext extends SearchContext {
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param minimumScore The minimum score
+     */
     @Override
     public SearchContext minimumScore(float minimumScore) {
         return null;
@@ -333,6 +438,10 @@ public class DatafusionContext extends SearchContext {
         return 0f;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param sort The sort and formats
+     */
     @Override
     public SearchContext sort(SortAndFormats sort) {
         return null;
@@ -343,6 +452,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param trackScores Whether to track scores
+     */
     @Override
     public SearchContext trackScores(boolean trackScores) {
         return null;
@@ -353,6 +466,10 @@ public class DatafusionContext extends SearchContext {
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param trackTotalHits The track total hits value
+     */
     @Override
     public SearchContext trackTotalHitsUpTo(int trackTotalHits) {
         return null;
@@ -364,6 +481,10 @@ public class DatafusionContext extends SearchContext {
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     * @param searchAfter The field doc for search after
+     */
     public SearchContext searchAfter(FieldDoc searchAfter) {
         return null;
     }
@@ -374,6 +495,10 @@ public class DatafusionContext extends SearchContext {
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     * @param collapse The collapse context
+     */
     public SearchContext collapse(CollapseContext collapse) {
         return null;
     }
@@ -384,6 +509,10 @@ public class DatafusionContext extends SearchContext {
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     * @param postFilter The parsed post filter query
+     */
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         return null;
     }
@@ -399,6 +528,10 @@ public class DatafusionContext extends SearchContext {
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     * @param query The parsed query
+     */
     public SearchContext parsedQuery(ParsedQuery query) {
         return null;
     }
@@ -419,6 +552,10 @@ public class DatafusionContext extends SearchContext {
         return 0;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param from The from value
+     */
     @Override
     public SearchContext from(int from) {
         return null;
@@ -429,6 +566,10 @@ public class DatafusionContext extends SearchContext {
         return 0;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param size The size value
+     */
     @Override
     public SearchContext size(int size) {
         return null;
@@ -454,6 +595,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param storedFieldsContext The stored fields context
+     */
     @Override
     public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
         return null;
@@ -464,6 +609,10 @@ public class DatafusionContext extends SearchContext {
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param explain Whether to explain
+     */
     @Override
     public void explain(boolean explain) {
 
@@ -474,6 +623,10 @@ public class DatafusionContext extends SearchContext {
         return List.of();
     }
 
+    /**
+     * {@inheritDoc}
+     * @param groupStats The group stats
+     */
     @Override
     public void groupStats(List<String> groupStats) {
 
@@ -484,6 +637,10 @@ public class DatafusionContext extends SearchContext {
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param version Whether to include version
+     */
     @Override
     public void version(boolean version) {
 
@@ -494,6 +651,10 @@ public class DatafusionContext extends SearchContext {
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param seqNoAndPrimaryTerm Whether to include sequence number and primary term
+     */
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
 
@@ -514,6 +675,12 @@ public class DatafusionContext extends SearchContext {
         return 0;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param docIdsToLoad The document IDs to load
+     * @param docsIdsToLoadFrom The starting index for document IDs to load
+     * @param docsIdsToLoadSize The size of document IDs to load
+     */
     @Override
     public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
         return null;
@@ -526,7 +693,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public QuerySearchResult queryResult() {
-        return null;
+        return this.queryResult;
     }
 
     @Override
@@ -536,7 +703,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public FetchSearchResult fetchResult() {
-        return null;
+        return this.fetchResult;
     }
 
     @Override
@@ -544,11 +711,19 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param name The field name
+     */
     @Override
     public MappedFieldType fieldType(String name) {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param name The object mapper name
+     */
     @Override
     public ObjectMapper getObjectMapper(String name) {
         return null;
@@ -566,7 +741,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public QueryShardContext getQueryShardContext() {
-        return null;
+        return queryShardContext;
     }
 
     @Override
@@ -579,6 +754,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @param bucketCollectorProcessor The bucket collector processor
+     */
     @Override
     public void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor) {
 
@@ -599,7 +778,20 @@ public class DatafusionContext extends SearchContext {
         return false;
     }
 
+    /**
+     * Gets the context engine searcher
+     * @return The context engine searcher
+     */
     public ContextEngineSearcher<DatafusionQuery, RecordBatchStream> contextEngineSearcher() {
         return new ContextEngineSearcher<>(this.engineSearcher, this);
     }
+
+    public void setDFResults(Map<String, Object[]> dfResults) {
+        this.dfResults = dfResults;
+    }
+
+    public Map<String, Object[]> getDFResults() {
+        return dfResults;
+    }
+
 }
