@@ -166,9 +166,7 @@ public class QueryPhase {
         // boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
 
         // Post process
-        final InternalAggregations internalAggregations = SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
-        LOGGER.info("InternalAggregation created is {}", internalAggregations.asList());
-        searchContext.queryResult().aggregations(internalAggregations);
+        SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
 
         // if (rescore) { // only if we do a regular search
         // rescoreProcessor.process(searchContext);
