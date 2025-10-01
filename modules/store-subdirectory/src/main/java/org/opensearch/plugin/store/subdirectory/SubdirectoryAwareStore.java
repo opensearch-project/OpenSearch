@@ -20,6 +20,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexSettings;
@@ -82,16 +84,25 @@ public class SubdirectoryAwareStore extends Store {
     @Override
     public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
         long totalNumDocs = 0;
+        // Use 10MB default for subdirectory stores if not configured
+        final ByteSizeValue hashSize = indexSettings.getSettings()
+            .getAsBytesSize(Store.INDEX_STORE_METADATA_HASH_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB));
 
         // Load regular segment files metadata
         final SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(commit);
-        MetadataSnapshot.LoadedMetadata regularMetadata = MetadataSnapshot.loadMetadata(segmentCommitInfos, super.directory(), logger);
+        MetadataSnapshot.LoadedMetadata regularMetadata = MetadataSnapshot.loadMetadata(
+            segmentCommitInfos,
+            super.directory(),
+            logger,
+            false,
+            hashSize
+        );
         Map<String, StoreFileMetadata> builder = new HashMap<>(regularMetadata.fileMetadata);
         Map<String, String> commitUserDataBuilder = new HashMap<>(regularMetadata.userData);
         totalNumDocs += regularMetadata.numDocs;
 
         // Load subdirectory files metadata from segments_N files in subdirectories
-        totalNumDocs += this.loadSubdirectoryMetadataFromSegments(commit, builder);
+        totalNumDocs += this.loadSubdirectoryMetadataFromSegments(commit, builder, hashSize);
 
         return new MetadataSnapshot(Collections.unmodifiableMap(builder), Collections.unmodifiableMap(commitUserDataBuilder), totalNumDocs);
     }
@@ -102,7 +113,8 @@ public class SubdirectoryAwareStore extends Store {
      *
      * @return the total number of documents in all subdirectory segments
      */
-    private long loadSubdirectoryMetadataFromSegments(IndexCommit commit, Map<String, StoreFileMetadata> builder) throws IOException {
+    private long loadSubdirectoryMetadataFromSegments(IndexCommit commit, Map<String, StoreFileMetadata> builder, ByteSizeValue hashSize)
+        throws IOException {
         // Find all segments_N files in subdirectories from the commit
         Set<String> subdirectorySegmentFiles = new HashSet<>();
         for (String fileName : commit.getFileNames()) {
@@ -114,7 +126,7 @@ public class SubdirectoryAwareStore extends Store {
         long totalSubdirectoryNumDocs = 0;
         // Process each subdirectory segments_N file
         for (String segmentsFilePath : subdirectorySegmentFiles) {
-            totalSubdirectoryNumDocs += this.loadMetadataFromSubdirectorySegmentsFile(segmentsFilePath, builder);
+            totalSubdirectoryNumDocs += this.loadMetadataFromSubdirectorySegmentsFile(segmentsFilePath, builder, hashSize);
         }
 
         return totalSubdirectoryNumDocs;
@@ -125,8 +137,11 @@ public class SubdirectoryAwareStore extends Store {
      *
      * @return the number of documents in this segments file
      */
-    private long loadMetadataFromSubdirectorySegmentsFile(String segmentsFilePath, Map<String, StoreFileMetadata> builder)
-        throws IOException {
+    private long loadMetadataFromSubdirectorySegmentsFile(
+        String segmentsFilePath,
+        Map<String, StoreFileMetadata> builder,
+        ByteSizeValue hashSize
+    ) throws IOException {
         // Parse the directory path from the segments file path
         // e.g., "subdir/path/segments_1" -> "subdir/path"
         Path filePath = Path.of(segmentsFilePath);
@@ -143,7 +158,7 @@ public class SubdirectoryAwareStore extends Store {
             SegmentInfos segmentInfos = SegmentInfos.readCommit(subdirectory, segmentsFileName);
 
             // Use the same pattern as Store.loadMetadata to extract file metadata
-            loadMetadataFromSegmentInfos(segmentInfos, subdirectory, builder, parent);
+            loadMetadataFromSegmentInfos(segmentInfos, subdirectory, builder, parent, hashSize);
 
             // Return the number of documents in this segments file
             return Lucene.getNumDocs(segmentInfos);
@@ -157,14 +172,16 @@ public class SubdirectoryAwareStore extends Store {
         SegmentInfos segmentInfos,
         Directory directory,
         Map<String, StoreFileMetadata> builder,
-        Path pathPrefix
+        Path pathPrefix,
+        ByteSizeValue hashSize
     ) throws IOException {
-        // Reuse the existing Store.loadMetadata method
+        // Reuse the existing Store.loadMetadata method with hashSize
         Store.MetadataSnapshot.LoadedMetadata loadedMetadata = Store.MetadataSnapshot.loadMetadata(
             segmentInfos,
             directory,
             SubdirectoryAwareStore.logger,
-            false
+            false,
+            hashSize
         );
 
         // Add all files with proper relative path prefix

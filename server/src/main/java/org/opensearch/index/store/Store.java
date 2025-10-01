@@ -83,6 +83,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
@@ -169,6 +171,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         "index.store.stats_refresh_interval",
         TimeValue.timeValueSeconds(10),
         Property.IndexScope
+    );
+
+    public static final Setting<ByteSizeValue> INDEX_STORE_METADATA_HASH_SIZE_SETTING = Setting.byteSizeSetting(
+        "index.store.metadata_hash.size",
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        Property.IndexScope,
+        Property.Dynamic
     );
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -361,7 +370,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         assert indexSettings.isSegRepEnabledOrRemoteNode();
         failIfCorrupted();
         try {
-            return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
+            final ByteSizeValue hashSize = indexSettings.getValue(INDEX_STORE_METADATA_HASH_SIZE_SETTING);
+            return loadMetadata(segmentInfos, directory, logger, true, hashSize).fileMetadata;
         } catch (NoSuchFileException | CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -1132,6 +1142,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static LoadedMetadata loadMetadata(SegmentInfos segmentInfos, Directory directory, Logger logger, boolean ignoreSegmentsFile)
             throws IOException {
+            return loadMetadata(segmentInfos, directory, logger, ignoreSegmentsFile, new ByteSizeValue(1, ByteSizeUnit.MB));
+        }
+
+        public static LoadedMetadata loadMetadata(
+            SegmentInfos segmentInfos,
+            Directory directory,
+            Logger logger,
+            boolean ignoreSegmentsFile,
+            ByteSizeValue hashSize
+        ) throws IOException {
             long numDocs = Lucene.getNumDocs(segmentInfos);
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             commitUserDataBuilder.putAll(segmentInfos.getUserData());
@@ -1159,7 +1179,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         builder,
                         logger,
                         version,
-                        SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file))
+                        SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)),
+                        hashSize
                     );
                 }
             }
@@ -1168,7 +1189,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
             if (ignoreSegmentsFile == false) {
                 final String segmentsFile = segmentInfos.getSegmentsFileName();
-                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true, hashSize);
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
@@ -1179,7 +1200,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Map<String, StoreFileMetadata> builder,
             Logger logger,
             Version version,
-            boolean readFileAsHash
+            boolean readFileAsHash,
+            ByteSizeValue hashSize
         ) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
@@ -1199,12 +1221,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                             in
                         );
                     }
-                    if (readFileAsHash) {
+                    if (readFileAsHash && length <= hashSize.getBytes()) {
                         // additional safety we checksum the entire file we read the hash for...
                         final VerifyingIndexInput verifyingIndexInput = new VerifyingIndexInput(in);
-                        hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length);
+                        hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length, hashSize);
                         checksum = digestToString(verifyingIndexInput.verify());
                     } else {
+                        if (readFileAsHash && length > hashSize.getBytes()) {
+                            logger.warn(
+                                "Skipping hash computation for file [{}] with size [{}] bytes as it exceeds the configured limit of [{}] bytes",
+                                file,
+                                length,
+                                hashSize.getBytes()
+                            );
+                        }
                         checksum = digestToString(CodecUtil.retrieveChecksum(in));
                     }
 
@@ -1217,10 +1247,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 1MB
+         * Computes a strong hash value for files up to the specified size limit.
          */
-        public static void hashFile(BytesRefBuilder fileHash, InputStream in, long size) throws IOException {
-            final int len = (int) Math.min(1024 * 1024, size); // for safety we limit this to 1MB
+        public static void hashFile(BytesRefBuilder fileHash, InputStream in, long size, ByteSizeValue maxSize) throws IOException {
+            final int len = (int) Math.min(maxSize.getBytes(), size);
             fileHash.grow(len);
             fileHash.setLength(len);
             final int readBytes = in.readNBytes(fileHash.bytes(), 0, len);

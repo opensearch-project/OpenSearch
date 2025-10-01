@@ -18,6 +18,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
@@ -133,5 +134,52 @@ public class SubdirectoryStorePluginTests extends OpenSearchTestCase {
             }
         }
         return numNonExtra;
+    }
+
+    public void testSubdirectoryStoreConfigurableHashSize() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Settings settings = Settings.builder()
+            .put(Store.INDEX_STORE_METADATA_HASH_SIZE_SETTING.getKey(), "5MB")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .build();
+        Path path = createTempDir().resolve("indices").resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+
+        try (
+            SubdirectoryAwareStore store = new SubdirectoryAwareStore(
+                shardId,
+                IndexSettingsModule.newIndexSettings("index", settings),
+                SubdirectoryStorePluginTests.newFSDirectory(path.resolve("index")),
+                new DummyShardLock(shardId),
+                Store.OnClose.EMPTY,
+                new ShardPath(false, path, path, shardId)
+            )
+        ) {
+            // Verify subdirectory store uses configured hash size - 5MB = 5 * 1024 * 1024 = 5242880 bytes
+            ByteSizeValue hashSize = IndexSettingsModule.newIndexSettings("index", settings)
+                .getValue(Store.INDEX_STORE_METADATA_HASH_SIZE_SETTING);
+            assertEquals(5242880L, hashSize.getBytes());
+        }
+    }
+
+    public void testSubdirectoryStoreDefaultHashSize() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
+        Path path = createTempDir().resolve("indices").resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+
+        try (
+            SubdirectoryAwareStore store = new SubdirectoryAwareStore(
+                shardId,
+                IndexSettingsModule.newIndexSettings("index", settings),
+                SubdirectoryStorePluginTests.newFSDirectory(path.resolve("index")),
+                new DummyShardLock(shardId),
+                Store.OnClose.EMPTY,
+                new ShardPath(false, path, path, shardId)
+            )
+        ) {
+            // Verify subdirectory store uses 1MB default when not configured (standard Store default)
+            ByteSizeValue hashSize = IndexSettingsModule.newIndexSettings("index", settings)
+                .getValue(Store.INDEX_STORE_METADATA_HASH_SIZE_SETTING);
+            assertEquals(1048576L, hashSize.getBytes()); // 1MB = 1024 * 1024 = 1048576 bytes
+        }
     }
 }

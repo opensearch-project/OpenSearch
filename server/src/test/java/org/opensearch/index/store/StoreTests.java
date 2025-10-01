@@ -63,6 +63,7 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -74,6 +75,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLock;
@@ -1344,5 +1347,44 @@ public class StoreTests extends OpenSearchTestCase {
         doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
         writer.addDocument(doc);
         return writer;
+    }
+
+    public void testConfigurableHashSize() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Settings settings = Settings.builder()
+            .put(Store.INDEX_STORE_METADATA_HASH_SIZE_SETTING.getKey(), "2MB")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        try (Directory directory = newDirectory()) {
+            try (Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId))) {
+                // Verify setting is properly configured - 2MB = 2 * 1024 * 1024 = 2097152 bytes
+                assertEquals(2097152L, indexSettings.getValue(Store.INDEX_STORE_METADATA_HASH_SIZE_SETTING).getBytes());
+            }
+        }
+    }
+
+    public void testHashFileSizeLimit() throws IOException {
+        // Test that hashFile respects the size limit
+        byte[] data = new byte[2048]; // 2KB of data
+        random().nextBytes(data);
+
+        BytesRefBuilder fileHash = new BytesRefBuilder();
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
+
+        // Test with 1KB limit - should only hash first 1KB
+        Store.MetadataSnapshot.hashFile(fileHash, inputStream, data.length, new ByteSizeValue(1, ByteSizeUnit.KB));
+
+        assertEquals(1024, fileHash.length()); // Should be limited to 1KB
+
+        // Reset for next test
+        fileHash = new BytesRefBuilder();
+        inputStream = new ByteArrayInputStream(data);
+
+        // Test with 4KB limit - should hash all 2KB
+        Store.MetadataSnapshot.hashFile(fileHash, inputStream, data.length, new ByteSizeValue(4, ByteSizeUnit.KB));
+
+        assertEquals(2048, fileHash.length()); // Should hash all data
     }
 }
