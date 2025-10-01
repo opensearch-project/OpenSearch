@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
@@ -98,7 +99,7 @@ import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";
     @SuppressWarnings("NonFinalStaticField")
-    private static int maxQueryStringLength = 32_000;
+    private static int maxQueryStringLength = SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.get(Settings.EMPTY);
 
     private final QueryShardContext context;
     private final Map<String, Float> fieldsAndWeights;
