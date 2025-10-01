@@ -43,6 +43,8 @@ import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.search.streaming.Streamable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1209,5 +1211,52 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         searcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
         return aggregator.buildTopLevel();
+    }
+
+    public void testStreamingCostMetrics() {
+        assertTrue(
+            "StreamStringTermsAggregator should implement Streamable",
+            Streamable.class.isAssignableFrom(StreamStringTermsAggregator.class)
+        );
+    }
+
+    public void testStreamingCostMetricsValues() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 100; i++) {
+                    Document document = new Document();
+                    document.add(new SortedSetDocValuesField("field", new BytesRef("term_" + (i % 10))));
+                    indexWriter.addDocument(document);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field").size(5);
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    StreamingCostMetrics metrics = aggregator.getStreamingCostMetrics();
+
+                    assertThat(metrics, notNullValue());
+                    assertTrue("Should be streamable", metrics.streamable());
+                    assertTrue("TopN size should be positive", metrics.topNSize() > 0);
+                    assertEquals("Segment count should be 1", 1, metrics.segmentCount());
+                    assertEquals("Should have 10 unique terms", 10, metrics.estimatedBucketCount());
+                    assertEquals("Should have 100 documents", 100, metrics.estimatedDocCount());
+                }
+            }
+        }
     }
 }

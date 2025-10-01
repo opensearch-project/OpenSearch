@@ -56,6 +56,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.FlushMode;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -118,9 +119,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    // if user doesn't provide execution mode, and using stream search
-                    // we use stream aggregation
-                    if (context.isStreamSearch()) {
+                    // Check if streaming is enabled and flush mode allows it (null means not yet evaluated)
+                    FlushMode flushMode = context.getFlushMode();
+                    if (context.isStreamSearch() && (flushMode == null || flushMode == FlushMode.PER_SEGMENT)) {
                         return createStreamStringTermsAggregator(
                             name,
                             factories,
