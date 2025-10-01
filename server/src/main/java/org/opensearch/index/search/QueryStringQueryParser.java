@@ -98,7 +98,7 @@ import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";
     @SuppressWarnings("NonFinalStaticField")
-    private static int maxQueryStringLength;
+    private static int maxQueryStringLength = 32_000;
 
     private final QueryShardContext context;
     private final Map<String, Float> fieldsAndWeights;
