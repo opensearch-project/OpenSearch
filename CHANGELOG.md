@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 2.x]
 ### Added
 - Reject close index requests, while remote store migration is in progress.([#18327](https://github.com/opensearch-project/OpenSearch/pull/18327))
+- New cluster setting search.query.max_query_string_length ([#19491](https://github.com/opensearch-project/OpenSearch/pull/19491))
 
 ### Dependencies
 - Bump `netty` from 4.1.118.Final to 4.1.125.Final ([#18192](https://github.com/opensearch-project/OpenSearch/pull/18192)) ([#19270](https://github.com/opensearch-project/OpenSearch/pull/19270))
