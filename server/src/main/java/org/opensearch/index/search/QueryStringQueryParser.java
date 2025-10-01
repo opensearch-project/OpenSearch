@@ -862,6 +862,10 @@ public class QueryStringQueryParser extends XQueryParser {
      * @throws ParseException if the heap size is exceeded
      */
     private Query aggregateRamSize(Query query) throws ParseException {
+        if (query == null) {
+            return null;
+        }
+
         long size = RamUsageEstimator.sizeOf(query, 180); // 180 is a good rule of thumb value for the query object size we are encountering
                                                           // here. It is smaller than the normal default 1024, as we do not encounter
                                                           // complex objects here.
