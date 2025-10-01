@@ -30,6 +30,12 @@ import org.opensearch.common.annotation.ExperimentalApi;
  */
 @ExperimentalApi
 public record StreamingCostMetrics(boolean streamable, long topNSize, long estimatedBucketCount, int segmentCount, long estimatedDocCount) {
+    public StreamingCostMetrics {
+        assert topNSize >= 0 : "topNSize must be non-negative";
+        assert estimatedBucketCount >= 0 : "estimatedBucketCount must be non-negative";
+        assert segmentCount >= 0 : "segmentCount must be non-negative";
+        assert estimatedDocCount >= 0 : "estimatedDocCount must be non-negative";
+    }
 
     /**
      * Creates metrics indicating an aggregation does not support streaming.

@@ -96,7 +96,7 @@ public final class FlushModeResolver {
         StreamingCostMetrics metrics = collectMetrics(collector);
         if (metrics != null) {
             FlushMode decision = decideFlushMode(metrics, maxBucketCount, minCardinalityRatio, minBucketCount);
-            logger.info(
+            logger.debug(
                 "Streaming decision: {} - Metrics: buckets={}, docs={}, topN={}, segments={}, cardinality_ratio={}, thresholds: max_buckets={}, min_buckets={}, min_cardinality_ratio={}",
                 decision,
                 metrics.estimatedBucketCount(),
@@ -110,7 +110,7 @@ public final class FlushModeResolver {
             );
             return decision;
         } else {
-            logger.info("Streaming decision: {} - Collector tree not streamable", defaultMode);
+            logger.debug("Streaming decision: {} - Collector tree not streamable", defaultMode);
             return defaultMode;
         }
     }
