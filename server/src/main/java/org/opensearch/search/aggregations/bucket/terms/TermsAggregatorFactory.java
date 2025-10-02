@@ -231,7 +231,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
-                if (context.isStreamSearch()) {
+                FlushMode flushMode = context.getFlushMode();
+                if (context.isStreamSearch() && (flushMode == null || flushMode == FlushMode.PER_SEGMENT)) {
                     return createStreamNumericTermsAggregator(
                         name,
                         factories,

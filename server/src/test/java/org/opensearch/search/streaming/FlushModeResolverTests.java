@@ -9,7 +9,10 @@
 package org.opensearch.search.streaming;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -22,10 +25,12 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.bucket.terms.StreamNumericTermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.StreamStringTermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
@@ -257,6 +262,82 @@ public class FlushModeResolverTests extends AggregatorTestCase {
             FlushMode result = FlushModeResolver.resolve(aggregator, FlushMode.PER_SHARD, SMALL_BUCKET_LIMIT, 0.05, 3);
 
             assertEquals(FlushMode.PER_SHARD, result);
+        });
+    }
+
+    public void testResolveWithStreamableNumericAggregator() throws IOException {
+        withIndex(writer -> {
+            for (int i = 0; i < 100; i++) {
+                Document document = new Document();
+                int value = i % 10;
+                document.add(new SortedNumericDocValuesField("number", value));
+                document.add(new IntPoint("number", value)); // Add point values for indexing
+                writer.addDocument(document);
+            }
+        }, searcher -> {
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+            TermsAggregationBuilder builder = new TermsAggregationBuilder("numbers").field("number");
+            StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                null,
+                builder,
+                searcher,
+                createIndexSettings(),
+                createBucketConsumer(),
+                fieldType
+            );
+
+            FlushMode result = FlushModeResolver.resolve(
+                aggregator,
+                FlushMode.PER_SHARD,
+                SMALL_BUCKET_LIMIT,
+                HIGH_CARDINALITY_RATIO,
+                MIN_BUCKET_THRESHOLD
+            );
+
+            assertEquals(FlushMode.PER_SEGMENT, result);
+        });
+    }
+
+    public void testResolveWithNestedStringAndNumericAggregation() throws IOException {
+        withIndex(writer -> {
+            for (int i = 0; i < 100; i++) {
+                Document document = new Document();
+                String category = "category_" + (i % 5);
+                int value = i % 10;
+
+                document.add(new SortedSetDocValuesField("category", new BytesRef(category)));
+                document.add(new SortedNumericDocValuesField("number", value));
+                document.add(new IntPoint("number", value));
+                document.add(new StoredField("number", value));
+                writer.addDocument(document);
+            }
+        }, searcher -> {
+            MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+            MappedFieldType numberFieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+
+            // Create nested aggregation: category terms with numeric sub-aggregation
+            TermsAggregationBuilder numericSubAgg = new TermsAggregationBuilder("numbers").field("number");
+            TermsAggregationBuilder mainAgg = new TermsAggregationBuilder("categories").field("category").subAggregation(numericSubAgg);
+
+            StreamStringTermsAggregator aggregator = createStreamAggregator(
+                null,
+                mainAgg,
+                searcher,
+                createIndexSettings(),
+                createBucketConsumer(),
+                categoryFieldType,
+                numberFieldType
+            );
+
+            FlushMode result = FlushModeResolver.resolve(
+                aggregator,
+                FlushMode.PER_SHARD,
+                SMALL_BUCKET_LIMIT,
+                HIGH_CARDINALITY_RATIO,
+                MIN_BUCKET_THRESHOLD
+            );
+
+            assertEquals(FlushMode.PER_SEGMENT, result);
         });
     }
 

@@ -9,12 +9,15 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -28,6 +31,8 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.Streamable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +50,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
  *
  * @opensearch.internal
  */
-public class StreamNumericTermsAggregator extends TermsAggregator {
+public class StreamNumericTermsAggregator extends TermsAggregator implements Streamable {
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
     private final IncludeExclude.LongFilter longFilter;
@@ -533,10 +538,71 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds == null ? 0 : bucketOrds.size());
+
+        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        add.accept("streaming_enabled", metrics.streamable());
+        add.accept("streaming_top_n_size", metrics.topNSize());
+        add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
+        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
+        add.accept("streaming_segment_count", metrics.segmentCount());
     }
 
     @Override
     public void doClose() {
         Releasables.close(super::doClose, bucketOrds, resultStrategy);
+    }
+
+    @Override
+    public StreamingCostMetrics getStreamingCostMetrics() {
+        long topNSize = bucketCountThresholds.getShardSize();
+        try {
+            String fieldName = valuesSource.getIndexFieldName();
+            long totalDocsWithField = PointValues.size(context.searcher().getIndexReader(), fieldName);
+            long maxCardinality;
+            int segmentCount = context.searcher().getIndexReader().leaves().size();
+            if (totalDocsWithField > 0) {
+                MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(fieldName);
+                if (fieldType != null && fieldType.unwrap() instanceof NumberFieldType numberFieldType) {
+                    Number minPoint = numberFieldType.parsePoint(
+                        PointValues.getMinPackedValue(context.searcher().getIndexReader(), fieldName)
+                    );
+                    Number maxPoint = numberFieldType.parsePoint(
+                        PointValues.getMaxPackedValue(context.searcher().getIndexReader(), fieldName)
+                    );
+
+                    switch (resultStrategy) {
+                        case LongTermsResults ignored -> {
+                            long min = minPoint.longValue();
+                            long max = maxPoint.longValue();
+                            maxCardinality = Math.max(1, max - min + 1);
+                        }
+                        case DoubleTermsResults ignored -> {
+                            double min = minPoint.doubleValue();
+                            double max = maxPoint.doubleValue();
+                            // For doubles, estimate based on reasonable precision
+                            maxCardinality = Math.max(1, Math.min((long) (max - min + 1), totalDocsWithField));
+                        }
+                        case UnsignedLongTermsResults ignored -> {
+                            long min = minPoint.longValue();
+                            long max = maxPoint.longValue();
+                            maxCardinality = Math.max(1, max - min + 1);
+                        }
+                        case null, default ->
+                            // Unknown result strategy type
+                            maxCardinality = 1;
+                    }
+                } else {
+                    // Fallback: use low cardinality to force PER_SHARD mode
+                    maxCardinality = 1;
+                }
+            } else {
+                // No point values available, use low cardinality to force PER_SHARD mode
+                maxCardinality = 1;
+            }
+
+            return new StreamingCostMetrics(true, topNSize, maxCardinality, segmentCount, totalDocsWithField);
+        } catch (IOException e) {
+            return StreamingCostMetrics.nonStreamable();
+        }
     }
 }
