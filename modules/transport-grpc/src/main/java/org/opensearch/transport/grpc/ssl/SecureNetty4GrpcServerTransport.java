@@ -87,8 +87,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         SecureAuxTransportSettingsProvider secureTransportSettingsProvider,
         ServerInterceptor serverInterceptor
     ) {
-        super(settings, services, networkService, threadPool, serverInterceptors);
-        super(settings, services, networkService, serverInterceptor);
+        super(settings, services, networkService, threadPool, serverInterceptor);
         this.port = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.get(settings);
         this.portSettingKey = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.getKey();
         try {

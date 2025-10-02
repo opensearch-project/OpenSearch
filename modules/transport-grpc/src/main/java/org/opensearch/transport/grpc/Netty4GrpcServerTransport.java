@@ -24,6 +24,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.BindTransportException;
+import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -230,11 +231,17 @@ public class Netty4GrpcServerTransport extends AuxTransport {
      * @param threadPool the thread pool for gRPC request processing.
      * @param serverInterceptor the gRPC server interceptor to be applied.
      */
-    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService, List<ServerInterceptor> serverInterceptors) {
+    public Netty4GrpcServerTransport(
+        Settings settings,
+        List<BindableService> services,
+        NetworkService networkService,
+        ThreadPool threadPool,
+        ServerInterceptor serverInterceptor
+    ) {
         logger.debug("Initializing Netty4GrpcServerTransport with settings = {}", settings);
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
-        this.serverInterceptor = serverInterceptor;
+        this.serverInterceptor = Objects.requireNonNull(serverInterceptor);
         this.networkService = Objects.requireNonNull(networkService);
         this.threadPool = Objects.requireNonNull(threadPool);
         final List<String> grpcBindHost = SETTING_GRPC_BIND_HOST.get(settings);
@@ -253,6 +260,22 @@ public class Netty4GrpcServerTransport extends AuxTransport {
         this.maxConnectionIdle = SETTING_GRPC_MAX_CONNECTION_IDLE.get(settings);
         this.keepAliveTimeout = SETTING_GRPC_KEEPALIVE_TIMEOUT.get(settings);
         this.portSettingKey = SETTING_GRPC_PORT.getKey();
+    }
+
+    /**
+     * Creates a new Netty4GrpcServerTransport instance.
+     * @param settings the configured settings.
+     * @param services the gRPC compatible services to be registered with the server.
+     * @param networkService the bind/publish addresses.
+     * @param threadPool the thread pool for gRPC request processing.
+     */
+    public Netty4GrpcServerTransport(
+        Settings settings,
+        List<BindableService> services,
+        NetworkService networkService,
+        ThreadPool threadPool
+    ) {
+        this(settings, services, networkService, threadPool, new GrpcInterceptorChain(emptyList()));
     }
 
     /**
@@ -423,11 +446,8 @@ public class Netty4GrpcServerTransport extends AuxTransport {
                     .keepAliveTimeout(keepAliveTimeout.duration(), keepAliveTimeout.timeUnit())
                     .channelType(NioServerSocketChannel.class)
                     .addService(new HealthStatusManager().getHealthService())
-                    .addService(ProtoReflectionService.newInstance());
-
-                if (serverInterceptor != null) {
-                    serverBuilder.intercept(serverInterceptor);
-                }
+                    .addService(ProtoReflectionService.newInstance())
+                    .intercept(serverInterceptor);
 
                 for (UnaryOperator<NettyServerBuilder> op : serverBuilderConfigs) {
                     op.apply(serverBuilder);

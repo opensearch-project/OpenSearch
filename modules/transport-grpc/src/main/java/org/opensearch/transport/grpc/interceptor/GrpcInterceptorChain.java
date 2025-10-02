@@ -10,8 +10,10 @@ package org.opensearch.transport.grpc.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.transport.grpc.spi.OrderedGrpcInterceptor;
 
 import java.util.List;
+import java.util.Objects;
 
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
@@ -32,7 +34,7 @@ public class GrpcInterceptorChain implements ServerInterceptor {
      * @param interceptors List of OrderedGrpcInterceptor instances to be applied in order
      */
     public GrpcInterceptorChain(List<OrderedGrpcInterceptor> interceptors) {
-        this.interceptors = interceptors;
+        this.interceptors = Objects.requireNonNull(interceptors);
     }
 
     /**

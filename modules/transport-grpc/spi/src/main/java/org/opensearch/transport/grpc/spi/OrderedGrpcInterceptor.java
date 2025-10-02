@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.transport.grpc.interceptor;
+package org.opensearch.transport.grpc.spi;
 
 import io.grpc.ServerInterceptor;
 

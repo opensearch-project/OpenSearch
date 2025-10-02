@@ -8,6 +8,8 @@ The `transport-grpc-spi` module enables plugin developers to:
 - Implement custom query converters for gRPC transport
 - Extend gRPC protocol buffer handling
 - Register custom query types that can be processed via gRPC
+- Register gRPC interceptors for request/response processing
+
 
 ## Key Components
 
@@ -36,6 +38,7 @@ Add the SPI dependency to your plugin's `build.gradle`:
 dependencies {
     compileOnly 'org.opensearch.plugin:transport-grpc-spi:${opensearch.version}'
     compileOnly 'org.opensearch:protobufs:${protobufs.version}'
+    compileOnly 'io.grpc:grpc-api:${versions.grpc}'
 }
 ```
 

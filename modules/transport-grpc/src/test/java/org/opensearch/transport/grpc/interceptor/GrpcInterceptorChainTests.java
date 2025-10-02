@@ -9,6 +9,7 @@
 package org.opensearch.transport.grpc.interceptor;
 
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.spi.OrderedGrpcInterceptor;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -149,7 +150,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         );
 
         // Sort as GrpcPlugin would
-        interceptors.sort((a, b) -> Integer.compare(a.getOrder(), b.getOrder()));
+        interceptors.sort((a, b) -> Integer.compare(a.order(), b.order()));
 
         GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
         chain.interceptCall(mockCall, headers, mockHandler);
@@ -163,12 +164,8 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
     // =============================================
 
     public void testNullInterceptorList() {
-        // Constructor should accept null, but interceptCall should fail
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(null);
-        assertNotNull(chain);
-
-        // When interceptCall is called with null interceptors, it should throw NullPointerException
-        expectThrows(NullPointerException.class, () -> { chain.interceptCall(mockCall, headers, mockHandler); });
+        // Constructor should throw NullPointerException for null interceptors
+        expectThrows(NullPointerException.class, () -> { new GrpcInterceptorChain(null); });
     }
 
     public void testChainIntegrationWithRealScenario() {
@@ -235,7 +232,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
     private OrderedGrpcInterceptor createTestInterceptor(int order, boolean shouldFail, String errorMessage) {
         return new OrderedGrpcInterceptor() {
             @Override
-            public int getOrder() {
+            public int order() {
                 return order;
             }
 
@@ -264,7 +261,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
     private OrderedGrpcInterceptor createOrderTrackingInterceptor(int order, List<Integer> executionOrder) {
         return new OrderedGrpcInterceptor() {
             @Override
-            public int getOrder() {
+            public int order() {
                 return order;
             }
 
@@ -291,7 +288,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
     private OrderedGrpcInterceptor createLoggingInterceptor(int order, String name, List<String> log) {
         return new OrderedGrpcInterceptor() {
             @Override
-            public int getOrder() {
+            public int order() {
                 return order;
             }
 
