@@ -31,13 +31,19 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BytesRefHash;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -46,6 +52,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -55,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * An aggregator that finds "rare" string values (e.g. terms agg that orders ascending)
@@ -64,7 +72,10 @@ import static java.util.Collections.emptyList;
 public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
     private final ValuesSource.Bytes valuesSource;
     private final IncludeExclude.StringFilter filter;
+    private Weight weight;
     private final BytesKeyedBucketOrds bucketOrds;
+    protected final String fieldName;
+    private final ValuesSourceConfig config;
 
     StringRareTermsAggregator(
         String name,
@@ -77,12 +88,19 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Map<String, Object> metadata,
         long maxDocCount,
         double precision,
-        CardinalityUpperBound cardinality
+        CardinalityUpperBound cardinality,
+        ValuesSourceConfig config
     ) throws IOException {
         super(name, factories, context, parent, metadata, maxDocCount, precision, format);
         this.valuesSource = valuesSource;
         this.filter = filter;
         this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.fieldName = valuesSource.getIndexFieldName();
+        this.config = config;
+    }
+
+    public void setWeight(Weight weight) {
+        this.weight = weight;
     }
 
     @Override
@@ -120,6 +138,68 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
                 }
             }
         };
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (weight == null) {
+            return false;
+        } else {
+            // The optimization could only be used if there are no deleted documents and the top-level
+            // query matches all documents in the segment.
+            if (weight.count(ctx) == 0) {
+                return true;
+            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+                return false;
+            }
+        }
+
+        if (subAggregators.length > 0) {
+            // The optimization does not work when there are subaggregations.
+            // The query has to be a match all, otherwise
+            return false;
+        }
+
+        Terms stringTerms = ctx.reader().terms(fieldName);
+        if (stringTerms == null) {
+            // Field is not indexed.
+            return false;
+        }
+
+        NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
+        if (docCountValues.nextDoc() != NO_MORE_DOCS) {
+            // This segment has at least one document with the _doc_count field.
+            return false;
+        }
+
+        TermsEnum stringTermsEnum = stringTerms.iterator();
+        BytesRef stringTerm = stringTermsEnum.next();
+
+        // Here, we are accounting for the case that there might be missing values for the field name
+        if (config != null && config.missing() != null) {
+            String missingField = (String) config.missing();
+            BytesRef missingFieldTerm = new BytesRef(missingField);
+            int missingCount = weight.count(ctx) - ctx.reader().getDocCount(fieldName);
+            if (missingCount > 0) {
+                // Since the bucket name for the missing documents is not indexed as a potential value for that field,
+                // We will not have to worry about adding to a bucket that was already seen.
+                long bucketOrdinal = bucketOrds.add(0L, missingFieldTerm);
+                incrementBucketDocCount(bucketOrdinal, missingCount);
+            }
+        }
+
+        // Here, we will iterate over all the terms in the segment and add the counts into the bucket.
+        while (stringTerm != null) {
+            if (filter == null || filter.accept(stringTerm)) {
+                long bucketOrdinal = bucketOrds.add(0L, stringTerm);
+                if (bucketOrdinal < 0) { // already seen
+                    bucketOrdinal = -1 - bucketOrdinal;
+                }
+                incrementBucketDocCount(bucketOrdinal, stringTermsEnum.docFreq());
+            }
+            stringTerm = stringTermsEnum.next();
+        }
+        return true;
     }
 
     @Override

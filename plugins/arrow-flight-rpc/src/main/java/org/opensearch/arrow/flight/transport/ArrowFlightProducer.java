@@ -61,7 +61,13 @@ class ArrowFlightProducer extends NoOpFlightProducer {
         // https://github.com/apache/arrow/issues/38668
         executor.execute(() -> {
             FlightCallTracker callTracker = statsCollector.createServerCallTracker();
-            FlightServerChannel channel = new FlightServerChannel(listener, allocator, middleware, callTracker);
+            FlightServerChannel channel = new FlightServerChannel(
+                listener,
+                allocator,
+                middleware,
+                callTracker,
+                flightTransport.getNextFlightExecutor()
+            );
             try {
                 BytesArray buf = new BytesArray(ticket.getBytes());
                 callTracker.recordRequestBytes(buf.ramBytesUsed());
