@@ -105,12 +105,16 @@ public class RuleUtils {
      */
     public static Rule composeUpdatedRule(Rule originalRule, UpdateRuleRequest request, FeatureType featureType) {
         String requestDescription = request.getDescription();
-        Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
         String requestLabel = request.getFeatureValue();
+        Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
+        Map<Attribute, Set<String>> updatedAttributeMap = new HashMap<>(originalRule.getAttributeMap());
+        if (requestMap != null && !requestMap.isEmpty()) {
+            updatedAttributeMap.putAll(requestMap);
+        }
         return new Rule(
             originalRule.getId(),
             requestDescription == null ? originalRule.getDescription() : requestDescription,
-            requestMap == null || requestMap.isEmpty() ? originalRule.getAttributeMap() : requestMap,
+            updatedAttributeMap,
             featureType,
             requestLabel == null ? originalRule.getFeatureValue() : requestLabel,
             Instant.now().toString()
