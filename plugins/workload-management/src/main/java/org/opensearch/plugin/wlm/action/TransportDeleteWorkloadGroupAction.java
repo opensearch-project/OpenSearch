@@ -155,7 +155,7 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("failed to delete rule [{}] as part of workload group delete", rule.getId(), e);
+                logger.warn("failed to delete rule [{}] as part of workload group delete", rule.getId());
             }
         });
     }
