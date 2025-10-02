@@ -61,9 +61,9 @@ public class AggregatorTreeEvaluatorTests extends OpenSearchTestCase {
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.isStreamSearch()).thenReturn(true);
         when(searchContext.getFlushMode()).thenReturn(null);
-        when(searchContext.getStreamingMaxBucketCount()).thenReturn(100000L);
+        when(searchContext.getStreamingMaxEstimatedBucketCount()).thenReturn(100000L);
         when(searchContext.getStreamingMinCardinalityRatio()).thenReturn(0.01);
-        when(searchContext.getStreamingMinBucketCount()).thenReturn(1000L);
+        when(searchContext.getStreamingMinEstimatedBucketCount()).thenReturn(1000L);
         when(searchContext.setFlushModeIfAbsent(FlushMode.PER_SEGMENT)).thenReturn(true);
 
         TestStreamableCollector streamableCollector = mock(TestStreamableCollector.class);
@@ -82,9 +82,9 @@ public class AggregatorTreeEvaluatorTests extends OpenSearchTestCase {
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.isStreamSearch()).thenReturn(true);
         when(searchContext.getFlushMode()).thenReturn(null);
-        when(searchContext.getStreamingMaxBucketCount()).thenReturn(100000L);
+        when(searchContext.getStreamingMaxEstimatedBucketCount()).thenReturn(100000L);
         when(searchContext.getStreamingMinCardinalityRatio()).thenReturn(0.01);
-        when(searchContext.getStreamingMinBucketCount()).thenReturn(1000L);
+        when(searchContext.getStreamingMinEstimatedBucketCount()).thenReturn(1000L);
         when(searchContext.setFlushModeIfAbsent(FlushMode.PER_SHARD)).thenReturn(true);
 
         TestStreamableCollector streamableCollector = mock(TestStreamableCollector.class);
@@ -105,9 +105,9 @@ public class AggregatorTreeEvaluatorTests extends OpenSearchTestCase {
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.isStreamSearch()).thenReturn(true);
         when(searchContext.getFlushMode()).thenReturn(null);
-        when(searchContext.getStreamingMaxBucketCount()).thenReturn(100000L);
+        when(searchContext.getStreamingMaxEstimatedBucketCount()).thenReturn(100000L);
         when(searchContext.getStreamingMinCardinalityRatio()).thenReturn(0.01);
-        when(searchContext.getStreamingMinBucketCount()).thenReturn(1000L);
+        when(searchContext.getStreamingMinEstimatedBucketCount()).thenReturn(1000L);
         when(searchContext.setFlushModeIfAbsent(FlushMode.PER_SEGMENT)).thenReturn(false);
         when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SHARD);
 

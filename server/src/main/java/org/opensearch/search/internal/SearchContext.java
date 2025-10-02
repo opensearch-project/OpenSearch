@@ -522,7 +522,7 @@ public abstract class SearchContext implements Releasable {
     public abstract int getTargetMaxSliceCount();
 
     @ExperimentalApi
-    public long getStreamingMaxBucketCount() {
+    public long getStreamingMaxEstimatedBucketCount() {
         return 100_000L;
     }
 
@@ -532,7 +532,7 @@ public abstract class SearchContext implements Releasable {
     }
 
     @ExperimentalApi
-    public long getStreamingMinBucketCount() {
+    public long getStreamingMinEstimatedBucketCount() {
         return 1000L;
     }
 

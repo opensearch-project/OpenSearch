@@ -132,9 +132,9 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 import static org.opensearch.search.SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
-import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MAX_BUCKET_COUNT;
-import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MIN_BUCKET_COUNT;
+import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT;
 import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO;
+import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT;
 
 /**
  * The main search context used during search phase
@@ -1299,8 +1299,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public long getStreamingMaxBucketCount() {
-        return clusterService.getClusterSettings().get(STREAMING_MAX_BUCKET_COUNT);
+    public long getStreamingMaxEstimatedBucketCount() {
+        return clusterService.getClusterSettings().get(STREAMING_MAX_ESTIMATED_BUCKET_COUNT);
     }
 
     @Override
@@ -1309,7 +1309,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public long getStreamingMinBucketCount() {
-        return clusterService.getClusterSettings().get(STREAMING_MIN_BUCKET_COUNT);
+    public long getStreamingMinEstimatedBucketCount() {
+        return clusterService.getClusterSettings().get(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
     }
 }

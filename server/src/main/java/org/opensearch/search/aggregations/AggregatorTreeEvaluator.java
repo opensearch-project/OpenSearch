@@ -77,9 +77,9 @@ public final class AggregatorTreeEvaluator {
             return cached;
         }
 
-        long maxBucketCount = searchContext.getStreamingMaxBucketCount();
+        long maxBucketCount = searchContext.getStreamingMaxEstimatedBucketCount();
         double minCardinalityRatio = searchContext.getStreamingMinCardinalityRatio();
-        long minBucketCount = searchContext.getStreamingMinBucketCount();
+        long minBucketCount = searchContext.getStreamingMinEstimatedBucketCount();
         FlushMode mode = FlushModeResolver.resolve(collector, FlushMode.PER_SHARD, maxBucketCount, minCardinalityRatio, minBucketCount);
 
         if (!searchContext.setFlushModeIfAbsent(mode)) {

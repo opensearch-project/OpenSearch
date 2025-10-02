@@ -14,6 +14,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.search.aggregations.AggregatorBase;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 
 /**
@@ -31,13 +32,13 @@ public final class FlushModeResolver {
     private static final Logger logger = LogManager.getLogger(FlushModeResolver.class);
 
     /**
-     * Maximum number of buckets allowed for streaming aggregations.
+     * Maximum estimated bucket count allowed for streaming aggregations.
      * If an aggregation is estimated to produce more buckets than this threshold,
      * traditional shard-level processing will be used instead of streaming.
      * This prevents coordinator overload from processing too many streaming buckets.
      */
-    public static final Setting<Long> STREAMING_MAX_BUCKET_COUNT = Setting.longSetting(
-        "search.aggregations.streaming.max_bucket_count",
+    public static final Setting<Long> STREAMING_MAX_ESTIMATED_BUCKET_COUNT = Setting.longSetting(
+        "search.aggregations.streaming.max_estimated_bucket_count",
         100_000L,
         1L,
         Setting.Property.NodeScope,
@@ -61,21 +62,17 @@ public final class FlushModeResolver {
     );
 
     /**
-     * Minimum number of buckets required for streaming aggregations.
+     * Minimum estimated bucket count required for streaming aggregations.
      * If an aggregation is estimated to produce fewer buckets than this threshold,
      * traditional processing is used to avoid streaming overhead for small result sets.
      */
-    public static final Setting<Long> STREAMING_MIN_BUCKET_COUNT = Setting.longSetting(
-        "search.aggregations.streaming.min_bucket_count",
+    public static final Setting<Long> STREAMING_MIN_ESTIMATED_BUCKET_COUNT = Setting.longSetting(
+        "search.aggregations.streaming.min_estimated_bucket_count",
         1000L,
         1L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    private FlushModeResolver() {
-        // Utility class
-    }
 
     /**
      * Determines the optimal flush mode for the given collector tree.
@@ -122,13 +119,15 @@ public final class FlushModeResolver {
      * @return combined metrics if all collectors support streaming, null otherwise
      */
     private static StreamingCostMetrics collectMetrics(Collector collector) {
-        if (!(collector instanceof Streamable)) {
+        if (!(collector instanceof Streamable || collector instanceof MultiBucketCollector || collector instanceof MultiCollector)) {
             return null;
         }
-
-        StreamingCostMetrics nodeMetrics = ((Streamable) collector).getStreamingCostMetrics();
-        if (nodeMetrics == null || !nodeMetrics.isStreamable()) {
-            return null;
+        StreamingCostMetrics nodeMetrics = null;
+        if (collector instanceof Streamable) {
+            nodeMetrics = ((Streamable) collector).getStreamingCostMetrics();
+            if (nodeMetrics == null || !nodeMetrics.isStreamable()) {
+                return null;
+            }
         }
 
         StreamingCostMetrics childMetrics = null;
@@ -138,11 +137,21 @@ public final class FlushModeResolver {
 
             childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);
         }
-
-        return (childMetrics == null) ? nodeMetrics : nodeMetrics.combineWithSubAggregation(childMetrics);
+        if (nodeMetrics == null && childMetrics == null) {
+            return null;
+        } else if (nodeMetrics == null) {
+            return childMetrics;
+        } else if (childMetrics == null) {
+            return nodeMetrics;
+        } else {
+            return nodeMetrics.combineWithSubAggregation(childMetrics);
+        }
     }
 
     private static Collector[] getChildren(Collector collector) {
+        if (collector instanceof AggregatorBase) {
+            return ((AggregatorBase) collector).subAggregators();
+        }
         if (collector instanceof MultiCollector) {
             return ((MultiCollector) collector).getCollectors();
         }
@@ -166,14 +175,14 @@ public final class FlushModeResolver {
         double minCardinalityRatio,
         long minBucketCount
     ) {
-        // 1. Check coordinator overhead - don't stream if too many buckets
+        // Check coordinator overhead - don't stream if too many buckets
         if (metrics.estimatedBucketCount() > maxBucketCount) {
             return FlushMode.PER_SHARD;
         }
 
-        // 2. Prevent regression for low cardinality cases
+        // Prevent regression for low cardinality cases
         // Check both absolute bucket count and cardinality ratio
-        if (metrics.estimatedBucketCount() < minBucketCount) { // Too few buckets for streaming overhead
+        if (metrics.estimatedBucketCount() < minBucketCount) {
             return FlushMode.PER_SHARD;
         }
 
