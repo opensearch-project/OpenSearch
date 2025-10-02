@@ -57,13 +57,23 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
      * @return combined metrics reflecting the nested relationship, or non-streamable if either input is non-streamable
      */
     public StreamingCostMetrics combineWithSubAggregation(StreamingCostMetrics subAggMetrics) {
-        if (!this.streamable || !subAggMetrics.streamable) {
+        if (!this.streamable || subAggMetrics == null || !subAggMetrics.streamable) {
             return nonStreamable();
         }
 
-        long combinedTopNSize = this.topNSize * subAggMetrics.topNSize;
+        long combinedTopNSize;
+        try {
+            combinedTopNSize = Math.multiplyExact(this.topNSize, subAggMetrics.topNSize);
+        } catch (ArithmeticException e) {
+            return nonStreamable();
+        }
 
-        long combinedEstimatedBucketCount = this.estimatedBucketCount * subAggMetrics.estimatedBucketCount;
+        long combinedEstimatedBucketCount;
+        try {
+            combinedEstimatedBucketCount = Math.multiplyExact(this.estimatedBucketCount, subAggMetrics.estimatedBucketCount);
+        } catch (ArithmeticException e) {
+            return nonStreamable();
+        }
 
         return new StreamingCostMetrics(
             true,
@@ -85,13 +95,23 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
      * @return combined metrics reflecting the parallel relationship, or non-streamable if either input is non-streamable
      */
     public StreamingCostMetrics combineWithSibling(StreamingCostMetrics siblingMetrics) {
-        if (!this.streamable || !siblingMetrics.streamable) {
+        if (!this.streamable || siblingMetrics == null || !siblingMetrics.streamable) {
             return nonStreamable();
         }
 
-        long combinedTopNSize = this.topNSize + siblingMetrics.topNSize;
+        long combinedTopNSize;
+        try {
+            combinedTopNSize = Math.addExact(this.topNSize, siblingMetrics.topNSize);
+        } catch (ArithmeticException e) {
+            return nonStreamable();
+        }
 
-        long combinedEstimatedBucketCount = this.estimatedBucketCount + siblingMetrics.estimatedBucketCount;
+        long combinedEstimatedBucketCount;
+        try {
+            combinedEstimatedBucketCount = Math.addExact(this.estimatedBucketCount, siblingMetrics.estimatedBucketCount);
+        } catch (ArithmeticException e) {
+            return nonStreamable();
+        }
 
         return new StreamingCostMetrics(
             true,

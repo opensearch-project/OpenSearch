@@ -122,14 +122,15 @@ public final class FlushModeResolver {
         if (!(collector instanceof Streamable || collector instanceof MultiBucketCollector || collector instanceof MultiCollector)) {
             return null;
         }
-        StreamingCostMetrics nodeMetrics = null;
+        StreamingCostMetrics nodeMetrics;
         if (collector instanceof Streamable) {
             nodeMetrics = ((Streamable) collector).getStreamingCostMetrics();
             if (nodeMetrics == null || !nodeMetrics.isStreamable()) {
                 return null;
             }
+        } else {
+            return null;
         }
-
         StreamingCostMetrics childMetrics = null;
         for (Collector child : getChildren(collector)) {
             StreamingCostMetrics childResult = collectMetrics(child);
@@ -137,15 +138,7 @@ public final class FlushModeResolver {
 
             childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);
         }
-        if (nodeMetrics == null && childMetrics == null) {
-            return null;
-        } else if (nodeMetrics == null) {
-            return childMetrics;
-        } else if (childMetrics == null) {
-            return nodeMetrics;
-        } else {
-            return nodeMetrics.combineWithSubAggregation(childMetrics);
-        }
+        return childMetrics != null ? nodeMetrics.combineWithSubAggregation(childMetrics) : nodeMetrics;
     }
 
     private static Collector[] getChildren(Collector collector) {

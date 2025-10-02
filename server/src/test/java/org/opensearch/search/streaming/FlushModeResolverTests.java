@@ -9,6 +9,7 @@
 package org.opensearch.search.streaming;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -17,9 +18,11 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
@@ -36,6 +39,7 @@ import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -335,6 +339,75 @@ public class FlushModeResolverTests extends AggregatorTestCase {
                 SMALL_BUCKET_LIMIT,
                 HIGH_CARDINALITY_RATIO,
                 MIN_BUCKET_THRESHOLD
+            );
+
+            assertEquals(FlushMode.PER_SEGMENT, result);
+        });
+    }
+
+    public void testResolveWithStreamableDoubleAggregator() throws IOException {
+        withIndex(writer -> {
+            for (int i = 0; i < 100; i++) {
+                Document document = new Document();
+                double value = (i % 5) + 0.5; // 5 unique double values: 0.5, 1.5, 2.5, 3.5, 4.5
+                document.add(new SortedNumericDocValuesField("double_field", NumericUtils.doubleToSortableLong(value)));
+                document.add(new DoublePoint("double_field", value));
+                writer.addDocument(document);
+            }
+        }, searcher -> {
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("double_field", NumberFieldMapper.NumberType.DOUBLE);
+            TermsAggregationBuilder builder = new TermsAggregationBuilder("doubles").field("double_field");
+            StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                null,
+                builder,
+                searcher,
+                createIndexSettings(),
+                createBucketConsumer(),
+                fieldType
+            );
+
+            FlushMode result = FlushModeResolver.resolve(
+                aggregator,
+                FlushMode.PER_SHARD,
+                SMALL_BUCKET_LIMIT,
+                0.01, // Lower cardinality ratio threshold
+                1 // Lower min bucket threshold
+            );
+
+            assertEquals(FlushMode.PER_SEGMENT, result);
+        });
+    }
+
+    public void testResolveWithStreamableUnsignedLongAggregator() throws IOException {
+        withIndex(writer -> {
+            for (int i = 0; i < 100; i++) {
+                Document document = new Document();
+                BigInteger value = BigInteger.valueOf(i % 8); // 8 unique unsigned long values
+                document.add(new SortedNumericDocValuesField("unsigned_long_field", value.longValue()));
+                document.add(new BigIntegerPoint("unsigned_long_field", value));
+                writer.addDocument(document);
+            }
+        }, searcher -> {
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+                "unsigned_long_field",
+                NumberFieldMapper.NumberType.UNSIGNED_LONG
+            );
+            TermsAggregationBuilder builder = new TermsAggregationBuilder("unsigned_longs").field("unsigned_long_field");
+            StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                null,
+                builder,
+                searcher,
+                createIndexSettings(),
+                createBucketConsumer(),
+                fieldType
+            );
+
+            FlushMode result = FlushModeResolver.resolve(
+                aggregator,
+                FlushMode.PER_SHARD,
+                SMALL_BUCKET_LIMIT,
+                0.01, // Lower cardinality ratio threshold
+                1 // Lower min bucket threshold
             );
 
             assertEquals(FlushMode.PER_SEGMENT, result);

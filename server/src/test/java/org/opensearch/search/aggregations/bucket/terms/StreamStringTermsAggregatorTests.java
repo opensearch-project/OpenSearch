@@ -1259,4 +1259,58 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+
+    public void testCollectDebugInfo() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
+                iw.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
+                iw.addDocument(document);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
+
+                TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string");
+                StreamStringTermsAggregator aggregator = createStreamAggregator(
+                    null,
+                    aggregationBuilder,
+                    indexSearcher,
+                    createIndexSettings(),
+                    new MultiBucketConsumerService.MultiBucketConsumer(
+                        DEFAULT_MAX_BUCKETS,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    ),
+                    fieldType
+                );
+
+                // Collect debug info
+                java.util.Map<String, Object> debugInfo = new java.util.HashMap<>();
+                java.util.function.BiConsumer<String, Object> debugCollector = debugInfo::put;
+                aggregator.collectDebugInfo(debugCollector);
+
+                // Verify debug info contains expected keys
+                assertTrue("Should contain result_strategy", debugInfo.containsKey("result_strategy"));
+                assertEquals("streaming_terms", debugInfo.get("result_strategy"));
+
+                assertTrue("Should contain segments_with_single_valued_ords", debugInfo.containsKey("segments_with_single_valued_ords"));
+                assertTrue("Should contain segments_with_multi_valued_ords", debugInfo.containsKey("segments_with_multi_valued_ords"));
+
+                assertTrue("Should contain streaming_enabled", debugInfo.containsKey("streaming_enabled"));
+                assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
+                assertTrue("Should contain streaming_estimated_buckets", debugInfo.containsKey("streaming_estimated_buckets"));
+                assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
+                assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
+
+                // Verify some values
+                assertEquals(Boolean.TRUE, debugInfo.get("streaming_enabled"));
+                assertTrue("streaming_top_n_size should be positive", (Long) debugInfo.get("streaming_top_n_size") > 0);
+                assertTrue("streaming_segment_count should be positive", (Integer) debugInfo.get("streaming_segment_count") > 0);
+            }
+        }
+    }
 }
