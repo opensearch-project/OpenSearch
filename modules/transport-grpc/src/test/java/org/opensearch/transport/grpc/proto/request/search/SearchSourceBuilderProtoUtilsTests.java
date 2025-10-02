@@ -584,4 +584,84 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertFalse("IgnoreFailure should be false by default", scriptField.ignoreFailure());
     }
 
+    public void testParseProtoWithHighlight() throws IOException {
+        // Test the highlight functionality (line 70)
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setHighlight(
+                org.opensearch.protobufs.Highlight.newBuilder()
+                    .addPreTags("<em>")
+                    .addPostTags("</em>")
+                    .build()
+            )
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("Highlight should be set", searchSourceBuilder.highlighter());
+        String[] preTags = searchSourceBuilder.highlighter().preTags();
+        assertEquals("Should have one pre tag", 1, preTags.length);
+        assertEquals("Pre tag should match", "<em>", preTags[0]);
+    }
+
+    public void testParseProtoWithXSource() throws IOException {
+        // Test the XSource functionality (lines 124/144)
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setXSource(
+                org.opensearch.protobufs.SourceConfig.newBuilder()
+                    .setFilter(
+                        org.opensearch.protobufs.SourceFilter.newBuilder()
+                            .addIncludes("field1")
+                            .addIncludes("field2")
+                            .addExcludes("field3")
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("FetchSource should be set", searchSourceBuilder.fetchSource());
+        assertTrue("FetchSource should be enabled", searchSourceBuilder.fetchSource().fetchSource());
+        assertEquals("Should have 2 includes", 2, searchSourceBuilder.fetchSource().includes().length);
+        assertEquals("Should have 1 exclude", 1, searchSourceBuilder.fetchSource().excludes().length);
+    }
+
+    public void testParseProtoWithStoredFields() throws IOException {
+        // Test the stored fields functionality (line 127)
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .addStoredFields("field1")
+            .addStoredFields("field2")
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("StoredFields should be set", searchSourceBuilder.storedFields());
+        assertEquals("Should have 2 stored fields", 2, searchSourceBuilder.storedFields().fieldNames().size());
+        assertTrue("Should contain field1", searchSourceBuilder.storedFields().fieldNames().contains("field1"));
+        assertTrue("Should contain field2", searchSourceBuilder.storedFields().fieldNames().contains("field2"));
+    }
+
+    public void testParseProtoWithSort() throws IOException {
+        // Test the sort functionality (lines 130-132)
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .addSort(
+                org.opensearch.protobufs.SortCombinations.newBuilder()
+                    .setField("timestamp")
+                    .build()
+            )
+            .build();
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
+
+        assertNotNull("Sorts should be set", searchSourceBuilder.sorts());
+        assertEquals("Should have 1 sort", 1, searchSourceBuilder.sorts().size());
+        // Check that the sort contains the field name (toString() is used for debugging)
+        assertTrue("Sort should contain timestamp field", searchSourceBuilder.sorts().get(0).toString().contains("timestamp"));
+    }
+
 }

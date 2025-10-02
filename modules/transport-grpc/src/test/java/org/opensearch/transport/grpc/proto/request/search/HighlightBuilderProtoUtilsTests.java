@@ -530,4 +530,68 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals(5, (int) resultContentField.numOfFragments());
         assertEquals("plain", resultContentField.highlighterType());
     }
+
+    public void testFromProto_WithFieldCustomHighlighterType() {
+        // Test field with custom highlighter type (line 179-180)
+        HighlightField fieldProto = HighlightField.newBuilder()
+            .setType(HighlighterType.newBuilder().setCustom("custom_field_highlighter").build())
+            .build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        HighlightBuilder.Field titleField = fields.get(0);
+        assertEquals("custom_field_highlighter", titleField.highlighterType());
+    }
+
+    public void testFromProto_WithFieldNullBoundaryScanner() {
+        // Test field boundary scanner with null return (line 194)
+        HighlightField fieldProto = HighlightField.newBuilder()
+            .setBoundaryScanner(BoundaryScanner.BOUNDARY_SCANNER_UNSPECIFIED)
+            .build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        HighlightBuilder.Field titleField = fields.get(0);
+        // Should not set boundary scanner type when it's null
+        assertNull(titleField.boundaryScannerType());
+    }
+
+    public void testFromProto_WithFieldUnspecifiedFragmenter() {
+        // Test field fragmenter with unspecified value (line 203)
+        HighlightField fieldProto = HighlightField.newBuilder()
+            .setFragmenter(HighlighterFragmenter.HIGHLIGHTER_FRAGMENTER_UNSPECIFIED)
+            .build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        HighlightBuilder.Field titleField = fields.get(0);
+        // Should not set fragmenter when it's unspecified
+        assertNull(titleField.fragmenter());
+    }
+
+    public void testFromProto_WithFieldHighlightQueryNullRegistry() {
+        // Test field highlight query with null registry (line 216-217)
+        HighlightField fieldProto = HighlightField.newBuilder()
+            .setHighlightQuery(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
+            .build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+            HighlightBuilderProtoUtils.fromProto(highlightProto, null);
+        });
+        assertEquals("QueryBuilderProtoConverterRegistry cannot be null.", exception.getMessage());
+    }
 }
