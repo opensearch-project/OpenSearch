@@ -35,10 +35,10 @@ public interface Streamable {
      * collectors. The framework combines metrics from the entire collector tree to make
      * streaming decisions.
      *
-     * <p>Returning null or non-streamable metrics disables streaming for the entire query,
+     * <p>Returning non-streamable metrics disables streaming for the entire query,
      * as streaming requires all collectors in the tree to support it.
      *
-     * @return cost metrics for this collector, or null if streaming is not supported
+     * @return cost metrics for this collector, or {@link StreamingCostMetrics#nonStreamable()} if streaming is not supported
      */
     StreamingCostMetrics getStreamingCostMetrics();
 }

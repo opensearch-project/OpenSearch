@@ -554,53 +554,43 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
     @Override
     public StreamingCostMetrics getStreamingCostMetrics() {
-        long topNSize = bucketCountThresholds.getShardSize();
         try {
             String fieldName = valuesSource.getIndexFieldName();
             long totalDocsWithField = PointValues.size(context.searcher().getIndexReader(), fieldName);
-            long maxCardinality;
             int segmentCount = context.searcher().getIndexReader().leaves().size();
-            if (totalDocsWithField > 0) {
-                MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(fieldName);
-                if (fieldType != null && fieldType.unwrap() instanceof NumberFieldType numberFieldType) {
-                    Number minPoint = numberFieldType.parsePoint(
-                        PointValues.getMinPackedValue(context.searcher().getIndexReader(), fieldName)
-                    );
-                    Number maxPoint = numberFieldType.parsePoint(
-                        PointValues.getMaxPackedValue(context.searcher().getIndexReader(), fieldName)
-                    );
 
-                    switch (resultStrategy) {
-                        case LongTermsResults ignored -> {
-                            long min = minPoint.longValue();
-                            long max = maxPoint.longValue();
-                            maxCardinality = Math.max(1, max - min + 1);
-                        }
-                        case DoubleTermsResults ignored -> {
-                            double min = minPoint.doubleValue();
-                            double max = maxPoint.doubleValue();
-                            // For doubles, estimate based on reasonable precision
-                            maxCardinality = Math.max(1, Math.min((long) (max - min + 1), totalDocsWithField));
-                        }
-                        case UnsignedLongTermsResults ignored -> {
-                            long min = minPoint.longValue();
-                            long max = maxPoint.longValue();
-                            maxCardinality = Math.max(1, max - min + 1);
-                        }
-                        case null, default ->
-                            // Unknown result strategy type
-                            maxCardinality = 1;
-                    }
-                } else {
-                    // Fallback: use low cardinality to force PER_SHARD mode
-                    maxCardinality = 1;
-                }
-            } else {
-                // No point values available, use low cardinality to force PER_SHARD mode
-                maxCardinality = 1;
+            if (totalDocsWithField == 0) {
+                return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), 0, segmentCount, 0);
             }
 
-            return new StreamingCostMetrics(true, topNSize, maxCardinality, segmentCount, totalDocsWithField);
+            MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(fieldName);
+            if (fieldType == null || !(fieldType.unwrap() instanceof NumberFieldType numberFieldType)) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+
+            Number minPoint = numberFieldType.parsePoint(PointValues.getMinPackedValue(context.searcher().getIndexReader(), fieldName));
+            Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(context.searcher().getIndexReader(), fieldName));
+
+            long maxCardinality = switch (resultStrategy) {
+                case LongTermsResults ignored -> {
+                    long min = minPoint.longValue();
+                    long max = maxPoint.longValue();
+                    yield Math.max(1, max - min + 1);
+                }
+                case DoubleTermsResults ignored -> {
+                    double min = minPoint.doubleValue();
+                    double max = maxPoint.doubleValue();
+                    yield Math.max(1, Math.min((long) (max - min + 1), totalDocsWithField));
+                }
+                case UnsignedLongTermsResults ignored -> {
+                    long min = minPoint.longValue();
+                    long max = maxPoint.longValue();
+                    yield Math.max(1, max - min + 1);
+                }
+                case null, default -> 1L;
+            };
+
+            return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), maxCardinality, segmentCount, totalDocsWithField);
         } catch (IOException e) {
             return StreamingCostMetrics.nonStreamable();
         }

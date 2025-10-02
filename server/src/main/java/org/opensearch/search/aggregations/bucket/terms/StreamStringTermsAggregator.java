@@ -139,8 +139,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
 
     @Override
     public StreamingCostMetrics getStreamingCostMetrics() {
-        long topNSize = bucketCountThresholds.getShardSize();
-
         try {
             List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
             long maxCardinality = 0;
@@ -154,7 +152,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
                 }
             }
 
-            return new StreamingCostMetrics(true, topNSize, maxCardinality, leaves.size(), totalDocsWithField);
+            return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), maxCardinality, leaves.size(), totalDocsWithField);
         } catch (IOException e) {
             return StreamingCostMetrics.nonStreamable();
         }

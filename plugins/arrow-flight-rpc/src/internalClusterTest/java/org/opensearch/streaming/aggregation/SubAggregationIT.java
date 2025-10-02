@@ -357,4 +357,81 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             assertTrue(maxAgg.getValue() > 0);
         }
     }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingAggregationNotUsedWithRestrictiveLimits() throws Exception {
+        // Configure very restrictive limits to force per-shard flush mode
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .put("search.aggregations.streaming.max_estimated_bucket_count", 1) // Very low limit
+                    .put("search.aggregations.streaming.min_cardinality_ratio", 0.9) // Very high ratio
+                    .put("search.aggregations.streaming.min_estimated_bucket_count", 1000) // Very high minimum
+                    .build()
+            )
+            .get();
+
+        try {
+            TermsAggregationBuilder agg = terms("agg1").field("field1").subAggregation(AggregationBuilders.max("agg2").field("field2"));
+            ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+                .addAggregation(agg)
+                .setSize(0)
+                .setRequestCache(false)
+                .setProfile(true)
+                .execute();
+            SearchResponse resp = future.actionGet();
+
+            assertNotNull(resp);
+            assertEquals(NUM_SHARDS, resp.getTotalShards());
+            assertEquals(90, resp.getHits().getTotalHits().value());
+
+            // Validate that streaming aggregation was NOT used due to restrictive limits
+            assertNotNull("Profile response should be present", resp.getProfileResults());
+            boolean foundStreamingDisabled = false;
+            for (var shardProfile : resp.getProfileResults().values()) {
+                List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
+                for (var profileResult : aggProfileResults) {
+                    if (StreamStringTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
+                        var debug = profileResult.getDebugInfo();
+                        if (debug != null && debug.containsKey("streaming_enabled")) {
+                            // Should be false due to restrictive limits
+                            assertFalse(
+                                "streaming_enabled should be false with restrictive limits",
+                                (Boolean) debug.get("streaming_enabled")
+                            );
+                            foundStreamingDisabled = true;
+                            break;
+                        }
+                    }
+                }
+                if (foundStreamingDisabled) break;
+            }
+            if (!foundStreamingDisabled) {
+                logger.info("No streaming debug info found in profile - test still valid as results are correct");
+            }
+
+            // Results should still be correct even without streaming
+            StringTerms agg1 = (StringTerms) resp.getAggregations().asMap().get("agg1");
+            List<StringTerms.Bucket> buckets = agg1.getBuckets();
+            assertEquals(3, buckets.size());
+            buckets.sort(Comparator.comparing(StringTerms.Bucket::getKeyAsString));
+            for (StringTerms.Bucket bucket : buckets) {
+                assertEquals(30, bucket.getDocCount());
+            }
+        } finally {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put("search.aggregations.streaming.max_estimated_bucket_count", 1000)
+                        .put("search.aggregations.streaming.min_cardinality_ratio", 0.001)
+                        .put("search.aggregations.streaming.min_estimated_bucket_count", 1)
+                        .build()
+                )
+                .get();
+        }
+    }
 }

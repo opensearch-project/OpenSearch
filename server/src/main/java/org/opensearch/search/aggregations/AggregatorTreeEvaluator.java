@@ -83,6 +83,7 @@ public final class AggregatorTreeEvaluator {
         FlushMode mode = FlushModeResolver.resolve(collector, FlushMode.PER_SHARD, maxBucketCount, minCardinalityRatio, minBucketCount);
 
         if (!searchContext.setFlushModeIfAbsent(mode)) {
+            // this could happen in case of race condition, we go ahead with what's been set already
             FlushMode existingMode = searchContext.getFlushMode();
             return existingMode != null ? existingMode : mode;
         }

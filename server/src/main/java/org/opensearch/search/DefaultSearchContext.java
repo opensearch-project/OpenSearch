@@ -118,7 +118,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -226,7 +225,7 @@ final class DefaultSearchContext extends SearchContext {
 
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
-    private final AtomicReference<FlushMode> cachedFlushMode = new AtomicReference<>();
+    private final SetOnce<FlushMode> cachedFlushMode = new SetOnce<>();
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -1295,7 +1294,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public boolean setFlushModeIfAbsent(FlushMode flushMode) {
-        return cachedFlushMode.compareAndSet(null, flushMode);
+        return cachedFlushMode.trySet(flushMode);
     }
 
     @Override

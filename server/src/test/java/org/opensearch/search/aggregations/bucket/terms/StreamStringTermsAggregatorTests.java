@@ -49,7 +49,10 @@ import org.opensearch.search.streaming.StreamingCostMetrics;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
@@ -1289,11 +1292,10 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 );
 
                 // Collect debug info
-                java.util.Map<String, Object> debugInfo = new java.util.HashMap<>();
-                java.util.function.BiConsumer<String, Object> debugCollector = debugInfo::put;
+                Map<String, Object> debugInfo = new HashMap<>();
+                BiConsumer<String, Object> debugCollector = debugInfo::put;
                 aggregator.collectDebugInfo(debugCollector);
 
-                // Verify debug info contains expected keys
                 assertTrue("Should contain result_strategy", debugInfo.containsKey("result_strategy"));
                 assertEquals("streaming_terms", debugInfo.get("result_strategy"));
 
@@ -1306,7 +1308,6 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
                 assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
 
-                // Verify some values
                 assertEquals(Boolean.TRUE, debugInfo.get("streaming_enabled"));
                 assertTrue("streaming_top_n_size should be positive", (Long) debugInfo.get("streaming_top_n_size") > 0);
                 assertTrue("streaming_segment_count should be positive", (Integer) debugInfo.get("streaming_segment_count") > 0);

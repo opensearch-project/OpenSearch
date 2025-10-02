@@ -81,6 +81,7 @@ public final class FlushModeResolver {
      * @param defaultMode fallback mode if streaming is not supported
      * @param maxBucketCount maximum bucket count threshold
      * @param minCardinalityRatio minimum cardinality ratio threshold
+     * @param minBucketCount minimum estimated bucket count threshold
      * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise the default mode
      */
     public static FlushMode resolve(
@@ -91,50 +92,45 @@ public final class FlushModeResolver {
         long minBucketCount
     ) {
         StreamingCostMetrics metrics = collectMetrics(collector);
-        if (metrics != null) {
-            FlushMode decision = decideFlushMode(metrics, maxBucketCount, minCardinalityRatio, minBucketCount);
-            logger.debug(
-                "Streaming decision: {} - Metrics: buckets={}, docs={}, topN={}, segments={}, cardinality_ratio={}, thresholds: max_buckets={}, min_buckets={}, min_cardinality_ratio={}",
-                decision,
-                metrics.estimatedBucketCount(),
-                metrics.estimatedDocCount(),
-                metrics.topNSize(),
-                metrics.segmentCount(),
-                metrics.estimatedDocCount() > 0 ? (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount() : 0.0,
-                maxBucketCount,
-                minBucketCount,
-                minCardinalityRatio
-            );
-            return decision;
-        } else {
-            logger.debug("Streaming decision: {} - Collector tree not streamable", defaultMode);
-            return defaultMode;
-        }
+        FlushMode decision = decideFlushMode(metrics, defaultMode, maxBucketCount, minCardinalityRatio, minBucketCount);
+        logger.debug(
+            "Streaming decision: {} - Metrics: buckets={}, docs={}, topN={}, segments={}, cardinality_ratio={}, thresholds: max_buckets={}, min_buckets={}, min_cardinality_ratio={}",
+            decision,
+            metrics.estimatedBucketCount(),
+            metrics.estimatedDocCount(),
+            metrics.topNSize(),
+            metrics.segmentCount(),
+            metrics.estimatedDocCount() > 0 ? (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount() : 0.0,
+            maxBucketCount,
+            minBucketCount,
+            minCardinalityRatio
+        );
+        return decision;
     }
 
     /**
      * Collects and combines streaming metrics from the collector tree.
      *
      * @param collector the collector to analyze
-     * @return combined metrics if all collectors support streaming, null otherwise
+     * @return combined metrics if all collectors support streaming, nonStreamable otherwise
      */
     private static StreamingCostMetrics collectMetrics(Collector collector) {
         if (!(collector instanceof Streamable || collector instanceof MultiBucketCollector || collector instanceof MultiCollector)) {
-            return null;
+            return StreamingCostMetrics.nonStreamable();
         }
         StreamingCostMetrics nodeMetrics;
         if (collector instanceof Streamable) {
             nodeMetrics = ((Streamable) collector).getStreamingCostMetrics();
-            if (nodeMetrics == null || !nodeMetrics.isStreamable()) {
-                return null;
+            if (!nodeMetrics.isStreamable()) {
+                return StreamingCostMetrics.nonStreamable();
             }
         } else {
-            return null;
+            return StreamingCostMetrics.nonStreamable();
         }
         StreamingCostMetrics childMetrics = null;
         for (Collector child : getChildren(collector)) {
             StreamingCostMetrics childResult = collectMetrics(child);
-            if (childResult == null) return null;
+            if (!childResult.isStreamable()) return StreamingCostMetrics.nonStreamable();
 
             childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);
         }
@@ -158,31 +154,36 @@ public final class FlushModeResolver {
      * Evaluates cost metrics to determine if streaming is beneficial.
      *
      * @param metrics combined cost metrics from the collector tree
+     * @param defaultMode fallback mode when streaming is not beneficial
      * @param maxBucketCount maximum bucket count threshold
      * @param minCardinalityRatio minimum cardinality ratio threshold
-     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, {@link FlushMode#PER_SHARD} otherwise
+     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise the default mode
      */
     private static FlushMode decideFlushMode(
         StreamingCostMetrics metrics,
+        FlushMode defaultMode,
         long maxBucketCount,
         double minCardinalityRatio,
         long minBucketCount
     ) {
+        if (!metrics.isStreamable()) {
+            return defaultMode;
+        }
         // Check coordinator overhead - don't stream if too many buckets
         if (metrics.estimatedBucketCount() > maxBucketCount) {
-            return FlushMode.PER_SHARD;
+            return defaultMode;
         }
 
         // Prevent regression for low cardinality cases
-        // Check both absolute bucket count and cardinality ratio
+        // Check both absolute bucket count and cardinality ratioCollapse comment
         if (metrics.estimatedBucketCount() < minBucketCount) {
-            return FlushMode.PER_SHARD;
+            return defaultMode;
         }
 
         if (metrics.estimatedDocCount() > 0) {
             double cardinalityRatio = (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount();
             if (cardinalityRatio < minCardinalityRatio) {
-                return FlushMode.PER_SHARD;
+                return defaultMode;
             }
         }
 
