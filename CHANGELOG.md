@@ -101,6 +101,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Implement SslHandler retrieval logic for transport-reactor-netty4 plugin ([#19458](https://github.com/opensearch-project/OpenSearch/pull/19458))
 - Cache serialised cluster state based on cluster state version and node version.([#19307](https://github.com/opensearch-project/OpenSearch/pull/19307))
 - Fix stats API in store-subdirectory module's SubdirectoryAwareStore ([#19470](https://github.com/opensearch-project/OpenSearch/pull/19470))
+- Setting number of sharedArenaMaxPermits to 1 ([#19503](https://github.com/opensearch-project/OpenSearch/pull/19503))
 - Handle negative search request nodes stats ([#19340](https://github.com/opensearch-project/OpenSearch/pull/19340))
 - Remove unnecessary iteration per-shard in request cache cleanup ([#19263](https://github.com/opensearch-project/OpenSearch/pull/19263))
 
