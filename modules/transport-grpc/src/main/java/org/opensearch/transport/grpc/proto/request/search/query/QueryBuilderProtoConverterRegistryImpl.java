@@ -13,6 +13,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Singleton;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.transport.grpc.proto.request.search.query.functionscore.FunctionScoreQueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
@@ -61,6 +62,7 @@ public class QueryBuilderProtoConverterRegistryImpl implements QueryBuilderProto
         delegate.registerConverter(new IdsQueryBuilderProtoConverter());
         delegate.registerConverter(new RangeQueryBuilderProtoConverter());
         delegate.registerConverter(new TermsSetQueryBuilderProtoConverter());
+        delegate.registerConverter(new FunctionScoreQueryBuilderProtoConverter());
 
         // Set the registry on all converters so they can access each other
         delegate.setRegistryOnAllConverters(this);
