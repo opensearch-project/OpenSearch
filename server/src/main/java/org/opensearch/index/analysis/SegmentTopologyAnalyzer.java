@@ -210,7 +210,6 @@ public class SegmentTopologyAnalyzer implements Writeable {
         }
     }
 
-    // Getters
     public List<Segment> getSegments() {
         return segments;
     }
