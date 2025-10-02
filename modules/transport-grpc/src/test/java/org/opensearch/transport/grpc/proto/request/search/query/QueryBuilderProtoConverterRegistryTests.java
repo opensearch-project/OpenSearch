@@ -14,6 +14,8 @@ import org.opensearch.protobufs.CoordsGeoBounds;
 import org.opensearch.protobufs.DoubleArray;
 import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.FunctionScoreContainer;
+import org.opensearch.protobufs.FunctionScoreQuery;
 import org.opensearch.protobufs.GeoBoundingBoxQuery;
 import org.opensearch.protobufs.GeoBounds;
 import org.opensearch.protobufs.GeoDistanceQuery;
@@ -570,5 +572,38 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         QueryBuilder queryBuilder = registry.fromProto(queryContainer);
         assertNotNull("QueryBuilder should not be null after register and update operations", queryBuilder);
         assertEquals("Should be an ExistsQueryBuilder", "org.opensearch.index.query.ExistsQueryBuilder", queryBuilder.getClass().getName());
+    }
+
+    public void testFunctionScoreQueryConversion() {
+        // Create a simple weight function container
+        FunctionScoreContainer functionContainer = FunctionScoreContainer.newBuilder().setWeight(2.0f).build();
+
+        // Create a Term query as the base query
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setField("test_field")
+            .setValue(FieldValue.newBuilder().setString("test_value").build())
+            .build();
+        QueryContainer baseQueryContainer = QueryContainer.newBuilder().setTerm(termQuery).build();
+
+        // Create a FunctionScore query container
+        FunctionScoreQuery functionScoreQuery = FunctionScoreQuery.newBuilder()
+            .setQuery(baseQueryContainer)
+            .addFunctions(functionContainer)
+            .setBoost(1.5f)
+            .setXName("test_function_score")
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setFunctionScore(functionScoreQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a FunctionScoreQueryBuilder",
+            "org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
     }
 }
