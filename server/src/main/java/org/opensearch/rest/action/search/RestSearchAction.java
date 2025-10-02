@@ -42,6 +42,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -76,6 +77,7 @@ import java.util.function.IntConsumer;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
@@ -96,6 +98,14 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     public static final String INCLUDE_NAMED_QUERIES_SCORE_PARAM = "include_named_queries_score";
     private static final Set<String> RESPONSE_PARAMS;
+
+    private ClusterSettings clusterSettings;
+
+    public RestSearchAction() {}
+
+    public RestSearchAction(ClusterSettings clusterSettings) {
+        this.clusterSettings = clusterSettings;
+    }
 
     static {
         final Set<String> responseParams = new HashSet<>(
@@ -141,7 +151,7 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        if (FeatureFlags.isEnabled(FeatureFlags.STREAM_SEARCH)) {
+        if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
                 if (canUseStreamSearch(searchRequest)) {
                     return channel -> {

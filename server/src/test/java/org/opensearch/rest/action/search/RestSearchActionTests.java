@@ -12,8 +12,8 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.index.query.QueryBuilders;
@@ -27,7 +27,6 @@ import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
 
-import static org.opensearch.common.util.FeatureFlags.STREAM_SEARCH;
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -65,14 +64,13 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testWithSearchStreamFlagDisabled() throws Exception {
-        // When SEARCH_STREAM flag is disabled, always use SearchAction
+    public void testWithSearchStreamDisabled() throws Exception {
+        // When stream search is disabled, always use SearchAction
         testActionExecution(SearchAction.INSTANCE);
     }
 
-    @LockFeatureFlag(STREAM_SEARCH)
     public void testWithStreamSearchEnabledButStreamTransportDisabled() throws Exception {
-        // When SEARCH_STREAM is enabled but STREAM_TRANSPORT is disabled, should throw exception
+        // When stream search is enabled but STREAM_TRANSPORT is disabled, should throw exception
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
@@ -85,14 +83,9 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
+    @LockFeatureFlag(STREAM_TRANSPORT)
     public void testWithStreamSearchAndTransportEnabled() throws Exception {
-        // When both SEARCH_STREAM and STREAM_TRANSPORT are enabled, should use StreamSearchAction
-        try (
-            FeatureFlags.TestUtils.FlagWriteLock searchStreamLock = new FeatureFlags.TestUtils.FlagWriteLock(STREAM_SEARCH);
-            FeatureFlags.TestUtils.FlagWriteLock streamTransportLock = new FeatureFlags.TestUtils.FlagWriteLock(STREAM_TRANSPORT)
-        ) {
-            testActionExecution(SearchAction.INSTANCE);
-        }
+        testActionExecution(StreamSearchAction.INSTANCE);
     }
 
     // Tests for canUseStreamSearch method
