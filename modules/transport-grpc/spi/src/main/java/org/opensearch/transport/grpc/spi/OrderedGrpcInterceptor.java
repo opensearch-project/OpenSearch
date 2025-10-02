@@ -21,7 +21,7 @@ public interface OrderedGrpcInterceptor {
      * Lower values indicate higher priority.
      * Must be implemented by all interceptors. No two interceptors should have same order
      */
-    int getOrder();
+    int order();
 
     /**
      * Returns the actual gRPC ServerInterceptor instance.
