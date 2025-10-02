@@ -278,7 +278,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private void checkCancellation() {
         if (isTaskCancelled.getAsBoolean()) {
-            pendingMerges.onMergeFailure(new TaskCancelledException("request has been terminated"));
+            pendingMerges.onFailure(new TaskCancelledException("request has been terminated"));
         }
     }
 
@@ -416,7 +416,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     addEstimateAndMaybeBreak(aggsSize);
                     aggsCurrentBufferSize += aggsSize;
                 } catch (CircuitBreakingException e) {
-                    onMergeFailure(e);
+                    onFailure(e);
                     return true;
                 }
             }
@@ -470,7 +470,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         ++numReducePhases;
                         newMerge = partialReduce(toConsume, task.emptyResults, topDocsStats, thisMergeResult, numReducePhases);
                     } catch (Exception t) {
-                        onMergeFailure(t);
+                        PendingMerges.this.onFailure(t);
                         return;
                     }
                     onAfterMerge(task, newMerge, estimatedTotalSize);
@@ -478,7 +478,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
                 @Override
                 public void onFailure(Exception exc) {
-                    onMergeFailure(exc);
+                    PendingMerges.this.onFailure(exc);
                 }
             });
         }
@@ -510,7 +510,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
 
         // Idempotent and thread-safe failure handling
-        private synchronized void onMergeFailure(Exception exc) {
+        private synchronized void onFailure(Exception exc) {
             if (hasFailure()) {
                 assert circuitBreakerBytes == 0;
                 return;
