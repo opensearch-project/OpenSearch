@@ -64,6 +64,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
 
         try {
             org.opensearch.action.search.SearchRequest searchRequest = SearchRequestProtoUtils.prepareRequest(request, client, queryUtils);
+            logger.info("gRPC Search Request - POJO: {} ", searchRequest);
             SearchRequestActionListener listener = new SearchRequestActionListener(responseObserver);
             client.search(searchRequest, listener);
         } catch (RuntimeException | IOException e) {
