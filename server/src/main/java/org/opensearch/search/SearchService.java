@@ -74,6 +74,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
@@ -379,6 +381,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.Property.Dynamic
     );
 
+    public static final Setting<ByteSizeValue> SEARCH_MAX_QUERY_STRING_HEAP_SIZE = Setting.memorySizeSetting(
+        "search.query.max_query_string_heap_size",
+        new ByteSizeValue(50, ByteSizeUnit.MB),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Boolean> CLUSTER_ALLOW_DERIVED_FIELD_SETTING = Setting.boolSetting(
         "search.derived_field.enabled",
         true,
@@ -537,6 +546,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         QueryStringQueryParser.setMaxQueryStringLength(SEARCH_MAX_QUERY_STRING_LENGTH.get(settings));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_MAX_QUERY_STRING_LENGTH, QueryStringQueryParser::setMaxQueryStringLength);
+
+        QueryStringQueryParser.setMaxQueryHeapSize(SEARCH_MAX_QUERY_STRING_HEAP_SIZE.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_MAX_QUERY_STRING_HEAP_SIZE, QueryStringQueryParser::setMaxQueryHeapSize);
 
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);

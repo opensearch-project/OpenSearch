@@ -56,6 +56,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.common.lucene.search.Queries;
@@ -63,6 +64,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -98,8 +100,13 @@ import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields
  */
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";
+    private static final long BOOLEAN_CLAUSE_BYTE_SIZE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2L
+    );
     @SuppressWarnings("NonFinalStaticField")
     private static int maxQueryStringLength = SearchService.SEARCH_MAX_QUERY_STRING_LENGTH.get(Settings.EMPTY);
+    @SuppressWarnings("NonFinalStaticField")
+    private static ByteSizeValue maxQueryHeapSize = SearchService.SEARCH_MAX_QUERY_STRING_HEAP_SIZE.get(Settings.EMPTY);
 
     private final QueryShardContext context;
     private final Map<String, Float> fieldsAndWeights;
@@ -118,6 +125,9 @@ public class QueryStringQueryParser extends XQueryParser {
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
+    private long totalEstimatedRamSize = 0;
+    private final ByteSizeValue currentMaxQueryHeapSize;
+    private final long currentMaxQueryHeapSizeBytes;
 
     /**
      * @param context The query shard context.
@@ -182,6 +192,8 @@ public class QueryStringQueryParser extends XQueryParser {
         queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
+        this.currentMaxQueryHeapSize = maxQueryHeapSize;
+        this.currentMaxQueryHeapSizeBytes = this.currentMaxQueryHeapSize.getBytes();
     }
 
     @Override
@@ -326,7 +338,7 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     public Query getFieldQuery(String field, String queryText, boolean quoted) throws ParseException {
         if (field != null && EXISTS_FIELD.equals(field)) {
-            return existsQuery(queryText);
+            return aggregateRamSize(existsQuery(queryText));
         }
 
         if (quoted) {
@@ -367,14 +379,14 @@ public class QueryStringQueryParser extends XQueryParser {
             // the requested fields do not match any field in the mapping
             // happens for wildcard fields only since we cannot expand to a valid field name
             // if there is no match in the mappings.
-            return newUnmappedFieldQuery(field);
+            return aggregateRamSize(newUnmappedFieldQuery(field));
         }
         Analyzer oldAnalyzer = queryBuilder.analyzer;
         try {
             if (forceAnalyzer != null) {
                 queryBuilder.setAnalyzer(forceAnalyzer);
             }
-            return queryBuilder.parse(type, fields, queryText, null);
+            return aggregateRamSize(queryBuilder.parse(type, fields, queryText, null));
         } catch (IOException e) {
             throw new ParseException(e.getMessage());
         } finally {
@@ -385,12 +397,12 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     protected Query getFieldQuery(String field, String queryText, int slop) throws ParseException {
         if (field != null && EXISTS_FIELD.equals(field)) {
-            return existsQuery(queryText);
+            return aggregateRamSize(existsQuery(queryText));
         }
 
         Map<String, Float> fields = extractMultiFields(field, true);
         if (fields.isEmpty()) {
-            return newUnmappedFieldQuery(field);
+            return aggregateRamSize(newUnmappedFieldQuery(field));
         }
         Analyzer oldAnalyzer = queryBuilder.analyzer;
         int oldSlop = queryBuilder.phraseSlop;
@@ -405,7 +417,7 @@ public class QueryStringQueryParser extends XQueryParser {
             if (query == null) {
                 return null;
             }
-            return applySlop(query, slop);
+            return aggregateRamSize(applySlop(query, slop));
         } catch (IOException e) {
             throw new ParseException(e.getMessage());
         } finally {
@@ -426,7 +438,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
-            return newUnmappedFieldQuery(field);
+            return aggregateRamSize(newUnmappedFieldQuery(field));
         }
 
         List<Query> queries = new ArrayList<>();
@@ -437,10 +449,10 @@ public class QueryStringQueryParser extends XQueryParser {
         }
 
         if (queries.size() == 1) {
-            return queries.get(0);
+            return aggregateRamSize(queries.get(0));
         }
         float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-        return new DisjunctionMaxQuery(queries, tiebreaker);
+        return aggregateRamSize(new DisjunctionMaxQuery(queries, tiebreaker));
     }
 
     private Query getRangeQuerySingle(
@@ -491,7 +503,7 @@ public class QueryStringQueryParser extends XQueryParser {
     protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
-            return newUnmappedFieldQuery(field);
+            return aggregateRamSize(newUnmappedFieldQuery(field));
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
@@ -501,10 +513,10 @@ public class QueryStringQueryParser extends XQueryParser {
         }
 
         if (queries.size() == 1) {
-            return queries.get(0);
+            return aggregateRamSize(queries.get(0));
         } else {
             float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-            return new DisjunctionMaxQuery(queries, tiebreaker);
+            return aggregateRamSize(new DisjunctionMaxQuery(queries, tiebreaker));
         }
     }
 
@@ -543,7 +555,7 @@ public class QueryStringQueryParser extends XQueryParser {
     protected Query getPrefixQuery(String field, String termStr) throws ParseException {
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
-            return newUnmappedFieldQuery(termStr);
+            return aggregateRamSize(newUnmappedFieldQuery(termStr));
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
@@ -555,10 +567,10 @@ public class QueryStringQueryParser extends XQueryParser {
         if (queries.isEmpty()) {
             return null;
         } else if (queries.size() == 1) {
-            return queries.get(0);
+            return aggregateRamSize(queries.get(0));
         } else {
             float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-            return new DisjunctionMaxQuery(queries, tiebreaker);
+            return aggregateRamSize(new DisjunctionMaxQuery(queries, tiebreaker));
         }
     }
 
@@ -695,12 +707,12 @@ public class QueryStringQueryParser extends XQueryParser {
                 return newMatchAllDocsQuery();
             }
             // effectively, we check if a field exists or not
-            return existsQuery(actualField);
+            return aggregateRamSize(existsQuery(actualField));
         }
 
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
-            return newUnmappedFieldQuery(termStr);
+            return aggregateRamSize(newUnmappedFieldQuery(termStr));
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
@@ -709,10 +721,10 @@ public class QueryStringQueryParser extends XQueryParser {
             queries.add(applyBoost(q, entry.getValue()));
         }
         if (queries.size() == 1) {
-            return queries.get(0);
+            return aggregateRamSize(queries.get(0));
         } else {
             float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-            return new DisjunctionMaxQuery(queries, tiebreaker);
+            return aggregateRamSize(new DisjunctionMaxQuery(queries, tiebreaker));
         }
     }
 
@@ -779,10 +791,10 @@ public class QueryStringQueryParser extends XQueryParser {
             queries.add(applyBoost(q, entry.getValue()));
         }
         if (queries.size() == 1) {
-            return queries.get(0);
+            return aggregateRamSize(queries.get(0));
         } else {
             float tiebreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-            return new DisjunctionMaxQuery(queries, tiebreaker);
+            return aggregateRamSize(new DisjunctionMaxQuery(queries, tiebreaker));
         }
     }
 
@@ -818,6 +830,64 @@ public class QueryStringQueryParser extends XQueryParser {
             return null;
         }
         return fixNegativeQueryIfNeeded(q);
+    }
+
+    @Override
+    protected BooleanClause newBooleanClause(Query q, BooleanClause.Occur occur) {
+        this.totalEstimatedRamSize += BOOLEAN_CLAUSE_BYTE_SIZE;
+        if (this.totalEstimatedRamSize > this.currentMaxQueryHeapSizeBytes) {
+            throw new RuntimeException(
+                "Processed query exceeds maximum heap size: "
+                    + this.currentMaxQueryHeapSizeBytes
+                    + " ("
+                    + SearchService.SEARCH_MAX_QUERY_STRING_HEAP_SIZE.getKey()
+                    + ")"
+            );
+        }
+        return super.newBooleanClause(q, occur);
+    }
+
+    /**
+     * Aggregates the estimated RAM size of the given query and throws a ParseException if the aggregated size exceeds
+     * "search.query.max_query_string_heap_size". Obviously, this is only a very rough estimate, it is both possible
+     * that this method slightly over-estimates or under-estimates. Yet, this should be sufficiently precise to enforce
+     * limits for JVM health purposes.
+     * <p>
+     * When this method is called, care must be taken that it is not called twice for the same query. This needs a bit
+     * of concentration, as we have in this class many nested Query factory methods. A good rule of thumb is: It is an
+     * overridden protected method throwing ParseException. These methods will be directly called from the parser.
+     *
+     * @param query the query to be aggregated
+     * @return always the same query as passed via the query parameter
+     * @throws ParseException if the heap size is exceeded
+     */
+    private Query aggregateRamSize(Query query) throws ParseException {
+        if (query == null) {
+            return null;
+        }
+
+        long size = RamUsageEstimator.sizeOf(query, 180); // 180 is a good rule of thumb value for the query object size we are encountering
+                                                          // here. It is smaller than the normal default 1024, as we do not encounter
+                                                          // complex objects here.
+
+        if (query instanceof DisjunctionMaxQuery disjunctionMaxQuery) {
+            // The DisjunctionMaxQuery has some complex internal data structures we also want to account for
+            size += RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + (long) disjunctionMaxQuery.getDisjuncts().size()
+                * RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2;
+        }
+
+        this.totalEstimatedRamSize += size;
+        if (this.totalEstimatedRamSize > this.currentMaxQueryHeapSizeBytes) {
+            throw new ParseException(
+                "Processed query exceeds maximum heap size: "
+                    + this.currentMaxQueryHeapSize
+                    + " ("
+                    + SearchService.SEARCH_MAX_QUERY_STRING_HEAP_SIZE.getKey()
+                    + ")"
+            );
+        }
+
+        return query;
     }
 
     private Query applySlop(Query q, int slop) {
@@ -889,5 +959,12 @@ public class QueryStringQueryParser extends XQueryParser {
      */
     public static void setMaxQueryStringLength(int maxQueryStringLength) {
         QueryStringQueryParser.maxQueryStringLength = maxQueryStringLength;
+    }
+
+    /**
+     * Sets the maximum allowed heap size for queries created from query strings. This should be only called from SearchService on settings updates.
+     */
+    public static void setMaxQueryHeapSize(ByteSizeValue maxQueryHeapSize) {
+        QueryStringQueryParser.maxQueryHeapSize = maxQueryHeapSize;
     }
 }
