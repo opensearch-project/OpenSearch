@@ -26,7 +26,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.rule.RulePersistenceService;
-import org.opensearch.rule.action.DeleteRuleRequest;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
@@ -36,7 +35,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -97,17 +98,14 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        WorkloadGroup workloadGroup = state.metadata()
-            .workloadGroups()
-            .values()
-            .stream()
-            .filter(wg -> wg.getName().equals(request.getName()))
-            .findAny()
-            .orElseThrow(() -> new ResourceNotFoundException("No WorkloadGroup exists with the provided name: " + request.getName()));
-
-        workloadGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
         try (ExecutorService executorService = threadPool.executor(ThreadPool.Names.GENERIC)) {
-            executorService.submit(() -> { deleteRulesWith(workloadGroup); });
+            executorService.submit(() -> {
+                try {
+                    checkNoAssociatedRulesExist(request, listener, state);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 
@@ -126,37 +124,47 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void deleteRulesWith(WorkloadGroup workloadGroup) {
+    private void checkNoAssociatedRulesExist(
+        DeleteWorkloadGroupRequest request,
+        ActionListener<AcknowledgedResponse> listener,
+        ClusterState state
+    ) {
+        Collection<WorkloadGroup> workloadGroups = WorkloadGroupPersistenceService.getFromClusterStateMetadata(request.getName(), state);
+        if (workloadGroups.isEmpty()) {
+            throw new ResourceNotFoundException("No WorkloadGroup exists with the provided name: " + request.getName());
+        }
+
+        WorkloadGroup workloadGroup = workloadGroups.iterator().next();
         rulePersistenceService.getRule(
             new GetRuleRequest(null, Collections.emptyMap(), null, featureType),
             new ActionListener<GetRuleResponse>() {
                 @Override
                 public void onResponse(GetRuleResponse getRuleResponse) {
-                    getRuleResponse.getRules()
+                    List<Rule> associatedRules = getRuleResponse.getRules()
                         .stream()
                         .filter(rule -> rule.getFeatureValue().equals(workloadGroup.get_id()))
-                        .forEach(TransportDeleteWorkloadGroupAction.this::deleteRule);
+                        .toList();
+
+                    if (!associatedRules.isEmpty()) {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                workloadGroup.getName()
+                                    + " workload group has rules with ids: "
+                                    + associatedRules
+                                    + " ."
+                                    + "Please delete them first otherwise system will be an inconsistent state."
+                            )
+                        );
+                        return;
+                    }
+                    workloadGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-
+                    listener.onFailure(e);
                 }
             }
         );
-    }
-
-    private void deleteRule(Rule rule) {
-        rulePersistenceService.deleteRule(new DeleteRuleRequest(rule.getId(), featureType), new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.debug("Delete rule [{}] successfully", rule.getId());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("failed to delete rule [{}] as part of workload group delete", rule.getId());
-            }
-        });
     }
 }
