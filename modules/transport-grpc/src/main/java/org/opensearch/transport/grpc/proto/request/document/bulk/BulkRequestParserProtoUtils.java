@@ -52,7 +52,7 @@ public class BulkRequestParserProtoUtils {
     /**
      * Private constructor to prevent instantiation of utility class.
      */
-    protected BulkRequestParserProtoUtils() {
+    private BulkRequestParserProtoUtils() {
         // Utility class, no instances
     }
 

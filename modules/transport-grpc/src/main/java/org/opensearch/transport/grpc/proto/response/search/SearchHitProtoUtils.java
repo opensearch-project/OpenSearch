@@ -339,7 +339,7 @@ public class SearchHitProtoUtils {
      * This class handles the transformation of nested document identity information to ensure proper
      * representation of nested search hits.
      */
-    protected static class NestedIdentityProtoUtils {
+    static class NestedIdentityProtoUtils {
         /**
          * Private constructor to prevent instantiation.
          * This is a utility class with only static methods.
@@ -356,7 +356,7 @@ public class SearchHitProtoUtils {
          * @param nestedIdentity The NestedIdentity to convert
          * @return A Protocol Buffer NestedIdentity representation
          */
-        protected static NestedIdentity toProto(SearchHit.NestedIdentity nestedIdentity) {
+        static NestedIdentity toProto(SearchHit.NestedIdentity nestedIdentity) {
             NestedIdentity.Builder nestedIdentityBuilder = NestedIdentity.newBuilder();
             toProto(nestedIdentity, nestedIdentityBuilder);
             return nestedIdentityBuilder.build();
@@ -369,7 +369,7 @@ public class SearchHitProtoUtils {
          * @param nestedIdentity The NestedIdentity to convert
          * @param nestedIdentityBuilder The builder to populate with the nested identity data
          */
-        protected static void toProto(SearchHit.NestedIdentity nestedIdentity, NestedIdentity.Builder nestedIdentityBuilder) {
+        static void toProto(SearchHit.NestedIdentity nestedIdentity, NestedIdentity.Builder nestedIdentityBuilder) {
             // Set field if available
             if (nestedIdentity.getField() != null) {
                 nestedIdentityBuilder.setField(nestedIdentity.getField().string());

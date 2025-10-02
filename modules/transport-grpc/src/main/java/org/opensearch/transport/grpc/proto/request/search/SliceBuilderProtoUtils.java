@@ -27,7 +27,7 @@ public class SliceBuilderProtoUtils {
      * @param sliceProto
      */
 
-    protected static SliceBuilder fromProto(SlicedScroll sliceProto) {
+    static SliceBuilder fromProto(SlicedScroll sliceProto) {
         SliceBuilder sliceBuilder;
         if (sliceProto.hasField()) {
             sliceBuilder = new SliceBuilder(sliceProto.getField(), sliceProto.getId(), sliceProto.getMax());

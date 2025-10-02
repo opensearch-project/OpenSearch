@@ -98,7 +98,7 @@ public class SearchRequestProtoUtils {
      * @param queryUtils the query utils instance for parsing queries
      * @throws IOException if an I/O exception occurred during parsing
      */
-    protected static void parseSearchRequest(
+    static void parseSearchRequest(
         org.opensearch.action.search.SearchRequest searchRequest,
         org.opensearch.protobufs.SearchRequest request,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -196,7 +196,7 @@ public class SearchRequestProtoUtils {
      * @param request the Protocol Buffer SearchRequest to parse
      * @param setSize consumer for setting the size parameter
      */
-    protected static void parseSearchSource(
+    static void parseSearchSource(
         final SearchSourceBuilder searchSourceBuilder,
         org.opensearch.protobufs.SearchRequest request,
         IntConsumer setSize
@@ -346,7 +346,7 @@ public class SearchRequestProtoUtils {
      * @param protoRequest the Protocol Buffer SearchRequest
      * @param searchRequest the SearchRequest to configure
      */
-    protected static void checkProtoTotalHits(SearchRequest protoRequest, org.opensearch.action.search.SearchRequest searchRequest) {
+    static void checkProtoTotalHits(SearchRequest protoRequest, org.opensearch.action.search.SearchRequest searchRequest) {
 
         boolean totalHitsAsInt = protoRequest.hasRestTotalHitsAsInt() ? protoRequest.getRestTotalHitsAsInt() : false;
         if (totalHitsAsInt == false) {
