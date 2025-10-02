@@ -550,19 +550,18 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     upToExclusive = Integer.MAX_VALUE;
                 }
 
-                if (upToSameBucket) {
-                    if (sub == NO_OP_COLLECTOR) {
+                if (upToSameBucket && sub == NO_OP_COLLECTOR) {
                         // stream.count maybe faster when we don't need to handle sub-aggs
                         long count = stream.count(upToExclusive);
                         aggregator.incrementBucketDocCount(upToBucketIndex, count);
-                    } else {
-                        final int[] count = { 0 };
-                        stream.forEach(upToExclusive, doc -> {
-                            sub.collect(doc, upToBucketIndex);
-                            count[0]++;
-                        });
-                        aggregator.incrementBucketDocCount(upToBucketIndex, count[0]);
-                    }
+//                    } else {
+//                        final int[] count = { 0 };
+//                        stream.forEach(upToExclusive, doc -> {
+//                            sub.collect(doc, upToBucketIndex);
+//                            count[0]++;
+//                        });
+//                        aggregator.incrementBucketDocCount(upToBucketIndex, count[0]);
+//                    }
 
                 } else {
                     stream.forEach(upToExclusive, this::collect);
