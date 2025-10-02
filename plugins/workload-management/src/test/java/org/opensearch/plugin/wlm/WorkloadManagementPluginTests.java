@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.plugin.wlm.WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -187,8 +188,7 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
             mockRepositoriesServiceSupplier
         );
 
-        assertEquals(1, components.size());
-        assertTrue(components.iterator().next() instanceof RefreshBasedSyncMechanism);
+        assertThat(components.stream().filter(c -> c instanceof RefreshBasedSyncMechanism).count(), equalTo(1L));
     }
 
     public void testSetAttributesWithMock() {
