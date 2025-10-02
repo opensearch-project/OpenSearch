@@ -21,7 +21,6 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
-import org.opensearch.rule.action.DeleteRuleRequest;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.autotagging.Rule;
@@ -107,9 +106,25 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         // Create mock cluster state with workload group
         ClusterState clusterState = createMockClusterStateWithWorkloadGroup(mockWorkloadGroup);
 
+        // Mock empty rules response
+        GetRuleResponse getRuleResponse = mock(GetRuleResponse.class);
+        when(getRuleResponse.getRules()).thenReturn(Collections.emptyList());
+
         // Mock executor service
         ExecutorService mockExecutor = mock(ExecutorService.class);
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(mockExecutor);
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(0)).run();
+            return null;
+        }).when(mockExecutor).submit(any(Runnable.class));
+
+        // Mock rule persistence service responses
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetRuleResponse> ruleListener = invocation.getArgument(1);
+            ruleListener.onResponse(getRuleResponse);
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any());
 
         action.clusterManagerOperation(request, clusterState, listener);
 
@@ -120,7 +135,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
     /**
      * Test case to validate ResourceNotFoundException when workload group doesn't exist
      */
-    public void testClusterManagerOperationWorkloadGroupNotFound() {
+    public void testClusterManagerOperationWorkloadGroupNotFound() throws Exception {
         String workloadGroupName = "nonExistentGroup";
         DeleteWorkloadGroupRequest request = new DeleteWorkloadGroupRequest(workloadGroupName);
 
@@ -130,17 +145,22 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         // Create empty cluster state
         ClusterState clusterState = createEmptyClusterState();
 
-        ResourceNotFoundException exception = expectThrows(
-            ResourceNotFoundException.class,
-            () -> action.clusterManagerOperation(request, clusterState, listener)
-        );
+        // Mock executor service
+        ExecutorService mockExecutor = mock(ExecutorService.class);
+        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(mockExecutor);
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(0)).run();
+            return null;
+        }).when(mockExecutor).submit(any(Runnable.class));
 
-        assertEquals("No WorkloadGroup exists with the provided name: " + workloadGroupName, exception.getMessage());
+        action.clusterManagerOperation(request, clusterState, listener);
+
+        verify(listener).onFailure(any(ResourceNotFoundException.class));
         verify(workloadGroupPersistenceService, never()).deleteInClusterStateMetadata(any(), any());
     }
 
     /**
-     * Test case to validate rule deletion when rules exist for the workload group
+     * Test case to validate that deletion is prevented when rules exist for the workload group
      */
     public void testRuleDeletionWithExistingRules() throws Exception {
         String workloadGroupName = "testGroup";
@@ -175,18 +195,52 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
             return null;
         }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any());
 
+        action.clusterManagerOperation(request, clusterState, listener);
+
+        verify(rulePersistenceService).getRule(any(GetRuleRequest.class), any());
+        verify(listener).onFailure(any(IllegalStateException.class));
+        verify(workloadGroupPersistenceService, never()).deleteInClusterStateMetadata(any(), any());
+    }
+
+    /**
+     * Test case to validate successful deletion when no rules exist for the workload group
+     */
+    public void testSuccessfulDeletionWithNoRules() throws Exception {
+        String workloadGroupName = "testGroup";
+        String workloadGroupId = "test-id-123";
+        DeleteWorkloadGroupRequest request = new DeleteWorkloadGroupRequest(workloadGroupName);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
+
+        WorkloadGroup mockWorkloadGroup = createMockWorkloadGroup(workloadGroupName, workloadGroupId);
+        ClusterState clusterState = createMockClusterStateWithWorkloadGroup(mockWorkloadGroup);
+
+        // Mock empty rules response
+        GetRuleResponse getRuleResponse = mock(GetRuleResponse.class);
+        when(getRuleResponse.getRules()).thenReturn(Collections.emptyList());
+
+        // Mock executor to immediately execute the runnable
+        ExecutorService mockExecutor = mock(ExecutorService.class);
+        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(mockExecutor);
+        doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(mockExecutor).submit(any(Runnable.class));
+
+        // Mock rule persistence service responses
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> deleteListener = invocation.getArgument(1);
-            deleteListener.onResponse(new AcknowledgedResponse(true));
+            ActionListener<GetRuleResponse> ruleListener = invocation.getArgument(1);
+            ruleListener.onResponse(getRuleResponse);
             return null;
-        }).when(rulePersistenceService).deleteRule(any(DeleteRuleRequest.class), any());
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any());
 
         action.clusterManagerOperation(request, clusterState, listener);
 
-        verify(workloadGroupPersistenceService).deleteInClusterStateMetadata(eq(request), eq(listener));
         verify(rulePersistenceService).getRule(any(GetRuleRequest.class), any());
-        verify(rulePersistenceService).deleteRule(any(DeleteRuleRequest.class), any());
+        verify(workloadGroupPersistenceService).deleteInClusterStateMetadata(eq(request), eq(listener));
     }
 
     /**
@@ -222,8 +276,8 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         // Should not throw exception, just log and continue
         action.clusterManagerOperation(request, clusterState, listener);
 
-        verify(workloadGroupPersistenceService).deleteInClusterStateMetadata(eq(request), eq(listener));
         verify(rulePersistenceService).getRule(any(GetRuleRequest.class), any());
+        verify(listener).onFailure(any(RuntimeException.class));
     }
 
     /**
@@ -269,6 +323,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         Metadata metadata = mock(Metadata.class);
         Map<String, WorkloadGroup> workloadGroups = Map.of(workloadGroup.get_id(), workloadGroup);
 
+        when(clusterState.getMetadata()).thenReturn(metadata);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(workloadGroups);
 
@@ -280,6 +335,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         Metadata metadata = mock(Metadata.class);
         Map<String, WorkloadGroup> workloadGroups = Collections.emptyMap();
 
+        when(clusterState.getMetadata()).thenReturn(metadata);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(workloadGroups);
 
