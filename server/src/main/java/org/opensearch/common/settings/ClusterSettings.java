@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.action.search.StreamSearchTransportService;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -857,7 +858,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
-                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING
+                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
+                StreamSearchTransportService.STREAM_SEARCH_ENABLED
             )
         )
     );
