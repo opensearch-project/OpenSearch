@@ -28,10 +28,13 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.StreamNumericTermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.StreamStringTermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
+import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 
@@ -201,8 +204,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertNotNull("Profile response should be present", resp.getProfileResults());
         boolean foundStreamingTerms = false;
         for (var shardProfile : resp.getProfileResults().values()) {
-            List<org.opensearch.search.profile.ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults()
-                .getProfileResults();
+            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
             for (var profileResult : aggProfileResults) {
                 if (StreamStringTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
                     var debug = profileResult.getDebugInfo();
@@ -255,6 +257,75 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
         for (SearchHit hit : resp.getHits().getHits()) {
             assertNotNull(hit.getSourceAsString());
+        }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingNumericAggregationUsed() throws Exception {
+        // This test validates numeric streaming aggregation with profile to verify streaming is used
+        TermsAggregationBuilder agg = terms("agg1").field("field2").subAggregation(AggregationBuilders.max("agg2").field("field2"));
+        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+            .addAggregation(agg)
+            .setSize(0)
+            .setRequestCache(false)
+            .setProfile(true)
+            .execute();
+        SearchResponse resp = future.actionGet();
+        assertNotNull(resp);
+        assertEquals(NUM_SHARDS, resp.getTotalShards());
+        assertEquals(90, resp.getHits().getTotalHits().value());
+
+        // Validate that streaming aggregation was actually used
+        assertNotNull("Profile response should be present", resp.getProfileResults());
+        boolean foundStreamingNumeric = false;
+        for (var shardProfile : resp.getProfileResults().values()) {
+            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
+            for (var profileResult : aggProfileResults) {
+                if (StreamNumericTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
+                    var debug = profileResult.getDebugInfo();
+                    if (debug != null && "stream_long_terms".equals(debug.get("result_strategy"))) {
+                        foundStreamingNumeric = true;
+                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
+                        break;
+                    }
+                }
+            }
+            if (foundStreamingNumeric) break;
+        }
+        assertTrue("Expected to find stream_long_terms result_strategy in profile", foundStreamingNumeric);
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingNumericAggregation() throws Exception {
+        TermsAggregationBuilder agg = terms("agg1").field("field2").subAggregation(AggregationBuilders.max("agg2").field("field2"));
+        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+            .addAggregation(agg)
+            .setSize(0)
+            .setRequestCache(false)
+            .execute();
+        SearchResponse resp = future.actionGet();
+
+        assertNotNull(resp);
+        assertEquals(NUM_SHARDS, resp.getTotalShards());
+        assertEquals(90, resp.getHits().getTotalHits().value());
+
+        LongTerms agg1 = (LongTerms) resp.getAggregations().asMap().get("agg1");
+        List<LongTerms.Bucket> buckets = agg1.getBuckets();
+        assertEquals(9, buckets.size()); // 9 unique numeric values
+
+        // Validate all buckets - total should be 90 documents
+        buckets.sort(Comparator.comparingLong(b -> b.getKeyAsNumber().longValue()));
+        long totalDocs = buckets.stream().mapToLong(LongTerms.Bucket::getDocCount).sum();
+        assertEquals(90, totalDocs);
+
+        long[] expectedValues = { 1, 2, 3, 11, 12, 13, 21, 22, 23 };
+        for (int i = 0; i < buckets.size(); i++) {
+            LongTerms.Bucket bucket = buckets.get(i);
+            assertEquals(expectedValues[i], bucket.getKeyAsNumber().longValue());
+            assertTrue("Bucket should have at least 1 document", bucket.getDocCount() > 0);
+            Max maxAgg = bucket.getAggregations().get("agg2");
+            assertNotNull(maxAgg);
+            assertEquals(expectedValues[i], maxAgg.getValue(), 0.001);
         }
     }
 
