@@ -21,8 +21,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
-import org.opensearch.transport.grpc.interceptor.GrpcInterceptorProvider;
-import org.opensearch.transport.grpc.interceptor.OrderedGrpcInterceptor;
+import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider;
+import org.opensearch.transport.grpc.spi.OrderedGrpcInterceptor;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.junit.Before;
@@ -619,7 +619,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
      */
     private OrderedGrpcInterceptor createMockInterceptor(int order) {
         OrderedGrpcInterceptor mock = Mockito.mock(OrderedGrpcInterceptor.class);
-        when(mock.getOrder()).thenReturn(order);
+        when(mock.order()).thenReturn(order);
         when(mock.getInterceptor()).thenReturn(Mockito.mock(ServerInterceptor.class));
         return mock;
     }
@@ -740,7 +740,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         // Sort them as GrpcPlugin would
         interceptors = new ArrayList<>(interceptors);
-        interceptors.sort(Comparator.comparingInt(OrderedGrpcInterceptor::getOrder));
+        interceptors.sort(Comparator.comparingInt(OrderedGrpcInterceptor::order));
 
         testGrpcInterceptorChain(interceptors, true, null);
 
@@ -840,7 +840,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
     private OrderedGrpcInterceptor createTestInterceptor(int order, boolean shouldFail) {
         return new OrderedGrpcInterceptor() {
             @Override
-            public int getOrder() {
+            public int order() {
                 return order;
             }
 
@@ -869,7 +869,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
     private OrderedGrpcInterceptor createTestInterceptorWithCallback(int order, List<String> executionOrder, String name) {
         return new OrderedGrpcInterceptor() {
             @Override
-            public int getOrder() {
+            public int order() {
                 return order;
             }
 
