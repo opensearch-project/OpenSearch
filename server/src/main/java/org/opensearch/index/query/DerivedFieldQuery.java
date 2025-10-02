@@ -15,7 +15,9 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -24,6 +26,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.opensearch.index.mapper.DerivedFieldValueFetcher;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -43,6 +46,7 @@ public final class DerivedFieldQuery extends Query {
     private final SearchLookup searchLookup;
     private final Analyzer indexAnalyzer;
     private final boolean ignoreMalformed;
+    private final boolean rewrite;
 
     private final Function<Object, IndexableField> indexableFieldGenerator;
 
@@ -59,12 +63,25 @@ public final class DerivedFieldQuery extends Query {
         Function<Object, IndexableField> indexableFieldGenerator,
         boolean ignoreMalformed
     ) {
+        this(query, valueFetcherSupplier, searchLookup, indexAnalyzer, indexableFieldGenerator, ignoreMalformed, true);
+    }
+
+    public DerivedFieldQuery(
+        Query query,
+        Supplier<DerivedFieldValueFetcher> valueFetcherSupplier,
+        SearchLookup searchLookup,
+        Analyzer indexAnalyzer,
+        Function<Object, IndexableField> indexableFieldGenerator,
+        boolean ignoreMalformed,
+        boolean rewrite
+    ) {
         this.query = query;
         this.valueFetcherSupplier = valueFetcherSupplier;
         this.searchLookup = searchLookup;
         this.indexAnalyzer = indexAnalyzer;
         this.indexableFieldGenerator = indexableFieldGenerator;
         this.ignoreMalformed = ignoreMalformed;
+        this.rewrite = rewrite;
     }
 
     @Override
@@ -72,22 +89,46 @@ public final class DerivedFieldQuery extends Query {
         query.visit(visitor);
     }
 
-    // @Override
-    // public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-    // Query rewritten = query.rewrite(indexSearcher);
-    // if (rewritten == query) {
-    // return this;
-    // }
-    // ;
-    // return new DerivedFieldQuery(
-    // rewritten,
-    // valueFetcherSupplier,
-    // searchLookup,
-    // indexAnalyzer,
-    // indexableFieldGenerator,
-    // ignoreMalformed
-    // );
-    // }
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (!needsRewrite()) {
+            return this;
+        }
+        Query rewritten = query.rewrite(indexSearcher);
+        if (rewritten == query) {
+            return this;
+        }
+        ;
+        return new DerivedFieldQuery(
+            rewritten,
+            valueFetcherSupplier,
+            searchLookup,
+            indexAnalyzer,
+            indexableFieldGenerator,
+            ignoreMalformed
+        );
+    }
+
+    private boolean needsRewrite() {
+        if (query instanceof PointRangeQuery) {
+            return false;
+        }
+
+        if (query instanceof ApproximateScoreQuery) {
+            Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
+            if (originalQuery instanceof IndexOrDocValuesQuery) {
+                Query indexQuery = ((IndexOrDocValuesQuery) originalQuery).getIndexQuery();
+                return !(indexQuery instanceof PointRangeQuery);
+            }
+        }
+
+        if (query instanceof IndexOrDocValuesQuery) {
+            Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
+            return !(indexQuery instanceof PointRangeQuery);
+        }
+
+        return true;
+    }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
