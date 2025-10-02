@@ -22,6 +22,7 @@ import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.suggest.SuggestBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class SearchSourceBuilderProtoUtils {
         AbstractQueryBuilderProtoUtils queryUtils
     ) throws IOException {
         // Parse all non-query fields
-        parseNonQueryFields(searchSourceBuilder, protoRequest);
+        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils.getRegistry());
 
         // Handle queries using the instance-based approach
         if (protoRequest.hasQuery()) {
@@ -64,12 +65,20 @@ public class SearchSourceBuilderProtoUtils {
         if (protoRequest.hasPostFilter()) {
             searchSourceBuilder.postFilter(queryUtils.parseInnerQueryBuilderProto(protoRequest.getPostFilter()));
         }
+
+        if (protoRequest.hasHighlight()) {
+            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), queryUtils.getRegistry()));
+        }
     }
 
     /**
      * Parses all fields except queries from the protobuf SearchRequestBody.
      */
-    private static void parseNonQueryFields(SearchSourceBuilder searchSourceBuilder, SearchRequestBody protoRequest) throws IOException {
+    private static void parseNonQueryFields(
+        SearchSourceBuilder searchSourceBuilder,
+        SearchRequestBody protoRequest,
+        QueryBuilderProtoConverterRegistry registry
+    ) throws IOException {
         // TODO what to do about parser.getDeprecationHandler() for protos?
 
         if (protoRequest.hasFrom()) {
@@ -118,7 +127,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.storedFields(StoredFieldsContextProtoUtils.fromProto(protoRequest.getStoredFieldsList()));
         }
         if (protoRequest.getSortCount() > 0) {
-            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList())) {
+            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList(), registry)) {
                 searchSourceBuilder.sort(sortBuilder);
             }
         }
@@ -158,9 +167,6 @@ public class SearchSourceBuilderProtoUtils {
         if(protoRequest.hasAggs()){}
         */
 
-        if (protoRequest.hasHighlight()) {
-            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight()));
-        }
         if (protoRequest.hasSuggest()) {
             searchSourceBuilder.suggest(SuggestBuilderProtoUtils.fromProto(protoRequest.getSuggest()));
         }
@@ -178,7 +184,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.slice(SliceBuilderProtoUtils.fromProto(protoRequest.getSlice()));
         }
         if (protoRequest.hasCollapse()) {
-            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse()));
+            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse(), registry));
         }
         if (protoRequest.hasPit()) {
             searchSourceBuilder.pointInTimeBuilder(PointInTimeBuilderProtoUtils.fromProto(protoRequest.getPit()));
