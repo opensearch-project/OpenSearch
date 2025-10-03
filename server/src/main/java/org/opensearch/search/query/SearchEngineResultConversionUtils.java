@@ -8,6 +8,8 @@
 
 package org.opensearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.ShardResultConvertor;
@@ -21,35 +23,41 @@ import java.util.stream.Collectors;
 
 public class SearchEngineResultConversionUtils {
 
-    public static InternalAggregations convertDFResultGeneric(SearchContext searchContext) {
-        Map<String, Object[]> dfResult = searchContext.getDFResults();
+    private static final Logger LOGGER = LogManager.getLogger(SearchEngineResultConversionUtils.class);
 
-        // Create aggregators which will process the result from DataFusion
-        try {
+    public static void convertDFResultGeneric(SearchContext searchContext) {
+        if (searchContext.aggregations() != null) {
+            Map<String, Object[]> dfResult = searchContext.getDFResults();
 
-            List<Aggregator> aggregators = new ArrayList<>();
+            // Create aggregators which will process the result from DataFusion
+            try {
 
-            if (searchContext.aggregations().factories().hasGlobalAggregator()) {
-                aggregators.addAll(searchContext.aggregations().factories().createTopLevelGlobalAggregators(searchContext));
-            }
+                List<Aggregator> aggregators = new ArrayList<>();
 
-            if (searchContext.aggregations().factories().hasNonGlobalAggregator()) {
-                aggregators.addAll(searchContext.aggregations().factories().createTopLevelNonGlobalAggregators(searchContext));
-            }
-
-            List<ShardResultConvertor> shardResultConvertors = aggregators.stream().map(x -> {
-                if (x instanceof ShardResultConvertor) {
-                    return ((ShardResultConvertor) x);
-                } else {
-                    throw new UnsupportedOperationException("Aggregator doesn't support converting results from shard: " + x);
+                if (searchContext.aggregations().factories().hasGlobalAggregator()) {
+                    aggregators.addAll(searchContext.aggregations().factories().createTopLevelGlobalAggregators(searchContext));
                 }
-            }).toList();
 
-            return InternalAggregations.from(
-                shardResultConvertors.stream().flatMap(x -> x.convert(dfResult).stream()).collect(Collectors.toList())
-            );
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+                if (searchContext.aggregations().factories().hasNonGlobalAggregator()) {
+                    aggregators.addAll(searchContext.aggregations().factories().createTopLevelNonGlobalAggregators(searchContext));
+                }
+
+                List<ShardResultConvertor> shardResultConvertors = aggregators.stream().map(x -> {
+                    if (x instanceof ShardResultConvertor) {
+                        return ((ShardResultConvertor) x);
+                    } else {
+                        throw new UnsupportedOperationException("Aggregator doesn't support converting results from shard: " + x);
+                    }
+                }).toList();
+
+                InternalAggregations internalAggregations = InternalAggregations.from(
+                    shardResultConvertors.stream().flatMap(x -> x.convert(dfResult).stream()).collect(Collectors.toList())
+                );
+                LOGGER.info("Internal Aggregations converted {}", internalAggregations.asMap());
+                searchContext.queryResult().aggregations(internalAggregations);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

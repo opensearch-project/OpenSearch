@@ -57,6 +57,7 @@ import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -77,6 +78,8 @@ public class DatafusionContext extends SearchContext {
     private DatafusionQuery datafusionQuery;
     private Map<String, Object[]> dfResults;
     private SearchContextAggregations aggregations;
+    private final BigArrays bigArrays;
+    private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
 
     /**
      * Constructor
@@ -90,7 +93,8 @@ public class DatafusionContext extends SearchContext {
         ShardSearchRequest request,
         SearchShardTarget searchShardTarget,
         SearchShardTask task,
-        DatafusionEngine engine) {
+        DatafusionEngine engine,
+        BigArrays bigArrays) {
         this.readerContext = readerContext;
         this.indexShard = readerContext.indexShard();
         this.request = request;
@@ -108,6 +112,7 @@ public class DatafusionContext extends SearchContext {
             false, // reevaluate the usage
             false // specific to lucene
         );
+        this.bigArrays = bigArrays;
     }
 
     /**
@@ -383,7 +388,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public BigArrays bigArrays() {
-        return null;
+        return bigArrays;
     }
 
     @Override
@@ -736,7 +741,7 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers() {
-        return Map.of();
+        return queryCollectorManagers;
     }
 
     @Override
