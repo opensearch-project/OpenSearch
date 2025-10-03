@@ -39,6 +39,7 @@ public class GrpcInterceptorChain implements ServerInterceptor {
 
     /**
      * Intercepts a gRPC call, executing the chain of interceptors in order.
+     * Uses an iterative approach similar to OpenSearch's ActionFilter chain.
      * @param call object to receive response messages
      * @param headers which can contain extra call metadata
      * @param next next processor in the interceptor chain
@@ -50,44 +51,33 @@ public class GrpcInterceptorChain implements ServerInterceptor {
         Metadata headers,
         ServerCallHandler<ReqT, RespT> next
     ) {
-        return executeChain(call, headers, next, 0);
-    }
+        // Build the chain iteratively from end to start, similar to ActionFilter pattern
+        ServerCallHandler<ReqT, RespT> currentHandler = next;
 
-    /**
-     * Recursively executes the interceptor chain, handling exceptions and ensuring the call is closed on failure.
-     */
+        // Iterate backwards through interceptors to build the chain
+        for (int i = interceptors.size() - 1; i >= 0; i--) {
+            final OrderedGrpcInterceptor interceptor = interceptors.get(i);
+            final ServerCallHandler<ReqT, RespT> nextHandler = currentHandler;
+            final int index = i;
 
-    private <ReqT, RespT> ServerCall.Listener<ReqT> executeChain(
-        ServerCall<ReqT, RespT> call,
-        Metadata headers,
-        ServerCallHandler<ReqT, RespT> next,
-        int index
-    ) {
-        if (index >= interceptors.size()) {
-            // All interceptors processed, call the actual service
-            return next.startCall(call, headers);
-        }
-
-        OrderedGrpcInterceptor currentInterceptor = interceptors.get(index);
-
-        try {
-            // Create handler for the rest of the chain
-            ServerCallHandler<ReqT, RespT> chainHandler = new ServerCallHandler<ReqT, RespT>() {
+            // Wrap each interceptor with exception handling
+            currentHandler = new ServerCallHandler<ReqT, RespT>() {
                 @Override
                 public ServerCall.Listener<ReqT> startCall(ServerCall<ReqT, RespT> call, Metadata headers) {
-                    return executeChain(call, headers, next, index + 1);
+                    try {
+                        return interceptor.getInterceptor().interceptCall(call, headers, nextHandler);
+                    } catch (Exception e) {
+                        logger.error("Interceptor at index [{}] failed: {}", index, e.getMessage());
+                        // Close the call with error
+                        call.close(Status.INTERNAL.withDescription("Interceptor failure: " + e.getMessage()), headers);
+                        return new ServerCall.Listener<ReqT>() {
+                        };
+                    }
                 }
             };
-
-            // Execute current interceptor
-            return currentInterceptor.getInterceptor().interceptCall(call, headers, chainHandler);
-
-        } catch (Exception e) {
-            logger.error("Interceptor at index [{}] failed: {}", index, e.getMessage());
-            // Close the call with error
-            call.close(Status.INTERNAL.withDescription("Interceptor failure: " + e.getMessage()), headers);
-            return new ServerCall.Listener<ReqT>() {
-            };
         }
+
+        // Start the chain
+        return currentHandler.startCall(call, headers);
     }
 }
