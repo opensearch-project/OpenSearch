@@ -450,6 +450,16 @@ public final class IndexSettings {
     );
 
     /**
+     * Specifies if the index should be context aware enabled.
+     */
+    public static final Setting<Boolean> INDEX_CONTEXT_AWARE_ENABLED_SETTING = Setting.boolSetting(
+        "index.context_aware.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
      * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
      * If soft-deletes is enabled, an engine by default will retain all operations up to the global checkpoint.
@@ -851,6 +861,7 @@ public final class IndexSettings {
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
+    private final boolean contextAwareEnabled;
     private volatile long softDeleteRetentionOperations;
 
     private volatile long retentionLeaseMillis;
@@ -1063,6 +1074,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        contextAwareEnabled = scopedSettings.get(INDEX_CONTEXT_AWARE_ENABLED_SETTING);
         assert softDeleteEnabled || version.before(Version.V_2_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
@@ -1973,6 +1985,10 @@ public final class IndexSettings {
      */
     public boolean isSoftDeleteEnabled() {
         return softDeleteEnabled;
+    }
+
+    public boolean isContextAwareEnabled() {
+        return contextAwareEnabled;
     }
 
     private void setSoftDeleteRetentionOperations(long ops) {

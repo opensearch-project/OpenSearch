@@ -845,7 +845,7 @@ public final class IndexModule {
         return new IndexStorePlugin.DirectoryFactory() {
             @Override
             public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-                return new CriteriaBasedCompositeDirectory(factory.newDirectory(indexSettings, shardPath));
+                return new BucketedCompositeDirectory(factory.newDirectory(indexSettings, shardPath));
             }
 
             @Override

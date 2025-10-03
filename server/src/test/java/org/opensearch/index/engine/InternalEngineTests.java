@@ -1031,7 +1031,7 @@ public class InternalEngineTests extends EngineTestCase {
             recoveringEngine = new InternalEngine(initialEngine.config()) {
 
                 @Override
-                protected void commitIndexWriter(CompositeIndexWriter writer, String translogUUID) throws IOException {
+                protected void commitIndexWriter(DocumentIndexWriter writer, String translogUUID) throws IOException {
                     committed.set(true);
                     super.commitIndexWriter(writer, translogUUID);
                 }
@@ -3966,7 +3966,7 @@ public class InternalEngineTests extends EngineTestCase {
                 ) {
 
                     @Override
-                    protected void commitIndexWriter(CompositeIndexWriter writer, String translogUUID) throws IOException {
+                    protected void commitIndexWriter(DocumentIndexWriter writer, String translogUUID) throws IOException {
                         super.commitIndexWriter(writer, translogUUID);
                         if (throwErrorOnCommit.get()) {
                             throw new RuntimeException("power's out");
@@ -6297,7 +6297,7 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong lastSyncedGlobalCheckpointBeforeCommit = new AtomicLong(Translog.readGlobalCheckpoint(translogPath, translogUUID));
         try (InternalEngine engine = new InternalEngine(engineConfig) {
             @Override
-            protected void commitIndexWriter(CompositeIndexWriter writer, String translogUUID) throws IOException {
+            protected void commitIndexWriter(DocumentIndexWriter writer, String translogUUID) throws IOException {
                 lastSyncedGlobalCheckpointBeforeCommit.set(Translog.readGlobalCheckpoint(translogPath, translogUUID));
                 // Advance the global checkpoint during the flush to create a lag between a persisted global checkpoint in the translog
                 // (this value is visible to the deletion policy) and an in memory global checkpoint in the SequenceNumbersService.

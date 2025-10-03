@@ -165,7 +165,7 @@ public class InternalEngine extends Engine {
     protected volatile long lastDeleteVersionPruneTimeMSec;
 
     protected final TranslogManager translogManager;
-    protected final CompositeIndexWriter compositeIndexWriter;
+    protected final DocumentIndexWriter documentIndexWriter;
     protected final LocalCheckpointTracker localCheckpointTracker;
     protected final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     protected final SoftDeletesPolicy softDeletesPolicy;
@@ -209,6 +209,7 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
+    private final boolean isContextAwareEnabled;
 
     private final CompletionStatsCache completionStatsCache;
 
@@ -253,7 +254,7 @@ public class InternalEngine extends Engine {
         }
         this.translogDeletionPolicy = getTranslogDeletionPolicy(engineConfig);
         store.incRef();
-        CompositeIndexWriter writer = null;
+        DocumentIndexWriter writer = null;
         ExternalReaderManager externalReaderManager = null;
         OpenSearchReaderManager internalReaderManager = null;
         EngineMergeScheduler scheduler = null;
@@ -302,12 +303,13 @@ public class InternalEngine extends Engine {
                     translogManager::getLastSyncedGlobalCheckpoint
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
-                writer = new CompositeIndexWriter(engineConfig, createWriter(), this::createChildWriterUtil, softDeletesField);
+                writer = getDocumentIndexWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
                 final Map<String, String> commitData = commitDataAsMap(writer);
                 historyUUID = loadHistoryUUID(commitData);
                 forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
-                compositeIndexWriter = writer;
+                documentIndexWriter = writer;
+                isContextAwareEnabled = engineConfig.getIndexSettings().isContextAwareEnabled();
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -334,7 +336,10 @@ public class InternalEngine extends Engine {
             // Set the Refresh checkpoint first and then sync child with parent to ensure parent Checkpoint is grater than Refresh checkpoint.
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
-            internalReaderManager.addListener(compositeIndexWriter);
+            if (isContextAwareEnabled) {
+                internalReaderManager.addListener((CompositeIndexWriter) documentIndexWriter);
+            }
+
 
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(
                 SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo())
@@ -363,6 +368,17 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    private DocumentIndexWriter getDocumentIndexWriter() throws IOException {
+        DocumentIndexWriter writer;
+        if (isContextAwareEnabled) {
+            writer = new CompositeIndexWriter(engineConfig, createWriter(), this::createChildWriterUtil, softDeletesField);
+        } else {
+            writer = new LuceneIndexWriter(createWriter());
+        }
+
+        return writer;
     }
 
     protected TranslogManager createTranslogManager(
@@ -538,7 +554,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void bootstrapAppendOnlyInfoFromWriter(CompositeIndexWriter writer) {
+    private void bootstrapAppendOnlyInfoFromWriter(DocumentIndexWriter writer) {
         for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
             if (MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID.equals(entry.getKey())) {
                 assert maxUnsafeAutoIdTimestamp.get() == -1 : "max unsafe timestamp was assigned already ["
@@ -557,7 +573,7 @@ public class InternalEngine extends Engine {
     private void revisitIndexDeletionPolicyOnTranslogSynced() {
         try {
             if (combinedDeletionPolicy.hasUnreferencedCommits()) {
-                compositeIndexWriter.deleteUnusedFiles();
+                documentIndexWriter.deleteUnusedFiles();
             }
             translogManager.trimUnreferencedReaders();
         } catch (IOException ex) {
@@ -580,7 +596,7 @@ public class InternalEngine extends Engine {
     /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */
     @Override
     public long getWritingBytes() {
-        return compositeIndexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
+        return documentIndexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
     }
 
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
@@ -590,7 +606,7 @@ public class InternalEngine extends Engine {
             try {
                 // We always open reader on parent IndexWriter.
                 final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(
-                    DirectoryReader.open(compositeIndexWriter.getAccumulatingIndexWriter()),
+                    DirectoryReader.open(documentIndexWriter.getAccumulatingIndexWriter()),
                     shardId
                 );
                 internalReaderManager = new OpenSearchReaderManager(directoryReader);
@@ -601,7 +617,7 @@ public class InternalEngine extends Engine {
             } catch (IOException e) {
                 maybeFailEngine("start", e);
                 try {
-                    compositeIndexWriter.rollback();
+                    documentIndexWriter.rollback();
                 } catch (IOException inner) { // iw is closed below
                     e.addSuppressed(inner);
                 }
@@ -609,7 +625,7 @@ public class InternalEngine extends Engine {
             }
         } finally {
             if (success == false) { // release everything we created on a failure
-                IOUtils.closeWhileHandlingException(internalReaderManager, compositeIndexWriter);
+                IOUtils.closeWhileHandlingException(internalReaderManager, documentIndexWriter);
             }
         }
     }
@@ -622,8 +638,7 @@ public class InternalEngine extends Engine {
             SearcherScope scope;
             if (get.realtime()) {
                 VersionValue versionValue = null;
-                try (Releasable ignore = versionMap.acquireLock(get.uid().bytes());
-                     Releasable ignore1 = compositeIndexWriter.acquireLock(get.uid().bytes())) {
+                try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
                     // we need to lock here to access the version map to do this truly in RT
                     versionValue = getVersionFromMap(get.uid().bytes());
                 }
@@ -884,7 +899,6 @@ public class InternalEngine extends Engine {
             int reservedDocs = 0;
             try (
                 Releasable ignored = versionMap.acquireLock(index.uid().bytes());
-                Releasable ignore1 = compositeIndexWriter.acquireLock(index.uid().bytes());
                 Releasable indexThrottle = doThrottle ? throttle.acquireThrottle() : () -> {}
             ) {
                 lastWriteNanos = index.startTime();
@@ -1164,21 +1178,21 @@ public class InternalEngine extends Engine {
 
         try {
             if (plan.addStaleOpToLucene) {
-                addStaleDocs(index.docs(), compositeIndexWriter, index.uid());
+                addStaleDocs(index.docs(), documentIndexWriter, index.uid());
             } else if (plan.useLuceneUpdateDocument) {
                 assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), index.seqNo(), true, true);
-                updateDocs(index.uid(), index.docs(), compositeIndexWriter, plan.versionForIndexing, index.seqNo(), index.primaryTerm());
+                updateDocs(index.uid(), index.docs(), documentIndexWriter, plan.versionForIndexing, index.seqNo(), index.primaryTerm());
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
 //                assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
-                addDocs(index.docs(), compositeIndexWriter, index.uid());
+                addDocs(index.docs(), documentIndexWriter, index.uid());
             }
 
             return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (ex instanceof AlreadyClosedException == false
                 // TODO: Check if isClose check in getTragicException will cause any issue here
-                && compositeIndexWriter.getTragicException() == null
+                && documentIndexWriter.getTragicException() == null
                 && treatDocumentFailureAsTragicError(index) == false) {
                 /* There is no tragic event recorded so this must be a document failure.
                  *
@@ -1308,7 +1322,7 @@ public class InternalEngine extends Engine {
         return mayHaveBeenIndexBefore;
     }
 
-    private void addDocs(final List<ParseContext.Document> docs, final CompositeIndexWriter indexWriter, Term uid) throws IOException {
+    private void addDocs(final List<ParseContext.Document> docs, final DocumentIndexWriter indexWriter, Term uid) throws IOException {
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs, uid);
         } else {
@@ -1317,7 +1331,7 @@ public class InternalEngine extends Engine {
         numDocAppends.inc(docs.size());
     }
 
-    private void addStaleDocs(final List<ParseContext.Document> docs, final CompositeIndexWriter indexWriter, Term uid) throws IOException {
+    private void addStaleDocs(final List<ParseContext.Document> docs, final DocumentIndexWriter indexWriter, Term uid) throws IOException {
         for (ParseContext.Document doc : docs) {
             doc.add(softDeletesField); // soft-deleted every document before adding to Lucene
         }
@@ -1437,7 +1451,7 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final CompositeIndexWriter indexWriter, long version, long seqNo, long primaryTerm) throws IOException {
+    private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final DocumentIndexWriter indexWriter, long version, long seqNo, long primaryTerm) throws IOException {
         if (engineConfig.getIndexSettings().getIndexMetadata().isAppendOnlyIndex()) {
             failEngine(
                 "Failing shard as update operation is not allowed for append only index ",
@@ -1461,8 +1475,7 @@ public class InternalEngine extends Engine {
         final DeleteResult deleteResult;
         int reservedDocs = 0;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes());
-             Releasable ignore1 = compositeIndexWriter.acquireLock(delete.uid().bytes())) {
+        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
             ensureOpen();
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
@@ -1547,7 +1560,7 @@ public class InternalEngine extends Engine {
         assert operation.origin() == Operation.Origin.PRIMARY : operation;
         assert operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : operation;
         assert addingDocs > 0 : addingDocs;
-        long totalDocs = inFlightDocCount.addAndGet(addingDocs) + compositeIndexWriter.getPendingNumDocs();
+        long totalDocs = inFlightDocCount.addAndGet(addingDocs) + documentIndexWriter.getPendingNumDocs();
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
             return new IllegalArgumentException(
@@ -1681,7 +1694,7 @@ public class InternalEngine extends Engine {
                 + doc
                 + " ]";
             doc.add(softDeletesField);
-            compositeIndexWriter.deleteDocument(delete.uid(), plan.addStaleOpToLucene || plan.currentlyDeleted,
+            documentIndexWriter.deleteDocument(delete.uid(), plan.addStaleOpToLucene || plan.currentlyDeleted,
                 doc, plan.versionOfDeletion, delete.seqNo(), delete.primaryTerm(), softDeletesField);
             return new DeleteResult(plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (final Exception ex) {
@@ -1689,7 +1702,7 @@ public class InternalEngine extends Engine {
              * Document level failures when deleting are unexpected, we likely hit something fatal such as the Lucene index being corrupt,
              * or the Lucene document limit. We have already issued a sequence number here so this is fatal, fail the engine.
              */
-            if (ex instanceof AlreadyClosedException == false && compositeIndexWriter.getTragicException() == null) {
+            if (ex instanceof AlreadyClosedException == false && documentIndexWriter.getTragicException() == null) {
                 final String reason = String.format(
                     Locale.ROOT,
                     "delete id[%s] origin [%s] seq#[%d] failed at the document level",
@@ -1813,26 +1826,37 @@ public class InternalEngine extends Engine {
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {
             logger.trace("flushAndClose now acquire writeLock");
-            try (ReleasableLock lock = writeLock.acquire();
-                 ReleasableLock ignored = compositeIndexWriter.getOldWriteLock().acquire();
-                 ReleasableLock ignored1 = compositeIndexWriter.getNewWriteLock().acquire()
-                 ) {
-                logger.trace("flushAndClose now acquired writeLock");
-                try {
-                    logger.debug("flushing shard on close - this might take some time to sync files to disk");
-                    try {
-                        // TODO we might force a flush in the future since we have the write lock already even though recoveries
-                        // are running.
-                        flush();
-                    } catch (AlreadyClosedException ex) {
-                        logger.debug("engine already closed - skipping flushAndClose");
-                    }
-                } finally {
-                    close(); // double close is not a problem
+            if (isContextAwareEnabled) {
+                CompositeIndexWriter compositeIndexWriter = (CompositeIndexWriter) documentIndexWriter;
+                try (ReleasableLock lock = writeLock.acquire();
+                     ReleasableLock ignored = compositeIndexWriter.getOldWriteLock().acquire();
+                     ReleasableLock ignored1 = compositeIndexWriter.getNewWriteLock().acquire()
+                ) {
+                    flushAndCloseInternal();
+                }
+            } else {
+                try (ReleasableLock lock = writeLock.acquire()) {
+                    flushAndCloseInternal();
                 }
             }
         }
         awaitPendingClose();
+    }
+
+    private void flushAndCloseInternal() throws IOException {
+        logger.trace("flushAndClose now acquired writeLock");
+        try {
+            logger.debug("flushing shard on close - this might take some time to sync files to disk");
+            try {
+                // TODO we might force a flush in the future since we have the write lock already even though recoveries
+                // are running.
+                flush();
+            } catch (AlreadyClosedException ex) {
+                logger.debug("engine already closed - skipping flushAndClose");
+            }
+        } finally {
+            close(); // double close is not a problem
+        }
     }
 
     private NoOpResult innerNoOp(final NoOp noOp) throws IOException {
@@ -1864,14 +1888,14 @@ public class InternalEngine extends Engine {
                             : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
                         doc.add(softDeletesField);
                         // We add NoOp only on parent IndexWriter.
-                        compositeIndexWriter.getAccumulatingIndexWriter().addDocument(doc);
+                        documentIndexWriter.getAccumulatingIndexWriter().addDocument(doc);
                     } catch (final Exception ex) {
                         /*
                          * Document level failures when adding a no-op are unexpected, we likely hit something fatal such as the Lucene
                          * index being corrupt, or the Lucene document limit. We have already issued a sequence number here so this is
                          * fatal, fail the engine.
                          */
-                        if (ex instanceof AlreadyClosedException == false && compositeIndexWriter.getTragicException() == null) {
+                        if (ex instanceof AlreadyClosedException == false && documentIndexWriter.getTragicException() == null) {
                             failEngine("no-op origin[" + noOp.origin() + "] seq#[" + noOp.seqNo() + "] failed at document level", ex);
                         }
                         throw ex;
@@ -2021,7 +2045,7 @@ public class InternalEngine extends Engine {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
-                boolean hasUncommittedChanges = compositeIndexWriter.hasUncommittedChanges();
+                boolean hasUncommittedChanges = documentIndexWriter.hasUncommittedChanges();
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (hasUncommittedChanges
                     || force
@@ -2040,7 +2064,7 @@ public class InternalEngine extends Engine {
                         final GatedCloseable<IndexCommit> latestCommit = engineConfig.getIndexSettings().isSegRepEnabledOrRemoteNode()
                             ? acquireLastIndexCommit(false)
                             : null;
-                        commitIndexWriter(compositeIndexWriter, translogManager.getTranslogUUID());
+                        commitIndexWriter(documentIndexWriter, translogManager.getTranslogUUID());
                         logger.trace("finished commit for flush");
 
                         // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
@@ -2167,9 +2191,9 @@ public class InternalEngine extends Engine {
          * thread for optimize, and the 'optimizeLock' guarding this code, and (3) ConcurrentMergeScheduler
          * syncs calls to findForcedMerges.
          */
-        assert compositeIndexWriter.getConfig().getMergePolicy() instanceof OpenSearchMergePolicy : "MergePolicy is "
-            + compositeIndexWriter.getConfig().getMergePolicy().getClass().getName();
-        OpenSearchMergePolicy mp = (OpenSearchMergePolicy) compositeIndexWriter.getConfig().getMergePolicy();
+        assert documentIndexWriter.getConfig().getMergePolicy() instanceof OpenSearchMergePolicy : "MergePolicy is "
+            + documentIndexWriter.getConfig().getMergePolicy().getClass().getName();
+        OpenSearchMergePolicy mp = (OpenSearchMergePolicy) documentIndexWriter.getConfig().getMergePolicy();
         optimizeLock.lock();
         try {
             ensureOpen();
@@ -2184,12 +2208,12 @@ public class InternalEngine extends Engine {
                 refresh("force merge");
                 if (onlyExpungeDeletes) {
                     assert upgrade == false;
-                    compositeIndexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
+                    documentIndexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
                 } else if (maxNumSegments <= 0) {
                     assert upgrade == false;
-                    compositeIndexWriter.maybeMerge();
+                    documentIndexWriter.maybeMerge();
                 } else {
-                    compositeIndexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
+                    documentIndexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
                     this.forceMergeUUID = forceMergeUUID;
                 }
                 if (flush) {
@@ -2251,7 +2275,7 @@ public class InternalEngine extends Engine {
             try {
                 // Here we don't have to trim translog because snapshotting an index commit
                 // does not lock translog or prevents unreferenced files from trimming.
-                compositeIndexWriter.deleteUnusedFiles();
+                documentIndexWriter.deleteUnusedFiles();
             } catch (AlreadyClosedException ignored) {
                 // That's ok, we'll clean up unused files the next time it's opened.
             }
@@ -2268,7 +2292,7 @@ public class InternalEngine extends Engine {
         // if we are already closed due to some tragic exception
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
-        final Throwable writerTragicException = compositeIndexWriter.getTragicException();
+        final Throwable writerTragicException = documentIndexWriter.getTragicException();
         // TODO Check if need to check for isOpen for other IndexWriters as well
         if (writerTragicException != null) {
             final Exception tragicException;
@@ -2304,7 +2328,7 @@ public class InternalEngine extends Engine {
         if (e instanceof AlreadyClosedException) {
             return failOnTragicEvent((AlreadyClosedException) e);
         } else if (e != null
-            && ((compositeIndexWriter.getTragicException() == e)
+            && ((documentIndexWriter.getTragicException() == e)
                 || (translogManager.getTragicExceptionIfClosed() == e))) {
                     // this spot on - we are handling the tragic event exception here so we have to fail the engine
                     // right away
@@ -2352,14 +2376,14 @@ public class InternalEngine extends Engine {
     @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
-        stats.addIndexWriterMemoryInBytes(compositeIndexWriter.ramBytesUsed());
+        stats.addIndexWriterMemoryInBytes(documentIndexWriter.ramBytesUsed());
         stats.updateMaxUnsafeAutoIdTimestamp(maxUnsafeAutoIdTimestamp.get());
     }
 
     @Override
     public long getIndexBufferRAMBytesUsed() {
         // We don't guard w/ readLock here, so we could throw AlreadyClosedException
-        return compositeIndexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
+        return documentIndexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
     }
 
     @Override
@@ -2388,14 +2412,25 @@ public class InternalEngine extends Engine {
         // The logic for closing writer is same as Engine except we are taking additional locks on child level writers.
         if (isClosed.get() == false) {
             logger.debug("close now acquiring writeLock");
-            try(ReleasableLock lock = writeLock.acquire();
-                ReleasableLock ignored = compositeIndexWriter.getNewWriteLock().acquire();
-                ReleasableLock ignored1 = compositeIndexWriter.getOldWriteLock().acquire()) {
-                logger.debug("close acquired writeLock");
-                closeNoLock("api", closedLatch);
+            if (isContextAwareEnabled) {
+                CompositeIndexWriter compositeIndexWriter = (CompositeIndexWriter) documentIndexWriter;
+                try(ReleasableLock lock = writeLock.acquire();
+                    ReleasableLock ignored = compositeIndexWriter.getNewWriteLock().acquire();
+                    ReleasableLock ignored1 = compositeIndexWriter.getOldWriteLock().acquire()) {
+                    closeInternal();
+                }
+            } else {
+                try(ReleasableLock lock = writeLock.acquire()) {
+                    closeInternal();
+                }
             }
         }
         awaitPendingClose();
+    }
+
+    private void closeInternal() throws IOException {
+        logger.debug("close acquired writeLock");
+        closeNoLock("api", closedLatch);
     }
 
     /**
@@ -2413,7 +2448,7 @@ public class InternalEngine extends Engine {
             // write lock on rwl lock taken in the close function call. Once close call completes, new entry in new map
             // cannot be created due to ensureOpen call in Composite IndexWriter.
             // TODO: Simulate this with a unit test.
-            assert (rwl.isWriteLockedByCurrentThread() && compositeIndexWriter.isWriteLockedByCurrentThread()) || failEngineLock.isHeldByCurrentThread()
+            assert (isWriteLockHeld()) || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
@@ -2433,7 +2468,7 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
-                    compositeIndexWriter.rollback();
+                    documentIndexWriter.rollback();
                 } catch (AlreadyClosedException ex) {
                     failOnTragicEvent(ex);
                     throw ex;
@@ -2449,6 +2484,14 @@ public class InternalEngine extends Engine {
                     closedLatch.countDown();
                 }
             }
+        }
+    }
+
+    private boolean isWriteLockHeld() {
+        if (isContextAwareEnabled) {
+            return rwl.isWriteLockedByCurrentThread() && ((CompositeIndexWriter) documentIndexWriter).isWriteLockedByCurrentThread();
+        } else {
+            return rwl.isWriteLockedByCurrentThread();
         }
     }
 
@@ -2564,8 +2607,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean refreshNeeded() {
-        if (compositeIndexWriter.hasNewIndexingOrUpdates()) {
-            return true;
+        if (isContextAwareEnabled) {
+            return ((CompositeIndexWriter)documentIndexWriter).hasNewIndexingOrUpdates();
         }
 
         return super.refreshNeeded();
@@ -2638,7 +2681,7 @@ public class InternalEngine extends Engine {
     }
 
     LiveIndexWriterConfig getCurrentIndexWriterConfig() {
-        return compositeIndexWriter.getConfig();
+        return documentIndexWriter.getConfig();
     }
 
     private final class EngineMergeScheduler extends OpenSearchConcurrentMergeScheduler {
@@ -2669,7 +2712,7 @@ public class InternalEngine extends Engine {
                     deactivateThrottling();
                 }
             }
-            if (compositeIndexWriter.hasPendingMerges() == false
+            if (documentIndexWriter.hasPendingMerges() == false
                 && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
                 // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
                 // we deadlock on engine#close for instance.
@@ -2723,7 +2766,7 @@ public class InternalEngine extends Engine {
      * @param writer   the index writer to commit
      * @param translogUUID the translogUUID
      */
-    protected void commitIndexWriter(final CompositeIndexWriter writer, final String translogUUID) throws IOException {
+    protected void commitIndexWriter(final DocumentIndexWriter writer, final String translogUUID) throws IOException {
         translogManager.ensureCanFlush();
         try {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
@@ -2999,7 +3042,7 @@ public class InternalEngine extends Engine {
     /**
      * Gets the commit data from {@link IndexWriter} as a map.
      */
-    protected static Map<String, String> commitDataAsMap(final CompositeIndexWriter indexWriter) {
+    protected static Map<String, String> commitDataAsMap(final DocumentIndexWriter indexWriter) {
         final Map<String, String> commitData = new HashMap<>(8);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
@@ -3180,7 +3223,7 @@ public class InternalEngine extends Engine {
                     continue;
                 }
                 final BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId(idFieldVisitor.getId())).bytes();
-                try (Releasable ignored = versionMap.acquireLock(uid); Releasable ignore1 = compositeIndexWriter.acquireLock(uid)) {
+                try (Releasable ignored = versionMap.acquireLock(uid)) {
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null
                         || compareOpToVersionMapOnSeqNo(idFieldVisitor.getId(), seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {

@@ -14,13 +14,13 @@ import org.apache.lucene.store.FilterDirectory;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class CriteriaBasedCompositeDirectory extends FilterDirectory {
+public class BucketedCompositeDirectory extends FilterDirectory {
     /**
      * Sole constructor, typically called from sub-classes.
      *
      * @param in
      */
-    protected CriteriaBasedCompositeDirectory(Directory in) {
+    protected BucketedCompositeDirectory(Directory in) {
         super(in);
     }
 
