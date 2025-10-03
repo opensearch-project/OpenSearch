@@ -31,6 +31,7 @@ import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 import org.roaringbitmap.PeekableIntIterator;
@@ -71,7 +72,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
 
     private static BitmapIterator bitmapEncodedIterator(RoaringBitmap bitmap) {
         return new BitmapIterator() {
-            private final PeekableIntIterator iterator = bitmap.getIntIterator();
+            private final PeekableIntIterator iterator = bitmap.getSignedIntIterator();
             private final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
 
             public BytesRef next() {
@@ -186,6 +187,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
 
         private boolean matches(byte[] packedValue) {
             while (nextQueryPoint != null) {
+                ArrayUtil.ByteArrayComparator unsignedComparator = ArrayUtil.getUnsignedComparator(nextQueryPoint.offset);
                 int cmp = comparator.compare(nextQueryPoint.bytes, nextQueryPoint.offset, packedValue, 0);
                 if (cmp == 0) {
                     return true;

@@ -51,7 +51,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
         this.bitmap = bitmap;
         if (!bitmap.isEmpty()) {
             min = bitmap.first();
-            max = bitmap.last();
+            max = Integer.toUnsignedLong(bitmap.last());
         } else {
             min = 0; // final field
             max = 0;
@@ -71,6 +71,11 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
                         @Override
                         public boolean matches() throws IOException {
                             long value = singleton.longValue();
+                            // Check if negative
+                            if (value < 0) {
+                                // add 2^32 to make it unsigned
+                                value = (1L << 32) + value;
+                            }
                             return value >= min && value <= max && bitmap.contains((int) value);
                         }
 
