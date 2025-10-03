@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package com.parquet.parquetdataformat.read;
+package com.parquet.parquetdataformat.engine.read;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,6 +19,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static com.parquet.parquetdataformat.bridge.RustBridge.nativeCloseSessionContext;
+import static com.parquet.parquetdataformat.bridge.RustBridge.nativeCreateSessionContext;
+import static com.parquet.parquetdataformat.bridge.RustBridge.nativeExecuteSubstraitQuery;
+import static com.parquet.parquetdataformat.bridge.RustBridge.nativeRegisterDirectory;
 
 /**
  * Datasource codec implementation for parquet files
@@ -33,7 +38,7 @@ public class ParquetDataSourceCodec implements DataSourceCodec {
     // JNI library loading
     static {
         try {
-            JniLibraryLoader.loadLibrary();
+            //JniLibraryLoader.loadLibrary();
             logger.info("DataFusion JNI library loaded successfully");
         } catch (Exception e) {
             logger.error("Failed to load DataFusion JNI library", e);
@@ -135,13 +140,4 @@ public class ParquetDataSourceCodec implements DataSourceCodec {
     public DataFormat getDataFormat() {
         return DataFormat.CSV;
     }
-
-    // Native method declarations - these will be implemented in the JNI library
-    private static native void nativeRegisterDirectory(String tableName, String directoryPath, String[] files, long runtimeId);
-
-    private static native long nativeCreateSessionContext(String[] configKeys, String[] configValues);
-
-    private static native long nativeExecuteSubstraitQuery(long sessionContextPtr, byte[] substraitPlan);
-
-    private static native void nativeCloseSessionContext(long sessionContextPtr);
 }
