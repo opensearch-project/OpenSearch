@@ -6,13 +6,16 @@
  * compatible open source license.
  */
 
-package com.parquet.parquetdataformat.read;
+package com.parquet.parquetdataformat.engine.read;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
 import java.util.concurrent.CompletableFuture;
+
+import static com.parquet.parquetdataformat.bridge.RustBridge.nativeCloseStream;
+import static com.parquet.parquetdataformat.bridge.RustBridge.nativeNextBatch;
 
 /**
  * TODO : this need not be here - nothing specific to parquet - move to LIB ?
@@ -111,9 +114,4 @@ public class ParquetRecordBatchStream implements RecordBatchStream {
             }
         }
     }
-
-    // Native method declarations
-    private static native String nativeNextBatch(long streamPtr);
-
-    private static native void nativeCloseStream(long streamPtr);
 }

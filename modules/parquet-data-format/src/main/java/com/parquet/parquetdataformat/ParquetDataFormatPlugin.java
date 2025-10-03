@@ -7,7 +7,9 @@
  */
 package com.parquet.parquetdataformat;
 
+import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.fields.ParquetFieldUtil;
+import com.parquet.parquetdataformat.engine.read.ParquetDataSourceCodec;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
 import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
@@ -18,8 +20,12 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * OpenSearch plugin that provides Parquet data format support for indexing operations.
@@ -58,9 +64,23 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(() -> ParquetFieldUtil.getSchema(mapperService), shardPath);
     }
 
+    private Class<? extends DataFormat> getDataFormatType() {
+        return ParquetDataFormat.class;
+    }
+
     @Override
     public DataFormat getDataFormat() {
-        return null;
+        return new ParquetDataFormat();
+    }
+
+    @Override
+    public Optional<Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec>> getDataSourceCodecs() {
+        Map<org.opensearch.vectorized.execution.search.DataFormat, DataSourceCodec> codecs = new HashMap<>();
+        ParquetDataSourceCodec parquetDataSourceCodec = new ParquetDataSourceCodec();
+        // TODO : version it correctly - similar to lucene codecs?
+        codecs.put(parquetDataSourceCodec.getDataFormat(), new ParquetDataSourceCodec());
+        return Optional.of(codecs);
+        // return Optional.empty();
     }
 
     // for testing locally only

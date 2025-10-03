@@ -28,7 +28,7 @@ impl SessionContextManager {
         directory_path: &str,
         options: HashMap<String, String>,
     ) -> Result<u64> {
-        // Placeholder implementation - would register csv directory as table
+        // Placeholder implementation - would register parquet directory as table
         log::info!("Registering directory: {} at path: {} with options: {:?}",
                    table_name, directory_path, options);
 
