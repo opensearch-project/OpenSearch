@@ -37,6 +37,8 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.index.engine.exec.DocumentInput;
+import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.ParseContext.Document;
 
@@ -64,6 +66,12 @@ public class ParsedDocument {
 
     private Mapping dynamicMappingsUpdate;
 
+    private CompositeDataFormatWriter.CompositeDocumentInput documentInput;
+
+    public CompositeDataFormatWriter.CompositeDocumentInput getDocumentInput() {
+        return documentInput;
+    }
+
     public ParsedDocument(
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
@@ -74,6 +82,22 @@ public class ParsedDocument {
         MediaType mediaType,
         Mapping dynamicMappingsUpdate
     ) {
+        this(
+            version, seqID, id, routing, documents, source, mediaType, dynamicMappingsUpdate, null
+        );
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<Document> documents,
+        BytesReference source,
+        MediaType mediaType,
+        Mapping dynamicMappingsUpdate,
+        CompositeDataFormatWriter.CompositeDocumentInput documentInput
+    ) {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
@@ -82,6 +106,7 @@ public class ParsedDocument {
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.mediaType = mediaType;
+        this.documentInput = documentInput;
     }
 
     public String id() {

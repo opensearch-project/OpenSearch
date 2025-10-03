@@ -254,7 +254,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_DataFusionQueryJNI_execute
         // Create a new TableProvider
         let provider = Arc::new(ListingTable::try_new(config).unwrap());
         let shard_id = table_path.prefix().filename().expect("error in fetching Path");
-        ctx.register_table("hits", provider)
+        ctx.register_table("index-7", provider)
             .expect("Failed to attach the Table");
 
     });

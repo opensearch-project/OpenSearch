@@ -1113,7 +1113,10 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private SearchEnginePlugin getSearchEnginePlugin() throws IOException {
-        return pluginsService.filterPlugins(SearchEnginePlugin.class).get(0);
+        List<SearchEnginePlugin> searchEnginePlugins = pluginsService.filterPlugins(SearchEnginePlugin.class);
+        return !searchEnginePlugins.isEmpty()
+            ? searchEnginePlugins.getFirst()
+            : null;
     }
 
     private IngestionConsumerFactory getIngestionConsumerFactory(final IndexSettings idxSettings) {
