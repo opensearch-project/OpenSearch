@@ -784,7 +784,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
                 wlmClusterSettingValuesProvider,
                 featureType
             );
-            return List.of(refreshMechanism);
+            return List.of(refreshMechanism, rulePersistenceService, featureType);
         }
 
         @Override
