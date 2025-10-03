@@ -125,6 +125,7 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1125,8 +1126,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         CollapseTopFieldDocs topDocs = (CollapseTopFieldDocs) context.queryResult().topDocs().topDocs;
         assertThat(topDocs.collapseValues.length, equalTo(2));
-        assertThat(topDocs.collapseValues[0], equalTo(0L)); // user == 0
-        assertThat(topDocs.collapseValues[1], equalTo(1L)); // user == 1
+        // Order is non-deterministic when scores are equal, so check both values are present
+        assertThat(Arrays.asList(topDocs.collapseValues), containsInAnyOrder(0L, 1L));
 
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].score, equalTo(context.queryResult().getMaxScore()));
 
@@ -1141,8 +1142,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         topDocs = (CollapseTopFieldDocs) context.queryResult().topDocs().topDocs;
         assertThat(topDocs.collapseValues.length, equalTo(2));
-        assertThat(topDocs.collapseValues[0], equalTo(0L)); // user == 0
-        assertThat(topDocs.collapseValues[1], equalTo(1L)); // user == 1
+        // Order is non-deterministic when scores are equal, so check both values are present
+        assertThat(Arrays.asList(topDocs.collapseValues), containsInAnyOrder(0L, 1L));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].score, equalTo(context.queryResult().getMaxScore()));
 
         reader.close();
