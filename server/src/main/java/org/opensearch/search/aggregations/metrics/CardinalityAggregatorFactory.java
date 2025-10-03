@@ -104,6 +104,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        if (searchContext.isStreamSearch()) {
+            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
+        }
         return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
     }
 
@@ -114,6 +117,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
+        if (searchContext.isStreamSearch()) {
+            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
+        }
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, precision(), searchContext, parent, metadata, executionMode);
