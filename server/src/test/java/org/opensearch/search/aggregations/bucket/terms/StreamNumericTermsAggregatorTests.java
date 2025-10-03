@@ -46,7 +46,10 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTr
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
@@ -1703,6 +1706,57 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     LongTerms result1 = (LongTerms) results[0];
                     assertThat(result1.getBuckets().size(), equalTo(2));
                 }
+            }
+        }
+    }
+
+    public void testCollectDebugInfo() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new NumericDocValuesField("number", 1));
+                document.add(new org.apache.lucene.document.LongPoint("number", 1));
+                iw.addDocument(document);
+                document = new Document();
+                document.add(new NumericDocValuesField("number", 2));
+                document.add(new org.apache.lucene.document.LongPoint("number", 2));
+                iw.addDocument(document);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+
+                TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("number");
+                StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                    null,
+                    aggregationBuilder,
+                    indexSearcher,
+                    createIndexSettings(),
+                    new MultiBucketConsumerService.MultiBucketConsumer(
+                        DEFAULT_MAX_BUCKETS,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    ),
+                    fieldType
+                );
+
+                Map<String, Object> debugInfo = new HashMap<>();
+                BiConsumer<String, Object> debugCollector = debugInfo::put;
+                aggregator.collectDebugInfo(debugCollector);
+
+                assertTrue("Should contain result_strategy", debugInfo.containsKey("result_strategy"));
+                assertEquals("stream_long_terms", debugInfo.get("result_strategy"));
+
+                assertTrue("Should contain total_buckets", debugInfo.containsKey("total_buckets"));
+                assertTrue("Should contain streaming_enabled", debugInfo.containsKey("streaming_enabled"));
+                assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
+                assertTrue("Should contain streaming_estimated_buckets", debugInfo.containsKey("streaming_estimated_buckets"));
+                assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
+                assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
+
+                assertEquals(Boolean.TRUE, debugInfo.get("streaming_enabled"));
+                assertTrue("streaming_top_n_size should be positive", (Long) debugInfo.get("streaming_top_n_size") > 0);
+                assertTrue("streaming_segment_count should be positive", (Integer) debugInfo.get("streaming_segment_count") > 0);
             }
         }
     }
