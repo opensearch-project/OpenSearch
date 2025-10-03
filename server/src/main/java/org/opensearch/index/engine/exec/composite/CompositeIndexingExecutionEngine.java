@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.exec.composite;
 
-import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
@@ -18,6 +17,8 @@ import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.engine.exec.coord.DocumentWriterPool;
 import org.opensearch.index.engine.exec.text.TextEngine;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.PluginsService;
 
@@ -33,7 +34,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private DataFormat dataFormat;
     public final List<IndexingExecutionEngine<?>> delegates = new ArrayList<>();
 
-    public CompositeIndexingExecutionEngine(PluginsService pluginsService, Any dataformat) {
+    public CompositeIndexingExecutionEngine(MapperService mapperService, PluginsService pluginsService, Any dataformat, ShardPath shardPath) {
         this.dataFormat = dataformat;
         try {
             for (DataFormat dataFormat : dataformat.getDataFormats()) {
@@ -42,7 +43,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                     .filter(curr -> curr.getDataFormat().equals(dataFormat.name()))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("dataformat [" + dataFormat + "] is not registered."));
-                delegates.add(plugin.indexingEngine());
+                delegates.add(plugin.indexingEngine(mapperService, shardPath));
             }
         } catch (NullPointerException e) {
             // my own testing
@@ -51,12 +52,12 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.pool = new DocumentWriterPool(() -> new CompositeDataFormatWriter(this));
     }
 
-    public CompositeIndexingExecutionEngine(PluginsService pluginsService) {
+    public CompositeIndexingExecutionEngine(MapperService mapperService, PluginsService pluginsService, ShardPath shardPath) {
      try {
         DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class).stream()
             .findAny()
             .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
-         delegates.add(plugin.indexingEngine());
+         delegates.add(plugin.indexingEngine(mapperService, shardPath));
      } catch (NullPointerException e) {
          delegates.add(new TextEngine());
      }
@@ -91,11 +92,18 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                 refreshInputs.computeIfAbsent(metadata.df(), df -> new RefreshInput()).add(metadata);
             }
 
+            if (refreshInputs.isEmpty()) {
+                return null;
+            }
+
             // make indexing engines aware of everything
-//            for (IndexingExecutionEngine<?> delegate : delegates) {
-//                RefreshResult result = delegate.refresh(refreshInputs.get(delegate.getDataFormat()));
-//                finalResult.add(delegate.getDataFormat(), result.getRefreshedFiles().get(delegate.getDataFormat()));
-//            }
+            for (IndexingExecutionEngine<?> delegate : delegates) {
+                RefreshInput refreshInput = refreshInputs.get(delegate.getDataFormat());
+                if (refreshInput != null) {
+                    RefreshResult result = delegate.refresh(refreshInput);
+                    finalResult.add(delegate.getDataFormat(), result.getRefreshedFiles().get(delegate.getDataFormat()));
+                }
+            }
 
             // provide a view to the upper layer
             return finalResult;

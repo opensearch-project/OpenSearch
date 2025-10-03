@@ -13,6 +13,8 @@ import org.opensearch.index.engine.exec.FileMetadata;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,7 +47,15 @@ public class DatafusionReader implements Closeable {
     public DatafusionReader(String directoryPath, Collection<FileMetadata> files) {
         this.directoryPath = directoryPath;
         this.files = files;
-        String[] fileNames = Objects.isNull(files) ? new String[]{"hits_data.parquet"} : files.stream().map(FileMetadata::fileName).toArray(String[]::new);
+        String[] fileNames = new String[0];
+        if(files != null) {
+            System.out.println("Got the files!!!!!");
+            fileNames = files.stream().map(file -> Path.of(file.fileName()).getFileName().toString()).toArray(String[]::new);
+        }
+        //String[] fileNames = files.stream().map(file -> Path.of(file.fileName()).getFileName().toString()).toArray(String[]::new);
+        System.out.println("File names: " + Arrays.toString(fileNames));
+        System.out.println("Directory path: " + directoryPath);
+
         this.cachePtr = DataFusionQueryJNI.createDatafusionReader(directoryPath, fileNames);
         incRef();
     }
@@ -87,7 +97,7 @@ public class DatafusionReader implements Closeable {
             throw new IllegalStateException("Listing table has been already closed");
         }
 
-        closeDatafusionReader(this.cachePtr);
+//        closeDatafusionReader(this.cachePtr);
         this.cachePtr = -1;
     }
 }

@@ -137,8 +137,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 compileJava {
-  options.compilerArgs += ['-processor', ['org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor',
-    'org.opensearch.common.annotation.processor.ApiAnnotationProcessor'].join(',')]
+  options.compilerArgs += ['-processor', ['org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor'].join(',')]
 }
 
 tasks.named("internalClusterTest").configure {

@@ -77,12 +77,12 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     public static class CompositeDocumentInput implements DocumentInput<List<? extends DocumentInput<?>>> {
         List<? extends DocumentInput<?>> inputs;
         CompositeDataFormatWriter writer;
-        Runnable onClose;
+        Runnable postWrite;
 
-        public CompositeDocumentInput(List<? extends DocumentInput<?>> inputs, CompositeDataFormatWriter writer, Runnable onClose) {
+        public CompositeDocumentInput(List<? extends DocumentInput<?>> inputs, CompositeDataFormatWriter writer, Runnable postWrite) {
             this.inputs = inputs;
             this.writer = writer;
-            this.onClose = onClose;
+            this.postWrite = postWrite;
         }
 
         @Override
@@ -103,12 +103,13 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
             for (DocumentInput<?> input : inputs) {
                 writeResult = input.addToWriter();
             }
+            postWrite.run();
             return writeResult;
         }
 
         @Override
         public void close() throws Exception {
-            onClose.run();
+            postWrite.run();
         }
     }
 }

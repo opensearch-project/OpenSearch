@@ -862,20 +862,22 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             value = normalizeValue(normalizer, name(), value);
         }
 
+        context.compositeDocumentInput().addField(fieldType(), value);
+
         // convert to utf8 only once before feeding postings/dv/stored fields
-        final BytesRef binaryValue = new BytesRef(value);
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
-
-            if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                createFieldNamesField(context);
-            }
-        }
-
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-        }
+//        final BytesRef binaryValue = new BytesRef(value);
+//        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+//            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
+//            context.doc().add(field);
+//
+//            if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
+//                createFieldNamesField(context);
+//            }
+//        }
+//
+//        if (fieldType().hasDocValues()) {
+//            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+//        }
     }
 
     static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {

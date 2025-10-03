@@ -51,6 +51,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.opensearch.index.query.NestedQueryBuilder;
@@ -251,6 +252,10 @@ public class DocumentMapper implements ToXContentFragment {
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
         return documentParser.parseDocument(source, mapping.metadataMappers);
+    }
+
+    public ParsedDocument parse(SourceToParse source, CompositeDataFormatWriter.CompositeDocumentInput compositeDocumentInput) throws MapperParsingException {
+        return documentParser.parseDocument(source, mapping.metadataMappers, compositeDocumentInput);
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {

@@ -168,6 +168,8 @@ public class RunTask extends DefaultTestClustersTask {
             firstNode.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + DEFAULT_TRANSPORT_PORT);
             cluster.setPreserveDataDir(preserveData);
             for (OpenSearchNode node : cluster.getNodes()) {
+                // TODO : remove this - this disables assertions
+                node.jvmArgs(" -da ");
                 if (node != firstNode) {
                     node.setHttpPort(String.valueOf(httpPort));
                     httpPort++;
