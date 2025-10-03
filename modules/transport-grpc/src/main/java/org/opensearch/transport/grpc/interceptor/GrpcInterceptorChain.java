@@ -44,7 +44,6 @@ public class GrpcInterceptorChain implements ServerInterceptor {
 
     /**
      * Intercepts a gRPC call, executing the chain of interceptors in order.
-     * Uses an iterative approach similar to OpenSearch's ActionFilter chain.
      * @param call object to receive response messages
      * @param headers which can contain extra call metadata
      * @param next next processor in the interceptor chain
@@ -58,7 +57,6 @@ public class GrpcInterceptorChain implements ServerInterceptor {
     ) {
         ServerCallHandler<ReqT, RespT> currentHandler = next;
 
-        // This ensures forward execution: interceptor[0] -> interceptor[1] -> ... -> service
         for (int i = interceptors.size() - 1; i >= 0; i--) {
             final OrderedGrpcInterceptor interceptor = interceptors.get(i);
             final ServerCallHandler<ReqT, RespT> nextHandler = currentHandler;
@@ -71,7 +69,6 @@ public class GrpcInterceptorChain implements ServerInterceptor {
                     try {
                         return interceptor.getInterceptor().interceptCall(call, headers, nextHandler);
                     } catch (StatusRuntimeException sre) {
-                        // Interceptor threw a gRPC status - respect it (e.g., PERMISSION_DENIED, UNAUTHENTICATED)
                         logger.error(
                             "Interceptor at index [{}] failed with status [{}]: {}",
                             index,
@@ -89,8 +86,6 @@ public class GrpcInterceptorChain implements ServerInterceptor {
                 }
             };
         }
-
-        // Start the chain execution
         return currentHandler.startCall(call, headers);
     }
 
