@@ -1281,7 +1281,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean isStreamSearch,
         SearchExecEngine searchExecEngine
     ) throws IOException {
-        //final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, false, isStreamSearch);
+        //final DefaultSearchContext originalContext = createSearchContext(readerContext, request, defaultSearchTimeout, false, isStreamSearch);
 
         SearchShardTarget shardTarget = new SearchShardTarget(
             clusterService.localNode().getId(),
@@ -1289,7 +1289,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             request.getClusterAlias(),
             OriginalIndices.NONE
         );
-        SearchContext context = searchExecEngine.createContext(readerContext, request, shardTarget, task);
+        SearchContext context = searchExecEngine.createContext(readerContext, request, shardTarget, task, bigArrays);
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();

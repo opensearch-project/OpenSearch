@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.datafusion.core.DefaultRecordBatchStream;
 import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionQuery;
@@ -33,6 +34,7 @@ import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.SearchResultsCollector;
 import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhaseExecutor;
 import org.opensearch.vectorized.execution.search.DataFormat;
@@ -57,7 +59,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService) throws IOException {
         this.dataFormat = dataFormat;
-        this.datafusionReaderManager = new DatafusionReaderManager("/Users/gbh/Downloads/res", formatCatalogSnapshot);
+        this.datafusionReaderManager = new DatafusionReaderManager("/Users/anijainc/Desktop/BLRBackups/AOS_Search/Mustang/res", formatCatalogSnapshot);
         this.datafusionService = dataFusionService;
     }
 
@@ -72,8 +74,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     }
 
     @Override
-    public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget,  SearchShardTask task) throws IOException {
-        DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this);
+    public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays) throws IOException {
+        DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this, bigArrays);
         // Parse source
         datafusionContext.datafusionQuery(new DatafusionQuery(request.source().queryPlanIR(), new ArrayList<>()));
         return datafusionContext;
