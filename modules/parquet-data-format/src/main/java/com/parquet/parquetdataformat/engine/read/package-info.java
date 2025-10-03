@@ -10,4 +10,4 @@
  * CSV data format implementation for DataFusion integration.
  * Provides CSV file reading capabilities through DataFusion query engine.
  */
-package com.parquet.parquetdataformat.read;
+package com.parquet.parquetdataformat.engine.read;

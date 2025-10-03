@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-//! OpenSearch DataFusion Csv JNI Library
+//! OpenSearch DataFusion parquet JNI Library
 //!
 //! This library provides JNI bindings for DataFusion query execution,
 
@@ -21,7 +21,7 @@ mod runtime;
 mod stream;
 mod substrait;
 mod util;
-mod csv_exec;
+mod parquet_exec;
 
 use context::SessionContextManager;
 use runtime::RuntimeManager;
@@ -53,7 +53,7 @@ static mut RUNTIME_ENVIRONMENTS: Option<HashMap<u64, String>> = None;
 
 /// Register a directory as a table in the global context and return runtime environment ID
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvDataSourceCodec_nativeRegisterDirectory(
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_nativeRegisterDirectory(
     mut env: JNIEnv,
     _class: JClass,
     table_name: JString,
@@ -67,7 +67,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvDataSourceCodec_nat
 
 /// Create a new session context
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvDataSourceCodec_nativeCreateSessionContext(
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_nativeCreateSessionContext(
     mut env: JNIEnv,
     _class: JClass,
     config_keys: JObjectArray,
@@ -102,7 +102,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvDataSourceCodec_nat
 
 /// Execute a Substrait query plan
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvDataSourceCodec_nativeExecuteSubstraitQuery(
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_nativeExecuteSubstraitQuery(
     mut env: JNIEnv,
     _class: JClass,
     session_context_ptr: jlong,
@@ -135,7 +135,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvDataSourceCodec_nat
 
 /// Close a session context
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvDataSourceCodec_nativeCloseSessionContext(
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_nativeCloseSessionContext(
     mut env: JNIEnv,
     _class: JClass,
     session_context_ptr: jlong,
@@ -154,7 +154,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvDataSourceCodec_nat
 
 /// Get the next record batch from a stream
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvRecordBatchStream_nativeNextBatch(
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_nativeNextBatch(
     mut env: JNIEnv,
     _class: JClass,
     stream_ptr: jlong,
@@ -186,7 +186,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvRecordBatchStream_n
 
 /// Close a record batch stream
 #[no_mangle]
-pub extern "system" fn Java_org_opensearch_datafusion_csv_CsvRecordBatchStream_nativeCloseStream(
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_nativeCloseStream(
     _env: JNIEnv,
     _class: JClass,
     stream_ptr: jlong,
