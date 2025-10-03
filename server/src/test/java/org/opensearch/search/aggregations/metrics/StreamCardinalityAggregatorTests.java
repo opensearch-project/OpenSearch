@@ -34,7 +34,9 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTr
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.instanceOf;
@@ -813,6 +815,427 @@ public class StreamCardinalityAggregatorTests extends AggregatorTestCase {
 
                     // After reset, cardinality should be the same since we're processing the same data
                     assertEquals(firstCardinality, secondCardinality);
+                }
+            }
+        }
+    }
+
+    public void testNonOrdinalValueSourceThrowsException() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("test")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    // Use a number field type which will create a non-ordinal value source
+                    MappedFieldType fieldType = new org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType(
+                        "field",
+                        org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG
+                    );
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    // This should throw IllegalStateException when getLeafCollector is called with non-ordinal value source
+                    IllegalStateException exception = expectThrows(
+                        IllegalStateException.class,
+                        () -> indexSearcher.search(new MatchAllDocsQuery(), aggregator)
+                    );
+                    assertTrue(exception.getMessage().contains("only supports ordinal value sources"));
+                }
+            }
+        }
+    }
+
+    public void testBuildEmptyAggregation() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    InternalCardinality empty = (InternalCardinality) aggregator.buildEmptyAggregation();
+                    assertThat(empty, notNullValue());
+                    assertEquals("test", empty.getName());
+                    assertEquals(0, empty.getValue(), 0);
+                }
+            }
+        }
+    }
+
+    public void testMetricMethod() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 10; i++) {
+                    Document document = new Document();
+                    document.add(new SortedSetDocValuesField("field", new BytesRef("value_" + i)));
+                    indexWriter.addDocument(document);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    // Test metric() method
+                    double metricValue = aggregator.metric(0);
+                    assertTrue(metricValue > 0);
+                    assertTrue(metricValue <= 10);
+                }
+            }
+        }
+    }
+
+    public void testCollectDebugInfo() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("test")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    // Collect debug info
+                    Map<String, Object> debugInfo = new HashMap<>();
+                    aggregator.collectDebugInfo((key, value) -> debugInfo.put(key, value));
+
+                    // Verify debug info contains expected keys
+                    assertTrue(debugInfo.containsKey("empty_collectors_used"));
+                    assertTrue(debugInfo.containsKey("ordinals_collectors_used"));
+                }
+            }
+        }
+    }
+
+    public void testMultipleLeafCollectorInvocations() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                // Add documents to first segment
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("segment1_value1")));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("segment1_value2")));
+                indexWriter.addDocument(document);
+
+                // Force a segment
+                indexWriter.commit();
+
+                // Add documents to second segment
+                document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("segment2_value1")));
+                indexWriter.addDocument(document);
+
+                document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("segment2_value2")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    // This will call getLeafCollector multiple times (once per segment)
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    InternalCardinality result = (InternalCardinality) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    // Should have approximately 4 unique values
+                    assertTrue(result.getValue() > 0);
+                }
+            }
+        }
+    }
+
+    public void testDoCloseCalledDuringPostCollection() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("test")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+
+                    // Post collection should properly clean up stream collector
+                    aggregator.postCollection();
+
+                    // Build aggregation to ensure it works after postCollection
+                    InternalCardinality result = (InternalCardinality) aggregator.buildAggregations(new long[] { 0 })[0];
+                    assertThat(result, notNullValue());
+                    assertTrue(result.getValue() > 0);
+
+                    // Close is called automatically by test framework
+                }
+            }
+        }
+    }
+
+    public void testNullValuesSource() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("other_field", new BytesRef("test")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    // Field doesn't exist, so values source will be null
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("non_existent_field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field(
+                        "non_existent_field"
+                    );
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    InternalCardinality result = (InternalCardinality) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertEquals(0, result.getValue(), 0);
+                }
+            }
+        }
+    }
+
+    public void testResetAfterError() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field", new BytesRef("test")));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    // Reset should work even if called multiple times
+                    aggregator.doReset();
+                    aggregator.doReset();
+
+                    // Should be able to collect again after multiple resets
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    InternalCardinality result = (InternalCardinality) aggregator.buildAggregations(new long[] { 0 })[0];
+                    assertTrue(result.getValue() > 0);
+                }
+            }
+        }
+    }
+
+    public void testEmptyOrdinalsCollector() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Add a document with a field but no ordinals (empty segment)
+                Document document = new Document();
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    InternalCardinality result = (InternalCardinality) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    assertEquals(0, result.getValue(), 0);
+
+                    // Verify empty collector was used
+                    Map<String, Object> debugInfo = new HashMap<>();
+                    aggregator.collectDebugInfo((key, value) -> debugInfo.put(key, value));
+                    assertTrue((Integer) debugInfo.get("empty_collectors_used") > 0);
+                }
+            }
+        }
+    }
+
+    public void testBuildTopLevel() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 5; i++) {
+                    Document document = new Document();
+                    document.add(new SortedSetDocValuesField("field", new BytesRef("value_" + i)));
+                    indexWriter.addDocument(document);
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("test").field("field");
+
+                    StreamCardinalityAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    InternalAggregation topLevel = aggregator.buildTopLevel();
+                    assertThat(topLevel, instanceOf(InternalCardinality.class));
+
+                    InternalCardinality cardinality = (InternalCardinality) topLevel;
+                    assertTrue(cardinality.getValue() > 0);
                 }
             }
         }
