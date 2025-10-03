@@ -1065,7 +1065,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             SearchProgressListener.NOOP,
@@ -1134,18 +1134,17 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             result.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null, OriginalIndices.NONE));
             consumer.consumeResult(result, latch::countDown);
             numEmptyResponses--;
-
         }
         latch.await();
         final int numTotalReducePhases;
         if (numShards > bufferSize) {
             if (bufferSize == 2) {
-                assertEquals(1, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(1, consumer.getNumReducePhases());
                 assertEquals(1, reductions.size());
                 assertEquals(false, reductions.get(0));
                 numTotalReducePhases = 2;
             } else {
-                assertEquals(0, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(0, consumer.getNumReducePhases());
                 assertEquals(0, reductions.size());
                 numTotalReducePhases = 1;
             }
