@@ -25,10 +25,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
-import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
-import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.threadpool.ThreadPool;
@@ -50,8 +48,8 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
     AcknowledgedResponse> {
 
     private final WorkloadGroupPersistenceService workloadGroupPersistenceService;
-    private final RulePersistenceService rulePersistenceService;
-    private final FeatureType featureType;
+    private final IndexStoredRulePersistenceService rulePersistenceService;
+    private final WorkloadGroupFeatureType featureType;
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteWorkloadGroupAction.class);
 
@@ -64,7 +62,7 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
      * @param threadPool - a {@link ThreadPool} object
      * @param indexNameExpressionResolver - a {@link IndexNameExpressionResolver} object
      * @param workloadGroupPersistenceService - a {@link WorkloadGroupPersistenceService} object
-     * @param persistenceService - a {@link RulePersistenceService} instance
+     * @param persistenceService - a {@link IndexStoredRulePersistenceService} instance
      * @param featureType - workloadManagement feature type
      */
     @Inject
