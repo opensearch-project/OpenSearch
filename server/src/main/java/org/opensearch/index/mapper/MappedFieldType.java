@@ -87,6 +87,7 @@ public abstract class MappedFieldType {
     private final boolean docValues;
     private final boolean isIndexed;
     private final boolean isStored;
+    private final boolean isColumnar;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
     private float boost;
@@ -101,6 +102,8 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
+        // TODO: take the value from user input
+        this.isColumnar = true;
         this.boost = 1.0f;
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
@@ -183,6 +186,13 @@ public abstract class MappedFieldType {
      */
     public boolean isStored() {
         return isStored;
+    }
+
+    /**
+     * Returns true if the field is columnar.
+     */
+    public boolean isColumnar() {
+        return isColumnar;
     }
 
     /**

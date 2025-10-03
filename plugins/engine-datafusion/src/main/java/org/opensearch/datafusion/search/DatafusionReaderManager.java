@@ -11,6 +11,7 @@ package org.opensearch.datafusion.search;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
 import org.opensearch.index.engine.EngineReaderManager;
+import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
@@ -29,8 +30,8 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 //    private final Lock refreshLock = new ReentrantLock();
 //    private final List<ReferenceManager.RefreshListener> refreshListeners = new CopyOnWriteArrayList();
 
-    public DatafusionReaderManager(String path, Collection<FileMetadata> files) throws IOException {
-        this.current = new DatafusionReader(path, files);
+    public DatafusionReaderManager(String path, Collection<FileMetadata> files, String dataFormat) throws IOException {
+        this.current = null;
         this.path = path;
         this.dataFormat = dataFormat;
     }
@@ -60,7 +61,9 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
         if (didRefresh && catalogSnapshot != null) {
             DatafusionReader old = this.current;
-            release(old);
+            if(old !=null) {
+                release(old);
+            }
             this.current = new DatafusionReader(this.path, catalogSnapshot.getSearchableFiles(dataFormat));
             this.current.incRef();
         }

@@ -26,6 +26,7 @@ import org.opensearch.datafusion.search.DatafusionReaderManager;
 import org.opensearch.datafusion.search.DatafusionSearcher;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.search.ContextEngineSearcher;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
@@ -124,8 +125,8 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     @Override
     public SearchExecEngine<DatafusionContext, DatafusionSearcher,
             DatafusionReaderManager, DatafusionQuery>
-        createEngine(DataFormat dataFormat,Collection<FileMetadata> formatCatalogSnapshot) throws IOException {
-        return new DatafusionEngine(dataFormat, formatCatalogSnapshot, dataFusionService);
+        createEngine(DataFormat dataFormat,Collection<FileMetadata> formatCatalogSnapshot, ShardPath shardPath) throws IOException {
+        return new DatafusionEngine(dataFormat, formatCatalogSnapshot, dataFusionService, shardPath);
     }
 
     /**

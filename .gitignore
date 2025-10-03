@@ -10,6 +10,12 @@ CLAUDE.md
 build-idea/
 out/
 
+modules/parquet-data-format/src/main/rust/target/*
+libs/dataformat-csv/jni/target/*
+libs/dataformat-csv/src/main/resources/*
+plugins/dataformat-csv/src/main/resources/*
+libs/dataformat-csv/jni/Cargo.lock
+
 # include shared intellij config
 !.idea/inspectionProfiles/Project_Default.xml
 !.idea/runConfigurations/Debug_OpenSearch.xml
@@ -71,3 +77,5 @@ doc-tools/missing-doclet/bin/
 /plugins/dataformat-csv/jni/target
 /plugins/dataformat-csv/jni/Cargo.lock
 
+/modules/parquet-data-format/src/main/rust/target
+/modules/parquet-data-format/src/main/resources/native/

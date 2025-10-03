@@ -10,6 +10,8 @@ package org.opensearch.plugins;
 
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
 
 import java.util.Map;
@@ -20,7 +22,7 @@ public interface DataSourcePlugin {
         return Optional.empty();
     }
 
-    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine();
+    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath);
 
     DataFormat getDataFormat();
 }

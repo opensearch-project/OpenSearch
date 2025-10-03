@@ -16,7 +16,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 @ExperimentalApi
 public enum DataFormat {
     /** CSV Format*/
-    CSV("csv"),
+    CSV("parquet"),
+    PARQUET("parquet"),
 
     /** Text Format */
     Text("text");

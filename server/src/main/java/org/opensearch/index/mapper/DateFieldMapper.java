@@ -845,21 +845,23 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        if (indexed) {
-            context.doc().add(new LongPoint(fieldType().name(), timestamp));
-        }
-        if (hasDocValues) {
-            if (skiplist || isSkiplistDefaultEnabled(context.indexSettings().getIndexSortConfig(), fieldType().name())) {
-                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
-            } else {
-                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-            }
-        } else if (store || indexed) {
-            createFieldNamesField(context);
-        }
-        if (store) {
-            context.doc().add(new StoredField(fieldType().name(), timestamp));
-        }
+        context.compositeDocumentInput().addField(fieldType(), timestamp);
+
+//        if (indexed) {
+//            context.doc().add(new LongPoint(fieldType().name(), timestamp));
+//        }
+//        if (hasDocValues) {
+//            if (skiplist || isSkiplistDefaultEnabled(context.indexSettings().getIndexSortConfig(), fieldType().name())) {
+//                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
+//            } else {
+//                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+//            }
+//        } else if (store || indexed) {
+//            createFieldNamesField(context);
+//        }
+//        if (store) {
+//            context.doc().add(new StoredField(fieldType().name(), timestamp));
+//        }
     }
 
     boolean isSkiplistDefaultEnabled(IndexSortConfig indexSortConfig, String fieldName) {

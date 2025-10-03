@@ -12,6 +12,8 @@ import org.opensearch.datafusion.csv.engine.exec.CsvDataFormat;
 import org.opensearch.datafusion.csv.engine.exec.CsvEngine;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.vectorized.execution.search.spi.DataSourceCodec;
@@ -47,7 +49,7 @@ public class CsvDataFormatPlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine() {
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath) {
         if (CsvDataFormat.class.equals(getDataFormatType())) {
             @SuppressWarnings("unchecked")
             IndexingExecutionEngine<T> engine = (IndexingExecutionEngine<T>) new CsvEngine();

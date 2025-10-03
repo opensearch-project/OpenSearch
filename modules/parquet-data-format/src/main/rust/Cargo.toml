@@ -1,0 +1,16 @@
+[package]
+name = "rust"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "parquet_dataformat_jni"
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21.1"
+arrow = { version = "53.0.0", features = ["ffi"] }
+parquet = "53.0.0"
+lazy_static = "1.4.0"
+dashmap = "7.0.0-rc2"
+chrono = "0.4"
