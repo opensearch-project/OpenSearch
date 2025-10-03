@@ -165,6 +165,7 @@ import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -811,6 +812,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
                 SearchService.QUERY_REWRITING_ENABLED_SETTING,
                 SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
+                FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT,
+                FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO,
+                FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
