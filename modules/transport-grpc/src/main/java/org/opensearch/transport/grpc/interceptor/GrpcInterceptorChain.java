@@ -20,6 +20,7 @@ import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 /**
  * Simple gRPC interceptor chain that executes OrderedGrpcInterceptors in order and handles exceptions
@@ -27,6 +28,10 @@ import io.grpc.Status;
 public class GrpcInterceptorChain implements ServerInterceptor {
 
     private static final Logger logger = LogManager.getLogger(GrpcInterceptorChain.class);
+
+    private static final ServerCall.Listener<Object> EMPTY_LISTENER = new ServerCall.Listener<>() {
+    };
+
     private final List<OrderedGrpcInterceptor> interceptors;
 
     /**
@@ -51,10 +56,9 @@ public class GrpcInterceptorChain implements ServerInterceptor {
         Metadata headers,
         ServerCallHandler<ReqT, RespT> next
     ) {
-        // Build the chain iteratively from end to start, similar to ActionFilter pattern
         ServerCallHandler<ReqT, RespT> currentHandler = next;
 
-        // Iterate backwards through interceptors to build the chain
+        // This ensures forward execution: interceptor[0] -> interceptor[1] -> ... -> service
         for (int i = interceptors.size() - 1; i >= 0; i--) {
             final OrderedGrpcInterceptor interceptor = interceptors.get(i);
             final ServerCallHandler<ReqT, RespT> nextHandler = currentHandler;
@@ -66,18 +70,37 @@ public class GrpcInterceptorChain implements ServerInterceptor {
                 public ServerCall.Listener<ReqT> startCall(ServerCall<ReqT, RespT> call, Metadata headers) {
                     try {
                         return interceptor.getInterceptor().interceptCall(call, headers, nextHandler);
+                    } catch (StatusRuntimeException sre) {
+                        // Interceptor threw a gRPC status - respect it (e.g., PERMISSION_DENIED, UNAUTHENTICATED)
+                        logger.error(
+                            "Interceptor at index [{}] failed with status [{}]: {}",
+                            index,
+                            sre.getStatus().getCode(),
+                            sre.getMessage()
+                        );
+                        call.close(sre.getStatus(), headers);
+                        return emptyListener();
                     } catch (Exception e) {
-                        logger.error("Interceptor at index [{}] failed: {}", index, e.getMessage());
-                        // Close the call with error
+                        // Unexpected exception - wrap in INTERNAL for safety
+                        logger.error("Interceptor at index [{}] failed unexpectedly: {}", index, e.getMessage());
                         call.close(Status.INTERNAL.withDescription("Interceptor failure: " + e.getMessage()), headers);
-                        return new ServerCall.Listener<ReqT>() {
-                        };
+                        return emptyListener();
                     }
                 }
             };
         }
 
-        // Start the chain
+        // Start the chain execution
         return currentHandler.startCall(call, headers);
+    }
+
+    /**
+     * Returns a reusable empty listener to minimize object allocation on interceptor failures.
+     * @param <ReqT> the request type
+     * @return an empty ServerCall.Listener
+     */
+    @SuppressWarnings("unchecked")
+    private static <ReqT> ServerCall.Listener<ReqT> emptyListener() {
+        return (ServerCall.Listener<ReqT>) EMPTY_LISTENER;
     }
 }
