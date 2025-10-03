@@ -187,7 +187,6 @@ public class BitmapIndexQuery extends Query implements Accountable {
 
         private boolean matches(byte[] packedValue) {
             while (nextQueryPoint != null) {
-                ArrayUtil.ByteArrayComparator unsignedComparator = ArrayUtil.getUnsignedComparator(nextQueryPoint.offset);
                 int cmp = comparator.compare(nextQueryPoint.bytes, nextQueryPoint.offset, packedValue, 0);
                 if (cmp == 0) {
                     return true;
