@@ -267,4 +267,146 @@ public class SegmentTopologyBenchmarkTests extends OpenSearchTestCase {
         LARGE,
         VERY_LARGE
     }
+
+    /**
+     * Test performance metrics validation
+     */
+    public void testPerformanceMetricsValidation() {
+        PerformanceMetrics metrics = new PerformanceMetrics(150.0, 25.0, 0.75);
+
+        assertTrue("Average latency should be positive", metrics.avgLatency > 0);
+        assertTrue("Variance should be non-negative", metrics.variance >= 0);
+        assertTrue("Consistency score should be between 0 and 1", metrics.consistencyScore >= 0.0 && metrics.consistencyScore <= 1.0);
+    }
+
+    /**
+     * Test segment topology metrics validation
+     */
+    public void testSegmentTopologyMetricsValidation() {
+        List<Long> segmentSizes = new ArrayList<>();
+        segmentSizes.add(100L * 1024 * 1024);
+        segmentSizes.add(150L * 1024 * 1024);
+        segmentSizes.add(120L * 1024 * 1024);
+
+        SegmentTopologyMetrics metrics = calculateTopologyMetrics(segmentSizes);
+
+        assertTrue("Segment count should be positive", metrics.segmentCount > 0);
+        assertTrue("Total size should be positive", metrics.totalSize > 0);
+        assertTrue("Variance should be non-negative", metrics.variance >= 0);
+        assertTrue("Balance score should be between 0 and 1", metrics.balanceScore >= 0.0 && metrics.balanceScore <= 1.0);
+    }
+
+    /**
+     * Test balance score calculation edge cases
+     */
+    public void testBalanceScoreEdgeCases() {
+        // Test empty list
+        List<Long> emptyList = new ArrayList<>();
+        double emptyBalance = calculateBalanceScore(emptyList);
+        assertEquals("Empty list should have balance score 0", 0.0, emptyBalance, 0.001);
+
+        // Test single element
+        List<Long> singleElement = new ArrayList<>();
+        singleElement.add(100L * 1024 * 1024);
+        double singleBalance = calculateBalanceScore(singleElement);
+        assertEquals("Single element should have balance score 1", 1.0, singleBalance, 0.001);
+
+        // Test all same elements
+        List<Long> sameElements = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            sameElements.add(100L * 1024 * 1024);
+        }
+        double sameBalance = calculateBalanceScore(sameElements);
+        assertEquals("All same elements should have balance score 1", 1.0, sameBalance, 0.001);
+    }
+
+    /**
+     * Test variance calculation with different distributions
+     */
+    public void testVarianceCalculation() {
+        // Test uniform distribution (low variance)
+        List<Long> uniformSizes = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            uniformSizes.add(100L * 1024 * 1024);
+        }
+        SegmentTopologyMetrics uniformMetrics = calculateTopologyMetrics(uniformSizes);
+        assertTrue("Uniform distribution should have low variance", uniformMetrics.variance < 1000);
+
+        // Test skewed distribution (high variance)
+        List<Long> skewedSizes = new ArrayList<>();
+        skewedSizes.add(1000L * 1024 * 1024); // 1GB
+        for (int i = 0; i < 9; i++) {
+            skewedSizes.add(10L * 1024 * 1024); // 10MB
+        }
+        SegmentTopologyMetrics skewedMetrics = calculateTopologyMetrics(skewedSizes);
+        assertTrue("Skewed distribution should have high variance", skewedMetrics.variance > 1000000);
+    }
+
+    /**
+     * Test recommendation boundary conditions
+     */
+    public void testRecommendationBoundaryConditions() {
+        // Test exactly at 100MB boundary
+        long boundary100MB = 100L * 1024 * 1024;
+        long maxSegment100MB = getRecommendedMaxSegmentSize(boundary100MB);
+        long floorSegment100MB = getRecommendedFloorSegmentSize(boundary100MB);
+        double segmentsPerTier100MB = getRecommendedSegmentsPerTier(boundary100MB);
+
+        assertTrue("100MB boundary should recommend 200MB max segment", maxSegment100MB == 200L * 1024 * 1024);
+        assertTrue("100MB boundary should recommend 25MB floor segment", floorSegment100MB == 25L * 1024 * 1024);
+        assertTrue("100MB boundary should recommend 8 segments per tier", segmentsPerTier100MB == 8.0);
+
+        // Test exactly at 1GB boundary
+        long boundary1GB = 1024L * 1024 * 1024;
+        long maxSegment1GB = getRecommendedMaxSegmentSize(boundary1GB);
+        long floorSegment1GB = getRecommendedFloorSegmentSize(boundary1GB);
+        double segmentsPerTier1GB = getRecommendedSegmentsPerTier(boundary1GB);
+
+        assertTrue("1GB boundary should recommend 1GB max segment", maxSegment1GB == 1024L * 1024 * 1024);
+        assertTrue("1GB boundary should recommend 50MB floor segment", floorSegment1GB == 50L * 1024 * 1024);
+        assertTrue("1GB boundary should recommend 10 segments per tier", segmentsPerTier1GB == 10.0);
+    }
+
+    /**
+     * Test performance improvement validation
+     */
+    public void testPerformanceImprovementValidation() {
+        // Simulate performance with current defaults
+        PerformanceMetrics defaultPerf = simulatePerformanceWithDefaults();
+
+        // Simulate performance with adaptive settings
+        PerformanceMetrics adaptivePerf = simulatePerformanceWithAdaptive();
+
+        // Validate that adaptive settings provide better performance
+        assertTrue("Adaptive settings should reduce variance", adaptivePerf.variance < defaultPerf.variance);
+        assertTrue("Adaptive settings should improve consistency", adaptivePerf.consistencyScore > defaultPerf.consistencyScore);
+
+        // Validate that the improvement is significant
+        double varianceReduction = (defaultPerf.variance - adaptivePerf.variance) / defaultPerf.variance;
+        double consistencyImprovement = adaptivePerf.consistencyScore - defaultPerf.consistencyScore;
+
+        assertTrue("Variance reduction should be significant", varianceReduction > 0.5);
+        assertTrue("Consistency improvement should be significant", consistencyImprovement > 0.2);
+    }
+
+    /**
+     * Test edge case shard sizes
+     */
+    public void testEdgeCaseShardSizes() {
+        // Test very small shard (1MB)
+        long tinyShard = 1L * 1024 * 1024;
+        validateRecommendationsForShardSize(tinyShard, "Tiny shard (1MB)");
+
+        // Test very large shard (100GB)
+        long hugeShard = 100L * 1024 * 1024 * 1024;
+        validateRecommendationsForShardSize(hugeShard, "Huge shard (100GB)");
+
+        // Test zero shard size
+        long zeroShard = 0L;
+        validateRecommendationsForShardSize(zeroShard, "Zero shard (0MB)");
+
+        // Test negative shard size (edge case)
+        long negativeShard = -1L * 1024 * 1024;
+        validateRecommendationsForShardSize(negativeShard, "Negative shard (-1MB)");
+    }
 }
