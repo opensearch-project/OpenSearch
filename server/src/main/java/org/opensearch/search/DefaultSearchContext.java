@@ -55,6 +55,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -75,6 +76,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.deciders.ConcurrentSearchDecision;
@@ -220,6 +222,8 @@ final class DefaultSearchContext extends SearchContext {
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
+    private final boolean cardinalityAggregationHybridCollectorEnabled;
+    private final long cardinalityAggregationHybridCollectorMemoryThreshold;
     private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
 
@@ -287,6 +291,8 @@ final class DefaultSearchContext extends SearchContext {
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.filterRewriteSegmentThreshold = evaluateAggRewriteFilterSegThreshold();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
+        this.cardinalityAggregationHybridCollectorEnabled = evaluateCardinalityAggregationHybridCollectorEnabled();
+        this.cardinalityAggregationHybridCollectorMemoryThreshold = evaluateCardinalityAggregationHybridCollectorMemoryThreshold();
         this.bucketSelectionStrategyFactor = evaluateBucketSelectionStrategyFactor();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
@@ -1239,6 +1245,16 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean cardinalityAggregationHybridCollectorEnabled() {
+        return cardinalityAggregationHybridCollectorEnabled;
+    }
+
+    @Override
+    public long cardinalityAggregationHybridCollectorMemoryThreshold() {
+        return cardinalityAggregationHybridCollectorMemoryThreshold;
+    }
+
+    @Override
     public int bucketSelectionStrategyFactor() {
         return bucketSelectionStrategyFactor;
     }
@@ -1253,6 +1269,21 @@ final class DefaultSearchContext extends SearchContext {
             return clusterService.getClusterSettings().get(CARDINALITY_AGGREGATION_PRUNING_THRESHOLD);
         }
         return 0;
+    }
+
+    private boolean evaluateCardinalityAggregationHybridCollectorEnabled() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED);
+        }
+        return false;
+    }
+
+    private long evaluateCardinalityAggregationHybridCollectorMemoryThreshold() {
+        if (clusterService != null) {
+            ByteSizeValue threshold = clusterService.getClusterSettings().get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD);
+            return threshold.getBytes();
+        }
+        return Runtime.getRuntime().maxMemory() / 100; // 1% default
     }
 
     private int evaluateBucketSelectionStrategyFactor() {
