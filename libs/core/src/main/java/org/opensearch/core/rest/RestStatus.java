@@ -536,6 +536,17 @@ public enum RestStatus {
         return status / 100;
     }
 
+    public String getStatusType() {
+        int family = getStatusFamilyCode();
+        if (family <= 3) {
+            return StatusType.SUCCESS.toString();
+        } else if (family == 4) {
+            return StatusType.USER_ERROR.toString();
+        } else {
+            return StatusType.SYSTEM_FAILURE.toString();
+        }
+    }
+
     public static RestStatus readFrom(StreamInput in) throws IOException {
         return RestStatus.valueOf(in.readString());
     }
