@@ -55,6 +55,7 @@ import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.streaming.Streamable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
@@ -67,10 +68,12 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -397,6 +400,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                     );
                     when(searchContext.isStreamSearch()).thenReturn(true);
+                    when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SEGMENT);
                     SearchShardTarget searchShardTarget = new SearchShardTarget(
                         "node_1",
                         new ShardId("foo", "_na_", 1),
@@ -449,6 +453,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         PipelineTree.EMPTY
                     );
 
+                    assertThat(perSegAggs, not(empty()));
                     InternalAggregations summary = InternalAggregations.reduce(perSegAggs, ctx);
 
                     StringTerms result = summary.get("test");
