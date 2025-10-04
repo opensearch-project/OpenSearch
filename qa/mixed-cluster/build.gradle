@@ -40,6 +40,7 @@ apply plugin: 'opensearch.rest-resources'
 
 dependencies {
   testImplementation project(":client:rest-high-level")
+  testImplementation project(":libs:opensearch-common")
 }
 
 restResources {

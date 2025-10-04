@@ -241,7 +241,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
         ThreadPoolStats stats = new ThreadPoolStats(
             Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0
+                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0, -1
             ))
         );
         when(threadPool.stats()).thenReturn(stats);
@@ -257,7 +257,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
         ThreadPoolStats stats = new ThreadPoolStats(
             Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0
+                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0, -1
             ))
         );
         when(threadPool.stats()).thenReturn(stats);
@@ -336,7 +336,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
         ThreadPoolStats stats = new ThreadPoolStats(
             Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 1, 1, 0, 1, 0, -1
+                ThreadPool.Names.FORCE_MERGE, 1, 1, 1, 0, 1, 0, -1, -1
             ))
         );
         when(threadPool.stats()).thenReturn(stats);
@@ -474,7 +474,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1))
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1, -1))
         );
         when(threadPool.stats()).thenReturn(stats);
 
@@ -524,7 +524,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1))
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1, -1))
         );
         when(threadPool.stats()).thenReturn(stats);
         IndexService indexService1 = mock(IndexService.class);
@@ -580,7 +580,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1))
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1, -1))
         );
         when(threadPool.stats()).thenReturn(stats);
 
@@ -756,7 +756,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
 
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, threadCount, 0, 0, 0, threadCount, 0, -1))
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, threadCount, 0, 0, 0, threadCount, 0, -1, -1))
         );
         when(threadPool.stats()).thenReturn(stats);
 

@@ -130,7 +130,12 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
         assertThat(map, hasKey("queue_size"));
-        assertThat(map.get("queue_size").toString(), is("1000"));
+        if (threadPoolType == ThreadPool.ThreadPoolType.FORK_JOIN) {
+            // ForkJoinPool always writes queue_size as -1
+            assertThat(map.get("queue_size").toString(), is("-1"));
+        } else {
+            assertThat(map.get("queue_size").toString(), is("1000"));
+        }
     }
 
     public void testThatThreadPoolTypeIsSerializedCorrectly() throws IOException {
