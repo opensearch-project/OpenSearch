@@ -1910,6 +1910,12 @@ public class IndicesService extends AbstractLifecycleComponent
             return false;
         }
 
+        // Currently, we cannot cache stream search results as we never compute and reduce full resultset per
+        // shard at data nodes and let coordinator handle the reduce from batched results from shards.
+        if (context.isStreamSearch()) {
+            return false;
+        }
+
         // We cannot cache with DFS because results depend not only on the content of the index but also
         // on the overridden statistics. So if you ran two queries on the same index with different stats
         // (because an other shard was updated) you would get wrong results because of the scores
