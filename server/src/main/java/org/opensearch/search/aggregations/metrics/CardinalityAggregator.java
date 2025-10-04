@@ -855,6 +855,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             Releasables.close(activeCollector);
         }
 
+        // Visible for testing
         Collector getActiveCollector() {
             return activeCollector;
         }
