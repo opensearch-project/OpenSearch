@@ -165,6 +165,10 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
         return agg;
     }
 
+    public Aggregator getDelegate() {
+        return delegate;
+    }
+
     @Override
     public StreamingCostMetrics getStreamingCostMetrics() {
         return delegate instanceof Streamable ? ((Streamable) delegate).getStreamingCostMetrics() : StreamingCostMetrics.nonStreamable();
