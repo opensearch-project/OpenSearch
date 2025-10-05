@@ -8,7 +8,10 @@
 
 package org.opensearch.rule.storage;
 
+import org.opensearch.rule.MatchLabel;
+
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -40,11 +43,21 @@ public interface AttributeValueStore<K, V> {
     void remove(K key);
 
     /**
-     * Returns the values associated with the key
-     * @param key in the data structure
+     * Returns the values associated with the given key, including prefix matches,
+     * along with their match scores.
+     * For example, searching for "str" may also return results for "st" and "s".
+     * @param key the key to look up
      */
-    default List<Set<V>> getAll(K key) {
+    default List<MatchLabel<V>> getMatches(K key) {
         return new ArrayList<>();
+    }
+
+    /**
+     * Returns the values that exactly match the given key.
+     * @param key the key to look up
+     */
+    default Set<V> getExactMatch(K key) {
+        return new HashSet<>();
     }
 
     /**

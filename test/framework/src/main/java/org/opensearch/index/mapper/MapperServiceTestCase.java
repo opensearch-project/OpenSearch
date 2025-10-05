@@ -80,7 +80,11 @@ import static org.mockito.Mockito.when;
 
 public abstract class MapperServiceTestCase extends OpenSearchTestCase {
 
-    protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
+    protected static final Settings SETTINGS = Settings.builder()
+        .put("index.version.created", Version.CURRENT)
+        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+        .build();
 
     protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(
         Collections.singletonMap("include_defaults", "true")

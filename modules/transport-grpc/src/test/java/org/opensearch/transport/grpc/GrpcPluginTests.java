@@ -36,6 +36,7 @@ import org.mockito.MockitoAnnotations;
 
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_EXECUTOR_COUNT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_KEEPALIVE_TIMEOUT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS;
@@ -111,6 +112,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         assertTrue("SETTING_GRPC_PUBLISH_HOST should be included", settings.contains(SETTING_GRPC_PUBLISH_HOST));
         assertTrue("SETTING_GRPC_BIND_HOST should be included", settings.contains(SETTING_GRPC_BIND_HOST));
         assertTrue("SETTING_GRPC_WORKER_COUNT should be included", settings.contains(SETTING_GRPC_WORKER_COUNT));
+        assertTrue("SETTING_GRPC_EXECUTOR_COUNT should be included", settings.contains(SETTING_GRPC_EXECUTOR_COUNT));
         assertTrue("SETTING_GRPC_PUBLISH_PORT should be included", settings.contains(SETTING_GRPC_PUBLISH_PORT));
         assertTrue(
             "SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS should be included",
@@ -122,7 +124,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         assertTrue("SETTING_GRPC_KEEPALIVE_TIMEOUT should be included", settings.contains(SETTING_GRPC_KEEPALIVE_TIMEOUT));
 
         // Verify the number of settings
-        assertEquals("Should return 12 settings", 12, settings.size());
+        assertEquals("Should return 13 settings", 13, settings.size());
     }
 
     public void testGetQueryUtilsBeforeCreateComponents() {
@@ -332,6 +334,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         Mockito.verify(mockConverter, Mockito.times(3)).getHandledQueryCase();
 
         // Verify that setRegistry was called to inject the registry
-        Mockito.verify(mockConverter, Mockito.times(1)).setRegistry(Mockito.any());
+        // Note: setRegistry is called 2 times:
+        // 1. In createComponents() when processing external converters
+        // 2. In updateRegistryOnAllConverters() to ensure all converters have the complete registry
+        Mockito.verify(mockConverter, Mockito.times(2)).setRegistry(Mockito.any());
     }
 }

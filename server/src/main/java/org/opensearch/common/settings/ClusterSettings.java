@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.action.search.StreamSearchTransportService;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -164,6 +165,7 @@ import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -570,6 +572,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_AGGREGATION_REWRITE_FILTERS,
                 SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD,
                 SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
+                SearchService.SEARCH_MAX_QUERY_STRING_LENGTH,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
@@ -809,6 +812,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
                 SearchService.QUERY_REWRITING_ENABLED_SETTING,
                 SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
+                FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT,
+                FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO,
+                FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
@@ -856,7 +862,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
-                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING
+                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
+                StreamSearchTransportService.STREAM_SEARCH_ENABLED
             )
         )
     );

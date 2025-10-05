@@ -8,10 +8,13 @@
 package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.protobufs.FieldCollapse;
 import org.opensearch.search.collapse.CollapseBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Utility class for converting CollapseBuilder Protocol Buffers to OpenSearch objects.
@@ -43,7 +46,11 @@ public class CollapseBuilderProtoUtils {
             collapseBuilder.setMaxConcurrentGroupRequests(collapseProto.getMaxConcurrentGroupSearches());
         }
         if (collapseProto.getInnerHitsCount() > 0) {
-            collapseBuilder.setInnerHits(InnerHitsBuilderProtoUtils.fromProto(collapseProto.getInnerHitsList()));
+            List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
+            for (org.opensearch.protobufs.InnerHits innerHits : collapseProto.getInnerHitsList()) {
+                innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits));
+            }
+            collapseBuilder.setInnerHits(innerHitBuilders);
         }
 
         return collapseBuilder;

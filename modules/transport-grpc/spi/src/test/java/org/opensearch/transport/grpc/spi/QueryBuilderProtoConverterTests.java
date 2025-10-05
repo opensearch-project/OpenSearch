@@ -99,9 +99,7 @@ public class QueryBuilderProtoConverterTests extends OpenSearchTestCase {
      * Helper method to create a mock range query container
      */
     private QueryContainer createMockRangeQueryContainer() {
-        return QueryContainer.newBuilder()
-            .setRange(org.opensearch.protobufs.RangeQuery.newBuilder().setField("range_field").build())
-            .build();
+        return QueryContainer.newBuilder().setRange(org.opensearch.protobufs.RangeQuery.newBuilder().build()).build();
     }
 
     /**

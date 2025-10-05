@@ -1910,6 +1910,12 @@ public class IndicesService extends AbstractLifecycleComponent
             return false;
         }
 
+        // Currently, we cannot cache stream search results as we never compute and reduce full resultset per
+        // shard at data nodes and let coordinator handle the reduce from batched results from shards.
+        if (context.isStreamSearch()) {
+            return false;
+        }
+
         // We cannot cache with DFS because results depend not only on the content of the index but also
         // on the overridden statistics. So if you ran two queries on the same index with different stats
         // (because an other shard was updated) you would get wrong results because of the scores
@@ -2117,6 +2123,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Clears the caches for the given shard id if the shard is still allocated on this node
+     * Query cache and field data cache keys are cleared immediately by this method; request cache keys are only marked for cleanup
+     * TODO: In a future PR field data cache keys will also only be marked for cleanup.
      */
     public void clearIndexShardCache(ShardId shardId, boolean queryCache, boolean fieldDataCache, boolean requestCache, String... fields) {
         final IndexService service = indexService(shardId.getIndex());
@@ -2127,6 +2135,14 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesRequestCache.clear(new IndexShardCacheEntity(shard));
             }
         }
+    }
+
+    /**
+     * Force clear node-wide request cache, which will remove any keys which have been previously marked for cleanup.
+     */
+    public void forceClearNodewideCaches() {
+        indicesRequestCache.forceCleanCache();
+        // TODO: Field data cache will also be cleared here in a future PR.
     }
 
     /**
