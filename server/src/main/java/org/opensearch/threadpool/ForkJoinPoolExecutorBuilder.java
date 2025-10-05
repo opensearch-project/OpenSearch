@@ -8,6 +8,8 @@
 
 package org.opensearch.threadpool;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -29,6 +31,8 @@ import java.util.concurrent.ForkJoinWorkerThread;
 public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinPoolExecutorBuilder.ForkJoinPoolExecutorSettings> {
 
     private final Setting<Integer> parallelismSetting;
+    // Logger for uncaught exception handler
+    private static final Logger logger = LogManager.getLogger(ForkJoinPoolExecutorBuilder.class);
 
     /**
      * Construct a ForkJoinPool executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
@@ -49,7 +53,12 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
      */
     public ForkJoinPoolExecutorBuilder(final String name, final int parallelism, final String prefix) {
         super(name);
-        this.parallelismSetting = Setting.intSetting(settingsKey(prefix, "parallelism"), parallelism, Setting.Property.NodeScope);
+        this.parallelismSetting = Setting.intSetting(
+            settingsKey(prefix, "parallelism"),
+            parallelism,
+            1, // minimum value allowed
+            Setting.Property.NodeScope
+        );
     }
 
     @Override
@@ -72,7 +81,12 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
             worker.setName(OpenSearchExecutors.threadName(settings.nodeName, name()));
             return worker;
         };
-        final ForkJoinPool executor = new ForkJoinPool(parallelism, factory, null, false);
+        // Default uncaught exception handler for ForkJoinPool threads
+        Thread.UncaughtExceptionHandler exceptionHandler = (thread, throwable) -> {
+            // Log the exception so it is not silently ignored
+            logger.error("Uncaught exception in ForkJoinPool thread [{}]", thread.getName(), throwable);
+        };
+        final ForkJoinPool executor = new ForkJoinPool(parallelism, factory, exceptionHandler, false);
 
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FORK_JOIN, parallelism, parallelism, null, null);
         return new ThreadPool.ExecutorHolder(executor, info);
