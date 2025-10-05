@@ -34,6 +34,7 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -54,6 +55,10 @@ import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.Timer;
+import org.opensearch.search.profile.aggregation.AggregationProfileBreakdown;
+import org.opensearch.search.profile.aggregation.AggregationProfiler;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.streaming.Streamable;
@@ -363,24 +368,40 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testBuildAggregationsWithContextSearcher() throws Exception {
+    public void testBuildAggregationsWithContextSearcherNoProfile() throws Exception {
+        doAggOverManySegments(false);
+    }
+
+    public void testBuildAggregationsWithContextSearcherProfile() throws Exception {
+        doAggOverManySegments(true);
+    }
+
+    private void doAggOverManySegments(boolean profile) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                boolean isSegmented = false;
                 for (int i = 0; i < 3; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("common")));
                     indexWriter.addDocument(document);
                     if (rarely()) {
                         indexWriter.flush();
+                        isSegmented = true;
                     }
                 }
+                indexWriter.flush();
                 for (int i = 0; i < 2; i++) {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("field", new BytesRef("medium")));
                     indexWriter.addDocument(document);
                     if (rarely()) {
                         indexWriter.flush();
+                        isSegmented = true;
                     }
+                }
+
+                if (!isSegmented) {
+                    indexWriter.flush();
                 }
 
                 Document document = new Document();
@@ -429,7 +450,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
                         .order(BucketOrder.count(false));
 
-                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                    Aggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
@@ -440,6 +461,10 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         ),
                         fieldType
                     );
+
+                    if (profile) {
+                        aggregator = wrapByProfilingAgg(aggregator);
+                    }
 
                     aggregator.preCollection();
 
@@ -471,6 +496,15 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
+    }
+
+    private static Aggregator wrapByProfilingAgg(Aggregator aggregator) throws IOException {
+        AggregationProfiler aggregationProfiler = mock(AggregationProfiler.class);
+        AggregationProfileBreakdown aggregationProfileBreakdown = mock(AggregationProfileBreakdown.class);
+        when(aggregationProfileBreakdown.getTimer(any())).thenReturn(mock(Timer.class));
+        when(aggregationProfiler.getQueryBreakdown(any())).thenReturn(aggregationProfileBreakdown);
+        aggregator = new ProfilingAggregator(aggregator, aggregationProfiler);
+        return aggregator;
     }
 
     public void testBuildAggregationsBatchReset() throws Exception {
