@@ -153,6 +153,7 @@ public class TranslogHandler implements TranslogRecoveryRunner {
                     true,
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+                    ,null // TODO
                 );
                 return engineIndex;
             case DELETE:
