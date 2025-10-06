@@ -84,7 +84,7 @@ public final class ForkJoinPoolExecutorBuilder extends ExecutorBuilder<ForkJoinP
         // Default uncaught exception handler for ForkJoinPool threads
         Thread.UncaughtExceptionHandler exceptionHandler = (thread, throwable) -> {
             // Log the exception so it is not silently ignored
-            logger.error("Uncaught exception in ForkJoinPool thread [{}]", thread.getName(), throwable);
+            logger.error("Uncaught exception in ForkJoinPool thread [" + thread.getName() + "]", throwable);
         };
         final ForkJoinPool executor = new ForkJoinPool(parallelism, factory, exceptionHandler, false);
 
