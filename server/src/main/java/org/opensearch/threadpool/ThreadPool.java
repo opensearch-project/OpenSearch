@@ -549,9 +549,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             long completed = -1;
             long waitTimeNanos = -1;
             int parallelism = -1;
-            if (holder.executor() instanceof ForkJoinPool) {
-                parallelism = ((ForkJoinPool) holder.executor()).getParallelism();
-            } else if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
+
+            if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
                 OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor();
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
