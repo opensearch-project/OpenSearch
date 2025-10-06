@@ -24,7 +24,7 @@ dependencies {
 
   implementation 'commons-beanutils:commons-beanutils:1.11.0'
   implementation 'commons-logging:commons-logging:1.2'
-  implementation 'commons-lang:commons-lang:2.6'
+  implementation "org.apache.commons:commons-lang3:${versions.commonslang}"
 
   implementation 'org.passay:passay:1.6.3'
 
