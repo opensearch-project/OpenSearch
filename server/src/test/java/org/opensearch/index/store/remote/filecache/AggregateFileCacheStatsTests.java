@@ -165,6 +165,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
         assertEquals(original.getUsedPercent(), deserialized.getUsedPercent());
         assertEquals(original.getActive(), deserialized.getActive());
         assertEquals(original.getActivePercent(), deserialized.getActivePercent());
+        assertEquals(original.getOverallActivePercent(), deserialized.getOverallActivePercent(), 0.0);
         assertEquals(original.getEvicted(), deserialized.getEvicted());
         assertEquals(original.getCacheHits(), deserialized.getCacheHits());
         assertEquals(original.getCacheMisses(), deserialized.getCacheMisses());
