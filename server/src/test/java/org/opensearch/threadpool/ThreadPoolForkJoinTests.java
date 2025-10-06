@@ -18,9 +18,7 @@ public class ThreadPoolForkJoinTests extends OpenSearchTestCase {
     public void testRegisterForkJoinPool() {
         // Register a ForkJoinPool thread pool named "jvector" with parallelism 2
         Settings settings = Settings.builder().put("node.name", "testnode").build();
-        ThreadPool threadPool = new ThreadPool(settings,
-            new ForkJoinPoolExecutorBuilder("jvector", 2)
-        );
+        ThreadPool threadPool = new ThreadPool(settings, new ForkJoinPoolExecutorBuilder("jvector", 2));
 
         ForkJoinPool pool = (ForkJoinPool) threadPool.executor("jvector");
         assertNotNull(pool);
