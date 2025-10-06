@@ -1,0 +1,1 @@
+/Users/abandeji/Public/workplace/OpenSearch/modules/parquet-data-format/src/main/rust/target/release/libparquet_dataformat_jni.dylib: /Users/abandeji/Public/workplace/OpenSearch/modules/parquet-data-format/src/main/rust/src/lib.rs

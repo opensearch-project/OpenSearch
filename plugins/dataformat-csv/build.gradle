@@ -1,0 +1,112 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'opensearch.opensearchplugin'
+
+opensearchplugin {
+  name = 'dataformat-csv'
+  description = 'CSV data format plugin for OpenSearch DataFusion'
+  classname = 'org.opensearch.datafusion.csv.CsvDataFormatPlugin'
+  hasNativeController = false
+}
+
+dependencies {
+  api project(':libs:opensearch-vectorized-exec-spi')
+  api project(':libs:opensearch-core')
+  api project(':libs:opensearch-common')
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.opensearch', module: 'opensearch-dataformat-csv'
+  }
+}
+
+// JNI library configuration
+task buildJni(type: Exec) {
+  description = 'Build the Rust JNI library using Cargo'
+  group = 'build'
+
+  workingDir 'jni'
+
+  // Determine the target directory and library name based on OS
+  def osName = System.getProperty('os.name').toLowerCase()
+  def libPrefix = osName.contains('windows') ? '' : 'lib'
+  def libExtension = osName.contains('windows') ? '.dll' : (osName.contains('mac') ? '.dylib' : '.so')
+
+  // Find cargo executable - try common locations
+  def cargoExecutable = 'cargo'
+  def possibleCargoPaths = [
+    System.getenv('HOME') + '/.cargo/bin/cargo',
+    '/usr/local/bin/cargo',
+    'cargo'
+  ]
+
+  for (String path : possibleCargoPaths) {
+    if (new File(path).exists()) {
+      cargoExecutable = path
+      break
+    }
+  }
+
+  // Use release build
+  //def cargoArgs = ['cargo', 'build', '--release']
+
+  def cargoArgs = [cargoExecutable, 'build', '--release']
+
+  if (osName.contains('windows')) {
+      commandLine cargoArgs
+  } else {
+      commandLine cargoArgs
+  }
+
+  // Set environment variables for cross-compilation if needed
+  environment 'CARGO_TARGET_DIR', file('jni/target').absolutePath
+
+  inputs.files fileTree('jni/src')
+  inputs.file 'jni/Cargo.toml'
+  outputs.files file("jni/target/release/${libPrefix}opensearch_datafusion_csv_jni${libExtension}")
+}
+
+task copyJniLib(type: Copy, dependsOn: buildJni) {
+  from 'jni/target/release'
+  into 'src/main/resources'
+  include '*.dylib', '*.so', '*.dll'
+
+  doLast {
+    // Remove executable permissions from copied native libraries
+    fileTree('src/main/resources').matching {
+      include '*.dylib', '*.so', '*.dll'
+    }.each { file ->
+      file.setExecutable(false, false)
+      file.setReadable(true, false)
+      file.setWritable(true, false)
+    }
+  }
+}
+
+processResources.dependsOn copyJniLib
+sourcesJar.dependsOn copyJniLib
+
+// Ensure file permissions check runs after JNI library is copied
+tasks.named('filepermissions').configure {
+  dependsOn copyJniLib
+}
+
+// Ensure forbidden patterns check runs after JNI library is copied
+tasks.named('forbiddenPatterns').configure {
+  dependsOn copyJniLib
+  exclude '**/*.dylib', '**/*.so', '**/*.dll'
+}
+
+// Ensure spotless check runs after JNI library is copied
+tasks.named('spotlessJava').configure {
+  dependsOn copyJniLib
+}
+
+test {
+  systemProperty 'tests.security.manager', 'false'
+}
