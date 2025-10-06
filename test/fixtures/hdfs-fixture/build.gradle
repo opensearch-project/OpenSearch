@@ -55,6 +55,8 @@ dependencies {
     exclude module: "commons-configuration2"
     exclude module: "commons-beanutils"
     exclude module: "org.eclipse.jetty"
+    exclude group: "commons-lang"
+    exclude group: "org.jsonschema2pojo"
   }
   api "dnsjava:dnsjava:3.6.2"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
