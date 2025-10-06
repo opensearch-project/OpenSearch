@@ -154,6 +154,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `lycheeverse/lychee-action` from 2.4.1 to 2.6.1 ([#19463](https://github.com/opensearch-project/OpenSearch/pull/19463))
 - Exclude commons-lang and org.jsonschema2pojo from hadoop-miniclusters  ([#19538](https://github.com/opensearch-project/OpenSearch/pull/19538))
 - Bump `io.grpc` deps from 1.68.2 to 1.75.0 ([#19495](https://github.com/opensearch-project/OpenSearch/pull/19495))
+- Bump Apache Lucene from 10.3.0 to 10.3.1 ([#19540](https://github.com/opensearch-project/OpenSearch/pull/19540))
 
 ### Deprecated
 
