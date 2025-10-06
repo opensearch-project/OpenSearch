@@ -332,7 +332,7 @@ public class ShardLimitValidator {
         return shardPool == RoutingPool.REMOTE_CAPABLE
             ? checkShardLimit(
                 newShards,
-                state.getMetadata().getTotalOpenWarmIndexShards(),
+                state.getMetadata().getTotalOpenRemoteCapableIndexShards(),
                 getRemoteCapableShardLimitPerNode(),
                 getRemoteCapableShardLimitPerCluster(),
                 state.getNodes().getWarmNodes().size(),
@@ -340,7 +340,7 @@ public class ShardLimitValidator {
             )
             : checkShardLimit(
                 newShards,
-                state.getMetadata().getTotalOpenHotIndexShards(),
+                state.getMetadata().getTotalOpenLocalOnlyIndexShards(),
                 getShardLimitPerNode(),
                 getShardLimitPerCluster(),
                 state.getNodes().getDataNodes().size(),
