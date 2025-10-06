@@ -912,7 +912,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * replicas, but does not include shards that are part of closed indices.
      * @return The total number of open shards from all indices.
      */
-    public int getTotalOpenLocalOnlyIndexShards() {
+    public int getTotalOpenIndexShards() {
         return this.totalOpenLocalOnlyIndexShards;
     }
 

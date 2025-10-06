@@ -79,7 +79,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
             shardsToAdd,
-            state.getMetadata().getTotalOpenLocalOnlyIndexShards(),
+            state.getMetadata().getTotalOpenIndexShards(),
             counts.getShardsPerNode(),
             -1,
             state.getNodes().getDataNodes().size(),
@@ -111,7 +111,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         int maxShardLimitOnCluster = shardsToAdd - 1;
         Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
             shardsToAdd,
-            state.getMetadata().getTotalOpenLocalOnlyIndexShards(),
+            state.getMetadata().getTotalOpenIndexShards(),
             counts.getShardsPerNode(),
             maxShardLimitOnCluster,
             state.getNodes().getDataNodes().size(),
@@ -147,7 +147,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
         Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
             shardsToAdd,
-            state.getMetadata().getTotalOpenLocalOnlyIndexShards(),
+            state.getMetadata().getTotalOpenIndexShards(),
             counts.getShardsPerNode(),
             -1,
             state.getNodes().getDataNodes().size(),
@@ -235,7 +235,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         ClusterState state = createClusterForShardLimitTest(15, 1, 1);
         Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
             2,
-            state.getMetadata().getTotalOpenLocalOnlyIndexShards(),
+            state.getMetadata().getTotalOpenIndexShards(),
             maxShardLimitPerNode,
             -1,
             state.getNodes().getDataNodes().size(),
@@ -245,7 +245,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
         errorMessage = ShardLimitValidator.checkShardLimit(
             Integer.MAX_VALUE - 1,
-            state.getMetadata().getTotalOpenLocalOnlyIndexShards(),
+            state.getMetadata().getTotalOpenIndexShards(),
             maxShardLimitPerNode,
             -1,
             state.getNodes().getDataNodes().size(),

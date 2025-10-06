@@ -340,7 +340,7 @@ public class ShardLimitValidator {
             )
             : checkShardLimit(
                 newShards,
-                state.getMetadata().getTotalOpenLocalOnlyIndexShards(),
+                state.getMetadata().getTotalOpenIndexShards(),
                 getShardLimitPerNode(),
                 getShardLimitPerCluster(),
                 state.getNodes().getDataNodes().size(),
