@@ -479,7 +479,7 @@ public class RestoreService implements ClusterStateApplier {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
-                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
+                                        applyAliasesWithRename(snapshotIndexMetadata.getAliases(), request, indexMdBuilder, aliases);
                                     }
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
                                     if (partial) {
@@ -524,7 +524,7 @@ public class RestoreService implements ClusterStateApplier {
                                             indexMdBuilder.putAlias(alias);
                                         }
                                     } else {
-                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
+                                        applyAliasesWithRename(snapshotIndexMetadata.getAliases(), request, indexMdBuilder, aliases);
                                     }
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
@@ -655,22 +655,32 @@ public class RestoreService implements ClusterStateApplier {
                     }
 
                     private void applyAliasesWithRename(
-                        IndexMetadata snapshotIndexMetadata,
+                        Map<String, AliasMetadata> snapshotAliases,
+                        RestoreSnapshotRequest request,
                         IndexMetadata.Builder indexMdBuilder,
                         Set<String> aliases
                     ) {
                         if (request.renameAliasPattern() == null || request.renameAliasReplacement() == null) {
-                            aliases.addAll(snapshotIndexMetadata.getAliases().keySet());
+                            for (final Map.Entry<String, AliasMetadata> alias : snapshotAliases.entrySet()) {
+                                AliasMetadata transformedAlias = applyAliasWriteIndexPolicy(
+                                    alias.getValue(),
+                                    request.aliasWriteIndexPolicy()
+                                );
+                                indexMdBuilder.removeAlias(alias.getKey());
+                                indexMdBuilder.putAlias(transformedAlias);
+                                aliases.add(transformedAlias.alias());
+                            }
                         } else {
                             Pattern renameAliasPattern = Pattern.compile(request.renameAliasPattern());
-                            for (final Map.Entry<String, AliasMetadata> alias : snapshotIndexMetadata.getAliases().entrySet()) {
+                            for (final Map.Entry<String, AliasMetadata> alias : snapshotAliases.entrySet()) {
                                 String currentAliasName = alias.getKey();
                                 indexMdBuilder.removeAlias(currentAliasName);
                                 String newAliasName = renameAliasPattern.matcher(currentAliasName)
                                     .replaceAll(request.renameAliasReplacement());
-                                AliasMetadata newAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
-                                indexMdBuilder.putAlias(newAlias);
-                                aliases.add(newAliasName);
+                                AliasMetadata renamedAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
+                                AliasMetadata transformedAlias = applyAliasWriteIndexPolicy(renamedAlias, request.aliasWriteIndexPolicy());
+                                indexMdBuilder.putAlias(transformedAlias);
+                                aliases.add(transformedAlias.alias());
                             }
                         }
                     }
@@ -1367,6 +1377,23 @@ public class RestoreService implements ClusterStateApplier {
         } catch (Exception t) {
             logger.warn("Failed to update restore state ", t);
         }
+    }
+
+    /**
+     * Apply alias write index policy to transform alias metadata during restore.
+     * Package-private for testing.
+     */
+    static AliasMetadata applyAliasWriteIndexPolicy(AliasMetadata aliasMd, RestoreSnapshotRequest.AliasWriteIndexPolicy policy) {
+        if (policy == RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX && Boolean.TRUE.equals(aliasMd.writeIndex())) {
+            return AliasMetadata.builder(aliasMd.alias())
+                .filter(aliasMd.filter())
+                .indexRouting(aliasMd.indexRouting())
+                .searchRouting(aliasMd.searchRouting())
+                .isHidden(aliasMd.isHidden())
+                .writeIndex(false)
+                .build();
+        }
+        return aliasMd;
     }
 
     private static IndexMetadata addSnapshotToIndexSettings(IndexMetadata metadata, Snapshot snapshot, IndexId indexId) {

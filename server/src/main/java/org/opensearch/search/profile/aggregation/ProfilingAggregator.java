@@ -41,6 +41,8 @@ import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.streaming.Streamable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -48,7 +50,7 @@ import java.util.Iterator;
 /**
  * An aggregator that aggregates the performance profiling of other aggregations
  */
-public class ProfilingAggregator extends Aggregator {
+public class ProfilingAggregator extends Aggregator implements Streamable {
 
     private final Aggregator delegate;
     private final AggregationProfiler profiler;
@@ -161,5 +163,14 @@ public class ProfilingAggregator extends Aggregator {
             return ((ProfilingAggregator) agg).delegate;
         }
         return agg;
+    }
+
+    public Aggregator getDelegate() {
+        return delegate;
+    }
+
+    @Override
+    public StreamingCostMetrics getStreamingCostMetrics() {
+        return delegate instanceof Streamable ? ((Streamable) delegate).getStreamingCostMetrics() : StreamingCostMetrics.nonStreamable();
     }
 }

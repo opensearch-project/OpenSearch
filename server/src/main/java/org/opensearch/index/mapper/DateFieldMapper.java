@@ -58,6 +58,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -753,6 +754,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean skiplist;
+    private final boolean isSkiplistConfigured;
     private final Locale locale;
     private final String format;
     private final String printFormat;
@@ -778,6 +780,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
         this.skiplist = builder.skiplist.getValue();
+        this.isSkiplistConfigured = builder.skiplist.isConfigured();
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
         this.printFormat = builder.printFormat.getValue();
@@ -846,7 +849,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (hasDocValues) {
-            if (skiplist) {
+            if (skiplist || isSkiplistDefaultEnabled(context.indexSettings().getIndexSortConfig(), fieldType().name())) {
                 context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
             } else {
                 context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
@@ -857,6 +860,19 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
+    }
+
+    boolean isSkiplistDefaultEnabled(IndexSortConfig indexSortConfig, String fieldName) {
+        if (!isSkiplistConfigured) {
+            if (indexSortConfig.hasPrimarySortOnField(fieldName)) {
+                return true;
+            }
+            if (DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD.getName().equals(fieldName)) {
+                return true;
+            }
+
+        }
+        return false;
     }
 
     public Long getNullValue() {

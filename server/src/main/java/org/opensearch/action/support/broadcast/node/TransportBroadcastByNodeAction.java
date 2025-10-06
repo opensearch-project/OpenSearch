@@ -239,6 +239,13 @@ public abstract class TransportBroadcastByNodeAction<
     protected abstract ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     /**
+     * Executes a node-level operation. This method is called one time per node, after all shard-level operations have completed.
+     * @param results List of results from the completed shard-level operations.
+     * @param accumulatedExceptions List of any exceptions thrown by the shard-level operations.
+     */
+    protected void nodeOperation(List<ShardOperationResult> results, List<BroadcastShardOperationFailedException> accumulatedExceptions) {}
+
+    /**
      * Executes a global block check before polling the cluster state.
      *
      * @param state   the cluster state
@@ -478,6 +485,8 @@ public abstract class TransportBroadcastByNodeAction<
                     results.add((ShardOperationResult) shardResultOrExceptions[i]);
                 }
             }
+
+            nodeOperation(results, accumulatedExceptions);
 
             channel.sendResponse(new NodeResponse(request.getNodeId(), totalShards, results, accumulatedExceptions));
         }

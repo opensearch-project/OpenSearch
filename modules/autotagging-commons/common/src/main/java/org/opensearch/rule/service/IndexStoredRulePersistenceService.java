@@ -26,6 +26,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.RuleEntityParser;
@@ -45,10 +46,13 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This class encapsulates the logic to manage the lifecycle of rules at index level
@@ -158,7 +162,8 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener - listener for validateNoDuplicateRule response
      */
     private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
-        QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, rule.getAttributeMap(), null, rule.getFeatureType()));
+        Map<String, Set<String>> attributeFilters = RuleUtils.buildAttributeFilters(rule);
+        QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, attributeFilters, null, rule.getFeatureType()));
         getRuleFromIndex(null, query, null, new ActionListener<>() {
             @Override
             public void onResponse(GetRuleResponse getRuleResponse) {
@@ -225,6 +230,11 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
             if (hasNoResults(id, listener, hits)) return;
             handleGetRuleResponse(hits, listener);
         } catch (Exception e) {
+            if (e instanceof IndexNotFoundException) {
+                logger.debug("Failed to get rule from index [{}]: index doesn't exist.", indexName);
+                handleGetRuleResponse(new ArrayList<>(), listener);
+                return;
+            }
             logger.error("Failed to fetch all rules: {}", e.getMessage());
             listener.onFailure(e);
         }
