@@ -28,7 +28,6 @@ artifacts {
 
 testClusters.all {
   module ':modules:mapper-extras'
-  module ':plugins:test-forkjoinpool'
 }
 
 test.enabled = false
