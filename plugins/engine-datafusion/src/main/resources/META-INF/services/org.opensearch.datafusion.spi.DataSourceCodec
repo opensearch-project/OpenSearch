@@ -1,0 +1,5 @@
+# DataFusion Engine implementations
+# Add your custom implementations here, e.g.:
+# com.example.CustomCsvDataFusionEngine
+
+# Note: Built-in csv engine is now in separate library
