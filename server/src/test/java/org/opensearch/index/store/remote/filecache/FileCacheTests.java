@@ -15,6 +15,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
@@ -39,6 +40,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     // but fatal to these tests
     private final static int CONCURRENCY_LEVEL = 16;
     private final static int MEGA_BYTES = 1024 * 1024;
+    private final static int BLOCK_SIZE = 8 * MEGA_BYTES;
     private final static String FAKE_PATH_SUFFIX = "Suffix";
     private Path path;
 
@@ -81,9 +83,9 @@ public class FileCacheTests extends OpenSearchTestCase {
 
     // test get method
     public void testGet() {
-        FileCache fileCache = createFileCache(8 * MEGA_BYTES);
+        FileCache fileCache = createFileCache(BLOCK_SIZE);
         for (int i = 0; i < 4; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(BLOCK_SIZE));
         }
         // verify all blocks are put into file cache
         for (int i = 0; i < 4; i++) {
@@ -171,7 +173,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     public void testCompute() {
         FileCache fileCache = createFileCache(MEGA_BYTES);
         Path path = createPath("0");
-        fileCache.put(path, new StubCachedIndexInput(8 * MEGA_BYTES));
+        fileCache.put(path, new StubCachedIndexInput(BLOCK_SIZE));
         fileCache.incRef(path);
         fileCache.compute(path, (p, i) -> null);
         // item will be removed
@@ -188,7 +190,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     public void testRemove() {
         FileCache fileCache = createFileCache(MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(BLOCK_SIZE));
         }
 
         fileCache.remove(createPath("0"));
@@ -207,14 +209,14 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testIncDecRef() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(BLOCK_SIZE));
         }
 
         // try to evict previous IndexInput
         for (int i = 1000; i < 3000; i++) {
-            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
+            putAndDecRef(fileCache, i, BLOCK_SIZE);
         }
 
         // IndexInput with refcount greater than 0 will not be evicted
@@ -234,7 +236,7 @@ public class FileCacheTests extends OpenSearchTestCase {
 
         // try to evict previous IndexInput again
         for (int i = 3000; i < 5000; i++) {
-            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
+            putAndDecRef(fileCache, i, BLOCK_SIZE);
         }
 
         for (int i = 0; i < 4; i++) {
@@ -267,16 +269,16 @@ public class FileCacheTests extends OpenSearchTestCase {
     public void testSize() {
         FileCache fileCache = createFileCache(MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(BLOCK_SIZE));
         }
         // test file cache size
         assertEquals(fileCache.size(), 4);
     }
 
     public void testPrune() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
-            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
+            putAndDecRef(fileCache, i, BLOCK_SIZE);
         }
         // before prune
         assertTrue(fileCache.size() >= 1);
@@ -287,9 +289,9 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testPruneWithPredicate() {
-        FileCache fileCache = createFileCache(MEGA_BYTES);
+        FileCache fileCache = createFileCache(1024 * MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
-            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
+            putAndDecRef(fileCache, i, BLOCK_SIZE);
         }
 
         // before prune
@@ -305,7 +307,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testUsage() {
-        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(16 * MEGA_BYTES, 1);
+        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(24 * MEGA_BYTES, 1);
         putAndDecRef(fileCache, 0, 16 * MEGA_BYTES);
 
         long expectedCacheUsage = 16 * MEGA_BYTES;
@@ -317,10 +319,44 @@ public class FileCacheTests extends OpenSearchTestCase {
         assertEquals(expectedActiveCacheUsage, realActiveCacheUsage);
     }
 
+    public void testUsageAtFullActiveCapacity() throws IOException {
+        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(16 * MEGA_BYTES, 1);
+        // Add some entries to cache
+        int numEntries = 2;
+        Path tempDir = createTempDir();
+        Path path1 = tempDir.resolve("test1.tmp");
+        Path path2 = tempDir.resolve("test2.tmp");
+        Path path3 = tempDir.resolve("test3.tmp");
+
+        // Create the files
+        Files.createFile(path1);
+        Files.createFile(path2);
+        Files.createFile(path3);
+
+        try {
+            fileCache.put(path1, new StubCachedIndexInput(BLOCK_SIZE));
+            fileCache.put(path2, new StubCachedIndexInput(BLOCK_SIZE));
+            fileCache.put(path3, new StubCachedIndexInput(BLOCK_SIZE));
+            fileCache.decRef(path1); // Decrease reference count
+        } finally {
+            Files.deleteIfExists(path1);
+            Files.deleteIfExists(path2);
+            Files.deleteIfExists(path3);
+        }
+
+        long expectedCacheUsage = 16 * MEGA_BYTES;
+        long expectedActiveCacheUsage = 16 * MEGA_BYTES;
+        long realCacheUsage = fileCache.usage();
+        long realActiveCacheUsage = fileCache.activeUsage();
+
+        assertEquals(expectedCacheUsage, realCacheUsage);
+        assertEquals(expectedActiveCacheUsage, realActiveCacheUsage);
+    }
+
     public void testStats() {
         FileCache fileCache = createFileCache(MEGA_BYTES);
         for (int i = 0; i < 4; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(BLOCK_SIZE));
         }
         // cache hits
         fileCache.get(createPath("0"));
@@ -333,11 +369,25 @@ public class FileCacheTests extends OpenSearchTestCase {
 
         // do some eviction here
         for (int i = 0; i < 2000; i++) {
-            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
+            putAndDecRef(fileCache, i, BLOCK_SIZE);
         }
         assertTrue(fileCache.stats().evictionCount() > 0);
         assertTrue(fileCache.stats().evictionWeight() > 0);
 
+    }
+
+    public void testOverallActivePercentStats() {
+        FileCache fileCache = createFileCache(10 * BLOCK_SIZE);
+        for (int i = 0; i < 5; i++) {
+            fileCache.put(createPath(Integer.toString(i)), new StubCachedIndexInput(BLOCK_SIZE));
+        }
+        assertEquals(new ByteSizeValue(5 * BLOCK_SIZE), fileCache.fileCacheStats().getActive());
+        assertEquals(new ByteSizeValue(5 * BLOCK_SIZE), fileCache.fileCacheStats().getUsed());
+        assertEquals(new ByteSizeValue(10 * BLOCK_SIZE), fileCache.fileCacheStats().getTotal());
+        assertEquals(100, fileCache.fileCacheStats().getActivePercent());
+        assertEquals(50.0, fileCache.fileCacheStats().getOverallActivePercent(), 0.0);
+        fileCache.put(createPath(Integer.toString(10)), new StubCachedIndexInput(3 * MEGA_BYTES));
+        assertEquals(53.75, fileCache.fileCacheStats().getOverallActivePercent(), 0.0);
     }
 
     public void testCacheRestore() throws IOException {
@@ -365,9 +415,9 @@ public class FileCacheTests extends OpenSearchTestCase {
         Files.createFile(path2);
 
         try {
-            fileCache.put(path1, new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(path1, new StubCachedIndexInput(BLOCK_SIZE));
             fileCache.incRef(path1); // Increase reference count
-            fileCache.put(path2, new StubCachedIndexInput(8 * MEGA_BYTES));
+            fileCache.put(path2, new StubCachedIndexInput(BLOCK_SIZE));
             fileCache.incRef(path2); // Increase reference count
             // Verify initial state
             assertEquals(numEntries, fileCache.size());
