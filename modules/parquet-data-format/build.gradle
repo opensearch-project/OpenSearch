@@ -33,22 +33,6 @@ tasks.register("preparePluginPathDirs") {
 publishing {
   publications {
     pluginZip(MavenPublication) { publication ->
-      pom {
-        name = pluginName
-        description = pluginDescription
-        licenses {
-          license {
-            name = "The Apache License, Version 2.0"
-            url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
-          }
-        }
-        developers {
-          developer {
-            name = "OpenSearch"
-            url = "https://github.com/opensearch-project/opensearch-plugin-template-java"
-          }
-        }
-      }
     }
   }
 }
@@ -167,8 +151,58 @@ run {
 
 // updateVersion: Task to auto update version to the next development iteration
 tasks.register('buildRust', Exec) {
-  workingDir = file("${projectDir}/src/main/rust")
-  commandLine = ['cargo', 'build', '--release']
+//  workingDir = file("${projectDir}/src/main/rust")
+//  commandLine = ['cargo', 'build', '--release']
+
+  description = 'Build the Rust JNI library using Cargo'
+  group = 'build'
+
+  workingDir file('src/main/rust')
+
+  // Determine the target directory and library name based on OS
+  def osName = System.getProperty('os.name').toLowerCase()
+  def libPrefix = osName.contains('windows') ? '' : 'lib'
+  def libExtension = osName.contains('windows') ? '.dll' : (osName.contains('mac') ? '.dylib' : '.so')
+
+  // Use debug build for development, release for production
+  def buildType = project.hasProperty('rustRelease') ? 'release' : 'debug'
+  def targetDir = "target/${buildType}"
+
+  // Find cargo executable - try common locations
+  def cargoExecutable = 'cargo'
+  def possibleCargoPaths = [
+          System.getenv('HOME') + '/.cargo/bin/cargo',
+          '/usr/local/bin/cargo',
+          'cargo'
+  ]
+
+  for (String path : possibleCargoPaths) {
+    if (new File(path).exists()) {
+      cargoExecutable = path
+      break
+    }
+  }
+
+  def cargoArgs = [cargoExecutable, 'build']
+  if (buildType == 'release') {
+    cargoArgs.add('--release')
+  }
+
+  if (osName.contains('windows')) {
+    commandLine cargoArgs
+  } else {
+    commandLine cargoArgs
+  }
+
+  // Set environment variables for cross-compilation if needed
+  environment 'CARGO_TARGET_DIR', file('jni/target').absolutePath
+
+  inputs.files fileTree('src/main/rust/src')
+  inputs.file 'src/main/rust/Cargo.toml'
+//  outputs.files file("jni/${targetDir}/${libPrefix}opensearch_datafusion_jni${libExtension}")
+//  System.out.println("Building Rust library in ${buildType} mode");
+
+
 }
 
 tasks.register('copyNativeLib', Copy) {

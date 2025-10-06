@@ -78,4 +78,7 @@ doc-tools/missing-doclet/bin/
 /plugins/dataformat-csv/jni/Cargo.lock
 
 /modules/parquet-data-format/src/main/rust/target
+/modules/parquet-data-format/src/main/rust/debug
 /modules/parquet-data-format/src/main/resources/native/
+/modules/parquet-data-format/jni/target/debug
+
