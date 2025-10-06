@@ -8,8 +8,6 @@
 
 package org.opensearch.plugin.wlm.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
@@ -25,8 +23,10 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.threadpool.ThreadPool;
@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Transport action for delete WorkloadGroup
@@ -48,10 +47,8 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
     AcknowledgedResponse> {
 
     private final WorkloadGroupPersistenceService workloadGroupPersistenceService;
-    private final IndexStoredRulePersistenceService rulePersistenceService;
-    private final WorkloadGroupFeatureType featureType;
-
-    private static final Logger logger = LogManager.getLogger(TransportDeleteWorkloadGroupAction.class);
+    private final RulePersistenceService rulePersistenceService;
+    private final FeatureType featureType;
 
     /**
      * Constructor for TransportDeleteWorkloadGroupAction
@@ -96,20 +93,18 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        try (ExecutorService executorService = threadPool.executor(ThreadPool.Names.GENERIC)) {
-            executorService.submit(() -> {
-                try {
-                    checkNoAssociatedRulesExist(request, listener, state);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        }
+        threadPool.executor(executor()).submit(() -> {
+            try {
+                checkNoAssociatedRulesExist(request, listener, state);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SAME;
+        return ThreadPool.Names.GET;
     }
 
     @Override
