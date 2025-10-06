@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Use S3CrtClient for higher throughput while uploading files to S3 ([#18800](https://github.com/opensearch-project/OpenSearch/pull/18800))
 - [Rule-based Auto-tagging] bug fix on Update Rule API with multiple attributes ([#19497](https://github.com/opensearch-project/OpenSearch/pull/19497))
 - Add a dynamic setting to change skip_cache_factor and min_frequency for querycache ([#18351](https://github.com/opensearch-project/OpenSearch/issues/18351))
+- Adding support for Composite Remote Repository. ([#19240](https://github.com/opensearch-project/OpenSearch/pull/19240))
 - Add overload constructor for Translog to accept Channel Factory as a parameter ([#18918](https://github.com/opensearch-project/OpenSearch/pull/18918))
 - Add subdirectory-aware store module with recovery support ([#19132](https://github.com/opensearch-project/OpenSearch/pull/19132))
 - [Rule-based Auto-tagging] Modify get rule api to suit nested attributes ([#19429](https://github.com/opensearch-project/OpenSearch/pull/19429))

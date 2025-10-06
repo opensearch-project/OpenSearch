@@ -234,15 +234,15 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
             return;
         }
 
-        translogRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings));
-        segmentRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings));
+        translogRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(false));
+        segmentRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(false));
     }
 
     private boolean isTranslogSegmentRepoSame() {
         // TODO - The current comparison checks the repository name. But it is also possible that the repository are same
         // by attributes, but different by name. We need to handle this.
-        String translogRepoName = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings);
-        String segmentRepoName = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings);
+        String translogRepoName = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(false);
+        String segmentRepoName = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(false);
         return Objects.equals(translogRepoName, segmentRepoName);
     }
 

@@ -58,10 +58,10 @@ public class RemoteStoreCustomMetadataResolver {
         return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
     }
 
-    public boolean isTranslogMetadataEnabled() {
+    public boolean isTranslogMetadataEnabled(Settings idxSettings) {
         Repository repository;
         try {
-            repository = repositoriesServiceSupplier.get().repository(getRemoteStoreTranslogRepo(settings));
+            repository = repositoriesServiceSupplier.get().repository(getRemoteStoreTranslogRepo(idxSettings));
         } catch (RepositoryMissingException ex) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
         }

@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -458,6 +459,9 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             .nodes(discoveryNodes)
             .routingTable(createRoutingTableAllShardsStarted(migratedIndex, 1, 1, remoteNode1, remoteNode2))
             .build();
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(remoteNode1);
+        assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
+
         Metadata mutatedMetadata = finalizeMigration(clusterStateWithDocrepIndexSettings, logger).metadata();
         assertTrue(mutatedMetadata.index(migratedIndex).getVersion() > docrepIdxMetadata.index(migratedIndex).getVersion());
         assertRemoteSettingsApplied(mutatedMetadata.index(migratedIndex));
@@ -544,6 +548,82 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         remoteStoreNodeAttributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-repo-1");
         remoteStoreNodeAttributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
         remoteStoreNodeAttributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-segment-repo-1"
+            ),
+            "s3"
+        );
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-translog-repo-1"
+            ),
+            "s3"
+        );
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-cluster-repo-1"
+            ),
+            "s3"
+        );
+
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-segment-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-segment-repo-1"
+            ) + "path",
+            "test-path"
+        );
+
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-translog-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-translog-repo-1"
+            ) + "path",
+            "test-path"
+        );
+
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-cluster-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
+        remoteStoreNodeAttributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-cluster-repo-1"
+            ) + "path",
+            "test-path"
+        );
         return remoteStoreNodeAttributes;
     }
 
