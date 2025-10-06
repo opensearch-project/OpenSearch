@@ -385,11 +385,11 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         } catch (IllegalArgumentException e) {
             String expectedError = "Validation Failed: 1: this action would add ["
                 + (dataNodes * firstShardCount)
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + firstShardCount
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum shards open;";
+                + "] maximum Hot shards open;";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = client().admin().cluster().prepareState().get().getState().metadata();
@@ -446,11 +446,11 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
             String expectedError = "Validation Failed: 1: this action would add ["
                 + difference
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + totalShardsBefore
                 + "]/["
                 + dataNodes * shardsPerNode
-                + "] maximum shards open;";
+                + "] maximum Hot shards open;";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = client().admin().cluster().prepareState().get().getState().metadata();
@@ -779,22 +779,22 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         int maxShards = counts.getShardsPerNode() * dataNodes;
         String expectedError = "Validation Failed: 1: this action would add ["
             + totalShards
-            + "] total shards, but this cluster currently has ["
+            + "] total Hot shards, but this cluster currently has ["
             + currentShards
             + "]/["
             + maxShards
-            + "] maximum shards open;";
+            + "] maximum Hot shards open;";
         assertEquals(expectedError, e.getMessage());
     }
 
     private void verifyException(int maxShards, int currentShards, int extraShards, IllegalArgumentException e) {
         String expectedError = "Validation Failed: 1: this action would add ["
             + extraShards
-            + "] total shards, but this cluster currently has ["
+            + "] total Hot shards, but this cluster currently has ["
             + currentShards
             + "]/["
             + maxShards
-            + "] maximum shards open;";
+            + "] maximum Hot shards open;";
         assertEquals(expectedError, e.getMessage());
     }
 

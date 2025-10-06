@@ -272,15 +272,11 @@ public class MetadataUpdateSettingsService {
                             }
 
                             // Verify that this won't take us over the cluster shard limit.
-                            int totalNewShards = Arrays.stream(request.indices())
-                                .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
-                                .sum();
-                            Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
-                            if (error.isPresent()) {
-                                ValidationException ex = new ValidationException();
-                                ex.addValidationError(error.get());
-                                throw ex;
-                            }
+                            shardLimitValidator.validateShardLimitForIndices(
+                                request.indices(),
+                                currentState,
+                                index -> getTotalNewShards(index, currentState, updatedNumberOfReplicas)
+                            );
 
                             /*
                              * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
@@ -315,15 +311,12 @@ public class MetadataUpdateSettingsService {
                             }
 
                             // Verify that this won't take us over the cluster shard limit.
-                            int totalNewShards = Arrays.stream(request.indices())
-                                .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfSearchReplicas))
-                                .sum();
-                            Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
-                            if (error.isPresent()) {
-                                ValidationException ex = new ValidationException();
-                                ex.addValidationError(error.get());
-                                throw ex;
-                            }
+                            shardLimitValidator.validateShardLimitForIndices(
+                                request.indices(),
+                                currentState,
+                                index -> getTotalNewShards(index, currentState, updatedNumberOfSearchReplicas)
+                            );
+
                             routingTableBuilder.updateNumberOfSearchReplicas(updatedNumberOfSearchReplicas, actualIndices);
                             metadataBuilder.updateNumberOfSearchReplicas(updatedNumberOfSearchReplicas, actualIndices);
                             logger.info(

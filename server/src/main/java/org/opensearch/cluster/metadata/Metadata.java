@@ -48,6 +48,7 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
@@ -270,7 +271,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final Map<String, Custom> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
-    private final int totalOpenIndexShards;
+    private final int totalOpenHotIndexShards;
+    private final int totalOpenWarmIndexShards;
 
     private final String[] allIndices;
     private final String[] visibleIndices;
@@ -315,15 +317,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.customs = Collections.unmodifiableMap(customs);
         this.templates = new TemplatesMetadata(templates);
         int totalNumberOfShards = 0;
-        int totalOpenIndexShards = 0;
+        int totalOpenHotIndexShards = 0;
+        int totalOpenWarmIndexShards = 0;
         for (IndexMetadata cursor : indices.values()) {
             totalNumberOfShards += cursor.getTotalNumberOfShards();
             if (IndexMetadata.State.OPEN.equals(cursor.getState())) {
-                totalOpenIndexShards += cursor.getTotalNumberOfShards();
+                if (RoutingPool.getIndexPool(cursor) == RoutingPool.REMOTE_CAPABLE) {
+                    totalOpenWarmIndexShards += cursor.getTotalNumberOfShards();
+                } else {
+                    totalOpenHotIndexShards += cursor.getTotalNumberOfShards();
+                }
             }
         }
         this.totalNumberOfShards = totalNumberOfShards;
-        this.totalOpenIndexShards = totalOpenIndexShards;
+        this.totalOpenHotIndexShards = totalOpenHotIndexShards;
+        this.totalOpenWarmIndexShards = totalOpenWarmIndexShards;
 
         this.allIndices = allIndices;
         this.visibleIndices = visibleIndices;
@@ -904,8 +912,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * replicas, but does not include shards that are part of closed indices.
      * @return The total number of open shards from all indices.
      */
-    public int getTotalOpenIndexShards() {
-        return this.totalOpenIndexShards;
+    public int getTotalOpenHotIndexShards() {
+        return this.totalOpenHotIndexShards;
+    }
+
+    /**
+     * Gets the total number of open shards from all indices. Includes
+     * replicas, but does not include shards that are part of closed indices.
+     * @return The total number of open shards from all indices.
+     */
+    public int getTotalOpenWarmIndexShards() {
+        return this.totalOpenWarmIndexShards;
     }
 
     /**

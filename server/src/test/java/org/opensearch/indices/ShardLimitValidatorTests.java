@@ -77,7 +77,14 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas());
 
         int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), -1);
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            shardsToAdd,
+            state.getMetadata().getTotalOpenHotIndexShards(),
+            counts.getShardsPerNode(),
+            -1,
+            state.getNodes().getDataNodes().size(),
+            "Hot"
+        );
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
@@ -86,11 +93,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open",
+                + "] maximum Hot shards open",
             errorMessage.get()
         );
     }
@@ -104,9 +111,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         int maxShardLimitOnCluster = shardsToAdd - 1;
         Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
             shardsToAdd,
-            state,
+            state.getMetadata().getTotalOpenHotIndexShards(),
             counts.getShardsPerNode(),
-            maxShardLimitOnCluster
+            maxShardLimitOnCluster,
+            state.getNodes().getDataNodes().size(),
+            "Hot"
         );
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
@@ -116,11 +125,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open",
+                + "] maximum Hot shards open",
             errorMessage.get()
         );
     }
@@ -136,7 +145,14 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), -1);
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            shardsToAdd,
+            state.getMetadata().getTotalOpenHotIndexShards(),
+            counts.getShardsPerNode(),
+            -1,
+            state.getNodes().getDataNodes().size(),
+            "Hot"
+        );
 
         assertFalse(errorMessage.isPresent());
     }
@@ -175,11 +191,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + 2
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + 1
                 + "]/["
                 + 1
-                + "] maximum shards open;",
+                + "] maximum Hot shards open;",
             exception.getMessage()
         );
     }
@@ -205,11 +221,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + 2
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + 1
                 + "]/["
                 + maxShardLimitOnCluster
-                + "] maximum shards open;",
+                + "] maximum Hot shards open;",
             exception.getMessage()
         );
     }
@@ -217,18 +233,32 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     public void testComputedMaxShardsOfClusterIntOverFlow() {
         final int maxShardLimitPerNode = 500_000_000;
         ClusterState state = createClusterForShardLimitTest(15, 1, 1);
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(2, state, maxShardLimitPerNode, -1);
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            2,
+            state.getMetadata().getTotalOpenHotIndexShards(),
+            maxShardLimitPerNode,
+            -1,
+            state.getNodes().getDataNodes().size(),
+            "Hot"
+        );
         assertFalse(errorMessage.isPresent());
 
-        errorMessage = ShardLimitValidator.checkShardLimit(Integer.MAX_VALUE - 1, state, maxShardLimitPerNode, -1);
+        errorMessage = ShardLimitValidator.checkShardLimit(
+            Integer.MAX_VALUE - 1,
+            state.getMetadata().getTotalOpenHotIndexShards(),
+            maxShardLimitPerNode,
+            -1,
+            state.getNodes().getDataNodes().size(),
+            "Hot"
+        );
         assertEquals(
             "this action would add ["
                 + (Integer.MAX_VALUE - 1)
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + 2
                 + "]/["
                 + Integer.MAX_VALUE
-                + "] maximum shards open",
+                + "] maximum Hot shards open",
             errorMessage.get()
         );
     }
@@ -284,11 +314,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + 2
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + 1
                 + "]/["
                 + 1
-                + "] maximum shards open;",
+                + "] maximum Hot shards open;",
             exception.getMessage()
         );
     }
@@ -312,11 +342,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + 2
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + 1
                 + "]/["
                 + 1
-                + "] maximum shards open;",
+                + "] maximum Hot shards open;",
             exception.getMessage()
         );
     }
@@ -367,11 +397,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open;",
+                + "] maximum Hot shards open;",
             exception.getMessage()
         );
     }
@@ -465,11 +495,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open;",
+                + "] maximum Hot shards open;",
             exception.getMessage()
         );
     }
@@ -508,11 +538,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total Hot shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open;",
+                + "] maximum Hot shards open;",
             exception.getMessage()
         );
     }
