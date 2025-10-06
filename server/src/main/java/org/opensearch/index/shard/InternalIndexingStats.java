@@ -165,7 +165,6 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 noopUpdates.count(),
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
-                new IndexingStats.Stats.DocStatusStats(),
                 maxLastIndexRequestTimestamp.get()
             );
         }

@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
+- Add search API tracker ([#18601](https://github.com/opensearch-project/OpenSearch/pull/18601))
 - Expand fetch phase profiling to support inner hits and top hits aggregation phases  ([##18936](https://github.com/opensearch-project/OpenSearch/pull/18936))
 - [Rule-based Auto-tagging] add the schema for security attributes ([##19345](https://github.com/opensearch-project/OpenSearch/pull/19345))
 - Add temporal routing processors for time-based document routing ([#18920](https://github.com/opensearch-project/OpenSearch/issues/18920))
