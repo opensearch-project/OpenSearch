@@ -93,7 +93,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource == null) {
             return false;
         }

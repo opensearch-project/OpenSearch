@@ -37,7 +37,9 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
+import org.locationtech.jts.awt.PointShapeFactory.Star;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
@@ -64,6 +66,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
@@ -107,7 +110,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource == null) {
             return false;
         }
@@ -176,10 +179,47 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        String metric = MetricStat.MAX.getTypeName();
+        FixedBitSet filteredValues = scanStarTree(context, valuesSource, ctx, starTree, metric);
         AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(context, valuesSource, ctx, starTree, MetricStat.MAX.getTypeName(), value -> {
+        Consumer<Long> valueConsumer = value -> {
             max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
-        }, () -> maxes.set(0, max.get()));
+        };
+        Runnable finalConsumer = () -> maxes.set(0, max.get());
+        buildBucketsFromStarTree(context, valuesSource, ctx, starTree, metric, valueConsumer, finalConsumer, filteredValues);
+    }
+
+    @Override
+    public FixedBitSet scanStarTree(SearchContext context,
+        ValuesSource.Numeric valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric
+    ) throws IOException {
+        return StarTreeQueryHelper.scanStarTree(context, valuesSource, ctx, starTree, metric);
+    }
+
+    @Override
+    public void buildBucketsFromStarTree(
+        SearchContext context,
+        ValuesSource.Numeric valuesSource,
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        String metric,
+        Consumer<Long> valueConsumer,
+        Runnable finalConsumer,
+        FixedBitSet filteredValues
+    ) throws IOException {
+        StarTreeQueryHelper.buildBucketsFromStarTree(
+            context,
+            valuesSource,
+            ctx,
+            starTree,
+            metric,
+            valueConsumer,
+            finalConsumer,
+            filteredValues
+        );
     }
 
     @Override

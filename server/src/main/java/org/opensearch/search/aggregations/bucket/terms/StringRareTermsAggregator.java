@@ -141,7 +141,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (weight == null) {
             return false;
         } else {

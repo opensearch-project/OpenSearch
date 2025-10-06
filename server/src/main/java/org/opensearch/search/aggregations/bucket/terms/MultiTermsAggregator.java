@@ -243,7 +243,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             preComputeWithStarTree(ctx, supportedStarTree);

@@ -103,7 +103,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource == null) {
             return false;
         }

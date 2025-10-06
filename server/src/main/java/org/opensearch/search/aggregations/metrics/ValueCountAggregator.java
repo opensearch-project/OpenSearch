@@ -88,7 +88,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource instanceof ValuesSource.Numeric) {
             CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
             if (supportedStarTree != null) {

@@ -227,7 +227,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+    public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (tryStarTreePrecompute(ctx) == true) {
             return true;
         }
@@ -515,7 +515,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        public boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
             if (subAggregators.length == 0) {
                 if (mapping != null) {
                     mapSegmentCountsToGlobalCounts(mapping);
