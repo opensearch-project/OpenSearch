@@ -119,6 +119,7 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.exec.format.DataSourceRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -244,6 +245,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Property.Dynamic,
         Property.NodeScope
     );
+
+
 
     public static final Setting<Boolean> WRITE_DANGLING_INDICES_INFO_SETTING = Setting.boolSetting(
         "gateway.write_dangling_indices_info",
@@ -416,6 +419,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
     private volatile int maxSizeInRequestCache;
     private volatile int defaultMaxMergeAtOnce;
+    private final DataSourceRegistry dataSourceRegistry;
 
     @Override
     protected void doStart() {
@@ -458,7 +462,8 @@ public class IndicesService extends AbstractLifecycleComponent
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        DataSourceRegistry dataSourceRegistry
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -591,6 +596,8 @@ public class IndicesService extends AbstractLifecycleComponent
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
+
+        this.dataSourceRegistry = dataSourceRegistry;
     }
 
     @InternalApi
@@ -655,6 +662,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoverySettings,
             cacheService,
             remoteStoreSettings,
+            null,
             null,
             null,
             null,
@@ -1101,7 +1109,8 @@ public class IndicesService extends AbstractLifecycleComponent
             this.remoteStoreSettings,
             replicator,
             segmentReplicationStatsProvider,
-            this::getClusterDefaultMaxMergeAtOnce
+            this::getClusterDefaultMaxMergeAtOnce,
+            dataSourceRegistry
         );
     }
 
