@@ -49,6 +49,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
     protected final ResultStrategy<?, ?> resultStrategy;
+    private boolean leafCollectorCreated = false;
 
     public StreamStringTermsAggregator(
         String name,
@@ -74,6 +75,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
         super.doReset();
         valueCount = 0;
         sortedDocValuesPerBatch = null;
+        this.leafCollectorCreated = false;
     }
 
     @Override
@@ -88,6 +90,13 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        if (this.leafCollectorCreated) {
+            throw new IllegalStateException(
+                "Calling " + StreamStringTermsAggregator.class.getSimpleName() + " for the second segment: " + ctx
+            );
+        } else {
+            this.leafCollectorCreated = true;
+        }
         this.sortedDocValuesPerBatch = valuesSource.ordinalsValues(ctx);
         this.valueCount = sortedDocValuesPerBatch.getValueCount(); // for streaming case, the value count is reset to per batch
         // cardinality
