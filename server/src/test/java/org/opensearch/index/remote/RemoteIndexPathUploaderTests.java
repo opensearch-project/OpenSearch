@@ -10,6 +10,8 @@ package org.opensearch.index.remote;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
@@ -41,6 +43,7 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -93,6 +96,40 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             .put(CLUSTER_STATE_REPO_KEY, TRANSLOG_REPO_NAME)
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .build();
+
+        Map<String, String> attributes = new HashMap<>();
+
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-segment-repo-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-segment-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+
+        DiscoveryNode node = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+
+        assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
+
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         basePath = BlobPath.cleanPath().add("test");
         repositoriesService = mock(RepositoriesService.class);
@@ -114,6 +151,8 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         );
         Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, TRANSLOG_REPO_NAME)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, TRANSLOG_REPO_NAME)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(idxSettings)
@@ -252,6 +291,55 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
     }
 
     public void testInterceptWithDifferentRepo() throws IOException {
+
+        Map<String, String> attributes = new HashMap<>();
+
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-segment-repo-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-segment-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                "my-translog-repo-1"
+            ),
+            "s3"
+        );
+        attributes.put(
+            String.format(
+                Locale.getDefault(),
+                RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                "my-translog-repo-1"
+            ) + "bucket",
+            "test-bucket"
+        );
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+
+        DiscoveryNode node = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+        assert remoteStoreNodeAttribute.getRepositoriesMetadata() != null;
+
         Settings settings = Settings.builder().put(this.settings).put(SEGMENT_REPO_NAME_KEY, SEGMENT_REPO_NAME).build();
         when(repositoriesService.repository(SEGMENT_REPO_NAME)).thenReturn(repository);
         RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(

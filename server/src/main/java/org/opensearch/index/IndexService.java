@@ -697,7 +697,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     }
 
                     remoteDirectory = ((RemoteSegmentStoreDirectoryFactory) remoteDirectoryFactory).newDirectory(
-                        RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
+                        RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getSettings()),
                         this.indexSettings.getUUID(),
                         shardId,
                         this.indexSettings.getRemoteStorePathStrategy(),

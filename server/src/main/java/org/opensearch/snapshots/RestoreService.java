@@ -382,7 +382,7 @@ public class RestoreService implements ClusterStateApplier {
 
                                 IndexId snapshotIndexId = repositoryData.resolveIndexId(index);
 
-                                final Settings overrideSettingsInternal = getOverrideSettingsInternal();
+                                final Settings overrideSettingsInternal = getOverrideSettingsInternal(metadata.index(index));
                                 final String[] ignoreSettingsInternal = getIgnoreSettingsInternal();
 
                                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
@@ -420,6 +420,24 @@ public class RestoreService implements ClusterStateApplier {
                                             + "] as some of the nodes in cluster have version less than 2.9"
                                     );
                                 }
+
+                                String sourceRemoteSegmentRepo = request.getSourceRemoteStoreRepository();
+                                String sourceRemoteTransLogRepo = request.getSourceRemoteStoreRepository();
+
+                                boolean isSSEEnabledIndex = IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING.get(
+                                    metadata.index(index).getSettings()
+                                );
+                                if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())
+                                    && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled()
+                                    && isSSEEnabledIndex) {
+                                    sourceRemoteSegmentRepo = RemoteStoreNodeAttribute.getServerSideEncryptedRepoName(
+                                        sourceRemoteSegmentRepo
+                                    );
+                                    sourceRemoteTransLogRepo = RemoteStoreNodeAttribute.getServerSideEncryptedRepoName(
+                                        sourceRemoteTransLogRepo
+                                    );
+                                }
+
                                 final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                                     restoreUUID,
                                     snapshot,
@@ -427,8 +445,8 @@ public class RestoreService implements ClusterStateApplier {
                                     snapshotIndexId,
                                     isSearchableSnapshot,
                                     isRemoteStoreShallowCopy,
-                                    request.getSourceRemoteStoreRepository(),
-                                    request.getSourceRemoteTranslogRepository(),
+                                    sourceRemoteSegmentRepo,
+                                    sourceRemoteTransLogRepo,
                                     snapshotInfo.getPinnedTimestamp()
                                 );
                                 final Version minIndexCompatibilityVersion = currentState.getNodes()
@@ -464,12 +482,12 @@ public class RestoreService implements ClusterStateApplier {
                                     IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
                                         .state(IndexMetadata.State.OPEN)
                                         .index(renamedIndexName);
-                                    indexMdBuilder.settings(
-                                        Settings.builder()
-                                            .put(snapshotIndexMetadata.getSettings())
-                                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                                    );
-                                    createIndexService.addRemoteStoreCustomMetadata(indexMdBuilder, false);
+                                    Settings idxSettings = Settings.builder()
+                                        .put(snapshotIndexMetadata.getSettings())
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                                        .build();
+                                    indexMdBuilder.settings(idxSettings);
+                                    createIndexService.addRemoteStoreCustomMetadata(indexMdBuilder, idxSettings, false);
                                     shardLimitValidator.validateShardLimit(
                                         renamedIndexName,
                                         snapshotIndexMetadata.getSettings(),
@@ -698,7 +716,7 @@ public class RestoreService implements ClusterStateApplier {
                         return indexSettingsToBeIgnored;
                     }
 
-                    private Settings getOverrideSettingsInternal() {
+                    private Settings getOverrideSettingsInternal(IndexMetadata indexMetadata) {
                         final Settings.Builder settingsBuilder = Settings.builder();
 
                         // We will use whatever replication strategy provided by user or from snapshot metadata unless
@@ -722,7 +740,8 @@ public class RestoreService implements ClusterStateApplier {
                             clusterService.state(),
                             clusterSettings,
                             clusterService.getSettings(),
-                            String.join(",", request.indices())
+                            String.join(",", request.indices()),
+                            indexMetadata
                         );
                         return settingsBuilder.build();
                     }

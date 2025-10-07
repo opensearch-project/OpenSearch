@@ -642,7 +642,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(aggregatedIndexSettings);
         tmpImdBuilder.system(isSystem);
-        addRemoteStoreCustomMetadata(tmpImdBuilder, true);
+        addRemoteStoreCustomMetadata(tmpImdBuilder, aggregatedIndexSettings, true);
 
         if (request.context() != null) {
             tmpImdBuilder.context(request.context());
@@ -661,7 +661,7 @@ public class MetadataCreateIndexService {
      * @param tmpImdBuilder     index metadata builder.
      * @param assertNullOldType flag to verify that the old remote store path type is null
      */
-    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
+    public void addRemoteStoreCustomMetadata(IndexMetadata.Builder tmpImdBuilder, Settings idxSettings, boolean assertNullOldType) {
         if (remoteStoreCustomMetadataResolver == null) {
             return;
         }
@@ -673,7 +673,7 @@ public class MetadataCreateIndexService {
         Map<String, String> remoteCustomData = new HashMap<>();
 
         // Determine if the ckp would be stored as translog metadata
-        boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled();
+        boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled(idxSettings);
         remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(isTranslogMetadataEnabled));
 
         // Determine the path type for use using the remoteStorePathResolver.
@@ -1056,7 +1056,7 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
-        updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
+        updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index(), false);
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1149,6 +1149,25 @@ public class MetadataCreateIndexService {
         settingsBuilder.put(SETTING_REPLICATION_TYPE, indexReplicationType);
     }
 
+    public static void updateRemoteStoreSettings(
+        Settings.Builder settingsBuilder,
+        ClusterState clusterState,
+        ClusterSettings clusterSettings,
+        Settings nodeSettings,
+        String indexName,
+        IndexMetadata indexMetadata
+    ) {
+        if ((isRemoteDataAttributePresent(nodeSettings)
+            && clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(RemoteStoreNodeService.CompatibilityMode.STRICT))
+            || isMigratingToRemoteStore(clusterSettings)) {
+            boolean sseEnabledIndex = IndexMetadata.INDEX_REMOTE_STORE_SSE_ENABLED_SETTING.get(indexMetadata.getSettings());
+            if (sseEnabledIndex) {
+                settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, true);
+            }
+            updateRemoteStoreSettings(settingsBuilder, clusterState, clusterSettings, nodeSettings, indexName, true);
+        }
+    }
+
     /**
      * Updates index settings to enable remote store by default based on node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
@@ -1162,7 +1181,8 @@ public class MetadataCreateIndexService {
         ClusterState clusterState,
         ClusterSettings clusterSettings,
         Settings nodeSettings,
-        String indexName
+        String indexName,
+        boolean isRestoreFromSnapshot
     ) {
         if ((isRemoteDataAttributePresent(nodeSettings)
             && clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(RemoteStoreNodeService.CompatibilityMode.STRICT))
@@ -1176,9 +1196,20 @@ public class MetadataCreateIndexService {
                 .filter(DiscoveryNode::isRemoteStoreNode)
                 .findFirst();
 
+            if (!isRestoreFromSnapshot && RemoteStoreNodeAttribute.isRemoteStoreServerSideEncryptionEnabled()) {
+                settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_SSE_ENABLED, true);
+            }
+
             if (remoteNode.isPresent()) {
-                translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
-                segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
+                Map<String, Object> indexSettings = settingsBuilder.keys()
+                    .stream()
+                    .collect(Collectors.toMap(key -> key, settingsBuilder::get));
+
+                Settings.Builder currentSettingsBuilder = Settings.builder();
+                Settings currentIndexSettings = currentSettingsBuilder.loadFromMap(indexSettings).build();
+
+                translogRepo = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(currentIndexSettings);
+                segmentRepo = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(currentIndexSettings);
                 if (segmentRepo != null) {
                     settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true).put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo);
                     if (translogRepo != null) {

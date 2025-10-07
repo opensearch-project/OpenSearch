@@ -196,7 +196,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
             () -> repositoriesService,
             settings
         );
-        assertTrue(resolver.isTranslogMetadataEnabled());
+        assertTrue(resolver.isTranslogMetadataEnabled(settings));
     }
 
     public void testTranslogMetadataAllowedFalseWithMinVersionNewer() {
@@ -209,7 +209,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
             () -> repositoriesService,
             settings
         );
-        assertFalse(resolver.isTranslogMetadataEnabled());
+        assertFalse(resolver.isTranslogMetadataEnabled(settings));
     }
 
     public void testTranslogMetadataAllowedMinVersionOlder() {
@@ -222,7 +222,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
             () -> repositoriesService,
             settings
         );
-        assertFalse(resolver.isTranslogMetadataEnabled());
+        assertFalse(resolver.isTranslogMetadataEnabled(settings));
     }
 
     public void testTranslogPathFixedPathSetting() {

@@ -734,7 +734,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
-                    RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(indexSettings.getNodeSettings()),
+                    RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(false),
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
                     remoteStoreSettings
                 );
