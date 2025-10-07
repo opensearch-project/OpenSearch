@@ -33,7 +33,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Rule based auto-tagging] Add Rule based auto-tagging IT ([#18550](https://github.com/opensearch-project/OpenSearch/pull/18550))
 - Add all-active ingestion as docrep equivalent in pull-based ingestion ([#19316](https://github.com/opensearch-project/OpenSearch/pull/19316))
 - Adding logic for histogram aggregation using skiplist ([#19130](https://github.com/opensearch-project/OpenSearch/pull/19130))
+- Add rate limiting for merges with cluster and index settings ([#19309](https://github.com/opensearch-project/OpenSearch/pull/19309))
 - Add skip_list param for date, scaled float and token count fields ([#19142](https://github.com/opensearch-project/OpenSearch/pull/19142))
+- Add rate limiting for merges with cluster and index settings ([#19309](https://github.com/opensearch-project/OpenSearch/pull/19309))
 - Enable skip_list for @timestamp field or index sort field by default([#19480](https://github.com/opensearch-project/OpenSearch/pull/19480))
 - Implement GRPC MatchPhrase, MultiMatch queries ([#19449](https://github.com/opensearch-project/OpenSearch/pull/19449))
 - Optimize gRPC transport thread management for improved throughput ([#19278](https://github.com/opensearch-project/OpenSearch/pull/19278))
@@ -76,8 +78,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Migrate usages of deprecated `Operations#union` from Lucene ([#19397](https://github.com/opensearch-project/OpenSearch/pull/19397))
 - Delegate primitive write methods with ByteSizeCachingDirectory wrapped IndexOutput ([#19432](https://github.com/opensearch-project/OpenSearch/pull/19432))
 - Bump opensearch-protobufs dependency to 0.18.0 and update transport-grpc module compatibility ([#19447](https://github.com/opensearch-project/OpenSearch/issues/19447))
+- StreamStringTermsAggregator rejects collecting the second segment without prior reset(). ProfilingAggregator propagates reset() to underneath collector ([#19416](https://github.com/opensearch-project/OpenSearch/pull/19416)))
 - Bump opensearch-protobufs dependency to 0.19.0 ([#19453](https://github.com/opensearch-project/OpenSearch/issues/19453))
-
+- Add a function to SearchPipelineService to check if system generated factory enabled or not ([#19545](https://github.com/opensearch-project/OpenSearch/pull/19545))
 ### Fixed
 - Fix unnecessary refreshes on update preparation failures ([#15261](https://github.com/opensearch-project/OpenSearch/issues/15261))
 - Fix NullPointerException in segment replicator ([#18997](https://github.com/opensearch-project/OpenSearch/pull/18997))
@@ -110,8 +113,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Handle negative search request nodes stats ([#19340](https://github.com/opensearch-project/OpenSearch/pull/19340))
 - Remove unnecessary iteration per-shard in request cache cleanup ([#19263](https://github.com/opensearch-project/OpenSearch/pull/19263))
 - Fix derived field rewrite to handle range queries ([#19496](https://github.com/opensearch-project/OpenSearch/pull/19496))
-- [WLM] add rule deletion logic for delete workload group API ([#19502](https://github.com/opensearch-project/OpenSearch/pull/19502))
 - [WLM] add a check to stop workload group deletion having rules ([#19502](https://github.com/opensearch-project/OpenSearch/pull/19502))
+- Fix flaky IndexServiceTests.testAsyncTranslogTrimTaskOnClosedIndex ([#19492](https://github.com/opensearch-project/OpenSearch/pull/19492)))
 
 ### Dependencies
 - Bump `com.gradleup.shadow:shadow-gradle-plugin` from 8.3.5 to 8.3.9 ([#19400](https://github.com/opensearch-project/OpenSearch/pull/19400))
@@ -157,6 +160,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `lycheeverse/lychee-action` from 2.4.1 to 2.6.1 ([#19463](https://github.com/opensearch-project/OpenSearch/pull/19463))
 - Exclude commons-lang and org.jsonschema2pojo from hadoop-miniclusters  ([#19538](https://github.com/opensearch-project/OpenSearch/pull/19538))
 - Bump `io.grpc` deps from 1.68.2 to 1.75.0 ([#19495](https://github.com/opensearch-project/OpenSearch/pull/19495))
+- Bump Apache Lucene from 10.3.0 to 10.3.1 ([#19540](https://github.com/opensearch-project/OpenSearch/pull/19540))
 
 ### Deprecated
 
