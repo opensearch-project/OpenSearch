@@ -22,5 +22,4 @@ jobs:
     secrets: inherit
     with:
       id: ${{ github.ref }}
-      wazuh_plugins_ref: ${{ github.event.repository.default_branch }}
-      reporting_plugin_ref: ${{ github.event.repository.default_branch }}
+      plugins_ref: ${{ github.event.repository.default_branch }}
