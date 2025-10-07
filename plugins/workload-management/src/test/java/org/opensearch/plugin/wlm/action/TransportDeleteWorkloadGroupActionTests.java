@@ -86,7 +86,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
      */
     public void testConstruction() {
         assertNotNull(action);
-        assertEquals(ThreadPool.Names.SAME, action.executor());
+        assertEquals(ThreadPool.Names.GET, action.executor());
     }
 
     /**
@@ -112,7 +112,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
 
         // Mock executor service
         ExecutorService mockExecutor = mock(ExecutorService.class);
-        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(mockExecutor);
+        when(threadPool.executor(ThreadPool.Names.GET)).thenReturn(mockExecutor);
         doAnswer(invocation -> {
             ((Runnable) invocation.getArgument(0)).run();
             return null;
@@ -147,7 +147,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
 
         // Mock executor service
         ExecutorService mockExecutor = mock(ExecutorService.class);
-        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(mockExecutor);
+        when(threadPool.executor(ThreadPool.Names.GET)).thenReturn(mockExecutor);
         doAnswer(invocation -> {
             ((Runnable) invocation.getArgument(0)).run();
             return null;
@@ -180,7 +180,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
 
         // Mock executor to immediately execute the runnable
         ExecutorService mockExecutor = mock(ExecutorService.class);
-        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(mockExecutor);
+        when(threadPool.executor(ThreadPool.Names.GET)).thenReturn(mockExecutor);
         doAnswer(invocation -> {
             Runnable runnable = invocation.getArgument(0);
             runnable.run();
@@ -222,7 +222,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
 
         // Mock executor to immediately execute the runnable
         ExecutorService mockExecutor = mock(ExecutorService.class);
-        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(mockExecutor);
+        when(threadPool.executor(ThreadPool.Names.GET)).thenReturn(mockExecutor);
         doAnswer(invocation -> {
             Runnable runnable = invocation.getArgument(0);
             runnable.run();
@@ -258,7 +258,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         ClusterState clusterState = createMockClusterStateWithWorkloadGroup(mockWorkloadGroup);
 
         ExecutorService mockExecutor = mock(ExecutorService.class);
-        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(mockExecutor);
+        when(threadPool.executor(ThreadPool.Names.GET)).thenReturn(mockExecutor);
         doAnswer(invocation -> {
             Runnable runnable = invocation.getArgument(0);
             runnable.run();
