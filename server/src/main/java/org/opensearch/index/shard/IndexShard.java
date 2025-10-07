@@ -1233,7 +1233,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @deprecated This static method has been moved to {@link Engine#prepareIndex} as an instance method.
      */
-    @Deprecated(since = "3.3.0", forRemoval = true)
+    @Deprecated(since = "3.4.0", forRemoval = true)
     public static Engine.Index prepareIndex(
         DocumentMapperForType docMapper,
         SourceToParse source,
@@ -1433,7 +1433,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @deprecated This static method has been moved to {@link Engine#prepareDelete} as an instance method.
      */
-    @Deprecated(since = "3.3.0", forRemoval = true)
+    @Deprecated(since = "3.4.0", forRemoval = true)
     public static Engine.Delete prepareDelete(
         String id,
         long seqNo,
