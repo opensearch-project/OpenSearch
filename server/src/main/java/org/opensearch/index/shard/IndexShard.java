@@ -1199,7 +1199,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
-            operation = prepareIndex(
+            operation = engine.prepareIndex(
                 docMapper(),
                 sourceToParse,
                 seqNo,
@@ -1228,6 +1228,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
+    /**
+     * Prepares an index operation by parsing the source document and creating an Engine.Index operation.
+     *
+     * @deprecated This static method has been moved to {@link Engine#prepareIndex} as an instance method.
+     */
+    @Deprecated(since = "3.3.0", forRemoval = true)
     public static Engine.Index prepareIndex(
         DocumentMapperForType docMapper,
         SourceToParse source,
@@ -1418,10 +1424,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + getOperationPrimaryTerm()
             + "]";
         ensureWriteAllowed(origin);
-        final Engine.Delete delete = prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+        final Engine.Delete delete = engine.prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
         return delete(engine, delete);
     }
 
+    /**
+     * Prepares a delete operation by creating an Engine.Delete operation.
+     *
+     * @deprecated This static method has been moved to {@link Engine#prepareDelete} as an instance method.
+     */
+    @Deprecated(since = "3.3.0", forRemoval = true)
     public static Engine.Delete prepareDelete(
         String id,
         long seqNo,
