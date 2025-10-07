@@ -56,6 +56,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.opensearch.search.pipeline.SearchPipelineService.ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1640,4 +1641,25 @@ public class SearchPipelineServiceTests extends SearchPipelineTestCase {
         return new SearchResponse(sections, null, 0, 0, 0, 0, null, null);
     }
 
+    public void testIsSystemGeneratedFactoryEnabled_whenAllEnabled_thenTrue() throws Exception {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+        enabledAllSystemGeneratedFactories(service);
+
+        assertTrue(service.isSystemGeneratedFactoryEnabled("dummy_factory"));
+    }
+
+    public void testIsSystemGeneratedFactoryEnabled_whenEnabled_thenTrue() {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+        service.getClusterService()
+            .getClusterSettings()
+            .applySettings(Settings.builder().putList(ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING.getKey(), "dummy_factory").build());
+
+        assertTrue(service.isSystemGeneratedFactoryEnabled("dummy_factory"));
+    }
+
+    public void testIsSystemGeneratedFactoryEnabled_whenNotEnabled_thenFalse() {
+        SearchPipelineService service = createWithSystemGeneratedProcessors();
+
+        assertFalse(service.isSystemGeneratedFactoryEnabled("dummy_factory"));
+    }
 }
