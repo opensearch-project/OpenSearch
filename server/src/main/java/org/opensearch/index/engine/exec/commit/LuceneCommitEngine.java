@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -38,7 +39,7 @@ public class LuceneCommitEngine implements Committer {
 
     @Override
     public void addLuceneIndexes(CatalogSnapshot catalogSnapshot) {
-        Collection<WriterFileSet> luceneFileCollection = catalogSnapshot.getSearchableFiles(DataFormat.LUCENE);
+        Collection<WriterFileSet> luceneFileCollection = catalogSnapshot.getSearchableFiles(DataFormat.LUCENE.name());
         luceneFileCollection.forEach(writerFileSet -> {
             try {
                 indexWriter.addIndexes(new NIOFSDirectory(Path.of(writerFileSet.getDirectory())));

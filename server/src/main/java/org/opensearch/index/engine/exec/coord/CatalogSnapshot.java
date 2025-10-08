@@ -8,47 +8,44 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.index.engine.exec.RefreshResult;
+import org.opensearch.index.engine.exec.WriterFileSet;
+
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-
-import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.RefreshResult;
-import org.opensearch.index.engine.exec.WriterFileSet;
 
 @ExperimentalApi
 public class CatalogSnapshot extends AbstractRefCounted {
 
     private final long id;
-    private final List<Segment> segments;
+    private final Map<String, Collection<WriterFileSet>> dfGroupedSearchableFiles;
 
     public CatalogSnapshot(RefreshResult refreshResult, long id) {
         super("catalog_snapshot");
         this.id = id;
-        this.segments = new ArrayList<>();
-        refreshResult.getWriterGenerations().forEach(writerGeneration -> {
-            Segment segment = new Segment(writerGeneration);
-            refreshResult.getDataFormats().forEach(dataFormat -> {
-                WriterFileSet writerFileSet = refreshResult.getRefreshedFiles(dataFormat).get(writerGeneration);
-                segment.addSearchableFiles(dataFormat, writerFileSet);
-            });
-            segments.add(segment);
-        });
+        this.dfGroupedSearchableFiles = new HashMap<>();
+        refreshResult.getRefreshedFiles().forEach((dataFormat, writerFiles) -> dfGroupedSearchableFiles.put(dataFormat.name(), writerFiles));
     }
 
-    public Collection<WriterFileSet> getSearchableFiles(DataFormat dataFormat) {
-        return segments.stream().map(segment -> segment.getSearchableFiles(dataFormat)).filter(Optional::isPresent).map(Optional::get).toList();
+    public Collection<WriterFileSet> getSearchableFiles(String dataFormat) {
+        if (dfGroupedSearchableFiles.containsKey(dataFormat)) {
+            return dfGroupedSearchableFiles.get(dataFormat);
+        }
+        return Collections.emptyList();
     }
 
-    public List<Segment> getSegments() {
-        return Collections.unmodifiableList(segments);
+    public Collection<Segment> getSegments() {
+        Map<Long, Segment> segmentMap = new HashMap<>();
+        dfGroupedSearchableFiles.forEach((dataFormat, writerFileSets) -> writerFileSets.forEach(writerFileSet -> {
+            Segment segment = segmentMap.computeIfAbsent(writerFileSet.getWriterGeneration(), Segment::new);
+            segment.addSearchableFiles(dataFormat, writerFileSet);
+        }));
+        return Collections.unmodifiableCollection(segmentMap.values());
     }
 
     @Override
@@ -62,7 +59,10 @@ public class CatalogSnapshot extends AbstractRefCounted {
 
     @Override
     public String toString() {
-        return "CatalogSnapshot{" + "id=" + id + ", segments=" + segments + '}';
+        return "CatalogSnapshot{" +
+            "id=" + id +
+            ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles +
+            '}';
     }
 
     public static class Segment implements Serializable {
@@ -75,15 +75,8 @@ public class CatalogSnapshot extends AbstractRefCounted {
             this.generation = generation;
         }
 
-        public void addSearchableFiles(DataFormat dataFormat, WriterFileSet writerFileSetGroup) {
-            dfGroupedSearchableFiles.put(dataFormat.name(), writerFileSetGroup);
-        }
-
-        public Optional<WriterFileSet> getSearchableFiles(DataFormat dataFormat) {
-            if (dfGroupedSearchableFiles.containsKey(dataFormat.name())) {
-                return Optional.of(dfGroupedSearchableFiles.get(dataFormat.name()));
-            }
-            return Optional.empty();
+        public void addSearchableFiles(String dataFormat, WriterFileSet writerFileSetGroup) {
+            dfGroupedSearchableFiles.put(dataFormat, writerFileSetGroup);
         }
 
         public long getGeneration() {
