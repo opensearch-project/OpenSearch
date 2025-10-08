@@ -59,7 +59,7 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1s")
+            .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
             .build();
     }
 
@@ -134,6 +134,7 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
     }
 
     private void createIndex(String index, int numFieldsPerIndex, String fieldPrefix) throws Exception {
+        assert numFieldsPerIndex >= 1;
         XContentBuilder req = jsonBuilder().startObject().startObject("properties");
         for (int j = 0; j < numFieldsPerIndex; j++) {
             req.startObject(fieldPrefix + j).field("type", "text").field("fielddata", true).endObject();
@@ -146,6 +147,17 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
         }
         client().prepareIndex(index).setId("1").setSource(source).get();
         client().admin().indices().prepareRefresh(index).get();
+
+        // Put something into the cache and clear it, waiting for stats to return to 0.
+        // Index creation temporarily opens + closes a test index using IndicesService.withTempIndexService()
+        // that has the same name as the real index,
+        // and this ensures the clear resulting from that close has completed before we go to the actual test.
+        client().prepareSearch(index).setQuery(new MatchAllQueryBuilder()).addSort(fieldPrefix + "0", SortOrder.ASC).get();
+        client().admin().indices().clearCache(new ClearIndicesCacheRequest().fieldDataCache(true)).actionGet();
+        assertBusy(() -> {
+            ClusterStatsResponse clearedResponse = client().admin().cluster().prepareClusterStats().get();
+            assertEquals(0, clearedResponse.getIndicesStats().getFieldData().getMemorySizeInBytes());
+        });
     }
 
     public void testFieldDataCacheClearConcurrentIndices() throws Exception {
@@ -231,19 +243,12 @@ public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
     private void createAndSearchIndices(int numIndices, int numFieldsPerIndex, String indexPrefix, String fieldPrefix) throws Exception {
         for (int i = 0; i < numIndices; i++) {
             String index = indexPrefix + i;
-            XContentBuilder req = jsonBuilder().startObject().startObject("properties");
-            for (int j = 0; j < numFieldsPerIndex; j++) {
-                req.startObject(fieldPrefix + j).field("type", "text").field("fielddata", true).endObject();
-            }
-            req.endObject().endObject();
-            assertAcked(prepareCreate(index).setMapping(req));
-            Map<String, String> source = new HashMap<>();
-            for (int j = 0; j < numFieldsPerIndex; j++) {
-                source.put(fieldPrefix + j, "value");
-            }
-            client().prepareIndex(index).setId("1").setSource(source).get();
-            client().admin().indices().prepareRefresh(index).get();
+            createIndex(index, numFieldsPerIndex, fieldPrefix);
+        }
+        // Separate loop to ensure createIndex() handles any cache wipe from opening+closing the temporary test index
+        for (int i = 0; i < numIndices; i++) {
             // Search on each index to fill the cache
+            String index = indexPrefix + i;
             for (int j = 0; j < numFieldsPerIndex; j++) {
                 client().prepareSearch(index).setQuery(new MatchAllQueryBuilder()).addSort(fieldPrefix + j, SortOrder.ASC).get();
             }
