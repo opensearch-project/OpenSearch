@@ -207,7 +207,7 @@ tasks.register('buildRust', Exec) {
 
 tasks.register('copyNativeLib', Copy) {
   dependsOn buildRust
-  from "src/main/rust/target/release"
+  from "jni/target/debug"
   into "src/main/resources/native"
   include "**/libparquet_dataformat_jni.*"
   include "**/parquet_dataformat_jni.dll"
