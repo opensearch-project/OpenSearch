@@ -51,6 +51,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.ShardResultConvertor;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -59,6 +60,8 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getStarTreeFilteredValues;
@@ -69,7 +72,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  *
  * @opensearch.internal
  */
-class AvgAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
+class AvgAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector, ShardResultConvertor {
 
     final ValuesSource.Numeric valuesSource;
 
@@ -274,5 +277,16 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 counts.increment(bucket, valueCountMetricValuesIterator.nextValue());
             }
         };
+    }
+
+    @Override
+    public List<InternalAggregation> convert(Map<String, Object[]> shardResult) {
+        Object[] counts = shardResult.get(name + "_count");
+        Object[] sums = shardResult.get(name + "_sum");
+        List<InternalAggregation> results = new ArrayList<>(counts.length);
+        for (int i = 0; i < counts.length; i++) {
+            results.add(new InternalAvg(name, (Long) counts[i], (Long) sums[i], format, metadata()));
+        }
+        return results;
     }
 }
