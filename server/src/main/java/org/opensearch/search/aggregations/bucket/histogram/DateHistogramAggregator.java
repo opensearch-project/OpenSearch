@@ -38,6 +38,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -234,6 +235,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         if (skipper != null && singleton != null) {
             // TODO: add hard bounds support
+            // TODO: SkipListLeafCollector should be used if the getLeafCollector invocation is from filterRewriteOptimizationContext
             if (hardBounds == null && parent == null) {
                 skipListCollectorsUsed++;
                 return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
@@ -537,13 +539,14 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
 
         @Override
-        public void collect(int doc) throws IOException {
-            collect(doc, 0);
+        public void collect(DocIdStream stream) throws IOException {
+            // This will only be called if its the top agg
+            collect(stream, 0);
         }
 
         @Override
-        public void collect(DocIdStream stream) throws IOException {
-            // This will only be called if its the top agg
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            // This will only be called if its the sub aggregation
             for (;;) {
                 int upToExclusive = upToInclusive + 1;
                 if (upToExclusive < 0) { // overflow
@@ -563,18 +566,16 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         });
                         aggregator.incrementBucketDocCount(upToBucketIndex, count[0]);
                     }
-
                 } else {
                     stream.forEach(upToExclusive, this::collect);
                 }
 
                 if (stream.mayHaveRemaining()) {
-                    advanceSkipper(upToExclusive, 0);
+                    advanceSkipper(upToExclusive, owningBucketOrd);
                 } else {
                     break;
                 }
             }
         }
-
     }
 }

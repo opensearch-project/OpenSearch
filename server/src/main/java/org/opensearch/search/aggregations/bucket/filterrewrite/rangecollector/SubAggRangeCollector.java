@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.opensearch.search.aggregations.BitSetDocIdStream;
 import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
@@ -85,10 +86,7 @@ public class SubAggRangeCollector extends SimpleRangeCollector {
             DocIdSetIterator iterator = bitDocIdSet.iterator();
             // build a new leaf collector for each bucket
             LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(leafCtx);
-            while (iterator.nextDoc() != NO_MORE_DOCS) {
-                int currentDoc = iterator.docID();
-                sub.collect(currentDoc, bucketOrd);
-            }
+            sub.collect(new BitSetDocIdStream(bitSet, 0), bucketOrd);
             logger.trace("collected sub aggregation for bucket {}", bucketOrd);
         } catch (IOException e) {
             throw new RuntimeException(e);
