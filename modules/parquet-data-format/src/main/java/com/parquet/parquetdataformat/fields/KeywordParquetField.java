@@ -10,7 +10,11 @@ package com.parquet.parquetdataformat.fields;
 
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+
+import java.nio.charset.StandardCharsets;
 
 public class KeywordParquetField extends ParquetField {
 
@@ -18,6 +22,16 @@ public class KeywordParquetField extends ParquetField {
     public void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         VarCharVector textVector = (VarCharVector) managedVSR.getVector(mappedFieldType.name());
         int rowIndex = managedVSR.getRowCount();
-        textVector.setSafe(rowIndex, parseValue.toString().getBytes());
+        textVector.setSafe(rowIndex, parseValue.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public ArrowType getArrowType() {
+        return new ArrowType.Utf8();
+    }
+
+    @Override
+    public FieldType getFieldType() {
+        return FieldType.notNullable(getArrowType());
     }
 }

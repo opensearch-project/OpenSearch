@@ -9,10 +9,12 @@
 package com.parquet.parquetdataformat.fields;
 
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
-import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 
 public abstract class ParquetField {
+
     public abstract void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue);
 
     public void createField(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
@@ -20,4 +22,8 @@ public abstract class ParquetField {
             addToGroup(mappedFieldType, managedVSR, parseValue);
         }
     }
+
+    public abstract ArrowType getArrowType();
+
+    public abstract FieldType getFieldType();
 }

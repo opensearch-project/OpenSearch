@@ -10,6 +10,8 @@ package com.parquet.parquetdataformat.fields;
 
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 
 public class BooleanParquetField extends ParquetField {
@@ -19,5 +21,15 @@ public class BooleanParquetField extends ParquetField {
         BitVector bitVector = (BitVector) managedVSR.getVector(mappedFieldType.name());
         int rowIndex = managedVSR.getRowCount();
         bitVector.setSafe(rowIndex, (Boolean) parseValue ? 1 : 0);
+    }
+
+    @Override
+    public ArrowType getArrowType() {
+        return new ArrowType.Bool();
+    }
+
+    @Override
+    public FieldType getFieldType() {
+        return FieldType.notNullable(getArrowType());
     }
 }

@@ -11,6 +11,8 @@ package com.parquet.parquetdataformat.fields.number;
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.UInt8Vector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 
 public class UnsignedLongParquetField extends ParquetField {
@@ -25,5 +27,15 @@ public class UnsignedLongParquetField extends ParquetField {
             long longValue = ((Number) parseValue).longValue();
             uInt8Vector.setSafe(rowCount, longValue);
         }
+    }
+
+    @Override
+    public ArrowType getArrowType() {
+        return new ArrowType.Int(64, false);
+    }
+
+    @Override
+    public FieldType getFieldType() {
+        return FieldType.notNullable(getArrowType());
     }
 }

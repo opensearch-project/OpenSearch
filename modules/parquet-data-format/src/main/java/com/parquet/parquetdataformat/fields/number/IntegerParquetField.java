@@ -11,6 +11,8 @@ package com.parquet.parquetdataformat.fields.number;
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 
 public class IntegerParquetField extends ParquetField {
@@ -24,5 +26,15 @@ public class IntegerParquetField extends ParquetField {
         } else {
             intVector.setSafe(rowCount, (Integer) parseValue);
         }
+    }
+
+    @Override
+    public ArrowType getArrowType() {
+        return new ArrowType.Int(32, true);
+    }
+
+    @Override
+    public FieldType getFieldType() {
+        return FieldType.notNullable(getArrowType());
     }
 }

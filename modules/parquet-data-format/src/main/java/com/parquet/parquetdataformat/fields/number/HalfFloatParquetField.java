@@ -11,6 +11,9 @@ package com.parquet.parquetdataformat.fields.number;
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.Float2Vector;
+import org.apache.arrow.vector.types.FloatingPointPrecision;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 
 public class HalfFloatParquetField extends ParquetField {
@@ -24,5 +27,15 @@ public class HalfFloatParquetField extends ParquetField {
         } else {
             float2Vector.setSafe(rowCount, (Short) parseValue);
         }
+    }
+
+    @Override
+    public ArrowType getArrowType() {
+        return new ArrowType.FloatingPoint(FloatingPointPrecision.HALF);
+    }
+
+    @Override
+    public FieldType getFieldType() {
+        return FieldType.notNullable(getArrowType());
     }
 }
