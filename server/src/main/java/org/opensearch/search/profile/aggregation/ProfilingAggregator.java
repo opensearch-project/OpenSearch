@@ -130,6 +130,12 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
     }
 
     @Override
+    public void reset() {
+        delegate.reset();
+        super.reset();
+    }
+
+    @Override
     public void preCollection() throws IOException {
         this.profileBreakdown = profiler.getQueryBreakdown(delegate);
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE);
@@ -163,6 +169,10 @@ public class ProfilingAggregator extends Aggregator implements Streamable {
             return ((ProfilingAggregator) agg).delegate;
         }
         return agg;
+    }
+
+    public Aggregator getDelegate() {
+        return delegate;
     }
 
     @Override

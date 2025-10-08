@@ -16,6 +16,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.search.aggregations.AggregatorBase;
 import org.opensearch.search.aggregations.MultiBucketCollector;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 
 /**
  * Analyzes collector trees to determine optimal {@link FlushMode} for streaming aggregations.
@@ -146,6 +147,9 @@ public final class FlushModeResolver {
         }
         if (collector instanceof MultiBucketCollector) {
             return ((MultiBucketCollector) collector).getCollectors();
+        }
+        if (collector instanceof ProfilingAggregator) {
+            return getChildren(((ProfilingAggregator) collector).getDelegate());
         }
         return new Collector[0];
     }

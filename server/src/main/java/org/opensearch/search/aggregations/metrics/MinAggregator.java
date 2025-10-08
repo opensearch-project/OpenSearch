@@ -57,6 +57,8 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.streaming.Streamable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Map;
@@ -70,7 +72,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  *
  * @opensearch.internal
  */
-class MinAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
+class MinAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector, Streamable {
     private static final int MAX_BKD_LOOKUPS = 1024;
 
     final ValuesSource.Numeric valuesSource;
@@ -270,5 +272,15 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             },
             (bucket, metricValue) -> mins.set(bucket, Math.min(mins.get(bucket), NumericUtils.sortableLongToDouble(metricValue)))
         );
+    }
+
+    @Override
+    public void doReset() {
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+    }
+
+    @Override
+    public StreamingCostMetrics getStreamingCostMetrics() {
+        return new StreamingCostMetrics(true, 1, 1, 1, 1);
     }
 }

@@ -120,8 +120,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
                 if (execution == null) {
                     // Check if streaming is enabled and flush mode allows it (null means not yet evaluated)
-                    FlushMode flushMode = context.getFlushMode();
-                    if (context.isStreamSearch() && (flushMode == null || flushMode == FlushMode.PER_SEGMENT)) {
+                    if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
                         return createStreamStringTermsAggregator(
                             name,
                             factories,
@@ -231,8 +230,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
-                FlushMode flushMode = context.getFlushMode();
-                if (context.isStreamSearch() && (flushMode == null || flushMode == FlushMode.PER_SEGMENT)) {
+                if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
                     return createStreamNumericTermsAggregator(
                         name,
                         factories,
@@ -373,7 +371,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             // We expect to return all buckets so delaying them won't save any time
             return SubAggCollectionMode.DEPTH_FIRST;
         }
-        if (context.isStreamSearch()) {
+        if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (maxOrd == -1 || maxOrd > expectedSize) {

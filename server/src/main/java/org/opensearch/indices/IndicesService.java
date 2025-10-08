@@ -106,6 +106,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
@@ -591,6 +592,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
+                this::onClusterLevelForceMergeMBPerSecUpdate
+            );
     }
 
     @InternalApi
@@ -691,6 +697,20 @@ public class IndicesService extends AbstractLifecycleComponent
         for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
             IndexService indexService = entry.getValue();
             indexService.onDefaultMaxMergeAtOnceChanged(newDefaultMaxMergeAtOnce);
+        }
+    }
+
+    /**
+     * The changes to dynamic cluster setting {@code cluster.merge.scheduler.max_force_merge_mb_per_sec} needs to be updated. This
+     * method gets called whenever the setting changes. We notify the change to all IndexService instances that are created on this node
+     * so they can update their merge schedulers accordingly.
+     *
+     * @param maxForceMergeMBPerSec the updated cluster max force merge MB per second rate.
+     */
+    private void onClusterLevelForceMergeMBPerSecUpdate(double maxForceMergeMBPerSec) {
+        for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
+            IndexService indexService = entry.getValue();
+            indexService.onClusterLevelForceMergeMBPerSecUpdate(maxForceMergeMBPerSec);
         }
     }
 
@@ -1907,6 +1927,12 @@ public class IndicesService extends AbstractLifecycleComponent
         // They modify the search context during their execution so using the cache
         // may invalidate the scroll for the next query.
         if (request.scroll() != null) {
+            return false;
+        }
+
+        // Currently, we cannot cache stream search results as we never compute and reduce full resultset per
+        // shard at data nodes and let coordinator handle the reduce from batched results from shards.
+        if (context.isStreamSearch()) {
             return false;
         }
 
