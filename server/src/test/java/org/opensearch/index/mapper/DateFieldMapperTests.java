@@ -119,6 +119,35 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
+    public void testWithContextAwareGroupingMapper() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            contextAwareGrouping("field").accept(b);
+            properties(x -> {
+                x.startObject("field");
+                minimalMapping(x);
+                b.endObject();
+            }).accept(b);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
+
+        // Assert date field
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
+        assertEquals(8, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(1457654400000L, pointField.numericValue().longValue());
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(1457654400000L, dvField.numericValue().longValue());
+        assertFalse(dvField.fieldType().stored());
+
+        // Assert groupingcriteria is correct
+        assertEquals("2016-03-11", doc.docs().getFirst().getGroupingCriteria());
+    }
+
     public void testDefaults() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
