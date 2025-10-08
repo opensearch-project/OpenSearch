@@ -88,6 +88,7 @@ import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.streaming.FlushMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -395,7 +396,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
-        if (searchContext.isStreamSearch()) {
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
             logger.debug(
                 "Stream intermediate aggregation for segment [{}], shard [{}]",
                 ctx.ord,

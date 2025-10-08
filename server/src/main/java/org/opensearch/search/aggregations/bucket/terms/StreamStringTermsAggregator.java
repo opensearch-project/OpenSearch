@@ -26,6 +26,8 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.Streamable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,18 +42,19 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 /**
  * Stream search terms aggregation
  */
-public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
+public class StreamStringTermsAggregator extends AbstractStringTermsAggregator implements Streamable {
     private SortedSetDocValues sortedDocValuesPerBatch;
     private long valueCount;
     private final ValuesSource.Bytes.WithOrdinals valuesSource;
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
-    protected final ResultStrategy<?, ?, ?> resultStrategy;
+    protected final ResultStrategy<?, ?> resultStrategy;
+    private boolean leafCollectorCreated = false;
 
     public StreamStringTermsAggregator(
         String name,
         AggregatorFactories factories,
-        Function<StreamStringTermsAggregator, ResultStrategy<?, ?, ?>> resultStrategy,
+        Function<StreamStringTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
         ValuesSource.Bytes.WithOrdinals valuesSource,
         BucketOrder order,
         DocValueFormat format,
@@ -72,11 +75,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         super.doReset();
         valueCount = 0;
         sortedDocValuesPerBatch = null;
-    }
-
-    @Override
-    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        return false;
+        this.leafCollectorCreated = false;
     }
 
     @Override
@@ -91,6 +90,13 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        if (this.leafCollectorCreated) {
+            throw new IllegalStateException(
+                "Calling " + StreamStringTermsAggregator.class.getSimpleName() + " for the second segment: " + ctx
+            );
+        } else {
+            this.leafCollectorCreated = true;
+        }
         this.sortedDocValuesPerBatch = valuesSource.ordinalsValues(ctx);
         this.valueCount = sortedDocValuesPerBatch.getValueCount(); // for streaming case, the value count is reset to per batch
         // cardinality
@@ -140,13 +146,33 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         });
     }
 
+    @Override
+    public StreamingCostMetrics getStreamingCostMetrics() {
+        try {
+            List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+            long maxCardinality = 0;
+            long totalDocsWithField = 0;
+
+            for (LeafReaderContext leaf : leaves) {
+                SortedSetDocValues docValues = valuesSource.ordinalsValues(leaf);
+                if (docValues != null) {
+                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
+                    totalDocsWithField += docValues.cost();
+                }
+            }
+
+            return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), maxCardinality, leaves.size(), totalDocsWithField);
+        } catch (IOException e) {
+            return StreamingCostMetrics.nonStreamable();
+        }
+    }
+
     /**
      * Strategy for building results.
      */
-    abstract class ResultStrategy<
-        R extends InternalAggregation,
-        B extends InternalMultiBucketAggregation.InternalBucket,
-        TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
+    public abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
+        implements
+            Releasable {
 
         // build aggregation batch for stream search
         InternalAggregation[] buildAggregationsBatch(long[] owningBucketOrds) throws IOException {
@@ -247,7 +273,12 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         abstract B buildFinalBucket(long ordinal, long docCount) throws IOException;
     }
 
-    class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket, GlobalOrdinalsStringTermsAggregator.OrdBucket> {
+    /**
+     * StandardTermsResults for string terms
+     *
+     * @opensearch.internal
+     */
+    public class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket> {
         @Override
         String describe() {
             return "streaming_terms";
@@ -314,7 +345,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
             StringTerms.Bucket result = new StringTerms.Bucket(term, docCount, null, showTermDocCountError, 0, format);
             result.bucketOrd = ordinal;
-            result.docCountError = 0;
+            result.setDocCountError(0);
             return result;
         }
 
@@ -328,5 +359,12 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
+
+        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        add.accept("streaming_enabled", metrics.streamable());
+        add.accept("streaming_top_n_size", metrics.topNSize());
+        add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
+        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
+        add.accept("streaming_segment_count", metrics.segmentCount());
     }
 }

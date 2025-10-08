@@ -47,6 +47,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -98,6 +99,7 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
@@ -138,6 +140,7 @@ import static java.util.Collections.singleton;
 import static org.opensearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1668,6 +1671,76 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         assertEquals(1L, result.getBuckets().get(2).getDocCount());
                     }
                 }
+            }
+        }
+    }
+
+    public void testStringTermAggregatorForResultSelectionStrategy() throws IOException {
+        List<String> dataSet = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            dataSet.add("value" + i);
+        }
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                for (String value : dataSet) {
+                    document.add(new SortedSetDocValuesField("string", new BytesRef(value)));
+                    document.add(new StringField("string", value, Field.Store.NO));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                MappedFieldType stringFieldType = new KeywordFieldMapper.KeywordFieldType("string");
+
+                // Case 1: PriorityQueue selection, when buckets > size && buckets <= 5*size (size=2, buckets=100)
+                GlobalOrdinalsStringTermsAggregator aggregator1 = createAndTestAggregator(indexSearcher, stringFieldType, 2);
+                assertEquals("priority_queue", aggregator1.getResultSelectionStrategy());
+
+                // Case 2: QuickSelect selection, when buckets > size && buckets > 5*size (size=20, buckets=100)
+                GlobalOrdinalsStringTermsAggregator aggregator2 = createAndTestAggregator(indexSearcher, stringFieldType, 20);
+                assertEquals("quick_select", aggregator2.getResultSelectionStrategy());
+
+                // Case 3: Get All buckets when buckets <= size (size=110, buckets=100)
+                GlobalOrdinalsStringTermsAggregator aggregator3 = createAndTestAggregator(indexSearcher, stringFieldType, 110);
+                assertEquals("select_all", aggregator3.getResultSelectionStrategy());
+            }
+        }
+    }
+
+    private GlobalOrdinalsStringTermsAggregator createAndTestAggregator(
+        IndexSearcher indexSearcher,
+        MappedFieldType stringFieldType,
+        int size
+    ) throws IOException {
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string").size(size);
+        aggregationBuilder.userValueTypeHint(ValueType.STRING);
+        aggregationBuilder.order(BucketOrder.count(false)); // count desc
+        GlobalOrdinalsStringTermsAggregator aggregator = createAggregatorWithCustomizableSearchContext(
+            new MatchAllDocsQuery(),
+            aggregationBuilder,
+            indexSearcher,
+            createIndexSettings(),
+            new MultiBucketConsumerService.MultiBucketConsumer(
+                DEFAULT_MAX_BUCKETS,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            ),
+            searchContext -> when(searchContext.bucketSelectionStrategyFactor()).thenReturn(5),
+            stringFieldType
+        );
+        collectDocuments(indexSearcher, aggregator);
+        aggregator.buildAggregations(new long[] { 0 });
+        return aggregator;
+    }
+
+    private void collectDocuments(IndexSearcher searcher, GlobalOrdinalsStringTermsAggregator aggregator) throws IOException {
+        for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+            LeafBucketCollector leafCollector = aggregator.getLeafCollector(ctx, LeafBucketCollector.NO_OP_COLLECTOR);
+            for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                leafCollector.collect(docId, 0); // collect with bucket ordinal 0 (root bucket)
             }
         }
     }
